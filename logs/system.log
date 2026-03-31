@@ -11,3 +11,19 @@
 [2026-03-31 19:32:27] User command: exit
 [2026-03-31 19:32:27] Assistant said: Shutting down Smart Desk assistant.
 [2026-03-31 19:32:29] Assistant shut down.
+[2026-03-31 20:51:30] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 20:51:34] Assistant booted.
+[2026-03-31 20:52:14] User command: remember keys = in the top drawer
+[2026-03-31 20:52:14] Memory saved: keys -> in the top drawer
+[2026-03-31 20:52:14] Assistant said: I saved memory for keys.
+[2026-03-31 20:52:34] User command: recall keys
+[2026-03-31 20:52:34] Assistant said: keys is in the top drawer.
+[2026-03-31 20:52:55] User command: status
+[2026-03-31 20:53:30] User command: remind 10 | stand up and stretch
+[2026-03-31 20:53:30] Reminder added: id=8f71c37c, seconds=10, message=stand up and stretch
+[2026-03-31 20:53:30] Assistant said: Reminder saved. ID 8f71c37c. It will trigger in 10 seconds.
+[2026-03-31 20:53:41] Assistant said: Reminder. stand up and stretch
+[2026-03-31 20:53:43] Reminder triggered: id=8f71c37c, message=stand up and stretch
+[2026-03-31 20:54:24] User command: exit
+[2026-03-31 20:54:24] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 20:54:27] Assistant shut down.
