@@ -27,3 +27,60 @@
 [2026-03-31 20:54:24] User command: exit
 [2026-03-31 20:54:24] Assistant said: Shutting down Smart Desk assistant.
 [2026-03-31 20:54:27] Assistant shut down.
+[2026-03-31 20:55:26] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 20:55:30] Assistant booted.
+[2026-03-31 20:55:38] User command: help
+[2026-03-31 20:55:38] Assistant said: Available commands: help, status, memory, reminders, remember key = value, recall key, remind seconds | message, focus minutes, break minutes, stop timer, exit.
+[2026-03-31 20:56:01] User command: remember keys = in the top drawer
+[2026-03-31 20:56:01] Memory saved: keys -> in the top drawer
+[2026-03-31 20:56:01] Assistant said: I saved memory for keys.
+[2026-03-31 20:56:13] User command: recall keys
+[2026-03-31 20:56:13] Assistant said: keys is in the top drawer.
+[2026-03-31 20:56:25] User command: memory
+[2026-03-31 20:56:36] User command: remind 10 | stand up and stretch
+[2026-03-31 20:56:36] Reminder added: id=cf0dabb7, seconds=10, message=stand up and stretch
+[2026-03-31 20:56:36] Assistant said: Reminder saved. ID cf0dabb7. It will trigger in 10 seconds.
+[2026-03-31 20:56:47] Assistant said: Reminder. stand up and stretch
+[2026-03-31 20:56:49] Reminder triggered: id=cf0dabb7, message=stand up and stretch
+[2026-03-31 20:56:53] User command: focus 0.2
+[2026-03-31 20:56:53] Focus timer started for 0.2 minute(s).
+[2026-03-31 20:56:53] Assistant said: Focus timer started for 0.2 minute(s).
+[2026-03-31 20:57:04] Assistant said: Focus timer finished.
+[2026-03-31 20:57:06] Focus timer finished.
+[2026-03-31 20:57:09] User command: status
+[2026-03-31 20:57:19] User command: stop timer
+[2026-03-31 20:57:19] Assistant said: No timer is currently running.
+[2026-03-31 20:57:29] User command: exit
+[2026-03-31 20:57:29] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 20:57:31] Assistant shut down.
+[2026-03-31 21:03:38] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 21:03:42] Assistant booted.
+[2026-03-31 21:03:55] User command: exit
+[2026-03-31 21:03:55] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 21:03:57] Assistant shut down.
+[2026-03-31 21:04:30] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 21:04:34] Assistant booted.
+[2026-03-31 21:04:38] User command: help
+[2026-03-31 21:04:38] Assistant said: Available commands: help, status, memory, reminders, remember key = value, recall key, remind seconds | message, focus minutes, break minutes, stop timer, exit.
+[2026-03-31 21:05:12] User command: remember keys = in the top drawer
+[2026-03-31 21:05:12] Memory saved: keys -> in the top drawer
+[2026-03-31 21:05:12] Assistant said: I saved memory for keys.
+[2026-03-31 21:05:23] User command: recall keys
+[2026-03-31 21:05:23] Assistant said: keys is in the top drawer.
+[2026-03-31 21:05:33] User command: memory
+[2026-03-31 21:05:50] User command: remind 10 | stand up and stretch
+[2026-03-31 21:05:50] Reminder added: id=3d352864, seconds=10, message=stand up and stretch
+[2026-03-31 21:05:50] Assistant said: Reminder saved. ID 3d352864. It will trigger in 10 seconds.
+[2026-03-31 21:06:01] Assistant said: Reminder. stand up and stretch
+[2026-03-31 21:06:03] Reminder triggered: id=3d352864, message=stand up and stretch
+[2026-03-31 21:06:06] User command: focus 0.2
+[2026-03-31 21:06:06] Focus timer started for 0.2 minute(s).
+[2026-03-31 21:06:06] Assistant said: Focus timer started for 0.2 minute(s).
+[2026-03-31 21:06:18] Assistant said: Focus timer finished.
+[2026-03-31 21:06:19] Focus timer finished.
+[2026-03-31 21:06:22] User command: status
+[2026-03-31 21:06:31] User command: stop timer
+[2026-03-31 21:06:31] Assistant said: No timer is currently running.
+[2026-03-31 21:06:39] User command: exit
+[2026-03-31 21:06:39] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 21:06:42] Assistant shut down.
