@@ -1,0 +1,10 @@
+.venv/
+.venv~/
+__pycache__/
+*.pyc
+*.wav
+logs/
+data/
+models/*.zip
+.git/
+*~

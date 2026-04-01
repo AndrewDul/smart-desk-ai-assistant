@@ -1,3 +1,5 @@
 sounddevice
 soundfile
-pyttsx3
+vosk
+luma.oled
+Pillow

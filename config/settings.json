@@ -1,0 +1,42 @@
+{
+  "project": {
+    "name": "Smart Desk AI Assistant",
+    "version": "0.1.0-alpha",
+    "stage": "stage-1-stationary-core"
+  },
+  "user": {
+    "name": "Andrzej"
+  },
+  "voice_input": {
+    "enabled": true,
+    "device_index": 2,
+    "use_grammar": false,
+    "timeout_seconds": 8,
+    "debug": false,
+    "model_path": "models/vosk-model-small-en-us-0.15"
+  },
+  "voice_output": {
+    "enabled": true,
+    "engine": "espeak-ng"
+  },
+  "display": {
+    "enabled": true,
+    "driver": "ssd1306",
+    "interface": "i2c",
+    "port": 1,
+    "address": 60,
+    "rotate": 0,
+    "width": 128,
+    "height": 64,
+    "default_overlay_seconds": 10,
+    "boot_overlay_seconds": 4
+  },
+  "timers": {
+    "default_focus_minutes": 25,
+    "default_break_minutes": 5
+  },
+  "logging": {
+    "enabled": true,
+    "log_file": "logs/system.log"
+  }
+}

@@ -9,10 +9,17 @@ def main() -> None:
 
     try:
         while True:
-            command = assistant.voice_in.listen()
+            print("\nListening for command...")
+            command = assistant.voice_in.listen(
+                timeout=assistant.voice_listen_timeout,
+                debug=assistant.voice_debug,
+            )
 
             if not command:
+                print("No valid voice command recognized.")
                 continue
+
+            print(f"Voice command: {command}")
 
             should_continue = assistant.handle_command(command)
             if not should_continue:

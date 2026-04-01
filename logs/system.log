@@ -84,3 +84,160 @@
 [2026-03-31 21:06:39] User command: exit
 [2026-03-31 21:06:39] Assistant said: Shutting down Smart Desk assistant.
 [2026-03-31 21:06:42] Assistant shut down.
+[2026-03-31 21:56:12] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 21:56:16] Assistant booted for project: Smart Desk AI Assistant
+[2026-03-31 21:56:26] User command: help
+[2026-03-31 21:56:26] Assistant said: Available commands: help, status, memory, reminders, remember key = value, recall key, remind seconds | message, focus minutes, break minutes, stop timer, exit.
+[2026-03-31 21:56:44] User command: status
+[2026-03-31 21:57:04] User command: exit
+[2026-03-31 21:57:04] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 21:57:06] Assistant shut down.
+[2026-03-31 21:57:10] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 21:57:13] Assistant booted for project: Smart Desk AI Assistant
+[2026-03-31 21:57:15] User command: help
+[2026-03-31 21:57:15] Assistant said: Available commands: help, status, memory, reminders, remember key = value, recall key, remind seconds | message, focus minutes, break minutes, stop timer, exit.
+[2026-03-31 21:57:31] User command: exit
+[2026-03-31 21:57:31] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 21:57:33] Assistant shut down.
+[2026-03-31 22:02:29] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 22:02:33] Assistant booted for project: Smart Desk AI Assistant
+[2026-03-31 22:02:37] User command: help
+[2026-03-31 22:02:38] Assistant said: Available commands: help, status, memory, reminders, remember key = value, recall key, remind seconds | message, focus minutes, break minutes, stop timer, exit.
+[2026-03-31 22:02:58] User command: remind key in the desk
+[2026-03-31 22:02:58] Assistant said: Use format: remind seconds | message
+[2026-03-31 22:03:15] User command: memory key in table
+[2026-03-31 22:03:15] Assistant said: Unknown command. Type help to see supported commands.
+[2026-03-31 22:03:20] User command: help
+[2026-03-31 22:03:20] Assistant said: Available commands: help, status, memory, reminders, remember key = value, recall key, remind seconds | message, focus minutes, break minutes, stop timer, exit.
+[2026-03-31 22:03:31] User command: memory
+[2026-03-31 22:04:20] User command: remember keys = in the kitchen
+[2026-03-31 22:04:20] Memory saved: keys -> in the kitchen
+[2026-03-31 22:04:20] Assistant said: I saved memory for keys.
+[2026-03-31 22:04:29] User command: recall keys
+[2026-03-31 22:04:29] Assistant said: keys is in the kitchen.
+[2026-03-31 22:17:16] User command: exit
+[2026-03-31 22:17:16] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 22:17:18] Assistant shut down.
+[2026-03-31 22:45:50] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 22:45:54] Assistant booted for project: Smart Desk AI Assistant
+[2026-03-31 22:46:11] User command: help
+[2026-03-31 22:46:11] Assistant said: Available commands: help, status, memory, reminders, remember key = value, recall key, remind seconds | message, focus minutes, break minutes, stop timer, exit.
+[2026-03-31 22:46:51] User command: status
+[2026-03-31 22:46:57] User command: exit
+[2026-03-31 22:46:57] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 22:46:59] Assistant shut down.
+[2026-03-31 22:47:55] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 22:47:59] Assistant booted for project: Smart Desk AI Assistant
+[2026-03-31 22:48:07] User command: help
+[2026-03-31 22:48:07] Assistant said: Available commands: help, status, memory, reminders, remember key = value, recall key, remind seconds | message, focus minutes, break minutes, stop timer, exit.
+[2026-03-31 22:48:25] User command: remember keep in the kitchen
+[2026-03-31 22:48:25] Assistant said: Use format: remember key = value
+[2026-03-31 22:48:44] User command: remember = kitchen
+[2026-03-31 22:48:44] Assistant said: Both key and value are required.
+[2026-03-31 22:50:23] User command: help
+[2026-03-31 22:50:23] Assistant said: Available commands: help, status, memory, reminders, remember key = value, recall key, remind seconds | message, focus minutes, break minutes, stop timer, exit.
+[2026-03-31 22:51:20] User command: help
+[2026-03-31 22:51:20] Assistant said: Available commands: help, status, memory, reminders, remember key = value, recall key, remind seconds | message, focus minutes, break minutes, stop timer, exit.
+[2026-03-31 22:52:23] User command: help
+[2026-03-31 22:52:23] Assistant said: Available commands: help, status, memory, reminders, remember key = value, recall key, remind seconds | message, focus minutes, break minutes, stop timer, exit.
+[2026-03-31 22:52:41] User command: remember fallen = desk
+[2026-03-31 22:52:41] Memory saved: fallen -> desk
+[2026-03-31 22:52:41] Assistant said: I saved memory for fallen.
+[2026-03-31 22:52:51] User command: remember fondly calls desk
+[2026-03-31 22:52:51] Assistant said: Use format: remember key = value
+[2026-03-31 22:52:59] User command: remember goals desk
+[2026-03-31 22:52:59] Assistant said: Use format: remember key = value
+[2026-03-31 22:53:35] User command: remember phone = desk
+[2026-03-31 22:53:35] Memory saved: phone -> desk
+[2026-03-31 22:53:35] Assistant said: I saved memory for phone.
+[2026-03-31 22:53:43] User command: recall phone
+[2026-03-31 22:53:43] Assistant said: phone is desk.
+[2026-03-31 22:55:23] User command: exit
+[2026-03-31 22:55:23] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 22:55:25] Assistant shut down.
+[2026-03-31 22:55:32] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 22:55:36] Assistant booted for project: Smart Desk AI Assistant
+[2026-03-31 22:55:40] User command: help
+[2026-03-31 22:55:40] Assistant said: Available commands: help, status, memory, reminders, remember key = value, recall key, remind seconds | message, focus minutes, break minutes, stop timer, exit.
+[2026-03-31 22:56:07] User command: remember all those kitchen
+[2026-03-31 22:56:07] Assistant said: Use format: remember key = value
+[2026-03-31 22:56:15] User command: remember phone he calls kitchen
+[2026-03-31 22:56:15] Assistant said: Use format: remember key = value
+[2026-03-31 22:56:22] User command: remember phone = kid
+[2026-03-31 22:56:22] Memory saved: phone -> kid
+[2026-03-31 22:56:22] Assistant said: I saved memory for phone.
+[2026-03-31 22:57:37] User command: recall on
+[2026-03-31 22:57:37] Assistant said: I do not have anything saved for on.
+[2026-03-31 22:57:45] User command: recall on
+[2026-03-31 22:57:45] Assistant said: I do not have anything saved for on.
+[2026-03-31 22:58:38] User command: exit
+[2026-03-31 22:58:38] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 22:58:40] Assistant shut down.
+[2026-03-31 22:59:57] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 23:00:00] Assistant booted for project: Smart Desk AI Assistant
+[2026-03-31 23:01:08] User command: help
+[2026-03-31 23:01:08] Assistant said: Available commands: help, status, memory, reminders, remember key = value, recall key, remind seconds | message, focus minutes, break minutes, stop timer, exit.
+[2026-03-31 23:01:27] User command: recall form
+[2026-03-31 23:01:27] Assistant said: I do not have anything saved for form.
+[2026-03-31 23:02:12] User command: remember what
+[2026-03-31 23:02:12] Assistant said: Use format: remember key = value
+[2026-03-31 23:02:21] User command: remember a cool kitchen
+[2026-03-31 23:02:21] Assistant said: Use format: remember key = value
+[2026-03-31 23:02:28] User command: remember the = kitchen
+[2026-03-31 23:02:28] Memory saved: the -> kitchen
+[2026-03-31 23:02:28] Assistant said: I saved memory for the.
+[2026-03-31 23:02:55] User command: status
+[2026-03-31 23:04:29] User command: exit
+[2026-03-31 23:04:29] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 23:04:31] Assistant shut down.
+[2026-03-31 23:31:01] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 23:31:05] Assistant booted for project: Smart Desk AI Assistant
+[2026-03-31 23:31:11] User command: help
+[2026-03-31 23:31:11] Assistant said: Available commands: help, status, memory, reminders, remember key = value, recall key, remind seconds | message, focus minutes, break minutes, stop timer, exit.
+[2026-03-31 23:31:56] User command: exit
+[2026-03-31 23:31:56] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 23:31:58] Assistant shut down.
+[2026-03-31 23:32:12] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 23:32:15] Assistant booted for project: Smart Desk AI Assistant
+[2026-03-31 23:32:18] User command: exit
+[2026-03-31 23:32:18] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 23:32:21] Assistant shut down.
+[2026-03-31 23:37:37] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 23:37:40] Assistant booted for project: Smart Desk AI Assistant
+[2026-03-31 23:37:44] User command: exit
+[2026-03-31 23:37:44] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 23:37:46] Assistant shut down.
+[2026-03-31 23:42:26] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 23:42:29] Assistant booted for project: Smart Desk AI Assistant
+[2026-03-31 23:43:08] User command: help
+[2026-03-31 23:43:08] Assistant said: Available commands: help, status, memory, reminders, remember key equals value, recall key, remind seconds and message, focus minutes, break minutes, stop timer, show menu, exit.
+[2026-03-31 23:44:26] User command: help
+[2026-03-31 23:44:26] Assistant said: Available commands: help, status, memory, reminders, remember key equals value, recall key, remind seconds and message, focus minutes, break minutes, stop timer, show menu, exit.
+[2026-03-31 23:45:05] User command: exit
+[2026-03-31 23:45:05] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 23:45:07] Assistant shut down.
+[2026-03-31 23:45:22] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 23:45:25] Assistant booted for project: Smart Desk AI Assistant
+[2026-03-31 23:45:30] User command: help
+[2026-03-31 23:45:30] Assistant said: Available commands: help, status, memory, reminders, remember key equals value, recall key, remind seconds and message, focus minutes, break minutes, stop timer, show menu, exit.
+[2026-03-31 23:45:59] User command: exit
+[2026-03-31 23:45:59] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 23:46:02] Assistant shut down.
+[2026-03-31 23:46:10] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-03-31 23:46:13] Assistant booted for project: Smart Desk AI Assistant
+[2026-03-31 23:46:18] User command: help
+[2026-03-31 23:46:18] Assistant said: Available commands: help, status, memory, reminders, remember key equals value, recall key, remind seconds and message, focus minutes, break minutes, stop timer, show menu, exit.
+[2026-03-31 23:46:39] User command: exit
+[2026-03-31 23:46:39] Assistant said: Shutting down Smart Desk assistant.
+[2026-03-31 23:46:41] Assistant shut down.
+[2026-04-01 00:25:15] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-04-01 00:25:19] Assistant booted for project: Smart Desk AI Assistant
+[2026-04-01 00:25:25] User command: help
+[2026-04-01 00:25:25] Assistant said: Available commands: help, status, memory, reminders, remember key equals value, recall key, remind seconds and message, focus minutes, break minutes, stop timer, show menu, exit.
+[2026-04-01 00:25:43] User command: remember key a kid
+[2026-04-01 00:25:43] Assistant said: Use format: remember key equals value
+[2026-04-01 00:26:08] User command: recall phone
+[2026-04-01 00:26:08] Assistant said: phone is kid.
+[2026-04-01 00:26:26] User command: exit
+[2026-04-01 00:26:26] Assistant said: Shutting down Smart Desk assistant.
+[2026-04-01 00:26:29] Assistant shut down.

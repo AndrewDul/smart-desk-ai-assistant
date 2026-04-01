@@ -8,8 +8,9 @@ from modules.utils import append_log
 
 
 class VoiceOutput:
-    def __init__(self) -> None:
-        self.engine_path = shutil.which("espeak-ng")
+    def __init__(self, enabled: bool = True, preferred_engine: str = "espeak-ng") -> None:
+        self.enabled = enabled
+        self.engine_path = shutil.which(preferred_engine) if enabled else None
         self._lock = threading.Lock()
 
     def speak(self, text: str) -> None:
@@ -20,7 +21,7 @@ class VoiceOutput:
         print(f"Assistant> {cleaned_text}")
         append_log(f"Assistant said: {cleaned_text}")
 
-        if not self.engine_path:
+        if not self.enabled or not self.engine_path:
             return
 
         with self._lock:
