@@ -291,3 +291,41 @@ At the end of this troubleshooting stage, the following were working:
 - menu/help localisation
 - follow-up question for capturing user name
 
+
+## 012. GitHub push rejected because of large Whisper model file
+
+### Symptom
+The repository could not be pushed to GitHub even though the local commit completed successfully.
+
+GitHub rejected the push with an error explaining that:
+
+- `models/ggml-base.bin` was too large
+- the file exceeded GitHub's `100 MB` file size limit
+- the push was declined by the remote pre-receive hook
+
+### Cause
+The local Whisper model file `ggml-base.bin` had been included in version control history.
+
+This file is required locally for speech recognition, but it should not be committed to the repository because it is a large runtime dependency rather than source code.
+
+A second local issue was that the embedded `whisper.cpp/` folder also appeared as an untracked local dependency workspace and was not intended to be committed as part of the main project repository.
+
+### Fix
+The repository was cleaned so that local Whisper runtime artifacts were excluded from version control.
+
+The following actions were taken:
+- added `models/ggml-base.bin` to `.gitignore`
+- added `models/ggml-silero-v6.2.0.bin` to `.gitignore`
+- added `whisper.cpp/` to `.gitignore`
+- removed the Whisper model files from Git tracking
+- reset local staged history back to `origin/main`
+- re-staged only the intended project files
+- prepared a clean replacement commit without oversized binary assets
+
+### Outcome
+The project structure is now cleaner and better separated between:
+- source code and documentation that belong in the repository
+- local runtime model files and external build folders that should stay on the development machine only
+
+This also established a better rule for future development:
+large local AI models and third-party build directories should not be committed directly to the main GitHub repository.
