@@ -20,37 +20,54 @@ SYSTEM_LOG_PATH = LOGS_DIR / "system.log"
 SETTINGS_PATH = CONFIG_DIR / "settings.json"
 SETTINGS_EXAMPLE_PATH = CONFIG_DIR / "settings.example.json"
 
-DEFAULT_SETTINGS = {
+DEFAULT_SETTINGS: dict[str, Any] = {
     "project": {
         "name": "Smart Desk AI Assistant",
-        "version": "0.1.0-alpha",
+        "version": "0.3.0-conversation-beta",
         "stage": "stage-1-stationary-core",
     },
     "user": {
         "name": "Andrzej",
     },
-        "voice_input": {
+    "voice_input": {
         "enabled": True,
         "engine": "whisper",
         "device_index": None,
-        "device_name_contains": None,
+        "device_name_contains": "USB PnP Sound Device",
         "timeout_seconds": 8,
-        "debug": False,
-        "sample_rate": 16000,
+        "debug": True,
+        "sample_rate": None,
         "max_record_seconds": 8.0,
         "silence_threshold": 350.0,
         "end_silence_seconds": 1.0,
         "pre_roll_seconds": 0.4,
         "threads": 4,
         "language": "auto",
-        "vad_enabled": True,
+        "vad_enabled": False,
         "whisper_cli_path": "whisper.cpp/build/bin/whisper-cli",
         "model_path": "models/ggml-base.bin",
-        "vad_model_path": "models/ggml-silero-v6.2.0.bin"
+        "vad_model_path": "models/ggml-silero-v6.2.0.bin",
     },
     "voice_output": {
         "enabled": True,
-        "engine": "espeak-ng",
+        "engine": "piper",
+        "default_language": "en",
+        "speed": 155,
+        "pitch": 58,
+        "voices": {
+            "pl": "pl+f3",
+            "en": "en+f3",
+        },
+        "piper_models": {
+            "pl": {
+                "model": "voices/piper/pl_PL-gosia-medium.onnx",
+                "config": "voices/piper/pl_PL-gosia-medium.onnx.json",
+            },
+            "en": {
+                "model": "voices/piper/en_GB-jenny_dioco-medium.onnx",
+                "config": "voices/piper/en_GB-jenny_dioco-medium.onnx.json",
+            },
+        },
     },
     "display": {
         "enabled": True,
@@ -62,7 +79,7 @@ DEFAULT_SETTINGS = {
         "width": 128,
         "height": 64,
         "default_overlay_seconds": 10,
-        "boot_overlay_seconds": 4,
+        "boot_overlay_seconds": 2.8,
     },
     "timers": {
         "default_focus_minutes": 25,
@@ -83,8 +100,8 @@ def load_json(path: Path, default: Any) -> Any:
     try:
         with path.open("r", encoding="utf-8") as file:
             return json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default
+    except (FileNotFoundError, json.JSONDecodeError, TypeError):
+        return deepcopy(default)
 
 
 def save_json(path: Path, data: Any) -> None:
@@ -97,11 +114,7 @@ def _deep_merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[st
     result = deepcopy(base)
 
     for key, value in override.items():
-        if (
-            key in result
-            and isinstance(result[key], dict)
-            and isinstance(value, dict)
-        ):
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = _deep_merge_dicts(result[key], value)
         else:
             result[key] = value
@@ -118,8 +131,16 @@ def load_settings() -> dict[str, Any]:
 
 
 def append_log(message: str) -> None:
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    with SYSTEM_LOG_PATH.open("a", encoding="utf-8") as file:
+    settings = load_settings()
+    logging_cfg = settings.get("logging", {})
+    if not logging_cfg.get("enabled", True):
+        return
+
+    log_relative_path = logging_cfg.get("log_file", "logs/system.log")
+    log_path = BASE_DIR / log_relative_path if not Path(log_relative_path).is_absolute() else Path(log_relative_path)
+
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as file:
         file.write(f"[{now_str()}] {message}\n")
 
 
@@ -150,6 +171,7 @@ def ensure_project_files() -> None:
             USER_PROFILE_PATH,
             {
                 "name": "Andrzej",
+                "conversation_partner_name": "",
                 "project": "Smart Desk AI Assistant",
             },
         )

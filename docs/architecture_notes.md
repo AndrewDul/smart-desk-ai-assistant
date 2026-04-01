@@ -410,3 +410,79 @@ Planned next steps for this voice architecture include:
 - improving name capture and user dialogue flow
 - adding more conversational intents
 - optionally adding grammar-guided decoding for high-priority commands
+
+## Conversational Interaction Layer
+
+The assistant architecture was extended from a simple command-driven prototype into a more natural conversational interaction layer. The main goal of this update was to improve usability, support bilingual interaction, and make the system feel more like a real desk assistant rather than a strict command parser.
+
+### Main interaction flow
+
+The startup flow was redesigned so that the OLED first shows a short **DevDul** branding screen, then returns to the default animated eyes state, and only after that the assistant speaks its greeting in English. This creates a cleaner and more deliberate boot experience.
+
+The default OLED state is now the animated eyes display. Informational screens such as reminders, time, memory recall results, and help summaries are shown only as temporary overlays. After the overlay timeout, the display automatically returns to the eyes animation.
+
+### Conversational architecture
+
+The assistant now uses a layered interaction model:
+
+1. **Speech Input Layer**  
+   Audio is captured locally and transcribed using Whisper-based offline speech recognition. Blank audio, silence markers, and low-value filler noise are filtered before command handling.
+
+2. **Intent Parsing Layer**  
+   The intent parser maps natural Polish and English phrases to internal actions. This includes:
+   - help queries
+   - self-introduction
+   - time/date/day/year requests
+   - reminder creation
+   - memory storage and recall
+   - timer, focus mode, and break mode
+   - stop/cancel variants
+   - fuzzy matching with confirmation prompts
+
+3. **Conversation State Layer**  
+   The assistant keeps temporary interaction state for multi-step flows. This includes:
+   - waiting for a name
+   - waiting for permission to remember the name
+   - waiting for timer/focus/break duration
+   - waiting for yes/no confirmation
+   - waiting for whether information should also be shown on the OLED
+
+4. **Action Execution Layer**  
+   Once an intent is resolved, the assistant executes the requested behaviour through its core modules:
+   - memory
+   - reminders
+   - session timer
+   - OLED display
+   - speech output
+
+### Bilingual behaviour
+
+The assistant now adapts its spoken responses to the language used by the user. If the user speaks Polish, the assistant responds in Polish. If the user speaks English, it responds in English. The system still starts with an English greeting, but subsequent interaction follows the detected user language.
+
+### Memory and recall design
+
+The memory component was extended to support more natural storage and retrieval. The user can store information using phrases such as:
+
+- “Remember that my keys are in the kitchen”
+- “Zapamiętaj że klucze są w kuchni”
+
+The recall layer supports natural follow-up questions such as:
+
+- “Where are my keys?”
+- “Gdzie są moje klucze?”
+
+Matching is more tolerant than exact string matching, which improves usability in real spoken interaction.
+
+### Focus and break flow
+
+The focus mode was redesigned as a conversational workflow. If the user says “focus mode”, the assistant asks how long the session should be. After the focus session ends, the assistant asks whether the user wants a break and can then ask for break duration. This creates a more natural study-support workflow even before camera-based focus monitoring is added.
+
+### Testing support
+
+To improve stability, automated tests were added for:
+- intent parsing
+- memory behaviour
+- reminders
+- session timer logic
+- higher-level conversational command scenarios
+

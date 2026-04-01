@@ -27,9 +27,26 @@
     "vad_model_path": "models/ggml-silero-v6.2.0.bin"
   },
   "voice_output": {
-    "enabled": true,
-    "engine": "espeak-ng"
+  "enabled": true,
+  "engine": "piper",
+  "default_language": "pl",
+  "speed": 155,
+  "pitch": 58,
+  "voices": {
+    "pl": "pl+f3",
+    "en": "en+f3"
   },
+  "piper_models": {
+    "pl": {
+      "model": "voices/piper/pl_PL-gosia-medium.onnx",
+      "config": "voices/piper/pl_PL-gosia-medium.onnx.json"
+    },
+    "en": {
+      "model": "voices/piper/en_GB-jenny_dioco-medium.onnx",
+      "config": "voices/piper/en_GB-jenny_dioco-medium.onnx.json"
+    }
+  }
+},
   "display": {
     "enabled": true,
     "driver": "ssd1306",

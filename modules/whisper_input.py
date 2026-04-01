@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import queue
+import re
+import shutil
 import subprocess
 import tempfile
 import time
+import unicodedata
 import wave
 from collections import deque
 from pathlib import Path
@@ -11,6 +14,8 @@ from typing import Optional
 
 import numpy as np
 import sounddevice as sd
+
+from modules.utils import append_log
 
 
 class WhisperVoiceInput:
@@ -36,11 +41,11 @@ class WhisperVoiceInput:
         self.vad_model_path = str(Path(vad_model_path).expanduser()) if vad_model_path else None
         self.language = language
 
-        self.max_record_seconds = max_record_seconds
-        self.silence_threshold = silence_threshold
-        self.end_silence_seconds = end_silence_seconds
-        self.pre_roll_seconds = pre_roll_seconds
-        self.threads = threads
+        self.max_record_seconds = float(max_record_seconds)
+        self.silence_threshold = float(silence_threshold)
+        self.end_silence_seconds = float(end_silence_seconds)
+        self.pre_roll_seconds = float(pre_roll_seconds)
+        self.threads = int(threads)
 
         self.blocksize = 1024
         self.channels = 1
@@ -129,6 +134,7 @@ class WhisperVoiceInput:
         self.audio_queue = queue.Queue()
         pre_roll = deque(maxlen=max(1, int((self.pre_roll_seconds * self.sample_rate) / self.blocksize)))
         recorded_chunks: list[bytes] = []
+
         speech_started = False
         speech_start_time = 0.0
         silence_started_at: float | None = None
@@ -147,7 +153,10 @@ class WhisperVoiceInput:
                     chunk = self.audio_queue.get(timeout=0.2)
                 except queue.Empty:
                     if not speech_started and (time.time() - listen_started_at) >= timeout:
+                        if debug:
+                            print("No speech detected before timeout.")
                         return None
+
                     if speech_started and (time.time() - speech_start_time) >= self.max_record_seconds:
                         break
                     continue
@@ -160,14 +169,20 @@ class WhisperVoiceInput:
 
                 if not speech_started:
                     pre_roll.append(chunk)
+
                     if rms >= self.silence_threshold:
                         speech_started = True
                         speech_start_time = time.time()
                         recorded_chunks.extend(pre_roll)
                         recorded_chunks.append(chunk)
                         silence_started_at = None
+
+                        if debug:
+                            print("Speech started.")
                     else:
                         if (time.time() - listen_started_at) >= timeout:
+                            if debug:
+                                print("Timeout reached without speech.")
                             return None
                     continue
 
@@ -177,11 +192,15 @@ class WhisperVoiceInput:
                     if silence_started_at is None:
                         silence_started_at = time.time()
                     elif (time.time() - silence_started_at) >= self.end_silence_seconds:
+                        if debug:
+                            print("Detected end-of-speech silence.")
                         break
                 else:
                     silence_started_at = None
 
                 if (time.time() - speech_start_time) >= self.max_record_seconds:
+                    if debug:
+                        print("Max record duration reached.")
                     break
 
         if not recorded_chunks:
@@ -241,8 +260,91 @@ class WhisperVoiceInput:
         if not transcript_path.exists():
             return ""
 
-        transcript = transcript_path.read_text(encoding="utf-8").strip()
-        return transcript
+        return transcript_path.read_text(encoding="utf-8").strip()
+
+    def _normalize_text(self, text: str) -> str:
+        lowered = text.lower().strip()
+        lowered = unicodedata.normalize("NFKD", lowered)
+        lowered = "".join(ch for ch in lowered if not unicodedata.combining(ch))
+        lowered = lowered.replace("ł", "l")
+        lowered = re.sub(r"\s+", " ", lowered)
+        return lowered.strip()
+
+    def _cleanup_transcript(self, transcript: str, debug: bool = False) -> str | None:
+        if not transcript:
+            return None
+
+        cleaned = transcript.strip()
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+        if not cleaned:
+            return None
+
+        normalized = self._normalize_text(cleaned)
+
+        blank_markers = {
+            "",
+            "[blank_audio]",
+            "blank_audio",
+            "[silence]",
+            "silence",
+            "no speech",
+            "no speech recognized",
+            "[noise]",
+            "noise",
+            "...",
+            ".",
+        }
+
+        # Common whisper hallucinations after silence / empty capture.
+        hallucination_markers = {
+            "thank you",
+            "thanks for watching",
+            "you",
+            "bye",
+            "okay",
+            "ok",
+        }
+
+        if normalized in blank_markers:
+            if debug:
+                print(f"Ignored blank marker transcript: {cleaned}")
+            return None
+
+        if normalized in hallucination_markers:
+            if debug:
+                print(f"Ignored likely silence hallucination: {cleaned}")
+            append_log(f"Ignored likely silence hallucination: {cleaned}")
+            return None
+
+        # Ignore transcripts that are only punctuation-like brackets or separators.
+        stripped_symbols = re.sub(r"[\[\](){}<>\-_=~.,!?\"'`]", "", cleaned).strip()
+        if not stripped_symbols:
+            if debug:
+                print(f"Ignored symbol-only transcript: {cleaned}")
+            return None
+
+        return cleaned
+
+    def _cleanup_temp_files(self, wav_path: Path) -> None:
+        try:
+            output_prefix = wav_path.with_suffix("")
+            txt_path = output_prefix.with_suffix(".txt")
+            srt_path = output_prefix.with_suffix(".srt")
+            vtt_path = output_prefix.with_suffix(".vtt")
+            json_path = output_prefix.with_suffix(".json")
+            lrc_path = output_prefix.with_suffix(".lrc")
+
+            for path in [wav_path, txt_path, srt_path, vtt_path, json_path, lrc_path]:
+                if path.exists():
+                    path.unlink()
+
+            temp_dir = wav_path.parent
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir, ignore_errors=True)
+
+        except Exception as error:
+            append_log(f"Temp cleanup warning: {error}")
 
     def listen(self, timeout: float = 8.0, debug: bool = False) -> Optional[str]:
         pcm_bytes = self._record_until_silence(timeout=timeout, debug=debug)
@@ -250,12 +352,18 @@ class WhisperVoiceInput:
             return None
 
         wav_path = self._write_wav(pcm_bytes)
-        transcript = self._transcribe(wav_path, debug=debug).strip()
 
-        if debug and transcript:
-            print(f"Whisper transcript: {transcript}")
+        try:
+            transcript = self._transcribe(wav_path, debug=debug)
+            cleaned = self._cleanup_transcript(transcript, debug=debug)
 
-        return transcript or None
+            if debug and cleaned:
+                print(f"Whisper transcript: {cleaned}")
+
+            return cleaned
+
+        finally:
+            self._cleanup_temp_files(wav_path)
 
     def listen_once(self, timeout: float = 8.0, debug: bool = False) -> Optional[str]:
         return self.listen(timeout=timeout, debug=debug)

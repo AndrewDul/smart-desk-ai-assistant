@@ -329,3 +329,158 @@ The project structure is now cleaner and better separated between:
 
 This also established a better rule for future development:
 large local AI models and third-party build directories should not be committed directly to the main GitHub repository.
+
+
+## 013 Recent Development Issues and Fixes
+
+### 1. `IndentationError` in `assistant_logic.py`
+
+**Problem**  
+After modifying the boot flow, Python raised an `IndentationError` near the `boot()` function.
+
+**Cause**  
+The contents of the `boot()` function were pasted with incorrect indentation, so Python interpreted the function body incorrectly.
+
+**Fix**  
+The method indentation was corrected so that:
+- `boot()` is defined at class level
+- all statements inside `boot()` are properly indented
+
+---
+
+### 2. `AttributeError: 'CoreAssistant' object has no attribute 'boot'`
+
+**Problem**  
+When running `python main.py`, the program raised:
+
+```python
+AttributeError: 'CoreAssistant' object has no attribute 'boot'
+
+
+### Cause
+The startup logic was accidentally pasted inside `__init__()` instead of being defined as a separate class method. As a result, the object executed startup behaviour during construction, but no actual `boot()` method existed.
+
+### Fix
+The boot logic was moved out of `__init__()` and restored as a separate method:
+
+```python
+def boot(self) -> None:
+```
+## 3. Assistant responded to silence or blank audio
+
+### Problem
+The assistant sometimes responded with “I did not understand” even when the user said nothing.
+
+### Cause
+Blank recogniser outputs, silence markers, or low-value transcripts were reaching the command handler.
+
+### Fix
+Input filtering was added in the main loop and Whisper input layer to ignore:
+
+- `None`
+- blank strings
+- silence markers such as `[BLANK_AUDIO]`
+- low-value filler noise
+
+This made the assistant remain silent when no meaningful speech was detected.
+
+---
+
+## 4. OLED overlays replaced the eye animation permanently
+
+### Problem
+Displayed information such as reminders or time screens could interrupt the eye animation without clearly returning to the default visual state.
+
+### Cause
+The display logic needed a dedicated overlay lifecycle.
+
+### Fix
+The OLED renderer was redesigned so that:
+
+- the animated eyes are the default state
+- information is shown only as a timed overlay
+- after the overlay expires, the display automatically returns to the eyes
+
+---
+
+## 5. Startup speech happened too early
+
+### Problem
+The assistant started speaking immediately after the boot screen appeared, which felt abrupt.
+
+### Cause
+The voice greeting was triggered without a visual pause after the startup screen.
+
+### Fix
+The startup sequence was redesigned:
+
+1. show `DevDul`
+2. return to the eye animation
+3. wait briefly
+4. speak the English greeting
+
+This created a more polished startup experience.
+
+---
+
+## 6. Conversational flow was too command-based
+
+### Problem
+Early versions of the assistant behaved like a rigid command parser rather than a conversational assistant.
+
+### Cause
+The original design expected single-shot commands and had limited support for follow-up questions.
+
+### Fix
+Temporary follow-up states were introduced for:
+
+- name capture
+- memory consent
+- timer duration
+- focus duration
+- break duration
+- OLED display confirmation
+- post-focus break offer
+
+This allowed the assistant to support multi-step conversational flows.
+
+---
+
+## 7. Timer and session state consistency
+
+### Problem
+Focus, break, and timer states could become difficult to manage when stopping or finishing sessions.
+
+### Cause
+State cleanup and timer lifecycle handling needed clearer separation.
+
+### Fix
+The timer logic was updated so that:
+
+- only one session can run at a time
+- stopping resets the timer state cleanly
+- finishing triggers the correct callback
+- focus and break states are updated consistently in the assistant session state
+
+---
+
+## 8. Memory recall needed more flexible matching
+
+### Problem
+Natural queries such as “Where are my keys?” did not always match previously stored facts unless the wording was identical.
+
+### Cause
+Simple exact matching was too strict for spoken interaction.
+
+### Fix
+The memory module was improved with:
+
+- text cleanup
+- key normalization
+- possessive prefix stripping
+- limited plural/singular matching
+- fuzzy matching based on token overlap and similarity
+
+This improved recall reliability in both English and Polish.
+
+---

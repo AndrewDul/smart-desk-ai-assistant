@@ -4,6 +4,7 @@ import re
 import threading
 import time
 from datetime import datetime
+from typing import Any
 
 from modules.display import ConsoleDisplay
 from modules.intent_parser import IntentParser, IntentResult
@@ -37,20 +38,19 @@ class CoreAssistant:
         self.voice_listen_timeout = float(voice_input_cfg.get("timeout_seconds", 8))
         self.voice_debug = bool(voice_input_cfg.get("debug", False))
         self.default_overlay_seconds = float(display_cfg.get("default_overlay_seconds", 10))
-        self.boot_overlay_seconds = float(display_cfg.get("boot_overlay_seconds", 4))
+        self.boot_overlay_seconds = float(display_cfg.get("boot_overlay_seconds", 2.8))
 
         self.parser = IntentParser(
             default_focus_minutes=float(self.settings.get("timers", {}).get("default_focus_minutes", 25)),
             default_break_minutes=float(self.settings.get("timers", {}).get("default_break_minutes", 5)),
         )
 
-        self.pending_confirmation: dict | None = None
-        self.pending_name_request = False
-        self.pending_name_language = "pl"
-        self.last_language = "pl"
+        self.pending_confirmation: dict[str, Any] | None = None
+        self.pending_follow_up: dict[str, Any] | None = None
+        self.last_language = "en"
 
         if voice_input_cfg.get("enabled", True):
-            engine = voice_input_cfg.get("engine", "whisper").lower()
+            engine = str(voice_input_cfg.get("engine", "whisper")).lower()
 
             if engine == "whisper":
                 self.voice_in = WhisperVoiceInput(
@@ -84,6 +84,7 @@ class CoreAssistant:
             speed=int(voice_output_cfg.get("speed", 155)),
             pitch=int(voice_output_cfg.get("pitch", 58)),
             voices=voice_output_cfg.get("voices", {"pl": "pl+f3", "en": "en+f3"}),
+            piper_models=voice_output_cfg.get("piper_models"),
         )
 
         self.display = ConsoleDisplay(
@@ -122,10 +123,7 @@ class CoreAssistant:
         )
 
         self._stop_background = threading.Event()
-        self._reminder_thread = threading.Thread(
-            target=self._reminder_loop,
-            daemon=True,
-        )
+        self._reminder_thread = threading.Thread(target=self._reminder_loop, daemon=True)
 
     def boot(self) -> None:
         self.state["assistant_running"] = True
@@ -133,16 +131,24 @@ class CoreAssistant:
         self._reminder_thread.start()
 
         self.display.show_block(
-            "SMART ASSISTANT",
+            "DevDul",
             [
-                "prototype ready",
-                "assessment mode",
-                "powiedz: pomoc/help",
+                "Smart Assistant",
+                "starting up...",
             ],
             duration=self.boot_overlay_seconds,
         )
 
-        self.voice_out.speak("Smart Assistant prototype is ready.", language="en")
+        append_log("Boot screen: DevDul.")
+
+        time.sleep(self.boot_overlay_seconds + 0.1)
+        time.sleep(1.2)
+
+        self.voice_out.speak(
+            "Hello. If you want to hear how I can help, ask me, how can you help me?",
+            language="en",
+        )
+
         append_log("Assistant booted.")
 
     def shutdown(self) -> None:
@@ -166,10 +172,11 @@ class CoreAssistant:
             duration=2.0,
         )
 
-        if self.last_language == "pl":
-            self.voice_out.speak("Wyłączam Smart Assistant.", language="pl")
-        else:
-            self.voice_out.speak("Shutting down Smart Assistant.", language="en")
+        self._speak_localized(
+            self.last_language,
+            "Wyłączam Smart Assistant.",
+            "Shutting down Smart Assistant.",
+        )
 
         append_log("Assistant shut down.")
         time.sleep(2.0)
@@ -189,14 +196,42 @@ class CoreAssistant:
         tokens = set(normalized.split())
 
         polish_markers = {
-            "pomoc", "pokaz", "menu", "stan", "godzina", "ktora", "ktora",
-            "jestes", "przedstaw", "przypomnij", "gdzie", "komendy", "imie",
-            "nazywasz", "czas", "przerwa", "tak", "nie", "kim",
+            "pomoc",
+            "potrafisz",
+            "godzina",
+            "data",
+            "dzien",
+            "rok",
+            "przypomnij",
+            "zapamietaj",
+            "gdzie",
+            "imie",
+            "przerwa",
+            "skupienie",
+            "ucze",
+            "pokaz",
+            "wyswietl",
+            "tak",
+            "nie",
         }
         english_markers = {
-            "help", "show", "menu", "status", "time", "who", "what",
-            "introduce", "yourself", "remember", "where", "remind",
-            "commands", "assistant", "focus", "break", "yes", "no", "name",
+            "help",
+            "time",
+            "date",
+            "day",
+            "year",
+            "remember",
+            "remind",
+            "where",
+            "name",
+            "focus",
+            "break",
+            "timer",
+            "show",
+            "display",
+            "yes",
+            "no",
+            "assistant",
         }
 
         if any(ch in text for ch in "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ"):
@@ -205,11 +240,7 @@ class CoreAssistant:
             return "pl"
         if tokens & english_markers:
             return "en"
-
-        if normalized in {"menu", "status"}:
-            return self.last_language
-
-        return self.last_language or "pl"
+        return self.last_language or "en"
 
     def _localized(self, lang: str, pl_text: str, en_text: str) -> str:
         return pl_text if lang == "pl" else en_text
@@ -235,13 +266,24 @@ class CoreAssistant:
     def _action_label(self, action: str, lang: str) -> str:
         labels = {
             "help": {"pl": "pomoc", "en": "help"},
-            "show_menu": {"pl": "menu", "en": "menu"},
             "status": {"pl": "stan", "en": "status"},
             "memory_list": {"pl": "pamięć", "en": "memory"},
             "reminders_list": {"pl": "przypomnienia", "en": "reminders"},
-            "timer_stop": {"pl": "zatrzymaj timer", "en": "stop timer"},
+            "timer_stop": {"pl": "wyłącz timer", "en": "stop timer"},
             "introduce_self": {"pl": "przedstaw się", "en": "introduce yourself"},
             "ask_time": {"pl": "godzina", "en": "time"},
+            "show_time": {"pl": "pokaż godzinę", "en": "show time"},
+            "ask_date": {"pl": "data", "en": "date"},
+            "show_date": {"pl": "pokaż datę", "en": "show date"},
+            "ask_day": {"pl": "dzień", "en": "day"},
+            "show_day": {"pl": "pokaż dzień", "en": "show day"},
+            "ask_year": {"pl": "rok", "en": "year"},
+            "show_year": {"pl": "pokaż rok", "en": "show year"},
+            "timer_start": {"pl": "timer", "en": "timer"},
+            "focus_start": {"pl": "focus mode", "en": "focus mode"},
+            "break_start": {"pl": "tryb przerwy", "en": "break mode"},
+            "memory_store": {"pl": "zapamiętywanie", "en": "remembering"},
+            "memory_recall": {"pl": "odczyt pamięci", "en": "memory recall"},
             "exit": {"pl": "wyjście", "en": "exit"},
         }
         return labels.get(action, {}).get(lang, action)
@@ -264,65 +306,140 @@ class CoreAssistant:
         if 1 <= len(simple_tokens) <= 2:
             token = simple_tokens[0]
             blocked = {
-                "help", "pomoc", "menu", "status", "stan", "tak", "nie",
-                "yes", "no", "focus", "break", "time", "godzina",
+                "help",
+                "pomoc",
+                "status",
+                "stan",
+                "tak",
+                "nie",
+                "yes",
+                "no",
+                "focus",
+                "break",
+                "time",
+                "godzina",
             }
             if token.lower() not in blocked and len(token) >= 2:
                 return token[:1].upper() + token[1:].lower()
 
         return None
 
-    def _try_handle_name_capture(self, text: str, lang: str) -> bool:
-        if not self.pending_name_request:
-            return False
+    def _extract_minutes_from_text(self, text: str) -> float | None:
+        normalized = self._normalize_text(text)
+        match = re.search(
+            r"(\d+(?:[\.,]\d+)?)\s*(second|seconds|sec|sekunda|sekundy|sekund|minute|minutes|min|minuta|minuty|minut)?",
+            normalized,
+        )
+        if not match:
+            return None
 
-        name = self._extract_name(text)
-        if name:
-            self.user_profile["name"] = name
-            self.user_profile["conversation_partner_name"] = name
-            self._save_user_profile()
-            self.pending_name_request = False
+        value = float(match.group(1).replace(",", "."))
+        unit = (match.group(2) or "minutes").strip()
 
-            self._show_localized_block(
-                lang,
-                "MIŁO MI",
-                "NICE TO MEET YOU",
-                [f"{name}", "zapisałam imię"],
-                [f"{name}", "name saved"],
-                duration=8.0,
-            )
-            self._speak_localized(
-                lang,
-                f"Miło mi, {name}. Zapisałam twoje imię.",
-                f"Nice to meet you, {name}. I saved your name.",
-            )
-            return True
+        if unit.startswith("sec") or unit.startswith("sek"):
+            return round(value / 60.0, 2)
+        return value
 
-        return False
+    def _is_yes(self, text: str) -> bool:
+        return self.parser.parse(text).action == "confirm_yes"
 
-    def _show_menu(self, lang: str, duration: float | None = None) -> None:
-        menu_duration = self.default_overlay_seconds if duration is None else duration
+    def _is_no(self, text: str) -> bool:
+        return self.parser.parse(text).action == "confirm_no"
 
+    def _show_capabilities(self, lang: str) -> None:
         self._show_localized_block(
             lang,
-            "MENU GŁOSOWE",
-            "VOICE MENU",
+            "CO POTRAFIĘ",
+            "HOW I CAN HELP",
             [
-                "pomoc / menu / stan",
-                "przedstaw się / godzina",
-                "gdzie są klucze",
-                "przypomnij za 10 sek",
-                "focus 1 / break 1",
+                "zapamietam rzeczy",
+                "przypomnienia i timer",
+                "godzina data dzien",
+                "focus i przerwa",
+                "pokaze info na OLED",
             ],
             [
-                "help / menu / status",
-                "introduce / time",
-                "where are my keys",
-                "remind me in 10 sec",
-                "focus 1 / break 1",
+                "remember things",
+                "reminders and timer",
+                "time date and day",
+                "focus and break",
+                "show info on OLED",
             ],
-            duration=menu_duration,
+            duration=12.0,
         )
+
+    def _offer_oled_display(self, lang: str, title: str, lines: list[str]) -> None:
+        self.pending_follow_up = {
+            "type": "display_offer",
+            "lang": lang,
+            "title": title,
+            "lines": lines,
+        }
+        self._speak_localized(
+            lang,
+            "Czy chcesz, żebym pokazała to na ekranie?",
+            "Would you like me to show that on the screen?",
+        )
+
+    def _start_timer_mode(self, minutes: float, mode: str, lang: str) -> bool:
+        ok, message = self.timer.start(minutes, mode)
+        if not ok:
+            self._speak_localized(
+                lang,
+                "Timer już działa. Najpierw go zatrzymaj.",
+                "A timer is already running. Please stop it first.",
+            )
+            append_log(message)
+            return True
+        return True
+
+    def _format_temporal_text(self, kind: str, lang: str) -> tuple[str, str, list[str]]:
+        now = datetime.now()
+
+        if kind == "time":
+            value = now.strftime("%H:%M")
+            spoken = self._localized(lang, f"Jest {value}.", f"It is {value}.")
+            title = self._localized(lang, "GODZINA", "TIME")
+            lines = [value]
+            return spoken, title, lines
+
+        if kind == "date":
+            value = now.strftime("%d-%m-%Y")
+            spoken = self._localized(lang, f"Dzisiejsza data to {value}.", f"Today's date is {value}.")
+            title = self._localized(lang, "DATA", "DATE")
+            lines = [value]
+            return spoken, title, lines
+
+        if kind == "day":
+            days_en = [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday",
+            ]
+            days_pl = [
+                "poniedziałek",
+                "wtorek",
+                "środa",
+                "czwartek",
+                "piątek",
+                "sobota",
+                "niedziela",
+            ]
+            value = days_pl[now.weekday()] if lang == "pl" else days_en[now.weekday()]
+            spoken = self._localized(lang, f"Dzisiaj jest {value}.", f"Today is {value}.")
+            title = self._localized(lang, "DZIEŃ", "DAY")
+            lines = [value]
+            return spoken, title, lines
+
+        value = str(now.year)
+        spoken = self._localized(lang, f"Mamy rok {value}.", f"The year is {value}.")
+        title = self._localized(lang, "ROK", "YEAR")
+        lines = [value]
+        return spoken, title, lines
 
     def _on_timer_started(self, mode: str, minutes: float) -> None:
         self.state["current_timer"] = mode
@@ -333,21 +450,27 @@ class CoreAssistant:
         elif mode == "break":
             self.state["focus_mode"] = False
             self.state["break_mode"] = True
+        else:
+            self.state["focus_mode"] = False
+            self.state["break_mode"] = False
 
         self._save_state()
         append_log(f"{mode.capitalize()} timer started for {minutes:g} minute(s).")
 
         lang = self.last_language
+        mode_label_pl = {"focus": "sesja focus", "break": "przerwa", "timer": "timer"}.get(mode, mode)
+        mode_label_en = {"focus": "focus session", "break": "break", "timer": "timer"}.get(mode, mode)
+
         self.display.show_block(
-            "TIMER START",
-            [f"mode: {mode}", f"{minutes:g} min", "running"],
+            self._localized(lang, "TIMER START", "TIMER START"),
+            [self._localized(lang, mode_label_pl, mode_label_en), f"{minutes:g} min"],
             duration=6.0,
         )
 
         self._speak_localized(
             lang,
-            f"Uruchomiłam timer {mode} na {minutes:g} minut.",
-            f"I started the {mode} timer for {minutes:g} minutes.",
+            f"Uruchomiłam {mode_label_pl} na {minutes:g} minut.",
+            f"I started the {mode_label_en} for {minutes:g} minutes.",
         )
 
     def _on_timer_finished(self, mode: str) -> None:
@@ -355,19 +478,51 @@ class CoreAssistant:
         self.state["focus_mode"] = False
         self.state["break_mode"] = False
         self._save_state()
+        append_log(f"{mode.capitalize()} timer finished.")
+
+        if mode == "focus":
+            self.display.show_block(
+                self._localized(self.last_language, "FOCUS KONIEC", "FOCUS DONE"),
+                [
+                    self._localized(self.last_language, "czas sesji minął", "your session is over"),
+                    self._localized(self.last_language, "chcesz przerwę?", "would you like a break?"),
+                ],
+                duration=8.0,
+            )
+            self.pending_follow_up = {"type": "post_focus_break_offer", "lang": self.last_language}
+            self._speak_localized(
+                self.last_language,
+                "Focus time dobiegł końca. Czy chcesz teraz przerwę?",
+                "Your focus session is over. Would you like a break now?",
+            )
+            return
+
+        if mode == "break":
+            self.display.show_block(
+                self._localized(self.last_language, "KONIEC PRZERWY", "BREAK DONE"),
+                [
+                    self._localized(self.last_language, "przerwa skończona", "break is over"),
+                    self._localized(self.last_language, "wróć do nauki", "back to studying"),
+                ],
+                duration=8.0,
+            )
+            self._speak_localized(
+                self.last_language,
+                "Przerwa dobiegła końca. Wracaj do nauki, kiedy będziesz gotowy.",
+                "Your break is over. Come back to studying when you are ready.",
+            )
+            return
 
         self.display.show_block(
-            "TIMER DONE",
-            [f"mode: {mode}", "finished", "cleared"],
+            self._localized(self.last_language, "CZAS MINĄŁ", "TIME IS UP"),
+            [self._localized(self.last_language, "timer zakończony", "timer finished")],
             duration=6.0,
         )
-
         self._speak_localized(
             self.last_language,
-            f"Timer {mode} został zakończony.",
-            f"The {mode} timer has finished.",
+            "Minął ustawiony czas.",
+            "Your timer has finished.",
         )
-        append_log(f"{mode.capitalize()} timer finished.")
 
     def _on_timer_stopped(self, mode: str) -> None:
         self.state["current_timer"] = None
@@ -376,15 +531,15 @@ class CoreAssistant:
         self._save_state()
 
         self.display.show_block(
-            "TIMER STOPPED",
-            [f"mode: {mode}", "stopped", "cleared"],
+            self._localized(self.last_language, "TIMER STOP", "TIMER STOP"),
+            [self._localized(self.last_language, "timer zatrzymany", "timer stopped")],
             duration=6.0,
         )
 
         self._speak_localized(
             self.last_language,
-            f"Zatrzymałam timer {mode}.",
-            f"I stopped the {mode} timer.",
+            "Zatrzymałam timer.",
+            "I stopped the timer.",
         )
         append_log(f"{mode.capitalize()} timer stopped.")
 
@@ -394,12 +549,11 @@ class CoreAssistant:
 
             for reminder in due_reminders:
                 message = reminder.get("message", "Reminder triggered.")
-                reminder_id = reminder.get("id", "unknown")
                 lang = self.last_language
 
                 self.display.show_block(
                     self._localized(lang, "PRZYPOMNIENIE", "REMINDER"),
-                    [message, f"id: {reminder_id}"],
+                    [message],
                     duration=self.default_overlay_seconds,
                 )
                 self._speak_localized(
@@ -407,11 +561,11 @@ class CoreAssistant:
                     f"Przypomnienie. {message}",
                     f"Reminder. {message}",
                 )
-                append_log(f"Reminder triggered: id={reminder_id}, message={message}")
+                append_log(f"Reminder triggered: message={message}")
 
             time.sleep(1)
 
-    def _ask_for_confirmation(self, suggestions: list[dict], lang: str) -> bool:
+    def _ask_for_confirmation(self, suggestions: list[dict[str, Any]], lang: str) -> bool:
         self.pending_confirmation = {
             "suggestions": suggestions,
             "language": lang,
@@ -426,7 +580,7 @@ class CoreAssistant:
             if second:
                 lines.append(f"2: {second}")
                 voice_text += f" czy o {second}"
-            lines.append("powiedz tak/nie")
+            lines.append("powiedz tak lub nie")
             voice_text += "? Powiedz tak albo nie."
             title = "POTWIERDŹ"
         else:
@@ -435,7 +589,7 @@ class CoreAssistant:
             if second:
                 lines.append(f"2: {second}")
                 voice_text += f" or {second}"
-            lines.append("say yes/no")
+            lines.append("say yes or no")
             voice_text += "? Say yes or no."
             title = "CONFIRM"
 
@@ -460,8 +614,8 @@ class CoreAssistant:
             self.pending_confirmation = None
             self._speak_localized(
                 lang,
-                "Dobrze. Powtórz proszę komendę.",
-                "Okay. Please repeat the command.",
+                "Dobrze. Powiedz to jeszcze raz inaczej.",
+                "Okay. Please say it again in a different way.",
             )
             return True
 
@@ -477,9 +631,154 @@ class CoreAssistant:
         )
         return True
 
-    def _format_time_answer(self, lang: str) -> str:
-        now = datetime.now().strftime("%H:%M")
-        return self._localized(lang, f"Jest {now}.", f"It is {now}.")
+    def _handle_pending_follow_up(self, text: str, lang: str) -> bool:
+        follow_up = self.pending_follow_up or {}
+        follow_type = follow_up.get("type")
+
+        if follow_type == "capture_name":
+            name = self._extract_name(text)
+            if not name:
+                self._speak_localized(
+                    lang,
+                    "Nie usłyszałam wyraźnie imienia. Powiedz proszę jeszcze raz swoje imię.",
+                    "I did not catch your name clearly. Please say your name again.",
+                )
+                return True
+
+            self.pending_follow_up = {
+                "type": "confirm_save_name",
+                "lang": lang,
+                "name": name,
+            }
+            self._speak_localized(
+                lang,
+                f"Miło mi, {name}. Czy chcesz, żebym zapamiętała twoje imię?",
+                f"Nice to meet you, {name}. Would you like me to remember your name?",
+            )
+            return True
+
+        if follow_type == "confirm_save_name":
+            name = follow_up.get("name", "")
+            if self._is_yes(text):
+                self.user_profile["conversation_partner_name"] = name
+                self._save_user_profile()
+                self.pending_follow_up = None
+                self._show_localized_block(
+                    lang,
+                    "IMIĘ ZAPISANE",
+                    "NAME SAVED",
+                    [name, "zapamiętałam imię"],
+                    [name, "I remembered your name"],
+                    duration=8.0,
+                )
+                self._speak_localized(
+                    lang,
+                    f"Dobrze. Zapamiętałam twoje imię, {name}.",
+                    f"Okay. I will remember your name, {name}.",
+                )
+                return True
+
+            if self._is_no(text):
+                self.pending_follow_up = None
+                self._speak_localized(
+                    lang,
+                    "Dobrze. Nie zapisuję twojego imienia.",
+                    "Okay. I will not save your name.",
+                )
+                return True
+
+            self._speak_localized(
+                lang,
+                "Powiedz tak albo nie.",
+                "Please say yes or no.",
+            )
+            return True
+
+        if follow_type in {"timer_duration", "focus_duration", "break_duration"}:
+            minutes = self._extract_minutes_from_text(text)
+            if minutes is None or minutes <= 0:
+                self._speak_localized(
+                    lang,
+                    "Podaj proszę czas w minutach albo sekundach.",
+                    "Please tell me the duration in minutes or seconds.",
+                )
+                return True
+
+            self.pending_follow_up = None
+
+            if follow_type == "timer_duration":
+                return self._start_timer_mode(minutes, "timer", lang)
+            if follow_type == "focus_duration":
+                return self._start_timer_mode(minutes, "focus", lang)
+            return self._start_timer_mode(minutes, "break", lang)
+
+        if follow_type == "display_offer":
+            if self._is_yes(text):
+                self.pending_follow_up = None
+                self.display.show_block(
+                    follow_up.get("title", "INFO"),
+                    follow_up.get("lines", []),
+                    duration=self.default_overlay_seconds,
+                )
+                self._speak_localized(
+                    lang,
+                    "Dobrze. Pokazuję to na ekranie.",
+                    "Okay. I am showing it on the screen.",
+                )
+                return True
+
+            if self._is_no(text):
+                self.pending_follow_up = None
+                self._speak_localized(
+                    lang,
+                    "Dobrze.",
+                    "Okay.",
+                )
+                return True
+
+            self._speak_localized(
+                lang,
+                "Powiedz tak albo nie.",
+                "Please say yes or no.",
+            )
+            return True
+
+        if follow_type == "post_focus_break_offer":
+            direct_minutes = self._extract_minutes_from_text(text)
+            if direct_minutes is not None and direct_minutes > 0 and not self._is_no(text):
+                self.pending_follow_up = None
+                return self._start_timer_mode(direct_minutes, "break", lang)
+
+            if self._is_yes(text):
+                self.pending_follow_up = {
+                    "type": "break_duration",
+                    "lang": lang,
+                }
+                self._speak_localized(
+                    lang,
+                    "Jak długa ma być przerwa?",
+                    "How long should the break be?",
+                )
+                return True
+
+            if self._is_no(text):
+                self.pending_follow_up = None
+                self._speak_localized(
+                    lang,
+                    "Dobrze. Nie uruchamiam przerwy.",
+                    "Okay. I will not start a break.",
+                )
+                return True
+
+            self._speak_localized(
+                lang,
+                "Powiedz tak, nie albo od razu podaj długość przerwy.",
+                "Say yes, no, or tell me the break duration right away.",
+            )
+            return True
+
+        self.pending_follow_up = None
+        return False
 
     def _execute_intent(self, result: IntentResult, lang: str) -> bool:
         self.last_language = lang
@@ -487,87 +786,81 @@ class CoreAssistant:
             f"Parsed intent: action={result.action}, data={result.data}, text={result.normalized_text}, lang={lang}"
         )
 
-        if result.action == "show_menu":
-            self._show_menu(lang)
-            self._speak_localized(lang, "Wyświetlam menu.", "Showing the menu.")
-            return True
-
         if result.action == "help":
-            self._show_localized_block(
-                lang,
-                "POMOC",
-                "HELP",
-                [
-                    "pomoc / menu / stan",
-                    "przedstaw się / godzina",
-                    "gdzie są klucze",
-                    "klucze są w kuchni",
-                    "przypomnij za 10 sek",
-                ],
-                [
-                    "help / menu / status",
-                    "introduce / time",
-                    "where are my keys",
-                    "keys are in kitchen",
-                    "remind me in 10 sec",
-                ],
-            )
+            self._show_capabilities(lang)
             self._speak_localized(
                 lang,
-                "Mogę pokazać menu, powiedzieć godzinę, przedstawić się, zapamiętać informacje, odczytać pamięć i ustawić przypomnienie.",
-                "I can show the menu, tell the time, introduce myself, remember information, recall memory, and create reminders.",
+                "Mogę zapamiętywać informacje, ustawiać przypomnienia i timery, podawać godzinę, datę, dzień i rok, prowadzić focus mode i przerwę oraz pokazywać informacje na ekranie.",
+                "I can remember information, set reminders and timers, tell you the time, date, day and year, run focus and break sessions, and show information on the screen.",
             )
             return True
 
         if result.action == "introduce_self":
-            self.pending_name_request = True
-            self.pending_name_language = lang
-
+            self.pending_follow_up = {
+                "type": "capture_name",
+                "lang": lang,
+            }
             self._show_localized_block(
                 lang,
-                "O MNIE",
-                "ABOUT ME",
+                "CZEŚĆ",
+                "HELLO",
                 [
-                    "jestem prototypem",
-                    "na assessment",
-                    "roboczo: Smart",
-                    "czekam na imię",
+                    "jestem Smart Assistant",
+                    "mogę ci pomagać",
+                    "jak masz na imię?",
                 ],
                 [
-                    "I am a prototype",
-                    "for assessment",
-                    "working name: Smart",
-                    "still waiting for a name",
+                    "I am Smart Assistant",
+                    "I can help you",
+                    "what is your name?",
                 ],
+                duration=10.0,
             )
             self._speak_localized(
                 lang,
-                "Jestem prototypem na assessment. Roboczo nazywam się Smart Assistant i nadal czekam na swoje prawdziwe imię. A ty jak się nazywasz?",
-                "I am a prototype for the assessment. My working name is Smart Assistant and I am still waiting for my real name. What is your name?",
+                "Jestem Smart Assistant. Mogę zapamiętywać rzeczy, ustawiać przypomnienia i pomagać ci podczas nauki. Jak masz na imię?",
+                "I am Smart Assistant. I can remember things, set reminders, and help you during study sessions. What is your name?",
             )
             return True
 
-        if result.action == "ask_time":
-            answer = self._format_time_answer(lang)
-            self.display.show_block(
-                self._localized(lang, "GODZINA", "TIME"),
-                [answer],
-                duration=6.0,
-            )
-            self.voice_out.speak(answer, language=lang)
+        if result.action in {
+            "ask_time",
+            "show_time",
+            "ask_date",
+            "show_date",
+            "ask_day",
+            "show_day",
+            "ask_year",
+            "show_year",
+        }:
+            if "time" in result.action:
+                kind = "time"
+            elif "date" in result.action:
+                kind = "date"
+            elif "day" in result.action:
+                kind = "day"
+            else:
+                kind = "year"
+
+            spoken, title, lines = self._format_temporal_text(kind, lang)
+            self.voice_out.speak(spoken, language=lang)
+
+            if result.action.startswith("show_"):
+                self.display.show_block(title, lines, duration=self.default_overlay_seconds)
+            else:
+                self._offer_oled_display(lang, title, lines)
             return True
 
         if result.action == "status":
             timer_status = self.timer.status()
             if lang == "pl":
                 lines = [
-                    f"skupienie: {'ON' if self.state.get('focus_mode') else 'OFF'}",
+                    f"focus: {'ON' if self.state.get('focus_mode') else 'OFF'}",
                     f"przerwa: {'ON' if self.state.get('break_mode') else 'OFF'}",
                     f"timer: {self.state.get('current_timer') or 'brak'}",
                     f"działa: {'TAK' if timer_status.get('running') else 'NIE'}",
                 ]
-                title = "STAN"
-                spoken = "Pokazuję aktualny stan."
+                spoken = "Pokazuję aktualny stan asystenta."
             else:
                 lines = [
                     f"focus: {'ON' if self.state.get('focus_mode') else 'OFF'}",
@@ -575,10 +868,13 @@ class CoreAssistant:
                     f"timer: {self.state.get('current_timer') or 'none'}",
                     f"running: {'YES' if timer_status.get('running') else 'NO'}",
                 ]
-                title = "STATUS"
-                spoken = "Showing the current status."
+                spoken = "Showing the current assistant status."
 
-            self.display.show_block(title, lines, duration=self.default_overlay_seconds)
+            self.display.show_block(
+                self._localized(lang, "STATUS", "STATUS"),
+                lines,
+                duration=self.default_overlay_seconds,
+            )
             self.voice_out.speak(spoken, language=lang)
             return True
 
@@ -587,12 +883,12 @@ class CoreAssistant:
             if not all_memory:
                 self._speak_localized(
                     lang,
-                    "Pamięć jest obecnie pusta.",
-                    "Memory is currently empty.",
+                    "Na razie niczego nie zapamiętałam.",
+                    "I have not remembered anything yet.",
                 )
                 return True
 
-            memory_lines = [f"{key} -> {value}" for key, value in all_memory.items()]
+            memory_lines = [f"{key} -> {value}" for key, value in list(all_memory.items())[:5]]
             self.display.show_block(
                 self._localized(lang, "PAMIĘĆ", "MEMORY"),
                 memory_lines,
@@ -600,8 +896,8 @@ class CoreAssistant:
             )
             self._speak_localized(
                 lang,
-                "Pokazuję zapisane elementy pamięci.",
-                "Showing saved memory items.",
+                "Pokazuję zapisane rzeczy.",
+                "I am showing the saved items.",
             )
             return True
 
@@ -611,11 +907,11 @@ class CoreAssistant:
                 self._speak_localized(
                     lang,
                     "Nie ma zapisanych przypomnień.",
-                    "There are no reminders saved.",
+                    "There are no saved reminders.",
                 )
                 return True
 
-            reminder_lines = [f"{item['id']} {item['status']}" for item in reminders]
+            reminder_lines = [f"{item['id']} {item['status']}" for item in reminders[:5]]
             self.display.show_block(
                 self._localized(lang, "PRZYPOMNIENIA", "REMINDERS"),
                 reminder_lines,
@@ -623,25 +919,38 @@ class CoreAssistant:
             )
             self._speak_localized(
                 lang,
-                "Pokazuję przypomnienia.",
-                "Showing reminders.",
+                "Pokazuję zapisane przypomnienia.",
+                "I am showing the saved reminders.",
             )
             return True
 
         if result.action == "memory_store":
-            key = result.data["key"].strip().lower()
-            value = result.data["value"].strip()
-            self.memory.remember(key, value)
-            self.display.show_block(
-                self._localized(lang, "PAMIĘĆ ZAPISANA", "MEMORY SAVED"),
-                [key, value],
-                duration=8.0,
-            )
-            self._speak_localized(
-                lang,
-                f"Zapisałam, że {key} jest {value}.",
-                f"I saved that {key} is {value}.",
-            )
+            key = result.data.get("key", "").strip().lower()
+            value = result.data.get("value", "").strip()
+            memory_text = result.data.get("memory_text", "").strip()
+
+            if key and value:
+                self.memory.remember(key, value)
+                spoken_pl = f"Dobrze. Zapamiętałam, że {key} jest {value}."
+                spoken_en = f"Okay. I remembered that {key} is {value}."
+                title = self._localized(lang, "PAMIĘĆ", "MEMORY")
+                lines = [key, value]
+            elif memory_text:
+                self.memory.remember(memory_text, memory_text)
+                spoken_pl = "Dobrze. Zapamiętałam tę informację."
+                spoken_en = "Okay. I remembered that information."
+                title = self._localized(lang, "PAMIĘĆ", "MEMORY")
+                lines = [memory_text]
+            else:
+                self._speak_localized(
+                    lang,
+                    "Nie usłyszałam, co mam zapamiętać.",
+                    "I did not catch what I should remember.",
+                )
+                return True
+
+            self.voice_out.speak(self._localized(lang, spoken_pl, spoken_en), language=lang)
+            self.display.show_block(title, lines, duration=8.0)
             return True
 
         if result.action == "memory_recall":
@@ -649,27 +958,20 @@ class CoreAssistant:
             value = self.memory.recall(key)
 
             if value is None:
-                self.display.show_block(
-                    self._localized(lang, "ODCZYT", "RECALL"),
-                    [key, self._localized(lang, "nie znaleziono", "not found")],
-                    duration=8.0,
-                )
                 self._speak_localized(
                     lang,
                     f"Nie mam zapisanej informacji dla {key}.",
                     f"I do not have anything saved for {key}.",
                 )
-            else:
-                self.display.show_block(
-                    self._localized(lang, "ODCZYT", "RECALL"),
-                    [key, value],
-                    duration=8.0,
-                )
-                self._speak_localized(
-                    lang,
-                    f"{key} jest {value}.",
-                    f"{key} is {value}.",
-                )
+                return True
+
+            answer = self._localized(lang, f"{key} jest {value}.", f"{key} is {value}.")
+            self.voice_out.speak(answer, language=lang)
+            self._offer_oled_display(
+                lang,
+                self._localized(lang, "ODPOWIEDŹ", "ANSWER"),
+                [f"{key}: {value}"],
+            )
             return True
 
         if result.action == "reminder_create":
@@ -678,31 +980,56 @@ class CoreAssistant:
             reminder = self.reminders.add_after_seconds(seconds, message)
 
             self.display.show_block(
-                self._localized(lang, "PRZYPOMNIENIE UST.", "REMINDER SET"),
-                [
-                    f"id: {reminder['id']}",
-                    self._localized(lang, f"za {seconds}s", f"in {seconds}s"),
-                ],
+                self._localized(lang, "PRZYPOMNIENIE", "REMINDER"),
+                [message, self._localized(lang, f"za {seconds} s", f"in {seconds} s")],
                 duration=8.0,
             )
             self._speak_localized(
                 lang,
-                f"Zapisałam przypomnienie. Włączy się za {seconds} sekund.",
-                f"Reminder saved. It will trigger in {seconds} seconds.",
+                f"Dobrze. Przypomnę ci o tym za {seconds} sekund.",
+                f"Okay. I will remind you about that in {seconds} seconds.",
             )
+            append_log(f"Reminder created: {reminder['id']}")
             return True
+
+        if result.action == "timer_start":
+            minutes = result.data.get("minutes")
+            if minutes is None:
+                self.pending_follow_up = {"type": "timer_duration", "lang": lang}
+                self._speak_localized(
+                    lang,
+                    "Na jak długo mam ustawić timer?",
+                    "How long should I set the timer for?",
+                )
+                return True
+            return self._start_timer_mode(float(minutes), "timer", lang)
 
         if result.action == "focus_start":
-            minutes = float(result.data["minutes"])
-            self.timer.start(minutes, "focus")
-            return True
+            minutes = result.data.get("minutes")
+            if minutes is None:
+                self.pending_follow_up = {"type": "focus_duration", "lang": lang}
+                self._speak_localized(
+                    lang,
+                    "Jak długa ma być sesja focus?",
+                    "How long should the focus session be?",
+                )
+                return True
+            return self._start_timer_mode(float(minutes), "focus", lang)
 
         if result.action == "break_start":
-            minutes = float(result.data["minutes"])
-            self.timer.start(minutes, "break")
-            return True
+            minutes = result.data.get("minutes")
+            if minutes is None:
+                self.pending_follow_up = {"type": "break_duration", "lang": lang}
+                self._speak_localized(
+                    lang,
+                    "Jak długa ma być przerwa?",
+                    "How long should the break be?",
+                )
+                return True
+            return self._start_timer_mode(float(minutes), "break", lang)
 
         if result.action == "timer_stop":
+            self.pending_follow_up = None
             ok, _ = self.timer.stop()
             if not ok:
                 self._speak_localized(
@@ -726,18 +1053,10 @@ class CoreAssistant:
         if result.action == "unclear" and result.suggestions:
             return self._ask_for_confirmation(result.suggestions, lang)
 
-        self.display.show_block(
-            self._localized(lang, "NIEJASNA KOMENDA", "UNCLEAR COMMAND"),
-            [
-                result.normalized_text[:18] or self._localized(lang, "brak", "none"),
-                self._localized(lang, "co miała znaczyć?", "what did you mean?"),
-            ],
-            duration=8.0,
-        )
         self._speak_localized(
             lang,
-            "Nie do końca zrozumiałam. Co miałeś na myśli?",
-            "I did not fully understand. What did you mean?",
+            "Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.",
+            "I did not fully understand that. Please say it again in a slightly different way.",
         )
         return True
 
@@ -748,14 +1067,15 @@ class CoreAssistant:
 
         lang = self._detect_language(cleaned)
         self.last_language = lang
-
         append_log(f"User said: {cleaned}")
-
-        if self.pending_name_request and self._try_handle_name_capture(cleaned, lang):
-            return True
 
         if self.pending_confirmation:
             return self._handle_pending_confirmation(cleaned, lang)
+
+        if self.pending_follow_up:
+            handled = self._handle_pending_follow_up(cleaned, lang)
+            if handled:
+                return True
 
         result = self.parser.parse(cleaned)
         return self._execute_intent(result, lang)

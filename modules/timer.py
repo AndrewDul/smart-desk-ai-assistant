@@ -18,22 +18,36 @@ class SessionTimer:
 
         self._thread: threading.Thread | None = None
         self._stop_event: threading.Event | None = None
+        self._lock = threading.Lock()
+
         self._running = False
         self._mode: str | None = None
         self._remaining_seconds = 0
+        self._started_at = 0.0
+        self._ends_at = 0.0
 
     def start(self, minutes: float, mode: str) -> tuple[bool, str]:
-        if self._running:
-            return False, "A timer is already running."
+        with self._lock:
+            if self._running:
+                return False, "A timer is already running."
 
-        if minutes <= 0:
-            return False, "Timer duration must be greater than zero."
+            if minutes <= 0:
+                return False, "Timer duration must be greater than zero."
 
-        self._running = True
-        self._mode = mode
-        self._remaining_seconds = int(minutes * 60)
-        self._stop_event = threading.Event()
-        self._thread = threading.Thread(target=self._run, daemon=True)
+            total_seconds = max(1, int(round(minutes * 60)))
+
+            self._running = True
+            self._mode = mode
+            self._remaining_seconds = total_seconds
+            self._started_at = time.time()
+            self._ends_at = self._started_at + total_seconds
+            self._stop_event = threading.Event()
+
+            self._thread = threading.Thread(
+                target=self._run,
+                args=(mode, self._stop_event),
+                daemon=True,
+            )
 
         if self.on_started:
             self.on_started(mode, minutes)
@@ -41,38 +55,48 @@ class SessionTimer:
         self._thread.start()
         return True, f"{mode.capitalize()} timer started for {minutes:g} minute(s)."
 
-    def _run(self) -> None:
-        end_time = time.time() + self._remaining_seconds
+    def _run(self, mode: str, stop_event: threading.Event) -> None:
+        while not stop_event.is_set():
+            with self._lock:
+                if not self._running or self._mode != mode:
+                    return
 
-        while self._stop_event and not self._stop_event.is_set():
-            self._remaining_seconds = max(0, int(round(end_time - time.time())))
-            if self._remaining_seconds <= 0:
-                break
-            time.sleep(0.5)
+                remaining = max(0, int(round(self._ends_at - time.time())))
+                self._remaining_seconds = remaining
 
-        if self._stop_event and self._stop_event.is_set():
-            return
+                if remaining <= 0:
+                    self._running = False
+                    self._mode = None
+                    self._remaining_seconds = 0
+                    self._started_at = 0.0
+                    self._ends_at = 0.0
+                    finished = True
+                else:
+                    finished = False
 
-        finished_mode = self._mode
-        self._running = False
-        self._mode = None
-        self._remaining_seconds = 0
+            if finished:
+                if self.on_finished:
+                    self.on_finished(mode)
+                return
 
-        if finished_mode and self.on_finished:
-            self.on_finished(finished_mode)
+            time.sleep(0.2)
 
     def stop(self) -> tuple[bool, str]:
-        if not self._running:
-            return False, "No timer is currently running."
+        with self._lock:
+            if not self._running:
+                return False, "No timer is currently running."
 
-        stopped_mode = self._mode or "unknown"
+            stopped_mode = self._mode or "unknown"
+            stop_event = self._stop_event
 
-        if self._stop_event:
-            self._stop_event.set()
+            self._running = False
+            self._mode = None
+            self._remaining_seconds = 0
+            self._started_at = 0.0
+            self._ends_at = 0.0
 
-        self._running = False
-        self._mode = None
-        self._remaining_seconds = 0
+        if stop_event:
+            stop_event.set()
 
         if self.on_stopped:
             self.on_stopped(stopped_mode)
@@ -80,8 +104,17 @@ class SessionTimer:
         return True, f"{stopped_mode.capitalize()} timer stopped."
 
     def status(self) -> dict:
+        with self._lock:
+            running = self._running
+            mode = self._mode
+            remaining_seconds = self._remaining_seconds
+            started_at = self._started_at
+            ends_at = self._ends_at
+
         return {
-            "running": self._running,
-            "mode": self._mode,
-            "remaining_seconds": self._remaining_seconds,
+            "running": running,
+            "mode": mode,
+            "remaining_seconds": remaining_seconds,
+            "started_at": started_at,
+            "ends_at": ends_at,
         }
