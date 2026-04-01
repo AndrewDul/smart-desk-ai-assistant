@@ -29,13 +29,24 @@ DEFAULT_SETTINGS = {
     "user": {
         "name": "Andrzej",
     },
-    "voice_input": {
+        "voice_input": {
         "enabled": True,
-        "device_index": 2,
-        "use_grammar": False,
+        "engine": "whisper",
+        "device_index": None,
+        "device_name_contains": None,
         "timeout_seconds": 8,
         "debug": False,
-        "model_path": "models/vosk-model-small-en-us-0.15",
+        "sample_rate": 16000,
+        "max_record_seconds": 8.0,
+        "silence_threshold": 350.0,
+        "end_silence_seconds": 1.0,
+        "pre_roll_seconds": 0.4,
+        "threads": 4,
+        "language": "auto",
+        "vad_enabled": True,
+        "whisper_cli_path": "whisper.cpp/build/bin/whisper-cli",
+        "model_path": "models/ggml-base.bin",
+        "vad_model_path": "models/ggml-silero-v6.2.0.bin"
     },
     "voice_output": {
         "enabled": True,

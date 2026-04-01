@@ -241,3 +241,247 @@
 [2026-04-01 00:26:26] User command: exit
 [2026-04-01 00:26:26] Assistant said: Shutting down Smart Desk assistant.
 [2026-04-01 00:26:29] Assistant shut down.
+[2026-04-01 01:07:25] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-04-01 01:07:29] Assistant booted for project: Smart Desk AI Assistant
+[2026-04-01 01:07:34] User command: help
+[2026-04-01 01:07:34] Assistant said: Available commands: help, status, memory, reminders, remember key equals value, recall key, remind seconds and message, focus minutes, break minutes, stop timer, show menu, exit.
+[2026-04-01 01:07:59] User command: recall phone
+[2026-04-01 01:07:59] Assistant said: phone is kid.
+[2026-04-01 01:08:42] User command: status
+[2026-04-01 01:08:42] Assistant said: Showing current status.
+[2026-04-01 01:10:06] User command: help
+[2026-04-01 01:10:06] Assistant said: Available commands: help, status, memory, reminders, remember key equals value, recall key, remind seconds and message, focus minutes, break minutes, stop timer, show menu, exit.
+[2026-04-01 01:11:24] User command: help
+[2026-04-01 01:11:24] Assistant said: Available commands: help, status, memory, reminders, remember key equals value, recall key, remind seconds and message, focus minutes, break minutes, stop timer, show menu, exit.
+[2026-04-01 01:15:06] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-04-01 01:15:10] Assistant booted for project: Smart Desk AI Assistant
+[2026-04-01 01:15:14] User command: exit
+[2026-04-01 01:15:14] Assistant said: Shutting down Smart Desk assistant.
+[2026-04-01 01:15:16] Assistant shut down.
+[2026-04-01 13:38:14] Assistant said: Hello Andrzej. Smart Desk assistant core is now running.
+[2026-04-01 13:38:18] Assistant booted for project: Smart Desk AI Assistant
+[2026-04-01 13:40:23] User command: help
+[2026-04-01 13:40:23] Assistant said: Available commands: help, status, memory, reminders, remember key equals value, recall key, remind seconds and message, focus minutes, break minutes, stop timer, show menu, exit.
+[2026-04-01 13:41:42] User command: status
+[2026-04-01 13:41:42] Assistant said: Showing current status.
+[2026-04-01 13:42:32] User command: exit
+[2026-04-01 13:42:32] Assistant said: Shutting down Smart Desk assistant.
+[2026-04-01 13:42:34] Assistant shut down.
+[2026-04-01 14:51:46] Assistant said: Hello Andrzej. Whisper voice control is ready.
+[2026-04-01 14:51:49] Assistant booted for project: Smart Desk AI Assistant
+[2026-04-01 14:52:00] Assistant said: Shutting down Smart Desk assistant.
+[2026-04-01 14:52:02] Assistant shut down.
+[2026-04-01 14:53:08] Assistant said: Hello Andrzej. Whisper voice control is ready.
+[2026-04-01 14:53:11] Assistant booted for project: Smart Desk AI Assistant
+[2026-04-01 14:53:21] Assistant said: Shutting down Smart Desk assistant.
+[2026-04-01 14:53:23] Assistant shut down.
+[2026-04-01 14:53:30] Assistant said: Hello Andrzej. Whisper voice control is ready.
+[2026-04-01 14:53:34] Assistant booted for project: Smart Desk AI Assistant
+[2026-04-01 14:53:44] Assistant said: Shutting down Smart Desk assistant.
+[2026-04-01 14:53:47] Assistant shut down.
+[2026-04-01 14:55:32] Assistant said: Hello Andrzej. Whisper voice control is ready.
+[2026-04-01 14:55:35] Assistant booted for project: Smart Desk AI Assistant
+[2026-04-01 14:55:46] User said: Menlo.
+[2026-04-01 14:55:46] Parsed intent: action=unclear, data={}, text=menlo
+[2026-04-01 14:55:46] Assistant said: Did you mean menu? Say yes or no.
+[2026-04-01 14:55:54] User said: Yes.
+[2026-04-01 14:55:54] Parsed intent: action=show_menu, data={}, text=Yes.
+[2026-04-01 14:55:54] Assistant said: Showing menu.
+[2026-04-01 14:56:07] User said: 1/2 %, 2/3 %, 2/3 %,
+[2026-04-01 14:56:07] Parsed intent: action=unknown, data={}, text=1 2 2 3 2 3
+[2026-04-01 14:56:07] Assistant said: I did not understand. Say help or menu.
+[2026-04-01 14:56:15] User said: [BLANK_AUDIO]
+[2026-04-01 14:56:15] Parsed intent: action=unknown, data={}, text=blank audio
+[2026-04-01 14:56:15] Assistant said: I did not understand. Say help or menu.
+[2026-04-01 14:56:24] User said: help.
+[2026-04-01 14:56:24] Parsed intent: action=help, data={}, text=help
+[2026-04-01 14:56:24] Assistant said: You can ask for help, menu, status, memory, reminders, timers, and natural memory commands.
+[2026-04-01 14:56:37] User said: memory
+[2026-04-01 14:56:37] Parsed intent: action=memory_list, data={}, text=memory
+[2026-04-01 14:56:37] Assistant said: Showing saved memory items.
+[2026-04-01 14:56:47] User said: Where is my case?
+[2026-04-01 14:56:47] Parsed intent: action=memory_recall, data={'key': 'case'}, text=where is my case
+[2026-04-01 14:56:47] Assistant said: I do not have anything saved for case.
+[2026-04-01 14:56:58] User said: Where is my key?
+[2026-04-01 14:56:58] Parsed intent: action=memory_recall, data={'key': 'key'}, text=where is my key
+[2026-04-01 14:56:58] Assistant said: I do not have anything saved for key.
+[2026-04-01 14:57:07] User said: Where is my phone?
+[2026-04-01 14:57:07] Parsed intent: action=memory_recall, data={'key': 'phone'}, text=where is my phone
+[2026-04-01 14:57:07] Assistant said: phone is kid.
+[2026-04-01 14:57:19] User said: gdzie są moje klucze.
+[2026-04-01 14:57:19] Parsed intent: action=memory_recall, data={'key': 'klucze'}, text=gdzie sa moje klucze
+[2026-04-01 14:57:19] Assistant said: I do not have anything saved for klucze.
+[2026-04-01 14:57:29] User said: Where is my phone?
+[2026-04-01 14:57:29] Parsed intent: action=memory_recall, data={'key': 'phone'}, text=where is my phone
+[2026-04-01 14:57:29] Assistant said: phone is kid.
+[2026-04-01 14:57:36] User said: [BLANK_AUDIO]
+[2026-04-01 14:57:36] Parsed intent: action=unknown, data={}, text=blank audio
+[2026-04-01 14:57:36] Assistant said: I did not understand. Say help or menu.
+[2026-04-01 14:57:47] User said: Jak się masz?
+[2026-04-01 14:57:47] Parsed intent: action=unknown, data={}, text=jak sie masz
+[2026-04-01 14:57:47] Assistant said: I did not understand. Say help or menu.
+[2026-04-01 14:57:57] User said: Help.
+[2026-04-01 14:57:57] Parsed intent: action=help, data={}, text=help
+[2026-04-01 14:57:57] Assistant said: You can ask for help, menu, status, memory, reminders, timers, and natural memory commands.
+[2026-04-01 14:58:12] User said: ご視聴ありがとうございました!
+[2026-04-01 14:58:12] Parsed intent: action=unknown, data={}, text=
+[2026-04-01 14:58:12] Assistant said: I did not understand. Say help or menu.
+[2026-04-01 14:58:24] User said: Przypomnij mi o kluczach.
+[2026-04-01 14:58:24] Parsed intent: action=unclear, data={}, text=przypomnij mi o kluczach
+[2026-04-01 14:58:24] Assistant said: Did you mean reminders / przypomnienia? Say yes or no.
+[2026-04-01 14:58:33] User said: Yes.
+[2026-04-01 14:58:33] Parsed intent: action=reminders_list, data={}, text=Yes.
+[2026-04-01 14:58:33] Assistant said: Showing reminders.
+[2026-04-01 14:58:45] User said: [BLANK_AUDIO]
+[2026-04-01 14:58:45] Parsed intent: action=unknown, data={}, text=blank audio
+[2026-04-01 14:58:45] Assistant said: I did not understand. Say help or menu.
+[2026-04-01 14:58:55] User said: We want.
+[2026-04-01 14:58:55] Parsed intent: action=unknown, data={}, text=we want
+[2026-04-01 14:58:55] Assistant said: I did not understand. Say help or menu.
+[2026-04-01 14:59:04] User said: Exit.
+[2026-04-01 14:59:04] Parsed intent: action=exit, data={}, text=exit
+[2026-04-01 14:59:04] Assistant said: Shutting down Smart Desk assistant.
+[2026-04-01 14:59:06] Assistant shut down.
+[2026-04-01 15:38:16] Assistant said: Smart Assistant prototype is ready.
+[2026-04-01 15:38:19] Assistant booted.
+[2026-04-01 15:38:25] User said: [BLANK_AUDIO]
+[2026-04-01 15:38:25] Parsed intent: action=unknown, data={}, text=blank audio, lang=pl
+[2026-04-01 15:38:25] Assistant said: Nie do końca zrozumiałam. Co miałeś na myśli?
+[2026-04-01 15:38:37] User said: Erkşinizde vaz.
+[2026-04-01 15:38:37] Parsed intent: action=unknown, data={}, text=erksinizde vaz, lang=pl
+[2026-04-01 15:38:37] Assistant said: Nie do końca zrozumiałam. Co miałeś na myśli?
+[2026-04-01 15:38:49] User said: Jak się nazywasz?
+[2026-04-01 15:38:49] Parsed intent: action=introduce_self, data={}, text=jak sie nazywasz, lang=pl
+[2026-04-01 15:38:49] Assistant said: Jestem prototypem na assessment. Roboczo nazywam się Smart Assistant i nadal czekam na swoje prawdziwe imię. A ty jak się nazywasz?
+[2026-04-01 15:39:06] User said: And she.
+[2026-04-01 15:39:06] Assistant said: Miło mi, And. Zapisałam twoje imię.
+[2026-04-01 15:39:18] User said: która zgodzina.
+[2026-04-01 15:39:18] Parsed intent: action=unclear, data={}, text=ktora zgodzina, lang=pl
+[2026-04-01 15:39:18] Assistant said: Czy chodziło ci o godzina? Powiedz tak albo nie.
+[2026-04-01 15:39:31] User said: Так.
+[2026-04-01 15:39:31] Assistant said: Powiedz tak albo nie.
+[2026-04-01 15:39:38] User said: Tag.
+[2026-04-01 15:39:38] Assistant said: Powiedz tak albo nie.
+[2026-04-01 15:39:46] User said: Talk.
+[2026-04-01 15:39:46] Assistant said: Powiedz tak albo nie.
+[2026-04-01 15:39:54] User said: [BLANK_AUDIO]
+[2026-04-01 15:39:54] Assistant said: Powiedz tak albo nie.
+[2026-04-01 15:40:01] User said: Yes.
+[2026-04-01 15:40:01] Parsed intent: action=ask_time, data={}, text=Yes., lang=pl
+[2026-04-01 15:40:01] Assistant said: Jest 15:40.
+[2026-04-01 15:40:12] User said: What's time is it?
+[2026-04-01 15:40:12] Parsed intent: action=memory_store, data={'key': 'what s time', 'value': 'it'}, text=what s time is it, lang=en
+[2026-04-01 15:40:12] Memory saved: what s time -> it
+[2026-04-01 15:40:12] Assistant said: I saved that what s time is it.
+[2026-04-01 15:40:21] User said: What time is old?
+[2026-04-01 15:40:21] Parsed intent: action=memory_store, data={'key': 'what time', 'value': 'old'}, text=what time is old, lang=en
+[2026-04-01 15:40:21] Memory saved: what time -> old
+[2026-04-01 15:40:21] Assistant said: I saved that what time is old.
+[2026-04-01 15:40:32] User said: Интродящего салф.
+[2026-04-01 15:40:32] Parsed intent: action=unknown, data={}, text=, lang=en
+[2026-04-01 15:40:32] Assistant said: I did not fully understand. What did you mean?
+[2026-04-01 15:40:44] User said: What's your name?
+[2026-04-01 15:40:44] Parsed intent: action=unclear, data={}, text=what s your name, lang=en
+[2026-04-01 15:40:44] Assistant said: Did you mean help or introduce yourself? Say yes or no.
+[2026-04-01 15:40:55] User said: introduce yourself.
+[2026-04-01 15:40:55] Parsed intent: action=introduce_self, data={}, text=introduce yourself., lang=en
+[2026-04-01 15:40:55] Assistant said: I am a prototype for the assessment. My working name is Smart Assistant and I am still waiting for my real name. What is your name?
+[2026-04-01 15:41:10] User said: Andy.
+[2026-04-01 15:41:10] Assistant said: Nice to meet you, Andy. I saved your name.
+[2026-04-01 15:41:25] User said: Showmanö.
+[2026-04-01 15:41:25] Parsed intent: action=unclear, data={}, text=showmano, lang=en
+[2026-04-01 15:41:25] Assistant said: Did you mean menu or memory? Say yes or no.
+[2026-04-01 15:41:35] User said: 많이 넣어
+[2026-04-01 15:41:35] Assistant said: Please say yes or no.
+[2026-04-01 15:41:43] User said: Yes.
+[2026-04-01 15:41:43] Parsed intent: action=show_menu, data={}, text=Yes., lang=en
+[2026-04-01 15:41:43] Assistant said: Showing the menu.
+[2026-04-01 15:41:50] User said: [BLANK_AUDIO]
+[2026-04-01 15:41:50] Parsed intent: action=unknown, data={}, text=blank audio, lang=en
+[2026-04-01 15:41:50] Assistant said: I did not fully understand. What did you mean?
+[2026-04-01 15:42:00] User said: Show status
+[2026-04-01 15:42:00] Parsed intent: action=status, data={}, text=show status, lang=en
+[2026-04-01 15:42:00] Assistant said: Showing the current status.
+[2026-04-01 15:42:11] User said: Set focus one second
+[2026-04-01 15:42:11] Parsed intent: action=unknown, data={}, text=set focus one second, lang=en
+[2026-04-01 15:42:11] Assistant said: I did not fully understand. What did you mean?
+[2026-04-01 15:42:28] User said: Set focus one second.
+[2026-04-01 15:42:28] Parsed intent: action=unknown, data={}, text=set focus one second, lang=en
+[2026-04-01 15:42:28] Assistant said: I did not fully understand. What did you mean?
+[2026-04-01 15:42:39] User said: Set focus 1 second.
+[2026-04-01 15:42:39] Parsed intent: action=focus_start, data={'minutes': 0.02}, text=set focus 1 second, lang=en
+[2026-04-01 15:42:39] Focus timer started for 0.02 minute(s).
+[2026-04-01 15:42:39] Assistant said: I started the focus timer for 0.02 minutes.
+[2026-04-01 15:42:43] Assistant said: The focus timer has finished.
+[2026-04-01 15:42:46] Focus timer finished.
+[2026-04-01 15:42:50] User said: The focus timer has finished.
+[2026-04-01 15:42:50] Parsed intent: action=unknown, data={}, text=the focus timer has finished, lang=en
+[2026-04-01 15:42:50] Assistant said: I did not fully understand. What did you mean?
+[2026-04-01 15:43:03] User said: Zapamiętaj, że klucze są wykuchni.
+[2026-04-01 15:43:03] Parsed intent: action=memory_store, data={'key': 'klucze', 'value': 'wykuchni'}, text=zapamietaj ze klucze sa wykuchni, lang=pl
+[2026-04-01 15:43:03] Memory saved: klucze -> wykuchni
+[2026-04-01 15:43:03] Assistant said: Zapisałam, że klucze jest wykuchni.
+[2026-04-01 15:43:14] User said: Gdzie są moje klucze?
+[2026-04-01 15:43:14] Parsed intent: action=memory_recall, data={'key': 'klucze'}, text=gdzie sa moje klucze, lang=pl
+[2026-04-01 15:43:14] Assistant said: klucze jest wykuchni.
+[2026-04-01 15:43:29] User said: Zapamiętaj numer telefonu. 1, 2, 3.
+[2026-04-01 15:43:29] Parsed intent: action=unknown, data={}, text=zapamietaj numer telefonu 1 2 3, lang=pl
+[2026-04-01 15:43:29] Assistant said: Nie do końca zrozumiałam. Co miałeś na myśli?
+[2026-04-01 15:43:44] User said: która jest godziną.
+[2026-04-01 15:43:44] Parsed intent: action=ask_time, data={}, text=ktora jest godzina, lang=pl
+[2026-04-01 15:43:44] Assistant said: Jest 15:43.
+[2026-04-01 15:43:55] User said: Jak się nazywasz?
+[2026-04-01 15:43:55] Parsed intent: action=introduce_self, data={}, text=jak sie nazywasz, lang=pl
+[2026-04-01 15:43:55] Assistant said: Jestem prototypem na assessment. Roboczo nazywam się Smart Assistant i nadal czekam na swoje prawdziwe imię. A ty jak się nazywasz?
+[2026-04-01 15:44:13] User said: Nie ważne.
+[2026-04-01 15:44:13] Parsed intent: action=unknown, data={}, text=nie wazne, lang=pl
+[2026-04-01 15:44:13] Assistant said: Nie do końca zrozumiałam. Co miałeś na myśli?
+[2026-04-01 15:44:28] User said: Pokażmy nu.
+[2026-04-01 15:44:28] Parsed intent: action=unclear, data={}, text=pokazmy nu, lang=pl
+[2026-04-01 15:44:28] Assistant said: Czy chodziło ci o menu czy o stan? Powiedz tak albo nie.
+[2026-04-01 15:44:39] User said: Tag.
+[2026-04-01 15:44:39] Assistant said: Miło mi, Tag. Zapisałam twoje imię.
+[2026-04-01 15:44:50] User said: Pokażmy nowo.
+[2026-04-01 15:44:50] Parsed intent: action=show_menu, data={}, text=Pokażmy nowo., lang=pl
+[2026-04-01 15:44:50] Assistant said: Wyświetlam menu.
+[2026-04-01 15:45:06] User said: ustaw fokus na 2 sekundy.
+[2026-04-01 15:45:06] Parsed intent: action=memory_store, data={'key': 'ustaw fokus', 'value': '2 sekundy'}, text=ustaw fokus na 2 sekundy, lang=pl
+[2026-04-01 15:45:06] Memory saved: ustaw fokus -> 2 sekundy
+[2026-04-01 15:45:06] Assistant said: Zapisałam, że ustaw fokus jest 2 sekundy.
+[2026-04-01 15:45:18] User said: [BLANK_AUDIO]
+[2026-04-01 15:45:18] Parsed intent: action=unknown, data={}, text=blank audio, lang=pl
+[2026-04-01 15:45:18] Assistant said: Nie do końca zrozumiałam. Co miałeś na myśli?
+[2026-04-01 15:45:36] User said: [BLANK_AUDIO]
+[2026-04-01 15:45:36] Parsed intent: action=unknown, data={}, text=blank audio, lang=pl
+[2026-04-01 15:45:36] Assistant said: Nie do końca zrozumiałam. Co miałeś na myśli?
+[2026-04-01 15:45:50] User said: Usta a focus na 5ª.
+[2026-04-01 15:45:50] Parsed intent: action=focus_start, data={'minutes': 5.0}, text=usta a focus na 5a, lang=en
+[2026-04-01 15:45:50] Focus timer started for 5 minute(s).
+[2026-04-01 15:45:50] Assistant said: I started the focus timer for 5 minutes.
+[2026-04-01 15:46:14] User said: 1 %, 1 %, 1 %, 1 %, 1 %,
+[2026-04-01 15:46:14] Parsed intent: action=unknown, data={}, text=1 1 1 1 1, lang=en
+[2026-04-01 15:46:14] Assistant said: I did not fully understand. What did you mean?
+[2026-04-01 15:46:54] User said: 1/2 tbc
+[2026-04-01 15:46:54] Parsed intent: action=unknown, data={}, text=1 2 tbc, lang=en
+[2026-04-01 15:46:54] Assistant said: I did not fully understand. What did you mean?
+[2026-04-01 15:47:08] User said: która jest godziną
+[2026-04-01 15:47:08] Parsed intent: action=ask_time, data={}, text=ktora jest godzina, lang=pl
+[2026-04-01 15:47:08] Assistant said: Jest 15:47.
+[2026-04-01 15:47:20] User said: Jak się nazywasz?
+[2026-04-01 15:47:20] Parsed intent: action=introduce_self, data={}, text=jak sie nazywasz, lang=pl
+[2026-04-01 15:47:20] Assistant said: Jestem prototypem na assessment. Roboczo nazywam się Smart Assistant i nadal czekam na swoje prawdziwe imię. A ty jak się nazywasz?
+[2026-04-01 15:47:40] User said: [BLANK_AUDIO]
+[2026-04-01 15:47:40] Assistant said: Miło mi, Blank. Zapisałam twoje imię.
+[2026-04-01 15:47:53] User said: Wybącza system ta.
+[2026-04-01 15:47:53] Parsed intent: action=unclear, data={}, text=wybacza system ta, lang=pl
+[2026-04-01 15:47:53] Assistant said: Czy chodziło ci o wyjście czy o stan? Powiedz tak albo nie.
+[2026-04-01 15:48:07] User said: Выйсти.
+[2026-04-01 15:48:07] Assistant said: Powiedz tak albo nie.
+[2026-04-01 15:48:18] User said: Talk.
+[2026-04-01 15:48:18] Assistant said: Powiedz tak albo nie.
+[2026-04-01 15:48:27] User said: Yes.
+[2026-04-01 15:48:27] Parsed intent: action=exit, data={}, text=Yes., lang=pl
+[2026-04-01 15:48:27] Assistant said: Zatrzymałam timer focus.
+[2026-04-01 15:48:29] Focus timer stopped.
+[2026-04-01 15:48:29] Assistant said: Wyłączam Smart Assistant.
+[2026-04-01 15:48:32] Assistant shut down.

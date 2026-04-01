@@ -3,3 +3,4 @@ soundfile
 vosk
 luma.oled
 Pillow
+numpy

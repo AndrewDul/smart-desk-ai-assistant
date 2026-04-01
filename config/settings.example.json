@@ -1,19 +1,30 @@
 {
   "project": {
     "name": "Smart Desk AI Assistant",
-    "version": "0.1.0-alpha",
+    "version": "0.2.0-whisper-alpha",
     "stage": "stage-1-stationary-core"
   },
   "user": {
-    "name": "User"
+    "name": "Andrzej"
   },
   "voice_input": {
     "enabled": true,
+    "engine": "whisper",
     "device_index": null,
-    "use_grammar": false,
+    "device_name_contains": null,
     "timeout_seconds": 8,
     "debug": false,
-    "model_path": "models/vosk-model-small-en-us-0.15"
+    "sample_rate": 16000,
+    "max_record_seconds": 8.0,
+    "silence_threshold": 350.0,
+    "end_silence_seconds": 1.0,
+    "pre_roll_seconds": 0.4,
+    "threads": 4,
+    "language": "auto",
+    "vad_enabled": true,
+    "whisper_cli_path": "whisper.cpp/build/bin/whisper-cli",
+    "model_path": "models/ggml-base.bin",
+    "vad_model_path": "models/ggml-silero-v6.2.0.bin"
   },
   "voice_output": {
     "enabled": true,

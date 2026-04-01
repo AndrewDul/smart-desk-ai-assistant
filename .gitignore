@@ -7,4 +7,5 @@ logs/
 data/
 models/*.zip
 .git/
-*~
+*~models/ggml-base.bin
+models/ggml-silero-v6.2.0.bin
