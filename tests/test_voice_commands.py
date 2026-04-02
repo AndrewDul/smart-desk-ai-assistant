@@ -8,20 +8,14 @@ from copy import deepcopy
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-# Add project root to Python path.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-# ------------------------------------------------------------------
-# Fake modules injected before importing CoreAssistant.
-# This keeps the tests independent from OLED/audio hardware.
-# ------------------------------------------------------------------
-
 fake_display_module = types.ModuleType("modules.display")
 fake_voice_out_module = types.ModuleType("modules.voice_out")
-fake_voice_in_module = types.ModuleType("modules.voice_in")
+fake_text_input_module = types.ModuleType("modules.text_input")
 fake_whisper_input_module = types.ModuleType("modules.whisper_input")
 
 
@@ -63,7 +57,7 @@ class FakeVoiceOutput:
         self.messages.append({"text": text, "language": language})
 
 
-class FakeVoiceInput:
+class FakeTextInput:
     def __init__(self, *args, **kwargs) -> None:
         pass
 
@@ -71,23 +65,22 @@ class FakeVoiceInput:
         return None
 
 
-class FakeTextVoiceInput(FakeVoiceInput):
-    pass
+class FakeWhisperVoiceInput:
+    def __init__(self, *args, **kwargs) -> None:
+        pass
 
-
-class FakeWhisperVoiceInput(FakeVoiceInput):
-    pass
+    def listen(self, timeout: float = 8.0, debug: bool = False):
+        return None
 
 
 fake_display_module.ConsoleDisplay = FakeDisplay
 fake_voice_out_module.VoiceOutput = FakeVoiceOutput
-fake_voice_in_module.VoiceInput = FakeVoiceInput
-fake_voice_in_module.TextVoiceInput = FakeTextVoiceInput
+fake_text_input_module.TextInput = FakeTextInput
 fake_whisper_input_module.WhisperVoiceInput = FakeWhisperVoiceInput
 
 sys.modules["modules.display"] = fake_display_module
 sys.modules["modules.voice_out"] = fake_voice_out_module
-sys.modules["modules.voice_in"] = fake_voice_in_module
+sys.modules["modules.text_input"] = fake_text_input_module
 sys.modules["modules.whisper_input"] = fake_whisper_input_module
 
 from modules.assistant_logic import CoreAssistant
@@ -201,7 +194,7 @@ class TestVoiceCommandScenarios(unittest.TestCase):
         self.assertTrue(third)
         self.assertEqual(self.assistant.user_profile["conversation_partner_name"], "Andrew")
         self.assertIsNone(self.assistant.pending_follow_up)
-        self.assertIn("remember your name", self._last_voice_text())
+        self.assertIn("remember your name", self._last_voice_text().lower())
 
     def test_introduce_self_then_decline_name_save(self) -> None:
         self.assistant.handle_command("Introduce yourself")
@@ -271,6 +264,87 @@ class TestVoiceCommandScenarios(unittest.TestCase):
         self.assertEqual(self.assistant.pending_follow_up["type"], "display_offer")
         self.assertEqual(self.assistant.pending_follow_up["lang"], "pl")
 
+    def test_memory_forget_requires_confirmation(self) -> None:
+        self.assistant.handle_command("Remember that keys are in the kitchen")
+
+        result = self.assistant.handle_command("Forget keys")
+
+        self.assertTrue(result)
+        self.assertEqual(self.assistant.pending_follow_up["type"], "confirm_memory_forget")
+        self.assertIn("remove keys from memory", self._last_voice_text().lower())
+
+    def test_memory_forget_yes_deletes_item(self) -> None:
+        self.assistant.handle_command("Remember that keys are in the kitchen")
+        self.assistant.handle_command("Forget keys")
+
+        result = self.assistant.handle_command("yes")
+
+        self.assertTrue(result)
+        self.assertIsNone(self.assistant.pending_follow_up)
+        self.assertIn("removed", self._last_voice_text().lower())
+        self.assertIsNone(self.assistant.memory.recall("keys"))
+
+    def test_memory_forget_no_keeps_item(self) -> None:
+        self.assistant.handle_command("Zapamiętaj że klucze są w kuchni")
+        self.assistant.handle_command("Zapomnij o kluczach")
+
+        result = self.assistant.handle_command("nie")
+
+        self.assertTrue(result)
+        self.assertIsNone(self.assistant.pending_follow_up)
+        self.assertIn("nie usuwam", self._last_voice_text().lower())
+        self.assertIsNotNone(self.assistant.memory.recall("klucz"))
+
+    def test_memory_clear_requires_confirmation(self) -> None:
+        self.assistant.handle_command("Remember that keys are in the kitchen")
+
+        result = self.assistant.handle_command("clear memory")
+
+        self.assertTrue(result)
+        self.assertEqual(self.assistant.pending_follow_up["type"], "confirm_memory_clear")
+        self.assertIn("clear all memory", self._last_voice_text().lower())
+
+    def test_memory_clear_yes_clears_items(self) -> None:
+        self.assistant.handle_command("Remember that keys are in the kitchen")
+        self.assistant.handle_command("Remember that phone is on desk")
+        self.assistant.handle_command("clear memory")
+
+        result = self.assistant.handle_command("yes")
+
+        self.assertTrue(result)
+        self.assertEqual(self.assistant.memory.get_all(), {})
+        self.assertIsNone(self.assistant.pending_follow_up)
+        self.assertIn("cleared memory", self._last_voice_text().lower())
+
+    def test_memory_clear_no_keeps_items(self) -> None:
+        self.assistant.handle_command("Remember that keys are in the kitchen")
+        self.assistant.handle_command("clear memory")
+
+        result = self.assistant.handle_command("no")
+
+        self.assertTrue(result)
+        self.assertIsNotNone(self.assistant.memory.recall("keys"))
+        self.assertIsNone(self.assistant.pending_follow_up)
+        self.assertIn("will not clear memory", self._last_voice_text().lower())
+
+    def test_follow_up_yes_keeps_polish_context(self) -> None:
+        self.assistant.handle_command("Która godzina")
+
+        result = self.assistant.handle_command("yes")
+
+        self.assertTrue(result)
+        self.assertEqual(self._last_voice_language(), "pl")
+        self.assertIn("Pokazuję", self._last_voice_text())
+
+    def test_follow_up_yes_keeps_english_context(self) -> None:
+        self.assistant.handle_command("What date is it")
+
+        result = self.assistant.handle_command("tak")
+
+        self.assertTrue(result)
+        self.assertEqual(self._last_voice_language(), "en")
+        self.assertIn("showing it on the screen", self._last_voice_text().lower())
+
     def test_reminder_creation_flow(self) -> None:
         result = self.assistant.handle_command("Remind me in 30 seconds to drink water")
 
@@ -279,6 +353,70 @@ class TestVoiceCommandScenarios(unittest.TestCase):
         self.assertEqual(len(reminders), 1)
         self.assertEqual(reminders[0]["message"], "drink water")
         self.assertIn("30 seconds", self._last_voice_text())
+
+    def test_reminder_delete_requires_confirmation(self) -> None:
+        self.assistant.handle_command("Remind me in 30 seconds to drink water")
+
+        result = self.assistant.handle_command("delete reminder drink water")
+
+        self.assertTrue(result)
+        self.assertEqual(self.assistant.pending_follow_up["type"], "confirm_reminder_delete")
+        self.assertIn("delete the reminder drink water", self._last_voice_text().lower())
+
+    def test_reminder_delete_yes_removes_item(self) -> None:
+        self.assistant.handle_command("Remind me in 30 seconds to drink water")
+        self.assistant.handle_command("delete reminder drink water")
+
+        result = self.assistant.handle_command("yes")
+
+        self.assertTrue(result)
+        self.assertEqual(len(self.assistant.reminders.list_all()), 0)
+        self.assertIsNone(self.assistant.pending_follow_up)
+        self.assertIn("deleted the reminder", self._last_voice_text().lower())
+
+    def test_reminder_delete_no_keeps_item(self) -> None:
+        self.assistant.handle_command("Remind me in 30 seconds to drink water")
+        self.assistant.handle_command("delete reminder drink water")
+
+        result = self.assistant.handle_command("no")
+
+        self.assertTrue(result)
+        self.assertEqual(len(self.assistant.reminders.list_all()), 1)
+        self.assertIsNone(self.assistant.pending_follow_up)
+        self.assertIn("will not delete the reminder", self._last_voice_text().lower())
+
+    def test_clear_reminders_requires_confirmation(self) -> None:
+        self.assistant.handle_command("Remind me in 30 seconds to drink water")
+        self.assistant.handle_command("Remind me in 60 seconds to stand up")
+
+        result = self.assistant.handle_command("clear reminders")
+
+        self.assertTrue(result)
+        self.assertEqual(self.assistant.pending_follow_up["type"], "confirm_reminders_clear")
+        self.assertIn("delete all reminders", self._last_voice_text().lower())
+
+    def test_clear_reminders_yes_removes_all(self) -> None:
+        self.assistant.handle_command("Remind me in 30 seconds to drink water")
+        self.assistant.handle_command("Remind me in 60 seconds to stand up")
+        self.assistant.handle_command("clear reminders")
+
+        result = self.assistant.handle_command("yes")
+
+        self.assertTrue(result)
+        self.assertEqual(len(self.assistant.reminders.list_all()), 0)
+        self.assertIsNone(self.assistant.pending_follow_up)
+        self.assertIn("deleted all reminders", self._last_voice_text().lower())
+
+    def test_clear_reminders_no_keeps_all(self) -> None:
+        self.assistant.handle_command("Remind me in 30 seconds to drink water")
+        self.assistant.handle_command("clear reminders")
+
+        result = self.assistant.handle_command("no")
+
+        self.assertTrue(result)
+        self.assertEqual(len(self.assistant.reminders.list_all()), 1)
+        self.assertIsNone(self.assistant.pending_follow_up)
+        self.assertIn("will not delete reminders", self._last_voice_text().lower())
 
     def test_timer_without_duration_asks_follow_up(self) -> None:
         result = self.assistant.handle_command("Set timer")
@@ -343,9 +481,57 @@ class TestVoiceCommandScenarios(unittest.TestCase):
         self.assertTrue(result)
         self.assertIn("No timer is currently running", self._last_voice_text())
 
-    def test_exit_command_returns_false(self) -> None:
+    def test_exit_requires_confirmation(self) -> None:
         result = self.assistant.handle_command("goodbye")
+
+        self.assertTrue(result)
+        self.assertEqual(self.assistant.pending_follow_up["type"], "confirm_exit")
+        self.assertIn("close the assistant", self._last_voice_text().lower())
+
+    def test_exit_yes_returns_false(self) -> None:
+        self.assistant.handle_command("goodbye")
+
+        result = self.assistant.handle_command("yes")
+
         self.assertFalse(result)
+        self.assertIsNone(self.assistant.pending_follow_up)
+        self.assertIn("closing the assistant", self._last_voice_text().lower())
+
+    def test_exit_no_keeps_running(self) -> None:
+        self.assistant.handle_command("goodbye")
+
+        result = self.assistant.handle_command("no")
+
+        self.assertTrue(result)
+        self.assertIsNone(self.assistant.pending_follow_up)
+        self.assertIn("stay on", self._last_voice_text().lower())
+
+    def test_shutdown_requires_confirmation(self) -> None:
+        result = self.assistant.handle_command("shutdown")
+
+        self.assertTrue(result)
+        self.assertEqual(self.assistant.pending_follow_up["type"], "confirm_shutdown")
+        self.assertIn("shut down the system", self._last_voice_text().lower())
+
+    def test_shutdown_yes_returns_false_and_sets_flag(self) -> None:
+        self.assistant.handle_command("shutdown")
+
+        result = self.assistant.handle_command("yes")
+
+        self.assertFalse(result)
+        self.assertTrue(self.assistant.shutdown_requested)
+        self.assertIsNone(self.assistant.pending_follow_up)
+        self.assertIn("shutting down the system", self._last_voice_text().lower())
+
+    def test_shutdown_no_keeps_running(self) -> None:
+        self.assistant.handle_command("shutdown")
+
+        result = self.assistant.handle_command("no")
+
+        self.assertTrue(result)
+        self.assertFalse(self.assistant.shutdown_requested)
+        self.assertIsNone(self.assistant.pending_follow_up)
+        self.assertIn("will not shut down the system", self._last_voice_text().lower())
 
     def test_unclear_command_produces_confirmation(self) -> None:
         result = self.assistant.handle_command("statu")

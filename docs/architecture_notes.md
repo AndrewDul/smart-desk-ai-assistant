@@ -486,3 +486,46 @@ To improve stability, automated tests were added for:
 - session timer logic
 - higher-level conversational command scenarios
 
+
+
+## Refactor of the project structure
+
+To make the project easier to maintain and safer to extend, I reorganised the codebase into a clearer modular structure. The goal of this refactor was to separate responsibilities, reduce architectural confusion, and prepare the project for future development without relying on flat module placement.
+
+The project was previously structured in a more mixed way, where multiple responsibilities existed close together in the same level of the `modules` directory. As the Smart Desk AI Assistant started to grow, this became harder to manage. Logic related to assistant behaviour, device input/output, timers, reminders, parsing, and shared utilities needed a clearer separation.
+
+The refactor introduced a layered module structure inside the `modules` directory:
+
+- `modules/core/`  
+  contains the main assistant orchestration logic and central runtime behaviour
+
+- `modules/io/`  
+  contains input and output related components such as display handling, text input, voice input, and voice output
+
+- `modules/services/`  
+  contains internal application services such as reminders, memory, and timer management
+
+- `modules/parsing/`  
+  contains intent parsing and command interpretation logic
+
+- `modules/system/`  
+  contains shared system-level utilities such as settings loading, file handling, logging, and health checking
+
+This refactor was designed to improve separation of concerns.
+
+The `core` layer now acts as the central coordinator of the assistant.  
+The `io` layer is responsible for interaction with the outside world.  
+The `services` layer holds reusable internal logic that supports assistant features.  
+The `parsing` layer is responsible for interpreting user commands.  
+The `system` layer provides project-wide support functions and runtime checks.
+
+This change improves the architecture in several ways.
+
+First, it makes the project easier to understand because each file now belongs to a clearer functional area.  
+Second, it reduces the risk of future changes affecting unrelated parts of the system.  
+Third, it supports safer long-term maintenance by giving the project a more scalable internal layout.  
+Finally, it creates a stronger foundation for future cleanup, including the removal of temporary legacy compatibility files that were kept only during the transition period.
+
+From an architectural point of view, this refactor moves the project from a flatter and more tightly mixed structure toward a more organised modular design. This is important for a system such as Smart Desk AI Assistant, where hardware interaction, assistant logic, timers, memory, reminders, speech handling, and configuration management all need to work together without becoming tangled.
+
+This refactor does not change the main purpose of the system. Instead, it improves the internal structure so that future development can continue more cleanly and with lower risk.

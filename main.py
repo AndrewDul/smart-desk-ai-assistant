@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
+import time
 import unicodedata
 
-from modules.assistant_logic import CoreAssistant
-from modules.utils import append_log
+from modules.core.assistant import CoreAssistant
+from modules.system.system_health import SystemHealthChecker
+from modules.system.utils import append_log
 
 
 def _normalize_gate_text(text: str) -> str:
@@ -37,14 +41,6 @@ def _is_blank_or_silence(text: str) -> bool:
 
 
 def _is_low_value_noise(text: str, assistant: CoreAssistant) -> bool:
-    """
-    Ignore tiny filler/noise fragments only when the assistant is NOT
-    waiting for a follow-up answer like:
-    - timer duration
-    - focus duration
-    - yes/no confirmation
-    - display yes/no
-    """
     if assistant.pending_follow_up or assistant.pending_confirmation:
         return False
 
@@ -69,17 +65,86 @@ def _is_low_value_noise(text: str, assistant: CoreAssistant) -> bool:
     if normalized in filler_words:
         return True
 
-    # Ignore inputs that contain no letters at all when the assistant
-    # is not expecting a short numeric answer.
     if not re.search(r"[a-z]", normalized):
         return True
 
     return False
 
 
+def _run_startup_sequence(assistant: CoreAssistant) -> None:
+    append_log("Startup sequence initiated.")
+
+    assistant.display.show_block(
+        "DevDul",
+        [
+            "Smart Assistant",
+            "starting up...",
+        ],
+        duration=assistant.boot_overlay_seconds,
+    )
+
+    checker = SystemHealthChecker(assistant.settings)
+    report = checker.run()
+
+    assistant.state["assistant_running"] = True
+    assistant._save_state()
+
+    if not assistant._reminder_thread.is_alive():
+        assistant._reminder_thread.start()
+
+    time.sleep(max(assistant.boot_overlay_seconds, 0.8))
+    assistant.display.clear_overlay()
+
+    time.sleep(0.2)
+
+    if report.ok:
+        assistant.voice_out.speak(
+            "Hello. I am ready. You can speak in Polish or in English.",
+            language="en",
+        )
+        append_log("Startup completed successfully.")
+        return
+
+    assistant.voice_out.speak(
+        "Hello. I started, but some system checks reported problems. I may work in limited mode.",
+        language="en",
+    )
+    append_log("Startup completed with warnings.")
+
+
+def _perform_system_shutdown(assistant: CoreAssistant) -> None:
+    system_cfg = assistant.settings.get("system", {})
+    allow_shutdown = bool(system_cfg.get("allow_shutdown_commands", False))
+
+    if not allow_shutdown:
+        append_log("Shutdown requested, but system shutdown commands are disabled in config.")
+        print("System shutdown requested, but shutdown commands are disabled in config.")
+        return
+
+    shutdown_command = system_cfg.get("shutdown_command")
+    if isinstance(shutdown_command, list) and shutdown_command:
+        cmd = [str(part) for part in shutdown_command]
+    elif shutil.which("systemctl"):
+        cmd = ["systemctl", "poweroff"]
+    elif shutil.which("shutdown"):
+        cmd = ["shutdown", "-h", "now"]
+    else:
+        append_log("Shutdown requested, but no supported shutdown command was found.")
+        print("Shutdown requested, but no supported shutdown command was found.")
+        return
+
+    append_log(f"Executing system shutdown command: {' '.join(cmd)}")
+
+    try:
+        subprocess.run(cmd, check=False)
+    except Exception as error:
+        append_log(f"System shutdown command failed: {error}")
+        print(f"System shutdown command failed: {error}")
+
+
 def main() -> None:
     assistant = CoreAssistant()
-    assistant.boot()
+    _run_startup_sequence(assistant)
 
     try:
         while True:
@@ -122,7 +187,11 @@ def main() -> None:
         append_log("Assistant stopped with keyboard interrupt.")
 
     finally:
+        shutdown_requested = assistant.shutdown_requested
         assistant.shutdown()
+
+        if shutdown_requested:
+            _perform_system_shutdown(assistant)
 
 
 if __name__ == "__main__":

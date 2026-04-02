@@ -1,0 +1,454 @@
+from __future__ import annotations
+
+import queue
+import re
+import shutil
+import subprocess
+import tempfile
+import unicodedata
+import wave
+from collections import deque
+from pathlib import Path
+from typing import Optional
+
+import numpy as np
+import sounddevice as sd
+
+from modules.system.utils import BASE_DIR, append_log
+
+
+class WhisperVoiceInput:
+    def __init__(
+        self,
+        whisper_cli_path: str,
+        model_path: str,
+        vad_enabled: bool = True,
+        vad_model_path: Optional[str] = None,
+        language: str = "auto",
+        device_index: Optional[int] = None,
+        device_name_contains: Optional[str] = None,
+        sample_rate: Optional[int] = None,
+        max_record_seconds: float = 8.0,
+        silence_threshold: float = 350.0,
+        end_silence_seconds: float = 1.0,
+        pre_roll_seconds: float = 0.4,
+        threads: int = 4,
+        min_speech_seconds: float = 0.20,
+        transcription_timeout_seconds: float = 45.0,
+    ) -> None:
+        resolved_cli = self._resolve_whisper_cli_path(whisper_cli_path)
+        self.whisper_cli_path = str(resolved_cli)
+        self.model_path = str(self._resolve_project_path(model_path))
+        self.vad_enabled = vad_enabled
+        self.vad_model_path = str(self._resolve_project_path(vad_model_path)) if vad_model_path else None
+        self.language = language
+
+        self.max_record_seconds = float(max_record_seconds)
+        self.silence_threshold = float(silence_threshold)
+        self.end_silence_seconds = float(end_silence_seconds)
+        self.pre_roll_seconds = float(pre_roll_seconds)
+        self.threads = int(threads)
+        self.min_speech_seconds = float(min_speech_seconds)
+        self.transcription_timeout_seconds = float(transcription_timeout_seconds)
+
+        self.blocksize = 1024
+        self.channels = 1
+        self.dtype = "int16"
+        self.audio_queue: queue.Queue[bytes] = queue.Queue()
+
+        self.device = self._resolve_input_device(device_index, device_name_contains)
+        input_info = sd.query_devices(self.device, "input")
+        self.device_name = str(input_info["name"])
+        self.device_default_sample_rate = int(round(float(input_info.get("default_samplerate", 16000))))
+        self.sample_rate = self._resolve_supported_sample_rate(sample_rate)
+
+        cli_path = Path(self.whisper_cli_path)
+        model_file = Path(self.model_path)
+
+        if not cli_path.exists():
+            raise FileNotFoundError(f"whisper-cli not found at: {cli_path}")
+
+        if not model_file.exists():
+            raise FileNotFoundError(f"Whisper model not found at: {model_file}")
+
+        if self.vad_enabled and self.vad_model_path and not Path(self.vad_model_path).exists():
+            raise FileNotFoundError(f"VAD model not found at: {self.vad_model_path}")
+
+        append_log(
+            f"Whisper input ready: device='{self.device_name}', sample_rate={self.sample_rate}, "
+            f"language={self.language}, vad={'on' if self.vad_enabled else 'off'}"
+        )
+    @staticmethod
+    def _resolve_project_path(raw_path: str) -> Path:
+        candidate = Path(raw_path).expanduser()
+        if candidate.is_absolute():
+            return candidate
+        return BASE_DIR / candidate
+    def _resolve_whisper_cli_path(self, whisper_cli_path: str) -> Path:
+        direct_path = self._resolve_project_path(whisper_cli_path)
+        if direct_path.exists():
+            return direct_path
+
+        cli_name = Path(whisper_cli_path).name
+        discovered = shutil.which(cli_name) or shutil.which("whisper-cli")
+        if discovered:
+            return Path(discovered)
+
+        return direct_path
+
+    def _resolve_input_device(
+        self,
+        device_index: Optional[int],
+        device_name_contains: Optional[str],
+    ) -> int | str | None:
+        if device_name_contains:
+            wanted = device_name_contains.lower()
+            for index, device in enumerate(sd.query_devices()):
+                if device.get("max_input_channels", 0) < 1:
+                    continue
+                if wanted in str(device["name"]).lower():
+                    return index
+            raise ValueError(f"Input device containing '{device_name_contains}' was not found.")
+
+        return device_index
+
+    def _resolve_supported_sample_rate(self, preferred_sample_rate: Optional[int]) -> int:
+        candidates: list[int] = []
+
+        if preferred_sample_rate:
+            candidates.append(int(preferred_sample_rate))
+
+        candidates.extend(
+            [
+                self.device_default_sample_rate,
+                48000,
+                44100,
+                32000,
+                16000,
+            ]
+        )
+
+        seen: set[int] = set()
+        unique_candidates: list[int] = []
+
+        for rate in candidates:
+            if rate and rate not in seen:
+                unique_candidates.append(rate)
+                seen.add(rate)
+
+        for rate in unique_candidates:
+            try:
+                sd.check_input_settings(
+                    device=self.device,
+                    channels=self.channels,
+                    dtype=self.dtype,
+                    samplerate=rate,
+                )
+                return rate
+            except Exception:
+                continue
+
+        raise RuntimeError(
+            f"No supported sample rate found for input device '{self.device_name}'. "
+            f"Tried: {unique_candidates}"
+        )
+
+    def _audio_callback(self, indata, frames, time_info, status) -> None:
+        if status:
+            append_log(f"Audio callback status: {status}")
+        self.audio_queue.put(bytes(indata))
+
+    def _record_until_silence(self, timeout: float, debug: bool = False) -> bytes | None:
+        self.audio_queue = queue.Queue()
+
+        pre_roll_block_count = max(1, int((self.pre_roll_seconds * self.sample_rate) / self.blocksize))
+        pre_roll = deque(maxlen=pre_roll_block_count)
+        recorded_chunks: list[bytes] = []
+
+        speech_started = False
+        speech_start_time: float | None = None
+        silence_started_at: float | None = None
+        listen_started_at = self._now()
+
+        try:
+            stream = sd.RawInputStream(
+                samplerate=self.sample_rate,
+                blocksize=self.blocksize,
+                device=self.device,
+                dtype=self.dtype,
+                channels=self.channels,
+                callback=self._audio_callback,
+            )
+        except Exception as error:
+            append_log(f"Audio input stream creation failed: {error}")
+            return None
+
+        with stream:
+            while True:
+                try:
+                    chunk = self.audio_queue.get(timeout=0.15)
+                except queue.Empty:
+                    now = self._now()
+
+                    if not speech_started and (now - listen_started_at) >= timeout:
+                        if debug:
+                            print("No speech detected before timeout.")
+                        return None
+
+                    if speech_started and speech_start_time is not None:
+                        if (now - speech_start_time) >= self.max_record_seconds:
+                            if debug:
+                                print("Max record duration reached during queue wait.")
+                            break
+                    continue
+
+                audio = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
+                rms = float(np.sqrt(np.mean(np.square(audio)))) if len(audio) else 0.0
+
+                if debug:
+                    print(f"RMS: {rms:.2f}")
+
+                now = self._now()
+
+                if not speech_started:
+                    pre_roll.append(chunk)
+
+                    if rms >= self.silence_threshold:
+                        speech_started = True
+                        speech_start_time = now
+                        recorded_chunks.extend(pre_roll)
+                        recorded_chunks.append(chunk)
+                        silence_started_at = None
+                        if debug:
+                            print("Speech started.")
+                    else:
+                        if (now - listen_started_at) >= timeout:
+                            if debug:
+                                print("Timeout reached without speech.")
+                            return None
+                    continue
+
+                recorded_chunks.append(chunk)
+
+                assert speech_start_time is not None
+
+                elapsed_speech = now - speech_start_time
+                if rms < self.silence_threshold:
+                    if elapsed_speech >= self.min_speech_seconds:
+                        if silence_started_at is None:
+                            silence_started_at = now
+                        elif (now - silence_started_at) >= self.end_silence_seconds:
+                            if debug:
+                                print("Detected end-of-speech silence.")
+                            break
+                else:
+                    silence_started_at = None
+
+                if elapsed_speech >= self.max_record_seconds:
+                    if debug:
+                        print("Max record duration reached.")
+                    break
+
+        if not recorded_chunks:
+            return None
+
+        combined = b"".join(recorded_chunks)
+        if not combined:
+            return None
+
+        return combined
+
+    def _write_wav(self, pcm_bytes: bytes) -> Path:
+        temp_dir = Path(tempfile.mkdtemp(prefix="smartdesk_whisper_"))
+        wav_path = temp_dir / "utterance.wav"
+
+        with wave.open(str(wav_path), "wb") as wav_file:
+            wav_file.setnchannels(self.channels)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(self.sample_rate)
+            wav_file.writeframes(pcm_bytes)
+
+        return wav_path
+
+    def _transcribe(self, wav_path: Path, debug: bool = False) -> str:
+        output_prefix = wav_path.with_suffix("")
+        cmd = [
+            self.whisper_cli_path,
+            "--model",
+            self.model_path,
+            "--file",
+            str(wav_path),
+            "--language",
+            self.language,
+            "--threads",
+            str(self.threads),
+            "--output-txt",
+            "--output-file",
+            str(output_prefix),
+            "--no-timestamps",
+            "--no-prints",
+        ]
+
+        if self.vad_enabled and self.vad_model_path:
+            cmd.extend(["--vad", "--vad-model", self.vad_model_path])
+
+        if debug:
+            print(f"Using input device: {self.device_name}")
+            print(f"Using sample rate: {self.sample_rate}")
+            print("Whisper command:")
+            print(" ".join(cmd))
+
+        completed = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=self.transcription_timeout_seconds,
+        )
+
+        if completed.returncode != 0:
+            raise RuntimeError(
+                "Whisper transcription failed.\n"
+                f"STDOUT:\n{completed.stdout}\n\nSTDERR:\n{completed.stderr}"
+            )
+
+        transcript_path = output_prefix.with_suffix(".txt")
+        if not transcript_path.exists():
+            return ""
+
+        return transcript_path.read_text(encoding="utf-8").strip()
+
+    def _normalize_text(self, text: str) -> str:
+        lowered = text.lower().strip()
+        lowered = unicodedata.normalize("NFKD", lowered)
+        lowered = "".join(ch for ch in lowered if not unicodedata.combining(ch))
+        lowered = lowered.replace("ł", "l")
+        lowered = re.sub(r"\s+", " ", lowered)
+        return lowered.strip()
+
+    def _cleanup_transcript(self, transcript: str, debug: bool = False) -> str | None:
+        if not transcript:
+            return None
+
+        cleaned = transcript.strip()
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+        if not cleaned:
+            return None
+
+        normalized = self._normalize_text(cleaned)
+
+        blank_markers = {
+            "",
+            "[blank_audio]",
+            "blank_audio",
+            "[silence]",
+            "silence",
+            "no speech",
+            "no speech recognized",
+            "[noise]",
+            "noise",
+            "...",
+            ".",
+            "-",
+        }
+
+        hallucination_markers = {
+            "thank you",
+            "thanks for watching",
+            "you",
+            "bye",
+            "okay",
+            "ok",
+            "hmm",
+            "hm",
+            "mmm",
+            "uh",
+            "um",
+        }
+
+        if normalized in blank_markers:
+            if debug:
+                print(f"Ignored blank marker transcript: {cleaned}")
+            return None
+
+        if normalized in hallucination_markers:
+            if debug:
+                print(f"Ignored likely silence hallucination: {cleaned}")
+            append_log(f"Ignored likely silence hallucination: {cleaned}")
+            return None
+
+        stripped_symbols = re.sub(r"[\[\](){}<>\-_=~.,!?\"'`]", "", cleaned).strip()
+        if not stripped_symbols:
+            if debug:
+                print(f"Ignored symbol-only transcript: {cleaned}")
+            return None
+
+        if len(normalized) <= 1:
+            if debug:
+                print(f"Ignored too-short transcript: {cleaned}")
+            return None
+
+        return cleaned
+
+    def _cleanup_temp_files(self, wav_path: Path) -> None:
+        try:
+            output_prefix = wav_path.with_suffix("")
+            txt_path = output_prefix.with_suffix(".txt")
+            srt_path = output_prefix.with_suffix(".srt")
+            vtt_path = output_prefix.with_suffix(".vtt")
+            json_path = output_prefix.with_suffix(".json")
+            lrc_path = output_prefix.with_suffix(".lrc")
+
+            for path in [wav_path, txt_path, srt_path, vtt_path, json_path, lrc_path]:
+                if path.exists():
+                    path.unlink()
+
+            temp_dir = wav_path.parent
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir, ignore_errors=True)
+
+        except Exception as error:
+            append_log(f"Temp cleanup warning: {error}")
+
+    def listen(self, timeout: float = 8.0, debug: bool = False) -> Optional[str]:
+        try:
+            pcm_bytes = self._record_until_silence(timeout=timeout, debug=debug)
+            if not pcm_bytes:
+                return None
+        except Exception as error:
+            append_log(f"Audio capture failed: {error}")
+            return None
+
+        wav_path = self._write_wav(pcm_bytes)
+
+        try:
+            transcript = self._transcribe(wav_path, debug=debug)
+            cleaned = self._cleanup_transcript(transcript, debug=debug)
+
+            if debug and cleaned:
+                print(f"Whisper transcript: {cleaned}")
+
+            return cleaned
+
+        except subprocess.TimeoutExpired:
+            append_log("Whisper transcription timed out.")
+            return None
+        except Exception as error:
+            append_log(f"Whisper listen error: {error}")
+            return None
+        finally:
+            self._cleanup_temp_files(wav_path)
+
+    def listen_once(self, timeout: float = 8.0, debug: bool = False) -> Optional[str]:
+        return self.listen(timeout=timeout, debug=debug)
+
+    @staticmethod
+    def list_audio_devices() -> None:
+        print(sd.query_devices())
+
+    @staticmethod
+    def _now() -> float:
+        import time
+
+        return time.time()

@@ -863,3 +863,149 @@
 [2026-04-01 20:32:27] Parsed intent: action=exit, data={}, text=Yes., lang=en
 [2026-04-01 20:32:27] Assistant said [en]: Shutting down Smart Assistant.
 [2026-04-01 20:32:32] Assistant shut down.
+[2026-04-01 23:40:20] Whisper input ready: device='USB PnP Sound Device: Audio (hw:3,0)', sample_rate=44100, language=auto, vad=off
+[2026-04-01 23:40:20] Startup sequence initiated.
+[2026-04-01 23:40:20] Startup check [OK] settings: found settings.json
+[2026-04-01 23:40:20] Startup check [OK] directories: data, logs, config ready
+[2026-04-01 23:40:20] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-01 23:40:20] Startup check [OK] voice output: piper models ready
+[2026-04-01 23:40:20] Startup check [OK] display: configured 128x64, i2c port 1, address 60
+[2026-04-01 23:40:20] Assistant said [en]: Reminder. ze ide na spacer
+[2026-04-01 23:40:23] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-01 23:40:27] Reminder triggered: message=ze ide na spacer
+[2026-04-01 23:40:35] Startup completed successfully.
+[2026-04-01 23:40:46] User said: Jak się nazywasz?
+[2026-04-01 23:40:46] Parsed intent: action=introduce_self, data={}, text=jak sie nazywasz, lang=pl
+[2026-04-01 23:40:46] Assistant said [pl]: Jestem Smart Assistant. Mogę zapamiętywać rzeczy, ustawiać przypomnienia i pomagać ci podczas nauki. Jak masz na imię?
+[2026-04-01 23:41:10] User said: Oh my god.
+[2026-04-01 23:41:10] Assistant said [pl]: Nie usłyszałam wyraźnie imienia. Powiedz proszę jeszcze raz swoje imię.
+[2026-04-01 23:41:26] User said: Tollmeck.
+[2026-04-01 23:41:26] Assistant said [pl]: Miło mi, Tollmeck. Czy chcesz, żebym zapamiętała twoje imię?
+[2026-04-01 23:41:39] Ignored blank audio marker: Нет.
+[2026-04-01 23:41:49] User said: Yeah.
+[2026-04-01 23:41:49] Assistant said [pl]: Dobrze. Zapamiętałam twoje imię, Tollmeck.
+[2026-04-01 23:42:05] User said: Która zgodzina.
+[2026-04-01 23:42:05] Parsed intent: action=unclear, data={}, text=ktora zgodzina, lang=pl
+[2026-04-01 23:42:05] Assistant said [pl]: Czy chodziło ci o godzina? Powiedz tak albo nie.
+[2026-04-01 23:42:17] User said: Talk.
+[2026-04-01 23:42:17] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-01 23:42:27] User said: Talk.
+[2026-04-01 23:42:27] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-01 23:42:35] User said: Tak.
+[2026-04-01 23:42:35] Parsed intent: action=ask_time, data={}, text=Tak., lang=pl
+[2026-04-01 23:42:35] Assistant said [pl]: Jest 23:42.
+[2026-04-01 23:42:41] Assistant said [pl]: Czy chcesz, żebym pokazała to na ekranie?
+[2026-04-01 23:42:53] User said: Yeah.
+[2026-04-01 23:42:53] Assistant said [pl]: Dobrze. Pokazuję to na ekranie.
+[2026-04-01 23:43:07] Ignored silent input: recognizer returned None.
+[2026-04-01 23:43:15] Ignored silent input: recognizer returned None.
+[2026-04-01 23:43:23] Ignored silent input: recognizer returned None.
+[2026-04-01 23:43:31] Ignored silent input: recognizer returned None.
+[2026-04-01 23:43:39] Ignored silent input: recognizer returned None.
+[2026-04-01 23:43:46] Ignored silent input: recognizer returned None.
+[2026-04-01 23:44:14] Ignored silent input: recognizer returned None.
+[2026-04-01 23:44:21] Ignored blank audio marker: До свидания.
+[2026-04-01 23:44:33] Ignored silent input: recognizer returned None.
+[2026-04-01 23:44:49] Ignored silent input: recognizer returned None.
+[2026-04-01 23:44:58] Ignored silent input: recognizer returned None.
+[2026-04-01 23:45:10] User said: Exit.
+[2026-04-01 23:45:10] Parsed intent: action=exit, data={}, text=exit, lang=pl
+[2026-04-01 23:45:10] Assistant said [pl]: Wyłączam Smart Assistant.
+[2026-04-01 23:45:17] Assistant shut down.
+[2026-04-02 00:47:56] Whisper input ready: device='USB PnP Sound Device: Audio (hw:3,0)', sample_rate=44100, language=auto, vad=off
+[2026-04-02 00:47:57] Startup sequence initiated.
+[2026-04-02 00:47:57] Startup check [OK] settings: found settings.json
+[2026-04-02 00:47:57] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 00:47:57] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 00:47:57] Startup check [OK] voice output: piper models ready
+[2026-04-02 00:47:57] Startup check [OK] display: configured 128x64, i2c port 1, address 60
+[2026-04-02 00:48:00] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-02 00:48:03] Startup completed successfully.
+[2026-04-02 00:48:15] User said: What you can do.
+[2026-04-02 00:48:15] Parsed intent: action=unclear, data={}, text=what you can do, lang=en
+[2026-04-02 00:48:15] Assistant said [en]: Did you mean help? Say yes or no.
+[2026-04-02 00:48:29] User said: Yes.
+[2026-04-02 00:48:29] Parsed intent: action=help, data={}, text=Yes., lang=en
+[2026-04-02 00:48:29] Assistant said [en]: I can remember information, set reminders and timers, tell you the time, date, day and year, run focus and break sessions, remove memory and reminders, and show information on the screen.
+[2026-04-02 00:48:56] User said: What day is today?
+[2026-04-02 00:48:56] Parsed intent: action=ask_day, data={}, text=what day is today, lang=en
+[2026-04-02 00:48:56] Assistant said [en]: Today is Thursday.
+[2026-04-02 00:49:01] Assistant said [en]: Would you like me to show that on the screen?
+[2026-04-02 00:49:18] User said: No.
+[2026-04-02 00:49:18] Assistant said [en]: Okay.
+[2026-04-02 00:49:40] User said: [typing]
+[2026-04-02 00:49:40] Parsed intent: action=unknown, data={}, text=typing, lang=en
+[2026-04-02 00:49:40] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 00:49:57] User said: Exit.
+[2026-04-02 00:49:57] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-02 00:49:57] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 00:50:13] User said: Yes.
+[2026-04-02 00:50:13] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 00:50:20] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 00:50:26] Assistant shut down.
+[2026-04-02 02:24:01] Whisper input ready: device='USB PnP Sound Device: Audio (hw:3,0)', sample_rate=44100, language=auto, vad=off
+[2026-04-02 02:24:01] Startup sequence initiated.
+[2026-04-02 02:24:01] Startup check [OK] settings: found settings.json
+[2026-04-02 02:24:01] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 02:24:01] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 02:24:01] Startup check [OK] voice output: piper models ready
+[2026-04-02 02:24:01] Startup check [OK] display: configured 128x64, i2c port 1, address 60
+[2026-04-02 02:24:04] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-02 02:24:08] Startup completed successfully.
+[2026-04-02 02:24:16] User said: Ik moet eens meer voorwoord.
+[2026-04-02 02:24:16] Parsed intent: action=unknown, data={}, text=ik moet eens meer voorwoord, lang=en
+[2026-04-02 02:24:16] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 02:24:29] User said: Jak możesz mi pomóc?
+[2026-04-02 02:24:29] Parsed intent: action=help, data={}, text=jak mozesz mi pomoc, lang=pl
+[2026-04-02 02:24:29] Assistant said [pl]: Mogę zapamiętywać informacje, ustawiać przypomnienia i timery, podawać godzinę, datę, dzień i rok, prowadzić focus mode i przerwę, usuwać pamięć i przypomnienia oraz pokazywać informacje na ekranie.
+[2026-04-02 02:24:59] User said: Jak się nazywasz?
+[2026-04-02 02:24:59] Parsed intent: action=introduce_self, data={}, text=jak sie nazywasz, lang=pl
+[2026-04-02 02:24:59] Assistant said [pl]: Jestem Smart Assistant. Mogę zapamiętywać rzeczy, ustawiać przypomnienia i pomagać ci podczas nauki. Jak masz na imię?
+[2026-04-02 02:25:15] Ignored silent input: recognizer returned None.
+[2026-04-02 02:25:21] Ignored silent input: recognizer returned None.
+[2026-04-02 02:25:29] Ignored silent input: recognizer returned None.
+[2026-04-02 02:25:37] Ignored silent input: recognizer returned None.
+[2026-04-02 02:25:45] Ignored silent input: recognizer returned None.
+[2026-04-02 02:25:53] Ignored silent input: recognizer returned None.
+[2026-04-02 02:26:01] Ignored silent input: recognizer returned None.
+[2026-04-02 02:26:09] Ignored silent input: recognizer returned None.
+[2026-04-02 02:26:22] User said: Exit.
+[2026-04-02 02:26:22] Assistant said [pl]: Miło mi, Exit. Czy chcesz, żebym zapamiętała twoje imię?
+[2026-04-02 02:26:35] User said: Yeah.
+[2026-04-02 02:26:35] Assistant said [pl]: Dobrze. Zapamiętałam twoje imię, Exit.
+[2026-04-02 02:26:52] User said: Lakin işe bakmayacağım.
+[2026-04-02 02:26:52] Parsed intent: action=unknown, data={}, text=lakin ise bakmayacag m, lang=pl
+[2026-04-02 02:26:52] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 02:27:07] User said: Jakim mamy dzisiaj dzień.
+[2026-04-02 02:27:07] Parsed intent: action=unclear, data={}, text=jakim mamy dzisiaj dzien, lang=pl
+[2026-04-02 02:27:07] Assistant said [pl]: Czy chodziło ci o dzień? Powiedz tak albo nie.
+[2026-04-02 02:27:19] User said: Talk.
+[2026-04-02 02:27:19] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 02:27:26] User said: Yeah
+[2026-04-02 02:27:26] Parsed intent: action=ask_day, data={}, text=Yeah, lang=pl
+[2026-04-02 02:27:26] Assistant said [pl]: Dzisiaj jest czwartek.
+[2026-04-02 02:27:30] Assistant said [pl]: Czy chcesz, żebym pokazała to na ekranie?
+[2026-04-02 02:27:39] User said: No.
+[2026-04-02 02:27:39] Assistant said [pl]: Dobrze.
+[2026-04-02 02:27:52] User said: która zgodzina.
+[2026-04-02 02:27:52] Parsed intent: action=unclear, data={}, text=ktora zgodzina, lang=pl
+[2026-04-02 02:27:52] Assistant said [pl]: Czy chodziło ci o godzina? Powiedz tak albo nie.
+[2026-04-02 02:28:00] Ignored blank audio marker: Не
+[2026-04-02 02:28:10] Ignored blank audio marker: Нет.
+[2026-04-02 02:28:18] Ignored silent input: recognizer returned None.
+[2026-04-02 02:28:26] User said: No.
+[2026-04-02 02:28:26] Assistant said [pl]: Dobrze. Powiedz to jeszcze raz inaczej.
+[2026-04-02 02:28:41] User said: Wyłącza system ta.
+[2026-04-02 02:28:41] Parsed intent: action=unknown, data={}, text=wylacza system ta, lang=pl
+[2026-04-02 02:28:41] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 02:28:52] User said: We want assistenta.
+[2026-04-02 02:28:52] Parsed intent: action=unknown, data={}, text=we want assistenta, lang=pl
+[2026-04-02 02:28:52] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 02:29:03] Ignored blank audio marker: איקסית
+[2026-04-02 02:29:12] User said: Exit.
+[2026-04-02 02:29:12] Parsed intent: action=exit, data={}, text=exit, lang=pl
+[2026-04-02 02:29:12] Assistant said [pl]: Czy na pewno mam zamknąć asystenta?
+[2026-04-02 02:29:22] User said: Yes.
+[2026-04-02 02:29:22] Assistant said [pl]: Dobrze. Zamykam asystenta.
+[2026-04-02 02:29:28] Assistant said [pl]: Wyłączam Smart Assistant.
+[2026-04-02 02:29:30] Assistant shut down.

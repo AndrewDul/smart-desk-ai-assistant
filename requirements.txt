@@ -1,6 +1,6 @@
 sounddevice
 soundfile
-vosk
 luma.oled
 Pillow
 numpy
+piper
