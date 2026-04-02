@@ -113,11 +113,18 @@ class CoreAssistant:
         )
 
         self.display = ConsoleDisplay(
+            driver=str(display_cfg.get("driver", "ssd1306")),
+            interface=str(display_cfg.get("interface", "i2c")),
             port=int(display_cfg.get("port", 1)),
             address=int(display_cfg.get("address", 60)),
             rotate=int(display_cfg.get("rotate", 0)),
             width=int(display_cfg.get("width", 128)),
             height=int(display_cfg.get("height", 64)),
+            spi_port=int(display_cfg.get("spi_port", 0)),
+            spi_device=int(display_cfg.get("spi_device", 0)),
+            gpio_dc=int(display_cfg.get("gpio_dc", 25)),
+            gpio_rst=int(display_cfg.get("gpio_rst", 27)),
+            gpio_light=int(display_cfg.get("gpio_light", 18)),
         )
 
         self.memory = SimpleMemory()

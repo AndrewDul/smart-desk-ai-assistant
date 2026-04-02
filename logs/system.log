@@ -1391,3 +1391,139 @@
 [2026-04-02 11:23:15] Reminder marked done manually: id=40b35b8f
 [2026-04-02 11:23:15] Reminder added: id=8b62d55f, seconds=20, message=zakupach
 [2026-04-02 11:23:15] Reminder added: id=fedf91d4, seconds=20, message=drink water
+[2026-04-02 12:40:21] Manual display smoke test started.
+[2026-04-02 12:40:31] Manual display smoke test finished successfully.
+[2026-04-02 12:41:28] Manual display smoke test started.
+[2026-04-02 12:41:37] Manual display smoke test finished successfully.
+[2026-04-02 13:01:50] Manual display smoke test started.
+[2026-04-02 13:01:59] Manual display smoke test finished successfully.
+[2026-04-02 13:03:55] Manual display smoke test started.
+[2026-04-02 13:04:05] Manual display smoke test finished successfully.
+[2026-04-02 13:06:45] Manual display smoke test started.
+[2026-04-02 13:06:54] Manual display smoke test finished successfully.
+[2026-04-02 13:06:56] Manual display smoke test started.
+[2026-04-02 13:07:06] Manual display smoke test finished successfully.
+[2026-04-02 13:07:12] Manual display smoke test started.
+[2026-04-02 13:07:21] Manual display smoke test finished successfully.
+[2026-04-02 13:07:22] Manual display smoke test started.
+[2026-04-02 13:07:32] Manual display smoke test finished successfully.
+[2026-04-02 13:07:33] Manual display smoke test started.
+[2026-04-02 13:07:43] Manual display smoke test finished successfully.
+[2026-04-02 13:07:44] Manual display smoke test started.
+[2026-04-02 13:07:54] Manual display smoke test finished successfully.
+[2026-04-02 13:24:37] Manual display smoke test started.
+[2026-04-02 13:24:46] Manual display smoke test finished successfully.
+[2026-04-02 13:47:36] Manual display smoke test started.
+[2026-04-02 13:47:45] Manual display smoke test finished successfully.
+[2026-04-02 13:48:58] Manual display smoke test started.
+[2026-04-02 13:49:08] Manual display smoke test finished successfully.
+[2026-04-02 15:03:06] Whisper input init failed, falling back to text input: Not an input device: 'UACDemoV1.0: USB Audio (hw:3,0)'
+[2026-04-02 15:03:06] Startup sequence initiated.
+[2026-04-02 15:03:06] Startup check [OK] settings: found settings.json
+[2026-04-02 15:03:06] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 15:03:06] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 15:03:06] Startup check [OK] voice output: piper models ready
+[2026-04-02 15:03:06] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 15:03:09] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-02 15:03:12] Startup completed successfully.
+[2026-04-02 15:03:40] User said: exit
+[2026-04-02 15:03:40] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-02 15:03:40] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 15:03:47] User said: yes
+[2026-04-02 15:03:47] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 15:03:49] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 15:03:51] Assistant shut down.
+[2026-04-02 15:13:55] Reminder added: id=603666d8, seconds=30, message=drink water
+[2026-04-02 15:13:55] Reminder created: 603666d8
+[2026-04-02 15:13:55] Reminder added: id=f3ddbc84, seconds=30, message=drink water
+[2026-04-02 15:13:55] Reminder created: f3ddbc84
+[2026-04-02 15:13:55] Reminder added: id=6f513b34, seconds=60, message=stand up
+[2026-04-02 15:13:55] Reminder created: 6f513b34
+[2026-04-02 15:13:55] Reminder added: id=f8ee3601, seconds=30, message=drink water
+[2026-04-02 15:13:55] Reminder created: f8ee3601
+[2026-04-02 15:13:55] Reminder added: id=1676fd0d, seconds=60, message=stand up
+[2026-04-02 15:13:55] Reminder created: 1676fd0d
+[2026-04-02 15:13:55] Reminder deleted: id=f8ee3601
+[2026-04-02 15:13:55] Reminder deleted: id=1676fd0d
+[2026-04-02 15:13:56] Memory saved: keys -> in the kitchen
+[2026-04-02 15:13:56] Memory saved: keys -> in the kitchen
+[2026-04-02 15:13:56] Memory saved: keys -> in the kitchen
+[2026-04-02 15:13:56] Memory saved: phone -> on desk
+[2026-04-02 15:13:56] Memory cleared: removed 2 item(s).
+[2026-04-02 15:13:56] Memory saved: klucze -> w kuchni
+[2026-04-02 15:13:56] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 15:13:56] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 15:13:56] Memory saved: keys -> in the kitchen
+[2026-04-02 15:13:56] Memory saved: keys -> in the kitchen
+[2026-04-02 15:13:56] Memory deleted: keys
+[2026-04-02 15:13:56] Memory saved: keys -> in the kitchen
+[2026-04-02 15:13:56] Memory saved: klucze -> w kuchni
+[2026-04-02 15:13:56] Reminder added: id=3e782f68, seconds=30, message=drink water
+[2026-04-02 15:13:56] Reminder created: 3e782f68
+[2026-04-02 15:13:56] Reminder added: id=365b2f23, seconds=30, message=drink water
+[2026-04-02 15:13:56] Reminder created: 365b2f23
+[2026-04-02 15:13:56] Reminder added: id=3dd2aea1, seconds=30, message=drink water
+[2026-04-02 15:13:56] Reminder created: 3dd2aea1
+[2026-04-02 15:13:56] Reminder added: id=0623f401, seconds=30, message=drink water
+[2026-04-02 15:13:56] Reminder created: 0623f401
+[2026-04-02 15:13:56] Reminder deleted: id=0623f401
+[2026-04-02 15:13:56] Memory saved: keys -> in the kitchen
+[2026-04-02 15:13:56] Memory save skipped: empty key or value.
+[2026-04-02 15:13:56] Memory save skipped: empty key or value.
+[2026-04-02 15:13:56] Memory saved: car keys -> on the shelf
+[2026-04-02 15:13:56] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 15:13:56] Memory saved: keys -> kitchen
+[2026-04-02 15:13:56] Memory saved: wallet -> drawer
+[2026-04-02 15:13:56] Memory saved: keys -> kitchen
+[2026-04-02 15:13:56] Memory saved: key -> on the desk
+[2026-04-02 15:13:56] Memory recall matched 'keys' -> 'key'
+[2026-04-02 15:13:56] Memory saved: klucz -> na biurku
+[2026-04-02 15:13:56] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 15:13:56] Memory saved: wallet -> in the jacket
+[2026-04-02 15:13:56] Memory saved: keys -> in the drawer
+[2026-04-02 15:13:56] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 15:13:56] Memory saved: phone number -> 123456789
+[2026-04-02 15:13:56] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 15:13:56] Memory saved: klucz -> w plecaku
+[2026-04-02 15:13:56] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 15:13:56] Memory saved: keys -> in the kitchen
+[2026-04-02 15:13:56] Memory saved: klucze -> w kuchni
+[2026-04-02 15:13:56] Memory saved: my keys -> in the kitchen
+[2026-04-02 15:13:56] Memory saved: my keys -> in the backpack
+[2026-04-02 15:13:56] Reminder added: id=a34c2aae, seconds=30, message=buy milk
+[2026-04-02 15:13:56] Reminder added: id=b6b51ac0, seconds=1, message=test
+[2026-04-02 15:13:56] Reminder added: id=31564c4f, seconds=60, message=future task
+[2026-04-02 15:13:56] Reminder added: id=f9c0c9fb, seconds=5, message=call back
+[2026-04-02 15:13:56] Reminder added: id=d3b41770, seconds=15, message=first
+[2026-04-02 15:13:56] Reminder added: id=bdbba0a6, seconds=30, message=second
+[2026-04-02 15:13:56] Reminder marked done manually: id=d3b41770
+[2026-04-02 15:13:56] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 15:13:56] Reminder added: id=2ec90c23, seconds=15, message=meeting
+[2026-04-02 15:13:56] Reminder deleted: id=2ec90c23
+[2026-04-02 15:13:56] Reminder added: id=69d72357, seconds=5, message=water plants
+[2026-04-02 15:13:56] Reminder added: id=3e44f849, seconds=5, message=first
+[2026-04-02 15:13:56] Reminder added: id=2b8e46d5, seconds=10, message=second
+[2026-04-02 15:13:56] Reminder marked done manually: id=3e44f849
+[2026-04-02 15:13:56] Reminder added: id=4837a31b, seconds=5, message=first
+[2026-04-02 15:13:56] Reminder added: id=87c2082c, seconds=10, message=second
+[2026-04-02 15:13:56] Reminder marked done manually: id=4837a31b
+[2026-04-02 15:13:56] Reminder added: id=ca2f57e5, seconds=15, message=stretch
+[2026-04-02 15:13:56] Reminder marked done manually: id=ca2f57e5
+[2026-04-02 15:13:56] Reminder added: id=74b87874, seconds=20, message=zakupach
+[2026-04-02 15:13:56] Reminder added: id=da454391, seconds=20, message=drink water
+[2026-04-02 15:14:50] Whisper input init failed, falling back to text input: Not an input device: 'UACDemoV1.0: USB Audio (hw:3,0)'
+[2026-04-02 15:14:50] Startup sequence initiated.
+[2026-04-02 15:14:50] Startup check [OK] settings: found settings.json
+[2026-04-02 15:14:50] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 15:14:50] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 15:14:50] Startup check [OK] voice output: piper models ready
+[2026-04-02 15:14:50] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 15:14:53] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-02 15:14:57] Startup completed successfully.
+[2026-04-02 15:15:18] User said: exit
+[2026-04-02 15:15:18] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-02 15:15:18] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 15:15:20] User said: yes
+[2026-04-02 15:15:20] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 15:15:22] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 15:15:24] Assistant shut down.

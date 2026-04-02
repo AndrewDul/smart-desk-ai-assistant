@@ -540,3 +540,165 @@ At the same time, I fixed several logic issues discovered through the updated te
 The intent parser was improved so reminder deletion commands are interpreted more reliably, especially when the user refers to a reminder by message rather than by identifier. The reminder manager was also improved by cleaning reminder messages more consistently, supporting cleanup of completed reminders, and handling partially valid stored reminder entries more safely.
 
 These changes improved both the internal organisation of the project and the reliability of the reminder-related assistant features. They also helped confirm that the refactored architecture remains stable under automated testing.
+
+# Hardware and Display Architecture Update
+
+## Overview
+
+I updated the hardware setup of my Smart Desk AI Assistant during development.
+
+At first, I was using a small OLED display and an older microphone setup. Later, I replaced them with a larger SPI LCD display and a much better USB microphone array to improve visual output and voice input quality.
+
+This change improved the project a lot, especially for display size, readability, and microphone quality.
+
+---
+
+## New Hardware
+
+### New LCD Display
+I replaced the old OLED display with:
+
+**Waveshare 2inch LCD Module**
+- display controller: **ST7789V / ST7789VW**
+- resolution: **240 x 320**
+- interface: **SPI**
+- colour display
+- larger and clearer than the old OLED
+
+This new display gives me much more screen space, so I can show text, status screens, and eye graphics more clearly than before.
+
+### New Microphone
+I replaced the old microphone with:
+
+**Seeed Studio ReSpeaker XVF3800 USB 4-Mic Array**
+- USB microphone array
+- much cleaner input
+- very low noise
+- better voice pickup than the previous microphone
+
+This microphone works very well for my assistant. The sound quality is much better than before and the captured voice is cleaner.
+
+---
+
+## Hardware Connections
+
+### LCD connection to Raspberry Pi 5
+
+The Waveshare 2inch LCD is connected through SPI.
+
+| LCD Pin | Raspberry Pi Pin | GPIO / Function |
+|---|---:|---|
+| VCC | Pin 1 | 3.3V |
+| GND | Pin 6 | GND |
+| DIN | Pin 19 | GPIO10 / MOSI |
+| CLK | Pin 23 | GPIO11 / SCLK |
+| CS | Pin 24 | GPIO8 / CE0 |
+| DC | Pin 22 | GPIO25 |
+| RST | Pin 13 | GPIO27 |
+| BL | Pin 12 | GPIO18 |
+
+### Microphone connection
+
+The ReSpeaker XVF3800 is connected directly by USB.
+
+I use it only as a microphone.
+I keep my separate USB speaker as the audio output device.
+
+---
+
+## Software Architecture Change
+
+### Old display approach
+At first, my project used the OLED display path and code based on a smaller monochrome screen.
+
+This was suitable for early testing, but it was limited:
+- very small screen area
+- limited text output
+- not suitable for more detailed status screens
+- not suitable for a better face / eye visual style
+
+### New display approach
+After changing the hardware, I moved the display path toward the Waveshare LCD setup.
+
+I tested multiple approaches:
+- old OLED-style flow
+- `luma.lcd`
+- `st7789`
+- direct Waveshare vendor driver
+
+The direct Waveshare vendor driver was the only path that proved that the hardware itself was working correctly.
+
+Because of that, the display architecture changed from a simple OLED path to a dedicated LCD path for the Waveshare 2inch module.
+
+---
+
+## Voice Input Architecture Change
+
+### Old microphone setup
+The earlier microphone worked, but the quality was worse and the signal was not as clean.
+
+### New microphone setup
+I now use the ReSpeaker XVF3800 as the main input device.
+
+The microphone is detected by the system as a USB capture device and I configured my project to use it for voice input.
+
+Important settings used:
+- input device index: **2**
+- sample rate: **16000 Hz**
+
+This microphone is now the main voice input device in the system.
+
+---
+
+## Current Practical Architecture
+
+### Input
+- ReSpeaker XVF3800 USB 4-Mic Array for voice capture
+- camera support planned / integrated separately
+- keyboard or terminal still used for some debugging
+
+### Output
+- separate USB speaker for audio output
+- Waveshare 2inch LCD for visual output
+
+### Core system
+- Raspberry Pi 5
+- Python-based assistant logic
+- reminder and memory systems
+- voice input and output
+- display output
+- hardware test scripts and manual test scripts
+
+---
+
+## Display Rendering Direction
+
+During testing I found that this LCD is more sensitive than the old OLED and it does not behave well with every Python display library.
+
+Because of that, the display path now depends on the specific Waveshare 2inch LCD behaviour instead of treating it like a generic screen.
+
+This is an important design note:
+the display is not just "a screen", but a hardware-specific component that needs its own tested rendering path.
+
+---
+
+## Why this hardware change was a good decision
+
+Changing the hardware was a good improvement for the project.
+
+### LCD improvement
+The new LCD is:
+- larger
+- easier to read
+- much better for status screens
+- much better for face / eye visuals than the old OLED
+
+### Microphone improvement
+The new microphone is:
+- clearer
+- cleaner
+- more professional
+- much better for speech recognition than the old microphone
+
+Overall, this hardware change made the assistant feel more like a real system and less like an early prototype.
+

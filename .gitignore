@@ -11,3 +11,19 @@ models/ggml-base.bin
 models/ggml-silero-v6.2.0.bin
 
 whisper.cpp/
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+.venv/
+
+# Audio test files
+*.wav
+
+# Local logs / temp files
+*.log
+*.tmp
+
+# Waveshare downloaded archive
+tests/hardware/display/lcd/vendor/waveshare/*.zip

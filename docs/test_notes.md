@@ -165,3 +165,211 @@ It currently supports:
 - boot/shutdown flow
 
 This is a valid working foundation for the next project stage.
+
+
+# Hardware Test Notes
+
+## Overview
+
+After replacing my original hardware, I wrote and ran several tests to check the new LCD and new microphone.
+
+These tests helped me separate hardware problems from software problems.
+
+---
+
+## New Hardware Tested
+
+### LCD
+**Waveshare 2inch LCD Module**
+- ST7789V / ST7789VW
+- 240 x 320
+- SPI
+- colour LCD
+
+### Microphone
+**Seeed Studio ReSpeaker XVF3800 USB 4-Mic Array**
+- USB microphone array
+- used as microphone only
+- separate USB speaker kept for output
+
+---
+
+## Microphone Tests
+
+### 1. Device detection test
+I used:
+
+`arecord -l`
+
+### Result
+The system detected the new microphone as:
+- **card 2**
+- **device 0**
+- **reSpeaker XVF3800 4-Mic Array**
+
+This confirmed that the Raspberry Pi could see the microphone correctly.
+
+---
+
+### 2. Recording test
+I used:
+- `arecord -D plughw:2,0 ...`
+
+At first I accidentally used the wrong card number, so the test failed.
+After correcting the card number, the recording command worked.
+
+### Result
+The microphone recorded successfully.
+
+---
+
+### 3. Real quality check
+After testing it properly, I confirmed that:
+- the input was very clean
+- there was almost no noise
+- the microphone quality was much better than my previous one
+
+### Final microphone result
+**PASS**
+
+The ReSpeaker XVF3800 works very well and became my main voice input device.
+
+---
+
+## LCD Tests
+
+### 1. Initial LCD test with old project display path
+I tried to use the new LCD through the older project display flow.
+
+### Result
+The screen did not work correctly.
+
+Problems included:
+- noise on one side
+- flashing area
+- only part of the image visible
+
+### Conclusion
+The LCD was not working correctly with that software path.
+
+---
+
+### 2. `luma.lcd` based test
+I tested the display through a `luma.lcd` style path.
+
+### Result
+The screen partially responded, but the output was still corrupted.
+
+### Conclusion
+This backend was not stable for this panel.
+
+---
+
+### 3. `st7789_manual_smoke.py`
+I created a manual ST7789 smoke test.
+
+### Purpose
+To check whether a different ST7789-based path could drive the LCD correctly.
+
+### Result
+The display still did not behave correctly.
+The image was unstable or incomplete.
+
+### Conclusion
+A generic ST7789 path was still not enough.
+
+---
+
+### 4. Official Waveshare Python demo
+I downloaded and ran the official Waveshare Python demo for the 2inch LCD.
+
+### Result
+This was the most important LCD test.
+
+The display showed the image correctly.
+
+### Conclusion
+This proved:
+- the LCD hardware was correct
+- the wiring was correct
+- SPI was working
+- the main problem was software integration, not the hardware itself
+
+### Final result
+**PASS**
+
+This was the strongest successful LCD test.
+
+---
+
+### 5. `waveshare_direct_overlay_test.py`
+I created a direct vendor-based LCD test.
+
+### Purpose
+To bypass the older project display wrapper and test drawing more directly with the Waveshare path.
+
+### Result
+This helped me experiment with:
+- custom overlays
+- eye graphics
+- frame rendering
+- orientation handling
+
+The behaviour was mixed and helped show that runtime integration still needed more work.
+
+### Conclusion
+This test was useful for diagnosis, even when the result was not fully stable.
+
+---
+
+### 6. `scripts/test_oled.py`
+I reused this script as a display test entry point, even though the file name still referred to OLED.
+
+### Purpose
+To test the current project display runtime with the new LCD.
+
+### Result
+The test confirmed that the current runtime still had display update issues.
+In some versions the screen stayed dark, or only showed a small part of the eyes for a short time.
+
+### Conclusion
+The file remained useful as a quick entry test, but the runtime needed more adjustment.
+
+---
+
+### 7. `manual_tests/oled_smoke.py`
+I also reused this manual display test file.
+
+### Purpose
+To test overlay and eye display transitions using the current project runtime.
+
+### Result
+It helped me check:
+- whether overlay text was shown
+- whether eye frames appeared
+- whether the display stayed stable after transitions
+
+This was useful for manual checking, even though the LCD path still needed work.
+
+---
+
+## Overall Test Summary
+
+### Successful tests
+- ReSpeaker detection
+- ReSpeaker recording test
+- real microphone quality check
+- official Waveshare vendor LCD demo
+
+### Useful diagnostic tests
+- `st7789_manual_smoke.py`
+- `waveshare_direct_overlay_test.py`
+- `scripts/test_oled.py`
+- `manual_tests/oled_smoke.py`
+
+### Main outcome
+The new microphone upgrade was fully successful.
+
+The new LCD hardware was also proven to be correct, but integrating it cleanly into my own runtime display code required more work than expected.
+
+The official Waveshare vendor demo was the most reliable LCD test result.

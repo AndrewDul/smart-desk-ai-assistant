@@ -366,7 +366,7 @@ The boot logic was moved out of `__init__()` and restored as a separate method:
 ```python
 def boot(self) -> None:
 ```
-## 3. Assistant responded to silence or blank audio
+## 014 Assistant responded to silence or blank audio
 
 ### Problem
 The assistant sometimes responded with “I did not understand” even when the user said nothing.
@@ -386,7 +386,7 @@ This made the assistant remain silent when no meaningful speech was detected.
 
 ---
 
-## 4. OLED overlays replaced the eye animation permanently
+## 015 OLED overlays replaced the eye animation permanently
 
 ### Problem
 Displayed information such as reminders or time screens could interrupt the eye animation without clearly returning to the default visual state.
@@ -403,7 +403,7 @@ The OLED renderer was redesigned so that:
 
 ---
 
-## 5. Startup speech happened too early
+## 016 Startup speech happened too early
 
 ### Problem
 The assistant started speaking immediately after the boot screen appeared, which felt abrupt.
@@ -423,7 +423,7 @@ This created a more polished startup experience.
 
 ---
 
-## 6. Conversational flow was too command-based
+## 017 Conversational flow was too command-based
 
 ### Problem
 Early versions of the assistant behaved like a rigid command parser rather than a conversational assistant.
@@ -446,7 +446,7 @@ This allowed the assistant to support multi-step conversational flows.
 
 ---
 
-## 7. Timer and session state consistency
+## 018 Timer and session state consistency
 
 ### Problem
 Focus, break, and timer states could become difficult to manage when stopping or finishing sessions.
@@ -464,7 +464,7 @@ The timer logic was updated so that:
 
 ---
 
-## 8. Memory recall needed more flexible matching
+## 019 Memory recall needed more flexible matching
 
 ### Problem
 Natural queries such as “Where are my keys?” did not always match previously stored facts unless the wording was identical.
@@ -484,3 +484,249 @@ The memory module was improved with:
 This improved recall reliability in both English and Polish.
 
 ---
+
+# Hardware Change Troubleshooting Notes
+
+## Overview
+
+During development I replaced my original OLED display and older microphone setup with a new LCD display and a new USB microphone array.
+
+This upgrade improved the hardware, but it also caused several integration problems that I had to solve step by step.
+
+This file records the main problems I had and how I worked through them.
+
+---
+
+## 020 New microphone detected but first test command was wrong
+
+After connecting the new microphone, I checked the capture devices with:
+
+`arecord -l`
+
+The system showed:
+
+- **card 2**
+- **device 0**
+- **reSpeaker XVF3800 4-Mic Array**
+
+At first I used the wrong device number in the recording command, so the test failed.
+
+### Problem
+I tried:
+- `plughw:4,0`
+
+but my real microphone card was:
+- `plughw:2,0`
+
+### Result
+After correcting the card number, the microphone recording command worked.
+
+---
+
+## 021 No sound during playback caused confusion
+
+At one point I could record audio, but I could not hear playback.
+
+This made it look like the microphone might not be working, but later I realised that the problem was related to audio output settings, not the microphone itself.
+
+### What happened
+- recording worked
+- playback seemed silent
+- YouTube audio was also silent
+
+### Conclusion
+This was not a microphone problem.
+It was a system audio output issue.
+
+The important result was that the new microphone itself was working correctly.
+
+---
+
+## 022. ReSpeaker microphone quality was much better than the old one
+
+After testing the ReSpeaker properly, I confirmed that it was clearly better than the previous microphone.
+
+### Result
+- very low noise
+- much cleaner voice capture
+- much better overall input quality
+
+This was one of the most successful hardware upgrades in the project.
+
+---
+
+## 023. Python import problem when testing the display
+
+When I tried to run the LCD test script, Python failed with:
+
+`ModuleNotFoundError: No module named 'modules'`
+
+### Cause
+The test script was being run from inside the `scripts` folder path and Python was not resolving the project root properly.
+
+### Fix
+I updated the test scripts so they explicitly added the project root to `sys.path`.
+
+### Result
+The test scripts could import project modules correctly.
+
+---
+
+## 024 LCD failed because GPIO support was missing
+
+When I first tried the new display, I got an error like:
+
+`No module named 'RPi'`
+
+### Cause
+The display libraries needed Raspberry Pi GPIO support, but it was not available in the environment yet.
+
+### What I installed
+I had to install and fix:
+- `rpi-lgpio`
+- `spidev`
+- `luma.lcd`
+- `gpiozero`
+- required system packages like `swig`
+
+### Result
+After fixing GPIO-related dependencies, the display stack could initialise further.
+
+---
+
+## 025 SPI was enabled correctly, so hardware bus was not the problem
+
+I checked the SPI devices and confirmed that SPI was enabled correctly.
+
+### Result
+The system showed:
+- `/dev/spidev0.0`
+- `/dev/spidev0.1`
+
+This meant SPI itself was available and working.
+
+---
+
+## 026 `luma.lcd` did not work properly with this 240x320 display
+
+I tested the new LCD using a `luma.lcd` based approach.
+
+### Result
+The display partially worked, but the image was wrong:
+- noise on the side
+- flashing at the top
+- incomplete or corrupted output
+
+### Conclusion
+This was not a wiring problem.
+It looked like a compatibility or rendering issue with this specific 240x320 panel and that backend.
+
+---
+
+## 027 Generic `st7789` testing also did not solve it
+
+I also tested another direct `st7789` path.
+
+### Result
+That also did not give me a stable correct display.
+
+### Conclusion
+Not every ST7789 library behaves correctly with every panel.
+The fact that the panel uses ST7789 does not automatically mean every Python driver will work properly with it.
+
+---
+
+## 028 The official Waveshare vendor demo proved the hardware was good
+
+The most important test was the official Waveshare Python demo for the 2inch LCD.
+
+### Result
+The vendor demo displayed correctly.
+
+This proved:
+- the LCD hardware was good
+- the wiring was correct
+- SPI communication was working
+- the problem was mainly in software integration, not in the physical hardware
+
+This was the key turning point in the troubleshooting process.
+
+---
+
+## 029 Missing `gpiozero` blocked the vendor demo at first
+
+When I tried the Waveshare Python demo, it first failed because `gpiozero` was missing.
+
+### Fix
+I installed `gpiozero` into the project environment.
+
+### Result
+After that, the vendor demo could run.
+
+---
+
+## 030 Vendor demo image path warning was not a hardware failure
+
+During the vendor demo, one image file was missing:
+
+`[Errno 2] No such file or directory: '../pic/LCD_2inch4_1.jpg'`
+
+### Meaning
+This did not mean the LCD failed.
+The important part was that the drawing steps before that already showed the screen working.
+
+---
+
+## 031 Custom runtime wrapper for the LCD was harder than expected
+
+After proving the vendor demo worked, I tried to integrate the Waveshare LCD into my own runtime display code.
+
+This led to several problems:
+- black screen most of the time
+- only seeing a fragment of the eyes for a moment
+- wrong orientation
+- incorrect width / height assumptions
+- display update timing issues
+- repeated frame rendering problems
+
+### What I learned
+This display is more sensitive than the old OLED.
+It cannot just be treated as a drop-in replacement.
+
+The LCD path needs a display-specific rendering approach.
+
+---
+
+## 032 The direct custom vendor-based test helped isolate the issue
+
+I created direct tests that bypassed the old display wrapper and used the Waveshare driver path more directly.
+
+These tests helped me understand:
+- how the vendor path behaves
+- how the image buffer behaves
+- what kind of rotation / orientation was needed
+- that repeated rendering is more fragile than simple static vendor demo drawing
+
+This gave me a better basis for the next display integration work.
+
+---
+
+## Main Lessons
+
+### What worked well
+- replacing the microphone
+- detecting the ReSpeaker
+- recording audio at 16 kHz
+- verifying that the LCD hardware and wiring were correct through the vendor demo
+
+### What was difficult
+- getting the LCD to work through generic Python display libraries
+- integrating the LCD into my own display runtime
+- handling orientation and update behaviour correctly
+
+### Most important conclusion
+The microphone upgrade was successful and stable.
+
+The LCD hardware upgrade was also successful physically, but software integration for the display required much more work than expected.
+The official vendor driver was the most reliable proof that the display itself was working.
+

@@ -4,3 +4,6 @@ luma.oled
 Pillow
 numpy
 piper
+spidev
+rpi-lgpio
+gpiozero
