@@ -730,3 +730,220 @@ The microphone upgrade was successful and stable.
 The LCD hardware upgrade was also successful physically, but software integration for the display required much more work than expected.
 The official vendor driver was the most reliable proof that the display itself was working.
 
+
+## 033. Polish and English recognition was weak with the base Whisper model
+
+### Problem
+
+The assistant was not handling Polish and English speech well enough in real use.
+
+English sometimes worked, but Polish was much worse, especially for short commands like:
+
+- co potrafisz
+- która jest godzina
+- idź spać
+- wyłącz asystenta
+
+Sometimes the assistant understood part of the sentence, sometimes it guessed something completely wrong, and sometimes it mixed languages in the response.
+
+### What I tried first
+
+At first I tried to improve this through:
+
+- parser logic updates
+- better language detection rules
+- new command phrases
+- follow-up flow improvements
+- confirmation logic improvements
+- auto / English / Polish comparison logic
+
+Some of these changes helped a bit, but overall they did not solve the real problem well enough.
+
+### Real cause
+
+The main issue was not only parser logic.  
+The bigger issue was the speech-to-text quality itself.
+
+The Whisper base model was too weak for the kind of bilingual assistant I wanted to build. It was especially weak for short Polish commands.
+
+### Fix
+
+I changed the Whisper model from `base` to `small`.
+
+After this change the improvement was immediate and clearly visible. The assistant started understanding both Polish and English much better, and the main commands became much more reliable.
+
+### Current status
+
+This was a major improvement, but not the final solution.
+
+The assistant now understands commands much better, but it still sometimes mixes response languages. For example:
+
+- I ask in English and sometimes it replies in Polish
+- I ask in Polish and sometimes it replies in English
+
+So the recognition side is much better now, but the response language logic still needs more work.
+
+
+## 034. Assistant was listening to the wrong audio device
+
+### Problem
+
+At one point the assistant stopped listening through the microphone and behaved as if it was waiting only for text input in the terminal.
+
+### Real cause
+
+The system was using the wrong input device.  
+It was listening to `default` instead of the real USB microphone array.
+
+### Investigation
+
+I checked available devices and found that the real microphone was:
+
+- `reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)`
+- `device_index = 1`
+- sample rate `16000`
+
+I also tested the microphone directly and confirmed that it was receiving strong audio signal.
+
+### Fix
+
+I updated the configuration to use the correct microphone device directly instead of relying on `default`.
+
+After that, the assistant started listening to the real reSpeaker microphone properly.
+
+
+## 035. Fallback to text input happened because voice input initialisation failed
+
+### Problem
+
+The assistant sometimes fell back to text input mode instead of using the microphone.
+
+### Real cause
+
+This happened when the Whisper input initialisation failed.  
+The failure was caused by configuration problems during setup, for example:
+
+- wrong model path
+- wrong input device settings
+- VAD-related setup issues
+- not using the correct microphone source
+
+### Fix
+
+I fixed the configuration step by step:
+
+- correct model path
+- correct microphone device
+- correct sample rate
+- simpler diagnostic configuration first
+- then improved configuration after the microphone started working
+
+This helped me bring the assistant back from text-only fallback to real voice input.
+
+
+## 036. Speech recognition was too slow because too many transcription passes were used
+
+### Problem
+
+After improving recognition, the assistant became too slow.
+
+It was checking:
+
+- auto
+- then English
+- then Polish
+
+for the same audio input.
+
+This improved the chance of correct recognition, but it made the assistant feel too slow.
+
+### Fix
+
+I changed the logic so that the assistant now prefers:
+
+- auto first
+- Polish only if needed
+
+This is better for my use case because English is usually recognised correctly by auto anyway, and the extra support is mostly needed for Polish.
+
+### Result
+
+This made the assistant faster while keeping much better bilingual recognition than before.
+
+
+## 037. Auto transcription sometimes produced wrong English-looking phrases for Polish commands
+
+### Problem
+
+Sometimes the auto transcript returned strange English phrases for Polish speech.  
+A good example was when a Polish question about time became something like:
+
+`Which is an hour?`
+
+This caused the assistant to keep the wrong auto transcript instead of checking Polish properly.
+
+### Fix
+
+I adjusted the scoring and transcript selection logic so that suspicious auto results are treated more carefully.
+
+I also made the system more willing to check Polish when the auto transcript looks weak or unnatural for a short command.
+
+### Result
+
+This improved Polish command handling and reduced false acceptance of bad auto transcripts.
+
+
+## 038. Timer, focus, and break logic were growing in the wrong place
+
+### Problem
+
+The assistant logic was starting to become too mixed inside bigger core files.
+
+This would make the project harder to grow later.
+
+### Fix
+
+I separated the logic into dedicated modules:
+
+- `handlers_timer.py`
+- `handlers_focus.py`
+- `handlers_break.py`
+
+I also kept a compatibility wrapper for the older timers handler file so the project would not break during refactoring.
+
+### Result
+
+The architecture is cleaner, easier to read, and better prepared for future expansion.
+
+
+## 039. Main command and follow-up flow needed redesign
+
+### Problem
+
+The assistant needed cleaner behaviour for:
+
+- startup
+- help
+- self introduction
+- timer duration follow-up
+- exit and shutdown confirmation
+- focus to break transition
+
+### Fix
+
+I redesigned the main flow so the assistant now behaves in a more structured way.
+
+Examples of improvements:
+
+- English-first startup
+- clearer self introduction
+- better help answers
+- cleaner yes / no handling
+- better timer / focus / break follow-ups
+- better confirmation behaviour
+
+### Result
+
+The assistant now feels much more like a real product and less like a set of isolated test commands.
+
+

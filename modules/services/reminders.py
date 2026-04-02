@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import re
 import unicodedata
 import uuid
@@ -13,6 +14,8 @@ from modules.system.utils import REMINDERS_PATH, append_log, load_json, save_jso
 class ReminderManager:
     def __init__(self) -> None:
         self.path = REMINDERS_PATH
+        self._cache: list[dict[str, Any]] | None = None
+        self._cache_mtime_ns: int | None = None
 
     def add_after_seconds(self, seconds: int, message: str) -> dict[str, Any]:
         safe_seconds = max(1, int(seconds))
@@ -199,7 +202,13 @@ class ReminderManager:
 
         return removed
 
-    def _load_reminders(self) -> list[dict[str, Any]]:
+    def _get_file_mtime_ns(self) -> int | None:
+        try:
+            return self.path.stat().st_mtime_ns
+        except OSError:
+            return None
+
+    def _read_reminders_from_disk(self) -> list[dict[str, Any]]:
         data = load_json(self.path, [])
         if not isinstance(data, list):
             return []
@@ -235,8 +244,54 @@ class ReminderManager:
 
         return cleaned
 
+    def _load_reminders(self) -> list[dict[str, Any]]:
+        current_mtime_ns = self._get_file_mtime_ns()
+
+        cache_valid = (
+            self._cache is not None
+            and self._cache_mtime_ns == current_mtime_ns
+        )
+        if cache_valid:
+            return copy.deepcopy(self._cache)
+
+        cleaned = self._read_reminders_from_disk()
+        self._cache = copy.deepcopy(cleaned)
+        self._cache_mtime_ns = current_mtime_ns
+        return copy.deepcopy(cleaned)
+
     def _save_reminders(self, reminders: list[dict[str, Any]]) -> None:
         save_json(self.path, reminders)
+
+        cleaned: list[dict[str, Any]] = []
+        for item in reminders:
+            if not isinstance(item, dict):
+                continue
+
+            reminder_id = str(item.get("id", "")).strip()
+            message = self._clean_message(str(item.get("message", "")))
+            created_at = str(item.get("created_at", "")).strip()
+            due_at = str(item.get("due_at", "")).strip()
+            status = str(item.get("status", "pending")).strip() or "pending"
+            triggered_at = str(item.get("triggered_at", "")).strip()
+
+            if not reminder_id or not message or not due_at:
+                continue
+
+            cleaned_item = {
+                "id": reminder_id,
+                "message": message,
+                "created_at": created_at or due_at,
+                "due_at": due_at,
+                "status": status,
+            }
+
+            if triggered_at:
+                cleaned_item["triggered_at"] = triggered_at
+
+            cleaned.append(cleaned_item)
+
+        self._cache = copy.deepcopy(cleaned)
+        self._cache_mtime_ns = self._get_file_mtime_ns()
 
     @staticmethod
     def _sort_key(reminder: dict[str, Any]) -> tuple[int, str]:

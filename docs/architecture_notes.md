@@ -702,3 +702,46 @@ The new microphone is:
 
 Overall, this hardware change made the assistant feel more like a real system and less like an early prototype.
 
+
+## Voice assistant architecture update - bilingual support and speech pipeline improvements
+
+During this stage I focused mainly on improving the voice assistant core and making the system easier to grow later.
+
+At the beginning, the logic for timers and assistant flow was getting too mixed in bigger files. Because of that, I separated the timer-related features into smaller modules. I created separate handlers for:
+
+- normal timer
+- focus mode
+- break mode
+
+This made the project structure much cleaner. The main assistant file is now more focused on coordination, while the real behaviour for timer, focus, and break is handled in dedicated files. This is better for future development because these features will probably grow a lot later.
+
+I also improved the main command flow of the assistant. The startup was updated so the assistant starts in English as the main language, introduces itself, and tells the user that it can also work in Polish. The help flow was also improved, so the assistant can explain its current main features in a more clear way.
+
+Another important change was the follow-up and confirmation system. I improved the behaviour for things like:
+
+- yes / no
+- tak / nie
+- choosing between possible meanings
+- timer duration follow-up
+- focus and break follow-up
+- exit and shutdown confirmation
+
+This made the assistant feel more structured and more like a real product instead of a collection of disconnected commands.
+
+The biggest technical work in this stage was the speech recognition pipeline. I spent a lot of time trying to improve Polish and English command recognition. At first I tried to solve it mostly through parser logic and language rules, but that did not give good enough real-life results. The assistant was still misunderstanding short Polish commands and sometimes mixing languages in replies.
+
+Because of that, I changed the Whisper model from base to small. This gave a clear improvement immediately. After this change, the assistant started understanding Polish and English much better and it could recognise the main commands much more reliably.
+
+I also improved the audio input pipeline:
+
+- I stopped relying on the wrong default input device
+- I forced the assistant to use the real reSpeaker microphone
+- I checked supported sample rate
+- I improved the speech start and end detection
+- I reduced unnecessary repeated transcription passes
+- I changed the transcription flow to prefer auto first and then Polish only if needed
+
+This made the assistant much more usable. It is still not perfect yet, but it is now much closer to a real working bilingual desk assistant.
+
+Current known limitation:
+The assistant now understands commands much better, but language response selection is still not fully stable. Sometimes I ask something in English and it answers in Polish, and sometimes the opposite happens. So recognition is now much better, but response language behaviour still needs more refinement.

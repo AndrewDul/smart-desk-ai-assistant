@@ -5,6 +5,57 @@ from datetime import datetime
 from modules.core.language import localized, speak_localized
 
 
+_DAYS_EN = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+]
+
+_DAYS_PL = [
+    "poniedziałek",
+    "wtorek",
+    "środa",
+    "czwartek",
+    "piątek",
+    "sobota",
+    "niedziela",
+]
+
+_MONTHS_EN = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+]
+
+_MONTHS_PL = [
+    "stycznia",
+    "lutego",
+    "marca",
+    "kwietnia",
+    "maja",
+    "czerwca",
+    "lipca",
+    "sierpnia",
+    "września",
+    "października",
+    "listopada",
+    "grudnia",
+]
+
+
 def show_localized_block(
     assistant,
     lang: str,
@@ -25,21 +76,21 @@ def show_capabilities(assistant, lang: str) -> None:
     show_localized_block(
         assistant,
         lang,
-        "CO POTRAFIĘ",
+        "JAK MOGĘ POMÓC",
         "HOW I CAN HELP",
         [
-            "pamiec i przypomnienia",
-            "timery focus przerwa",
-            "godzina data dzien",
-            "ekran oled i status",
-            "pl i en",
+            "zapamietywanie informacji",
+            "przypomnienia",
+            "timer",
+            "focus mode",
+            "break mode",
         ],
         [
-            "memory and reminders",
-            "timers focus break",
-            "time date and day",
-            "oled and status",
-            "polish and english",
+            "remember information",
+            "set reminders",
+            "set timers",
+            "focus mode",
+            "break mode",
         ],
         duration=12.0,
     )
@@ -74,10 +125,17 @@ def action_label(action: str, lang: str) -> str:
         "status": {"pl": "stan", "en": "status"},
         "memory_list": {"pl": "pamięć", "en": "memory"},
         "memory_clear": {"pl": "wyczyść pamięć", "en": "clear memory"},
+        "memory_store": {"pl": "zapamiętaj", "en": "remember"},
+        "memory_recall": {"pl": "odczytaj pamięć", "en": "recall memory"},
+        "memory_forget": {"pl": "usuń z pamięci", "en": "forget from memory"},
         "reminders_list": {"pl": "przypomnienia", "en": "reminders"},
+        "reminder_create": {"pl": "ustaw przypomnienie", "en": "create reminder"},
         "reminder_delete": {"pl": "usuń przypomnienie", "en": "delete reminder"},
         "reminders_clear": {"pl": "wyczyść przypomnienia", "en": "clear reminders"},
-        "timer_stop": {"pl": "wyłącz timer", "en": "stop timer"},
+        "timer_start": {"pl": "timer", "en": "timer"},
+        "timer_stop": {"pl": "zatrzymaj timer", "en": "stop timer"},
+        "focus_start": {"pl": "focus mode", "en": "focus mode"},
+        "break_start": {"pl": "break mode", "en": "break mode"},
         "introduce_self": {"pl": "przedstaw się", "en": "introduce yourself"},
         "ask_time": {"pl": "godzina", "en": "time"},
         "show_time": {"pl": "pokaż godzinę", "en": "show time"},
@@ -87,62 +145,110 @@ def action_label(action: str, lang: str) -> str:
         "show_day": {"pl": "pokaż dzień", "en": "show day"},
         "ask_year": {"pl": "rok", "en": "year"},
         "show_year": {"pl": "pokaż rok", "en": "show year"},
-        "timer_start": {"pl": "timer", "en": "timer"},
-        "focus_start": {"pl": "focus mode", "en": "focus mode"},
-        "break_start": {"pl": "tryb przerwy", "en": "break mode"},
-        "memory_store": {"pl": "zapamiętywanie", "en": "remembering"},
-        "memory_recall": {"pl": "odczyt pamięci", "en": "memory recall"},
-        "memory_forget": {"pl": "usuwanie z pamięci", "en": "memory delete"},
-        "exit": {"pl": "wyjście", "en": "exit"},
-        "shutdown": {"pl": "wyłącz system", "en": "shutdown"},
+        "exit": {"pl": "zamknij asystenta", "en": "close assistant"},
+        "shutdown": {"pl": "wyłącz system", "en": "shut down system"},
     }
     return labels.get(action, {}).get(lang, action)
 
 
-def format_temporal_text(kind: str, lang: str) -> tuple[str, str, list[str]]:
+def _time_payload(lang: str) -> tuple[str, str, list[str]]:
+    now = datetime.now()
+    digital_value = now.strftime("%H:%M")
+
+    if lang == "pl":
+        spoken = f"Jest {digital_value}."
+        title = "GODZINA"
+        lines = [
+            digital_value,
+            "aktualny czas",
+        ]
+        return spoken, title, lines
+
+    spoken_value = now.strftime("%I:%M %p").lstrip("0")
+    spoken = f"It is {spoken_value}."
+    title = "TIME"
+    lines = [
+        digital_value,
+        "current time",
+    ]
+    return spoken, title, lines
+
+
+def _date_payload(lang: str) -> tuple[str, str, list[str]]:
     now = datetime.now()
 
-    if kind == "time":
-        value = now.strftime("%H:%M")
-        spoken = localized(lang, f"Jest {value}.", f"It is {value}.")
-        title = localized(lang, "GODZINA", "TIME")
-        lines = [value]
-        return spoken, title, lines
-
-    if kind == "date":
-        value = now.strftime("%d-%m-%Y")
-        spoken = localized(lang, f"Dzisiejsza data to {value}.", f"Today's date is {value}.")
-        title = localized(lang, "DATA", "DATE")
-        lines = [value]
-        return spoken, title, lines
-
-    if kind == "day":
-        days_en = [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
+    if lang == "pl":
+        weekday = _DAYS_PL[now.weekday()]
+        month = _MONTHS_PL[now.month - 1]
+        spoken = f"Dzisiaj jest {weekday}, {now.day} {month} {now.year}."
+        title = "DATA"
+        lines = [
+            now.strftime("%d-%m-%Y"),
+            weekday,
         ]
-        days_pl = [
-            "poniedziałek",
-            "wtorek",
-            "środa",
-            "czwartek",
-            "piątek",
-            "sobota",
-            "niedziela",
-        ]
-        value = days_pl[now.weekday()] if lang == "pl" else days_en[now.weekday()]
-        spoken = localized(lang, f"Dzisiaj jest {value}.", f"Today is {value}.")
-        title = localized(lang, "DZIEŃ", "DAY")
-        lines = [value]
         return spoken, title, lines
 
-    value = str(now.year)
-    spoken = localized(lang, f"Mamy rok {value}.", f"The year is {value}.")
-    title = localized(lang, "ROK", "YEAR")
-    lines = [value]
+    weekday = _DAYS_EN[now.weekday()]
+    month = _MONTHS_EN[now.month - 1]
+    spoken = f"Today is {weekday}, {month} {now.day}, {now.year}."
+    title = "DATE"
+    lines = [
+        now.strftime("%d-%m-%Y"),
+        weekday,
+    ]
     return spoken, title, lines
+
+
+def _day_payload(lang: str) -> tuple[str, str, list[str]]:
+    now = datetime.now()
+
+    if lang == "pl":
+        weekday = _DAYS_PL[now.weekday()]
+        spoken = f"Dzisiaj jest {weekday}."
+        title = "DZIEŃ"
+        lines = [
+            weekday,
+            now.strftime("%d-%m-%Y"),
+        ]
+        return spoken, title, lines
+
+    weekday = _DAYS_EN[now.weekday()]
+    spoken = f"Today is {weekday}."
+    title = "DAY"
+    lines = [
+        weekday,
+        now.strftime("%d-%m-%Y"),
+    ]
+    return spoken, title, lines
+
+
+def _year_payload(lang: str) -> tuple[str, str, list[str]]:
+    now = datetime.now()
+    year_text = str(now.year)
+
+    if lang == "pl":
+        spoken = f"Mamy rok {year_text}."
+        title = "ROK"
+        lines = [
+            year_text,
+            "aktualny rok",
+        ]
+        return spoken, title, lines
+
+    spoken = f"The current year is {year_text}."
+    title = "YEAR"
+    lines = [
+        year_text,
+        "current year",
+    ]
+    return spoken, title, lines
+
+
+def format_temporal_text(kind: str, lang: str) -> tuple[str, str, list[str]]:
+    if kind == "time":
+        return _time_payload(lang)
+    if kind == "date":
+        return _date_payload(lang)
+    if kind == "day":
+        return _day_payload(lang)
+    return _year_payload(lang)

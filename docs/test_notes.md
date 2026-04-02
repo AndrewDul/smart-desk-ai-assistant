@@ -373,3 +373,75 @@ The new microphone upgrade was fully successful.
 The new LCD hardware was also proven to be correct, but integrating it cleanly into my own runtime display code required more work than expected.
 
 The official Waveshare vendor demo was the most reliable LCD test result.
+
+## Test notes - bilingual voice assistant improvements
+
+During this stage I tested both the software logic and the real voice input behaviour.
+
+### Automated tests
+
+After the refactoring and modularisation work, I updated and ran the test suite.
+
+Final result:
+
+- all tests passed
+- the assistant core stayed stable after the changes
+- timer, focus, break, reminders, memory, and parsing logic were all working in the test environment
+
+This gave me confidence that the internal logic was still correct after restructuring the project.
+
+### Manual voice tests
+
+I also carried out real manual tests with the reSpeaker microphone.
+
+At first the results were poor. The assistant had serious problems with Polish commands, and sometimes it mixed Polish and English. Some short Polish phrases were misunderstood badly.
+
+I then investigated the microphone and audio setup:
+
+- I checked the available audio devices
+- I confirmed that the correct microphone was the reSpeaker XVF3800 array
+- I confirmed that the correct input device index was `1`
+- I confirmed that `16000` was the correct sample rate
+- I checked raw signal values and confirmed that the microphone was receiving audio properly
+
+### Speech model tests
+
+I first tested the assistant with the Whisper base model.
+
+Result:
+- not good enough for my target
+- too weak for short Polish commands
+- too unreliable for a premium bilingual assistant
+
+I then switched from `base` to `small`.
+
+Result:
+- clear improvement immediately
+- much better recognition of both English and Polish
+- main commands became much more reliable
+- the assistant now understands commands much better overall
+
+### Current practical result
+
+What is now much better:
+
+- English and Polish command recognition
+- command reliability
+- use of the correct microphone
+- timer / focus / break flow
+- startup and help flow
+- real usability
+
+What still needs more work:
+
+- response language consistency
+- sometimes the assistant still replies in the wrong language
+- some polish / english reply switching still feels inconsistent
+
+### Overall conclusion
+
+This stage was a major improvement.
+
+The assistant is now in a much better state than before. It understands the main commands much more reliably and the bilingual recognition problem is much smaller than it was at the beginning of this work.
+
+It is still not perfect yet, but this was a big step forward.

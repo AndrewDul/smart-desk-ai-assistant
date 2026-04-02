@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 
 from modules.system.utils import BASE_DIR, CACHE_DIR, append_log
@@ -57,6 +58,28 @@ class VoiceOutput:
 
         self._playback_timeout_seconds = 30
         self._synthesis_timeout_seconds = 30
+
+        self._piper_ready_cache: dict[str, bool] = {}
+        self._cache_warmup_thread: threading.Thread | None = None
+
+        self._common_cache_phrases: dict[str, list[str]] = {
+            "pl": [
+                "Dobrze.",
+                "Powiedz tak albo nie.",
+                "Nie usłyszałam wyraźnie. Powiedz proszę jeszcze raz.",
+                "Jak mogę pomóc?",
+                "Nie mogę tego teraz zrobić.",
+            ],
+            "en": [
+                "Okay.",
+                "Please say yes or no.",
+                "I did not catch that clearly. Please say it again.",
+                "How can I help?",
+                "I cannot do that right now.",
+            ],
+        }
+
+        self._start_cache_warmup()
 
     def _resolve_language(self, language: str | None) -> str:
         lang = (language or self.default_language or "pl").lower().strip()
@@ -116,13 +139,20 @@ class VoiceOutput:
         return self._base_dir / candidate
 
     def _piper_model_ready(self, lang: str) -> bool:
+        cached = self._piper_ready_cache.get(lang)
+        if cached is not None:
+            return cached
+
         model_info = self.piper_models.get(lang)
         if not model_info:
+            self._piper_ready_cache[lang] = False
             return False
 
         model_path = self._resolve_project_path(model_info["model"])
         config_path = self._resolve_project_path(model_info["config"])
-        return model_path.exists() and config_path.exists()
+        ready = model_path.exists() and config_path.exists()
+        self._piper_ready_cache[lang] = ready
+        return ready
 
     def _cache_key(self, text: str, lang: str) -> str:
         digest = hashlib.sha256(f"{lang}|{text}".encode("utf-8")).hexdigest()
@@ -176,6 +206,8 @@ class VoiceOutput:
             append_log(f"Piper model missing for language '{lang}'.")
             return False
 
+        wav_path.parent.mkdir(parents=True, exist_ok=True)
+
         try:
             result = subprocess.run(
                 [
@@ -207,6 +239,51 @@ class VoiceOutput:
             append_log(f"Piper output error: {error}")
             return False
 
+    def _prime_cache_entry(self, text: str, lang: str) -> None:
+        if not self.enabled:
+            return
+        if self.preferred_engine != "piper":
+            return
+        if not self._piper_model_ready(lang):
+            return
+
+        cache_path = self._cached_wav_path(text, lang)
+        if cache_path.exists():
+            return
+
+        success = self._synthesize_piper_to_wav(text, lang, cache_path)
+        if not success and cache_path.exists():
+            try:
+                cache_path.unlink()
+            except OSError:
+                pass
+
+    def _warm_common_cache(self) -> None:
+        try:
+            time.sleep(2.0)
+
+            for lang, phrases in self._common_cache_phrases.items():
+                for phrase in phrases:
+                    tts_text = self._normalize_text_for_tts(phrase, lang)
+                    if not tts_text:
+                        continue
+                    self._prime_cache_entry(tts_text, lang)
+        except Exception as error:
+            append_log(f"TTS cache warmup skipped: {error}")
+
+    def _start_cache_warmup(self) -> None:
+        if not self.enabled:
+            return
+        if self.preferred_engine != "piper":
+            return
+
+        self._cache_warmup_thread = threading.Thread(
+            target=self._warm_common_cache,
+            name="tts-cache-warmup",
+            daemon=True,
+        )
+        self._cache_warmup_thread.start()
+
     def _speak_with_piper(self, text: str, lang: str) -> bool:
         if not self.enabled:
             return False
@@ -219,6 +296,14 @@ class VoiceOutput:
                 return True
             append_log("Cached Piper audio exists but playback failed, retrying synthesis.")
 
+        synthesized_to_cache = self._synthesize_piper_to_wav(text, lang, cache_path)
+        if synthesized_to_cache:
+            played = self._play_wav(cache_path)
+            if played:
+                return True
+
+            append_log("Cached Piper synthesis worked but playback failed, trying temporary WAV.")
+
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_wav:
             temp_wav_path = Path(temp_wav.name)
 
@@ -226,13 +311,6 @@ class VoiceOutput:
             synthesized = self._synthesize_piper_to_wav(text, lang, temp_wav_path)
             if not synthesized:
                 return False
-
-            try:
-                cache_path.parent.mkdir(parents=True, exist_ok=True)
-                if not cache_path.exists():
-                    shutil.copy2(temp_wav_path, cache_path)
-            except Exception as error:
-                append_log(f"Piper cache write skipped: {error}")
 
             played = self._play_wav(temp_wav_path)
             if not played:

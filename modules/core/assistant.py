@@ -11,6 +11,24 @@ from modules.core.followups import (
     handle_pending_confirmation,
     handle_pending_follow_up,
 )
+from modules.core.handlers_break import (
+    on_break_finished,
+    on_break_started,
+    on_break_stopped,
+    start_break,
+)
+from modules.core.handlers_focus import (
+    on_focus_finished,
+    on_focus_started,
+    on_focus_stopped,
+    start_focus,
+)
+from modules.core.handlers_timer import (
+    on_timer_finished,
+    on_timer_started,
+    on_timer_stopped,
+    start_timer,
+)
 from modules.core.language import (
     context_language,
     detect_language,
@@ -160,25 +178,33 @@ class CoreAssistant:
     def boot(self) -> None:
         self.state["assistant_running"] = True
         self._save_state()
-        self._reminder_thread.start()
+
+        if not self._reminder_thread.is_alive():
+            self._reminder_thread.start()
+
+        self.last_language = "en"
+        self.pending_confirmation = None
+        self.pending_follow_up = None
+        self.shutdown_requested = False
 
         self.display.show_block(
-            "DevDul",
+            "SMART ASSISTANT",
             [
-                "Smart Assistant",
                 "starting up...",
+                "english is primary",
+                "ask: how can you help me",
             ],
             duration=self.boot_overlay_seconds,
         )
 
-        append_log("Boot screen: DevDul.")
+        append_log("Assistant boot sequence started.")
 
         time.sleep(max(self.boot_overlay_seconds, 0.8))
         self.display.clear_overlay()
         time.sleep(0.15)
 
         self.voice_out.speak(
-            "Hello. If you want to hear how I can help, ask me, how can you help me?",
+            "Hello. I am Smart Assistant. English is my main language, and you can also speak to me in Polish. Ask me how I can help you.",
             language="en",
         )
 
@@ -293,119 +319,38 @@ class CoreAssistant:
         return count
 
     def _start_timer_mode(self, minutes: float, mode: str, lang: str) -> bool:
-        ok, message = self.timer.start(minutes, mode)
-        if not ok:
-            self._speak_localized(
-                lang,
-                "Timer już działa. Najpierw go zatrzymaj.",
-                "A timer is already running. Please stop it first.",
-            )
-            append_log(message)
-            return True
-        return True
+        if mode == "focus":
+            return start_focus(self, minutes, lang)
+        if mode == "break":
+            return start_break(self, minutes, lang)
+        return start_timer(self, minutes, lang)
 
     def _on_timer_started(self, mode: str, minutes: float) -> None:
-        self.state["current_timer"] = mode
-
         if mode == "focus":
-            self.state["focus_mode"] = True
-            self.state["break_mode"] = False
-        elif mode == "break":
-            self.state["focus_mode"] = False
-            self.state["break_mode"] = True
-        else:
-            self.state["focus_mode"] = False
-            self.state["break_mode"] = False
-
-        self._save_state()
-        append_log(f"{mode.capitalize()} timer started for {minutes:g} minute(s).")
-
-        lang = self.last_language
-        mode_label_pl = {"focus": "sesja focus", "break": "przerwa", "timer": "timer"}.get(mode, mode)
-        mode_label_en = {"focus": "focus session", "break": "break", "timer": "timer"}.get(mode, mode)
-        spoken_duration = self._format_duration_text(int(round(minutes * 60)), lang)
-
-        self.display.show_block(
-            self._localized(lang, "TIMER START", "TIMER START"),
-            [self._localized(lang, mode_label_pl, mode_label_en), f"{minutes:g} min"],
-            duration=6.0,
-        )
-
-        self._speak_localized(
-            lang,
-            f"Uruchomiłam {mode_label_pl} na {spoken_duration}.",
-            f"I started the {mode_label_en} for {spoken_duration}.",
-        )
+            on_focus_started(self, minutes)
+            return
+        if mode == "break":
+            on_break_started(self, minutes)
+            return
+        on_timer_started(self, minutes)
 
     def _on_timer_finished(self, mode: str) -> None:
-        self.state["current_timer"] = None
-        self.state["focus_mode"] = False
-        self.state["break_mode"] = False
-        self._save_state()
-        append_log(f"{mode.capitalize()} timer finished.")
-
         if mode == "focus":
-            self.display.show_block(
-                self._localized(self.last_language, "FOCUS KONIEC", "FOCUS DONE"),
-                [
-                    self._localized(self.last_language, "czas sesji minął", "your session is over"),
-                    self._localized(self.last_language, "chcesz przerwę?", "would you like a break?"),
-                ],
-                duration=8.0,
-            )
-            self.pending_follow_up = {"type": "post_focus_break_offer", "lang": self.last_language}
-            self._speak_localized(
-                self.last_language,
-                "Focus time dobiegł końca. Czy chcesz teraz przerwę?",
-                "Your focus session is over. Would you like a break now?",
-            )
+            on_focus_finished(self)
             return
-
         if mode == "break":
-            self.display.show_block(
-                self._localized(self.last_language, "KONIEC PRZERWY", "BREAK DONE"),
-                [
-                    self._localized(self.last_language, "przerwa skończona", "break is over"),
-                    self._localized(self.last_language, "wróć do nauki", "back to studying"),
-                ],
-                duration=8.0,
-            )
-            self._speak_localized(
-                self.last_language,
-                "Przerwa dobiegła końca. Wracaj do nauki, kiedy będziesz gotowy.",
-                "Your break is over. Come back to studying when you are ready.",
-            )
+            on_break_finished(self)
             return
-
-        self.display.show_block(
-            self._localized(self.last_language, "CZAS MINĄŁ", "TIME IS UP"),
-            [self._localized(self.last_language, "timer zakończony", "timer finished")],
-            duration=6.0,
-        )
-        self._speak_localized(
-            self.last_language,
-            "Minął ustawiony czas.",
-            "Your timer has finished.",
-        )
+        on_timer_finished(self)
 
     def _on_timer_stopped(self, mode: str) -> None:
-        self.state["current_timer"] = None
-        self.state["focus_mode"] = False
-        self.state["break_mode"] = False
-        self._save_state()
-
-        self.display.show_block(
-            self._localized(self.last_language, "TIMER STOP", "TIMER STOP"),
-            [self._localized(self.last_language, "timer zatrzymany", "timer stopped")],
-            duration=6.0,
-        )
-
-        self._speak_localized(
-            self.last_language,
-            "Zatrzymałam timer.",
-            "I stopped the timer.",
-        )
-        append_log(f"{mode.capitalize()} timer stopped.")
+        if mode == "focus":
+            on_focus_stopped(self)
+            return
+        if mode == "break":
+            on_break_stopped(self)
+            return
+        on_timer_stopped(self)
 
     def _reminder_loop(self) -> None:
         while not self._stop_background.is_set():

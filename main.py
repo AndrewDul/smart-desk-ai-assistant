@@ -16,7 +16,7 @@ def _normalize_gate_text(text: str) -> str:
     lowered = unicodedata.normalize("NFKD", lowered)
     lowered = "".join(ch for ch in lowered if not unicodedata.combining(ch))
     lowered = lowered.replace("ł", "l")
-    lowered = re.sub(r"[^a-z0-9\s\[\]_-]", " ", lowered)
+    lowered = re.sub(r"[^a-z0-9\s\[\]().,_-]", " ", lowered)
     lowered = re.sub(r"\s+", " ", lowered).strip()
     return lowered
 
@@ -35,9 +35,44 @@ def _is_blank_or_silence(text: str) -> bool:
         "no speech recognized",
         "[noise]",
         "noise",
+        "...",
+        ".",
+        "-",
     }
 
     return normalized in blank_markers
+
+
+def _is_bracketed_non_speech(text: str) -> bool:
+    normalized = _normalize_gate_text(text)
+    if not normalized:
+        return True
+
+    bracketed_patterns = [
+        r"^\[[a-z0-9 _-]+\]$",
+        r"^\([a-z0-9 _-]+\)$",
+    ]
+    if not any(re.fullmatch(pattern, normalized) for pattern in bracketed_patterns):
+        return False
+
+    inner = re.sub(r"^[\[(]|[\])]\Z", "", normalized).strip()
+
+    non_speech_terms = {
+        "music",
+        "upbeat music",
+        "applause",
+        "laughter",
+        "background noise",
+        "ambient sound",
+        "static",
+        "noise",
+        "silence",
+        "coughing",
+        "breathing",
+        "sigh",
+    }
+
+    return inner in non_speech_terms
 
 
 def _is_low_value_noise(text: str, assistant: CoreAssistant) -> bool:
@@ -60,25 +95,102 @@ def _is_low_value_noise(text: str, assistant: CoreAssistant) -> bool:
         "eee",
         "ok",
         "okay",
+        "huh",
+    }
+
+    silence_hallucinations = {
+        "thank you",
+        "thanks for watching",
+        "you",
+        "bye",
+        "foreign",
+        "speaking in foreign language",
     }
 
     if normalized in filler_words:
         return True
 
+    if normalized in silence_hallucinations:
+        return True
+
     if not re.search(r"[a-z]", normalized):
+        return True
+
+    alpha_only = re.sub(r"[^a-z]", "", normalized)
+    if len(alpha_only) <= 1:
         return True
 
     return False
 
 
+def _should_ignore_duplicate_transcript(
+    text: str,
+    assistant: CoreAssistant,
+    last_transcript_normalized: str | None,
+    last_transcript_time: float | None,
+    cooldown_seconds: float = 1.4,
+) -> bool:
+    if assistant.pending_follow_up or assistant.pending_confirmation:
+        return False
+
+    normalized = _normalize_gate_text(text)
+    if not normalized:
+        return False
+
+    if last_transcript_normalized is None or last_transcript_time is None:
+        return False
+
+    now = time.monotonic()
+    if normalized == last_transcript_normalized and (now - last_transcript_time) <= cooldown_seconds:
+        return True
+
+    return False
+
+
+def _should_log_gate_event(
+    gate_event: str,
+    gate_log_times: dict[str, float],
+    cooldown_seconds: float = 5.0,
+) -> bool:
+    now = time.monotonic()
+    last_time = gate_log_times.get(gate_event)
+
+    if last_time is None or (now - last_time) >= cooldown_seconds:
+        gate_log_times[gate_event] = now
+        return True
+
+    return False
+
+
+def _startup_greeting(report_ok: bool) -> str:
+    if report_ok:
+        return (
+            "Hello. I am Smart Assistant. "
+            "English is my main language, and you can also speak to me in Polish. "
+            "Ask me how I can help you."
+        )
+
+    return (
+        "Hello. I am Smart Assistant. "
+        "I started with some warnings, so a few things may work in limited mode. "
+        "English is my main language, and you can also speak to me in Polish. "
+        "Ask me how I can help you."
+    )
+
+
 def _run_startup_sequence(assistant: CoreAssistant) -> None:
     append_log("Startup sequence initiated.")
 
+    assistant.last_language = "en"
+    assistant.pending_follow_up = None
+    assistant.pending_confirmation = None
+    assistant.shutdown_requested = False
+
     assistant.display.show_block(
-        "DevDul",
+        "SMART ASSISTANT",
         [
-            "Smart Assistant",
             "starting up...",
+            "checking system...",
         ],
         duration=assistant.boot_overlay_seconds,
     )
@@ -87,6 +199,9 @@ def _run_startup_sequence(assistant: CoreAssistant) -> None:
     report = checker.run()
 
     assistant.state["assistant_running"] = True
+    assistant.state["focus_mode"] = False
+    assistant.state["break_mode"] = False
+    assistant.state["current_timer"] = None
     assistant._save_state()
 
     if not assistant._reminder_thread.is_alive():
@@ -94,22 +209,27 @@ def _run_startup_sequence(assistant: CoreAssistant) -> None:
 
     time.sleep(max(assistant.boot_overlay_seconds, 0.8))
     assistant.display.clear_overlay()
-
     time.sleep(0.2)
 
-    if report.ok:
-        assistant.voice_out.speak(
-            "Hello. I am ready. You can speak in Polish or in English.",
-            language="en",
-        )
-        append_log("Startup completed successfully.")
-        return
+    assistant.display.show_block(
+        "SMART ASSISTANT",
+        [
+            "english is primary",
+            "polish is supported",
+            "ask: how can you help me",
+        ],
+        duration=8.0,
+    )
 
     assistant.voice_out.speak(
-        "Hello. I started, but some system checks reported problems. I may work in limited mode.",
+        _startup_greeting(report.ok),
         language="en",
     )
-    append_log("Startup completed with warnings.")
+
+    if report.ok:
+        append_log("Startup completed successfully.")
+    else:
+        append_log("Startup completed with warnings.")
 
 
 def _perform_system_shutdown(assistant: CoreAssistant) -> None:
@@ -146,6 +266,10 @@ def main() -> None:
     assistant = CoreAssistant()
     _run_startup_sequence(assistant)
 
+    gate_log_times: dict[str, float] = {}
+    last_transcript_normalized: str | None = None
+    last_transcript_time: float | None = None
+
     try:
         while True:
             print("\nListening for speech...")
@@ -155,28 +279,54 @@ def main() -> None:
             )
 
             if heard_text is None:
-                append_log("Ignored silent input: recognizer returned None.")
+                if _should_log_gate_event("silent_none", gate_log_times):
+                    append_log("Ignored silent input: recognizer returned None.")
                 print("No speech recognized.")
                 continue
 
             heard_text = heard_text.strip()
 
             if _is_blank_or_silence(heard_text):
-                append_log(f"Ignored blank audio marker: {heard_text}")
+                if _should_log_gate_event("blank_or_silence", gate_log_times):
+                    append_log(f"Ignored blank audio marker: {heard_text}")
                 print("Ignored blank audio marker.")
                 continue
 
-            if not _normalize_gate_text(heard_text):
-                append_log("Ignored empty normalized transcript.")
+            normalized_heard = _normalize_gate_text(heard_text)
+
+            if not normalized_heard:
+                if _should_log_gate_event("empty_normalized", gate_log_times):
+                    append_log("Ignored empty normalized transcript.")
                 print("Ignored empty normalized transcript.")
                 continue
 
+            if _is_bracketed_non_speech(heard_text):
+                if _should_log_gate_event("bracketed_non_speech", gate_log_times):
+                    append_log(f"Ignored bracketed non-speech transcript: {heard_text}")
+                print(f"Ignored non-speech transcript: {heard_text}")
+                continue
+
             if _is_low_value_noise(heard_text, assistant):
-                append_log(f"Ignored low-value noise: {heard_text}")
+                if _should_log_gate_event("low_value_noise", gate_log_times):
+                    append_log(f"Ignored low-value noise: {heard_text}")
                 print(f"Ignored low-value noise: {heard_text}")
                 continue
 
+            if _should_ignore_duplicate_transcript(
+                heard_text,
+                assistant,
+                last_transcript_normalized=last_transcript_normalized,
+                last_transcript_time=last_transcript_time,
+            ):
+                if _should_log_gate_event("duplicate_transcript", gate_log_times):
+                    append_log(f"Ignored duplicate transcript: {heard_text}")
+                print(f"Ignored duplicate transcript: {heard_text}")
+                continue
+
             print(f"Heard: {heard_text}")
+
+            last_transcript_normalized = normalized_heard
+            last_transcript_time = time.monotonic()
 
             should_continue = assistant.handle_command(heard_text)
             if not should_continue:

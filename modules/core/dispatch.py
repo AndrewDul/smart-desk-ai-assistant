@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from modules.core.handlers_break import handle_break_start
+from modules.core.handlers_focus import handle_focus_start
 from modules.core.handlers_memory import (
     handle_memory_clear,
     handle_memory_forget,
@@ -21,12 +23,7 @@ from modules.core.handlers_system import (
     handle_status,
 )
 from modules.core.handlers_time import handle_temporal_intent
-from modules.core.handlers_timers import (
-    handle_break_start,
-    handle_focus_start,
-    handle_timer_start,
-    handle_timer_stop,
-)
+from modules.core.handlers_timer import handle_timer_start, handle_timer_stop
 
 
 TEMPORAL_ACTIONS = {

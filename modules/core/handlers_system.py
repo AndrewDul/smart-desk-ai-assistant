@@ -1,42 +1,97 @@
 from __future__ import annotations
 
 
+def _help_screen_lines(lang: str) -> list[str]:
+    if lang == "pl":
+        return [
+            "zapamietywanie informacji",
+            "przypomnienia",
+            "timer",
+            "focus mode",
+            "break mode",
+        ]
+
+    return [
+        "remember information",
+        "set reminders",
+        "set timers",
+        "focus mode",
+        "break mode",
+    ]
+
+
+def _help_voice_text(lang: str) -> str:
+    if lang == "pl":
+        return (
+            "Mogę pomagać ci na kilka głównych sposobów. "
+            "Mogę zapamiętywać informacje, ustawiać przypomnienia, ustawiać timer, "
+            "uruchamiać focus mode oraz break mode, które mogą być przydatne podczas nauki. "
+            "To są teraz moje główne funkcje."
+        )
+
+    return (
+        "I can help you in a few main ways. "
+        "I can remember information, set reminders, set a timer, "
+        "and start focus mode or break mode, which can be useful while studying. "
+        "These are my main features right now."
+    )
+
+
 def handle_help(assistant, lang: str) -> bool:
-    assistant._show_capabilities(lang)
+    assistant.pending_follow_up = None
+    assistant.pending_confirmation = None
+
+    assistant.display.show_block(
+        assistant._localized(lang, "JAK MOGĘ POMÓC", "HOW I CAN HELP"),
+        _help_screen_lines(lang),
+        duration=12.0,
+    )
+
     assistant._speak_localized(
         lang,
-        "Mogę zapamiętywać informacje, ustawiać przypomnienia i timery, podawać godzinę, datę, dzień i rok, prowadzić focus mode i przerwę, usuwać pamięć i przypomnienia oraz pokazywać informacje na ekranie.",
-        "I can remember information, set reminders and timers, tell you the time, date, day and year, run focus and break sessions, remove memory and reminders, and show information on the screen.",
+        _help_voice_text("pl"),
+        _help_voice_text("en"),
     )
     return True
 
 
 def handle_introduce_self(assistant, lang: str) -> bool:
-    assistant.pending_follow_up = {
-        "type": "capture_name",
-        "lang": lang,
-    }
-    assistant._show_localized_block(
-        lang,
-        "CZEŚĆ",
-        "HELLO",
-        [
+    assistant.pending_follow_up = None
+    assistant.pending_confirmation = None
+
+    if lang == "pl":
+        title = "SMART ASSISTANT"
+        lines = [
             "jestem Smart Assistant",
-            "mogę ci pomagać",
-            "jak masz na imię?",
-        ],
-        [
+            "angielski jest glowny",
+            "polski tez obsluguję",
+            "zapytaj: jak mozesz pomoc",
+        ]
+        spoken = (
+            "Jestem Smart Assistant. "
+            "Angielski jest moim głównym językiem, ale obsługuję też polski. "
+            "Jeśli chcesz, zapytaj mnie, jak mogę pomóc."
+        )
+    else:
+        title = "SMART ASSISTANT"
+        lines = [
             "I am Smart Assistant",
-            "I can help you",
-            "what is your name?",
-        ],
+            "english is primary",
+            "i also support polish",
+            "ask: how can you help me",
+        ]
+        spoken = (
+            "I am Smart Assistant. "
+            "English is my main language, and I also support Polish. "
+            "If you want, ask me how I can help you."
+        )
+
+    assistant.display.show_block(
+        title,
+        lines,
         duration=10.0,
     )
-    assistant._speak_localized(
-        lang,
-        "Jestem Smart Assistant. Mogę zapamiętywać rzeczy, ustawiać przypomnienia i pomagać ci podczas nauki. Jak masz na imię?",
-        "I am Smart Assistant. I can remember things, set reminders, and help you during study sessions. What is your name?",
-    )
+    assistant.voice_out.speak(spoken, language=lang)
     return True
 
 

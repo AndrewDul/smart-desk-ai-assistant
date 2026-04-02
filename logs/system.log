@@ -1527,3 +1527,2342 @@
 [2026-04-02 15:15:20] Assistant said [en]: Okay. Closing the assistant.
 [2026-04-02 15:15:22] Assistant said [en]: Shutting down Smart Assistant.
 [2026-04-02 15:15:24] Assistant shut down.
+[2026-04-02 15:34:07] Whisper input init failed, falling back to text input: Input device containing 'UACDemo' was not found.
+[2026-04-02 15:34:07] Startup sequence initiated.
+[2026-04-02 15:34:07] Startup check [OK] settings: found settings.json
+[2026-04-02 15:34:07] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 15:34:07] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 15:34:07] Startup check [OK] voice output: piper models ready
+[2026-04-02 15:34:07] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 15:34:10] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-02 15:34:13] Startup completed successfully.
+[2026-04-02 15:34:23] User said: EXIT
+[2026-04-02 15:34:23] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-02 15:34:23] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 15:34:25] User said: YES
+[2026-04-02 15:34:25] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 15:34:28] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 15:34:30] Assistant shut down.
+[2026-04-02 15:35:06] Whisper input init failed, falling back to text input: Input device containing 'UACDemo' was not found.
+[2026-04-02 15:35:06] Startup sequence initiated.
+[2026-04-02 15:35:07] Startup check [OK] settings: found settings.json
+[2026-04-02 15:35:07] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 15:35:07] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 15:35:07] Startup check [OK] voice output: piper models ready
+[2026-04-02 15:35:07] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 15:35:10] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-02 15:35:13] Startup completed successfully.
+[2026-04-02 15:35:20] User said: EXIT
+[2026-04-02 15:35:20] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-02 15:35:20] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 15:35:22] User said: YES
+[2026-04-02 15:35:22] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 15:35:25] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 15:35:26] Assistant shut down.
+[2026-04-02 15:40:55] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language=auto, vad=off
+[2026-04-02 15:40:55] Startup sequence initiated.
+[2026-04-02 15:40:55] Startup check [OK] settings: found settings.json
+[2026-04-02 15:40:55] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 15:40:55] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 15:40:55] Startup check [OK] voice output: piper models ready
+[2026-04-02 15:40:55] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 15:40:58] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-02 15:41:01] Startup completed successfully.
+[2026-04-02 15:41:11] User said: Exit. Exit.
+[2026-04-02 15:41:11] Parsed intent: action=unknown, data={}, text=exit exit, lang=en
+[2026-04-02 15:41:11] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 15:41:25] Ignored blank audio marker: 너무 원차 시스템다
+[2026-04-02 15:41:36] User said: Exit. Exit.
+[2026-04-02 15:41:36] Parsed intent: action=unknown, data={}, text=exit exit, lang=en
+[2026-04-02 15:41:36] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 15:41:51] Ignored silent input: recognizer returned None.
+[2026-04-02 15:42:02] User said: (upbeat music)
+[2026-04-02 15:42:02] Parsed intent: action=unknown, data={}, text=upbeat music, lang=en
+[2026-04-02 15:42:02] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 15:42:16] User said: (upbeat music)
+[2026-04-02 15:42:16] Parsed intent: action=unknown, data={}, text=upbeat music, lang=en
+[2026-04-02 15:42:16] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 15:42:37] Ignored low-value noise: [몇 번째 영상은?]
+[2026-04-02 15:42:49] User said: und dann auch noch ein paar zusätzlichen Trenntag.
+[2026-04-02 15:42:49] Parsed intent: action=unknown, data={}, text=und dann auch noch ein paar zusatzlichen trenntag, lang=en
+[2026-04-02 15:42:49] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 15:43:06] User said: We want assistance.
+[2026-04-02 15:43:06] Parsed intent: action=unknown, data={}, text=we want assistance, lang=en
+[2026-04-02 15:43:06] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 15:43:23] User said: Exit.
+[2026-04-02 15:43:23] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-02 15:43:23] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 15:43:38] User said: Yes.
+[2026-04-02 15:43:38] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 15:43:40] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 15:43:42] Assistant shut down.
+[2026-04-02 15:54:38] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language=auto, vad=off
+[2026-04-02 15:54:38] Startup sequence initiated.
+[2026-04-02 15:54:38] Startup check [OK] settings: found settings.json
+[2026-04-02 15:54:38] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 15:54:38] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 15:54:38] Startup check [OK] voice output: piper models ready
+[2026-04-02 15:54:38] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 15:54:41] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-02 15:54:45] Startup completed successfully.
+[2026-04-02 15:54:54] User said: Show me more.
+[2026-04-02 15:54:54] Parsed intent: action=unclear, data={}, text=show me more, lang=en
+[2026-04-02 15:54:54] Assistant said [en]: Did you mean memory? Say yes or no.
+[2026-04-02 15:55:13] User said: No.
+[2026-04-02 15:55:13] Assistant said [en]: Okay. Please say it again in a different way.
+[2026-04-02 15:55:29] User said: Show menu.
+[2026-04-02 15:55:29] Parsed intent: action=unclear, data={}, text=show menu, lang=en
+[2026-04-02 15:55:29] Assistant said [en]: Did you mean show time? Say yes or no.
+[2026-04-02 15:55:45] Ignored blank audio marker: 날씨였습니다.
+[2026-04-02 15:55:53] Ignored silent input: recognizer returned None.
+[2026-04-02 16:05:27] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language=auto, vad=off
+[2026-04-02 16:05:27] Startup sequence initiated.
+[2026-04-02 16:05:27] Startup check [OK] settings: found settings.json
+[2026-04-02 16:05:27] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 16:05:27] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 16:05:27] Startup check [OK] voice output: piper models ready
+[2026-04-02 16:05:27] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 16:05:30] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-02 16:05:34] Startup completed successfully.
+[2026-04-02 16:05:42] User said: Yakın hazır var.
+[2026-04-02 16:05:42] Parsed intent: action=unknown, data={}, text=yak n haz r var, lang=en
+[2026-04-02 16:05:42] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 16:05:53] User said: Jak się nazywasz?
+[2026-04-02 16:05:53] Parsed intent: action=introduce_self, data={}, text=jak sie nazywasz, lang=pl
+[2026-04-02 16:05:53] Assistant said [pl]: Jestem Smart Assistant. Mogę zapamiętywać rzeczy, ustawiać przypomnienia i pomagać ci podczas nauki. Jak masz na imię?
+[2026-04-02 16:06:11] User said: Pan żyje.
+[2026-04-02 16:06:11] Assistant said [pl]: Miło mi, Pan. Czy chcesz, żebym zapamiętała twoje imię?
+[2026-04-02 16:06:24] Ignored blank audio marker: Нет.
+[2026-04-02 16:06:35] User said: Która zgodzina.
+[2026-04-02 16:06:35] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 16:06:43] User said: Thank you.
+[2026-04-02 16:06:43] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 16:06:51] User said: Yes.
+[2026-04-02 16:06:51] Assistant said [pl]: Dobrze. Zapamiętałam twoje imię, Pan.
+[2026-04-02 16:07:06] Ignored silent input: recognizer returned None.
+[2026-04-02 16:07:10] Ignored silent input: recognizer returned None.
+[2026-04-02 16:07:16] User said: Która jest godzina.
+[2026-04-02 16:07:16] Parsed intent: action=ask_time, data={}, text=ktora jest godzina, lang=pl
+[2026-04-02 16:07:16] Assistant said [pl]: Jest 16:07.
+[2026-04-02 16:07:21] Assistant said [pl]: Czy chcesz, żebym pokazała to na ekranie?
+[2026-04-02 16:07:31] User said: Thank you.
+[2026-04-02 16:07:31] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 16:07:38] User said: Yes.
+[2026-04-02 16:07:38] Assistant said [pl]: Dobrze. Pokazuję to na ekranie.
+[2026-04-02 16:07:53] Ignored silent input: recognizer returned None.
+[2026-04-02 16:08:00] User said: I exceed.
+[2026-04-02 16:08:00] Parsed intent: action=unknown, data={}, text=i exceed, lang=pl
+[2026-04-02 16:08:00] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 16:08:11] User said: Exit.
+[2026-04-02 16:08:11] Parsed intent: action=exit, data={}, text=exit, lang=pl
+[2026-04-02 16:08:11] Assistant said [pl]: Czy na pewno mam zamknąć asystenta?
+[2026-04-02 16:08:19] User said: Yes.
+[2026-04-02 16:08:19] Assistant said [pl]: Dobrze. Zamykam asystenta.
+[2026-04-02 16:08:21] Assistant said [pl]: Wyłączam Smart Assistant.
+[2026-04-02 16:08:23] Assistant shut down.
+[2026-04-02 16:13:09] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language=auto, vad=off
+[2026-04-02 16:13:09] Startup sequence initiated.
+[2026-04-02 16:13:09] Startup check [OK] settings: found settings.json
+[2026-04-02 16:13:09] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 16:13:09] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 16:13:09] Startup check [OK] voice output: piper models ready
+[2026-04-02 16:13:09] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 16:13:12] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-02 16:13:15] Startup completed successfully.
+[2026-04-02 16:13:21] User said: Exit.
+[2026-04-02 16:13:21] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-02 16:13:21] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 16:13:29] User said: Yes.
+[2026-04-02 16:13:29] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 16:13:31] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 16:13:33] Assistant shut down.
+[2026-04-02 16:55:00] Reminder added: id=a21f572f, seconds=30, message=drink water
+[2026-04-02 16:55:00] Reminder created: a21f572f
+[2026-04-02 16:55:00] Reminder added: id=75da2166, seconds=30, message=drink water
+[2026-04-02 16:55:00] Reminder created: 75da2166
+[2026-04-02 16:55:00] Reminder added: id=d1e0812e, seconds=60, message=stand up
+[2026-04-02 16:55:00] Reminder created: d1e0812e
+[2026-04-02 16:55:00] Reminder added: id=908a980f, seconds=30, message=drink water
+[2026-04-02 16:55:00] Reminder created: 908a980f
+[2026-04-02 16:55:00] Reminder added: id=152031f3, seconds=60, message=stand up
+[2026-04-02 16:55:00] Reminder created: 152031f3
+[2026-04-02 16:55:00] Reminder deleted: id=908a980f
+[2026-04-02 16:55:00] Reminder deleted: id=152031f3
+[2026-04-02 16:55:01] Memory saved: keys -> in the kitchen
+[2026-04-02 16:55:01] Memory saved: keys -> in the kitchen
+[2026-04-02 16:55:01] Memory saved: keys -> in the kitchen
+[2026-04-02 16:55:01] Memory saved: phone -> on desk
+[2026-04-02 16:55:01] Memory cleared: removed 2 item(s).
+[2026-04-02 16:55:01] Memory saved: klucze -> w kuchni
+[2026-04-02 16:55:01] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 16:55:01] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 16:55:01] Memory saved: keys -> in the kitchen
+[2026-04-02 16:55:01] Memory saved: keys -> in the kitchen
+[2026-04-02 16:55:01] Memory deleted: keys
+[2026-04-02 16:55:01] Memory saved: keys -> in the kitchen
+[2026-04-02 16:55:01] Memory saved: klucze -> w kuchni
+[2026-04-02 16:55:01] Reminder added: id=4f83fd67, seconds=30, message=drink water
+[2026-04-02 16:55:01] Reminder created: 4f83fd67
+[2026-04-02 16:55:01] Reminder added: id=5d89ecd4, seconds=30, message=drink water
+[2026-04-02 16:55:01] Reminder created: 5d89ecd4
+[2026-04-02 16:55:01] Reminder added: id=6b6e2031, seconds=30, message=drink water
+[2026-04-02 16:55:01] Reminder created: 6b6e2031
+[2026-04-02 16:55:01] Reminder added: id=643bb44e, seconds=30, message=drink water
+[2026-04-02 16:55:01] Reminder created: 643bb44e
+[2026-04-02 16:55:01] Reminder deleted: id=643bb44e
+[2026-04-02 16:55:01] Memory saved: keys -> in the kitchen
+[2026-04-02 16:55:01] Memory save skipped: empty key or value.
+[2026-04-02 16:55:01] Memory save skipped: empty key or value.
+[2026-04-02 16:55:01] Memory saved: car keys -> on the shelf
+[2026-04-02 16:55:01] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 16:55:01] Memory saved: keys -> kitchen
+[2026-04-02 16:55:01] Memory saved: wallet -> drawer
+[2026-04-02 16:55:01] Memory saved: keys -> kitchen
+[2026-04-02 16:55:01] Memory saved: key -> on the desk
+[2026-04-02 16:55:01] Memory recall matched 'keys' -> 'key'
+[2026-04-02 16:55:01] Memory saved: klucz -> na biurku
+[2026-04-02 16:55:01] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 16:55:01] Memory saved: wallet -> in the jacket
+[2026-04-02 16:55:01] Memory saved: keys -> in the drawer
+[2026-04-02 16:55:01] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 16:55:01] Memory saved: phone number -> 123456789
+[2026-04-02 16:55:01] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 16:55:01] Memory saved: klucz -> w plecaku
+[2026-04-02 16:55:01] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 16:55:01] Memory saved: keys -> in the kitchen
+[2026-04-02 16:55:01] Memory saved: klucze -> w kuchni
+[2026-04-02 16:55:01] Memory saved: my keys -> in the kitchen
+[2026-04-02 16:55:01] Memory saved: my keys -> in the backpack
+[2026-04-02 16:55:01] Reminder added: id=e8a67bcf, seconds=30, message=buy milk
+[2026-04-02 16:55:01] Reminder added: id=eaac2272, seconds=1, message=test
+[2026-04-02 16:55:01] Reminder added: id=0a657dab, seconds=60, message=future task
+[2026-04-02 16:55:01] Reminder added: id=1fd074c2, seconds=5, message=call back
+[2026-04-02 16:55:01] Reminder added: id=15f3a615, seconds=15, message=first
+[2026-04-02 16:55:01] Reminder added: id=3fee225d, seconds=30, message=second
+[2026-04-02 16:55:01] Reminder marked done manually: id=15f3a615
+[2026-04-02 16:55:01] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 16:55:01] Reminder added: id=51fcae92, seconds=15, message=meeting
+[2026-04-02 16:55:01] Reminder deleted: id=51fcae92
+[2026-04-02 16:55:01] Reminder added: id=b03eef65, seconds=5, message=water plants
+[2026-04-02 16:55:01] Reminder added: id=073574c6, seconds=5, message=first
+[2026-04-02 16:55:01] Reminder added: id=7f8300c0, seconds=10, message=second
+[2026-04-02 16:55:01] Reminder marked done manually: id=073574c6
+[2026-04-02 16:55:01] Reminder added: id=245c594e, seconds=5, message=first
+[2026-04-02 16:55:01] Reminder added: id=e0e65210, seconds=10, message=second
+[2026-04-02 16:55:01] Reminder marked done manually: id=245c594e
+[2026-04-02 16:55:01] Reminder added: id=0840b99b, seconds=15, message=stretch
+[2026-04-02 16:55:01] Reminder marked done manually: id=0840b99b
+[2026-04-02 16:55:01] Reminder added: id=7f8e1e0e, seconds=20, message=zakupach
+[2026-04-02 16:55:01] Reminder added: id=4e88ab24, seconds=20, message=drink water
+[2026-04-02 17:03:06] Reminder added: id=3f174cb8, seconds=30, message=drink water
+[2026-04-02 17:03:06] Reminder created: 3f174cb8
+[2026-04-02 17:03:06] Reminder added: id=f930b044, seconds=30, message=drink water
+[2026-04-02 17:03:06] Reminder created: f930b044
+[2026-04-02 17:03:06] Reminder added: id=d40c5d1c, seconds=60, message=stand up
+[2026-04-02 17:03:06] Reminder created: d40c5d1c
+[2026-04-02 17:03:06] Reminder added: id=324720c3, seconds=30, message=drink water
+[2026-04-02 17:03:06] Reminder created: 324720c3
+[2026-04-02 17:03:06] Reminder added: id=e56573b4, seconds=60, message=stand up
+[2026-04-02 17:03:06] Reminder created: e56573b4
+[2026-04-02 17:03:06] Reminder deleted: id=324720c3
+[2026-04-02 17:03:06] Reminder deleted: id=e56573b4
+[2026-04-02 17:03:07] Memory saved: keys -> in the kitchen
+[2026-04-02 17:03:07] Memory saved: keys -> in the kitchen
+[2026-04-02 17:03:07] Memory saved: keys -> in the kitchen
+[2026-04-02 17:03:07] Memory saved: phone -> on desk
+[2026-04-02 17:03:07] Memory cleared: removed 2 item(s).
+[2026-04-02 17:03:07] Memory saved: klucze -> w kuchni
+[2026-04-02 17:03:07] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 17:03:07] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 17:03:07] Memory saved: keys -> in the kitchen
+[2026-04-02 17:03:07] Memory saved: keys -> in the kitchen
+[2026-04-02 17:03:07] Memory deleted: keys
+[2026-04-02 17:03:07] Memory saved: keys -> in the kitchen
+[2026-04-02 17:03:07] Memory saved: klucze -> w kuchni
+[2026-04-02 17:03:07] Reminder added: id=c1e22c7f, seconds=30, message=drink water
+[2026-04-02 17:03:07] Reminder created: c1e22c7f
+[2026-04-02 17:03:07] Reminder added: id=0da905a8, seconds=30, message=drink water
+[2026-04-02 17:03:07] Reminder created: 0da905a8
+[2026-04-02 17:03:07] Reminder added: id=36578151, seconds=30, message=drink water
+[2026-04-02 17:03:07] Reminder created: 36578151
+[2026-04-02 17:03:07] Reminder added: id=559b4d01, seconds=30, message=drink water
+[2026-04-02 17:03:07] Reminder created: 559b4d01
+[2026-04-02 17:03:07] Reminder deleted: id=559b4d01
+[2026-04-02 17:03:07] Memory saved: keys -> in the kitchen
+[2026-04-02 17:03:07] Memory save skipped: empty key or value.
+[2026-04-02 17:03:07] Memory save skipped: empty key or value.
+[2026-04-02 17:03:07] Memory saved: car keys -> on the shelf
+[2026-04-02 17:03:07] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 17:03:07] Memory saved: keys -> kitchen
+[2026-04-02 17:03:07] Memory saved: wallet -> drawer
+[2026-04-02 17:03:07] Memory saved: keys -> kitchen
+[2026-04-02 17:03:07] Memory saved: key -> on the desk
+[2026-04-02 17:03:07] Memory recall matched 'keys' -> 'key'
+[2026-04-02 17:03:07] Memory saved: klucz -> na biurku
+[2026-04-02 17:03:07] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 17:03:07] Memory saved: wallet -> in the jacket
+[2026-04-02 17:03:07] Memory saved: keys -> in the drawer
+[2026-04-02 17:03:07] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 17:03:07] Memory saved: phone number -> 123456789
+[2026-04-02 17:03:07] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 17:03:07] Memory saved: klucz -> w plecaku
+[2026-04-02 17:03:07] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 17:03:07] Memory saved: keys -> in the kitchen
+[2026-04-02 17:03:07] Memory saved: klucze -> w kuchni
+[2026-04-02 17:03:07] Memory saved: my keys -> in the kitchen
+[2026-04-02 17:03:07] Memory saved: my keys -> in the backpack
+[2026-04-02 17:03:07] Reminder added: id=f459c269, seconds=30, message=buy milk
+[2026-04-02 17:03:07] Reminder added: id=cce97522, seconds=1, message=test
+[2026-04-02 17:03:07] Reminder added: id=fdee31f8, seconds=60, message=future task
+[2026-04-02 17:03:07] Reminder added: id=06ea6a29, seconds=5, message=call back
+[2026-04-02 17:03:07] Reminder added: id=075b9476, seconds=15, message=first
+[2026-04-02 17:03:07] Reminder added: id=3df26361, seconds=30, message=second
+[2026-04-02 17:03:07] Reminder marked done manually: id=075b9476
+[2026-04-02 17:03:07] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 17:03:07] Reminder added: id=08829fb7, seconds=15, message=meeting
+[2026-04-02 17:03:07] Reminder deleted: id=08829fb7
+[2026-04-02 17:03:07] Reminder added: id=7f57366c, seconds=5, message=water plants
+[2026-04-02 17:03:07] Reminder added: id=9a6727f8, seconds=5, message=first
+[2026-04-02 17:03:07] Reminder added: id=d9e14d4e, seconds=10, message=second
+[2026-04-02 17:03:07] Reminder marked done manually: id=9a6727f8
+[2026-04-02 17:03:07] Reminder added: id=cfabd537, seconds=5, message=first
+[2026-04-02 17:03:07] Reminder added: id=257342ee, seconds=10, message=second
+[2026-04-02 17:03:07] Reminder marked done manually: id=cfabd537
+[2026-04-02 17:03:07] Reminder added: id=4d7ad251, seconds=15, message=stretch
+[2026-04-02 17:03:07] Reminder marked done manually: id=4d7ad251
+[2026-04-02 17:03:07] Reminder added: id=419fd484, seconds=20, message=zakupach
+[2026-04-02 17:03:07] Reminder added: id=5e17655b, seconds=20, message=drink water
+[2026-04-02 17:11:55] Reminder added: id=11ade2ab, seconds=30, message=drink water
+[2026-04-02 17:11:55] Reminder created: 11ade2ab
+[2026-04-02 17:11:55] Reminder added: id=359b1e50, seconds=30, message=drink water
+[2026-04-02 17:11:55] Reminder created: 359b1e50
+[2026-04-02 17:11:55] Reminder added: id=c094aca8, seconds=60, message=stand up
+[2026-04-02 17:11:55] Reminder created: c094aca8
+[2026-04-02 17:11:55] Reminder added: id=d817704d, seconds=30, message=drink water
+[2026-04-02 17:11:55] Reminder created: d817704d
+[2026-04-02 17:11:55] Reminder added: id=666bc6c8, seconds=60, message=stand up
+[2026-04-02 17:11:55] Reminder created: 666bc6c8
+[2026-04-02 17:11:55] Reminder deleted: id=d817704d
+[2026-04-02 17:11:55] Reminder deleted: id=666bc6c8
+[2026-04-02 17:11:55] Memory saved: keys -> in the kitchen
+[2026-04-02 17:11:55] Memory saved: keys -> in the kitchen
+[2026-04-02 17:11:55] Memory saved: keys -> in the kitchen
+[2026-04-02 17:11:55] Memory saved: phone -> on desk
+[2026-04-02 17:11:55] Memory cleared: removed 2 item(s).
+[2026-04-02 17:11:55] Memory saved: klucze -> w kuchni
+[2026-04-02 17:11:55] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 17:11:55] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 17:11:55] Memory saved: keys -> in the kitchen
+[2026-04-02 17:11:55] Memory saved: keys -> in the kitchen
+[2026-04-02 17:11:55] Memory deleted: keys
+[2026-04-02 17:11:55] Memory saved: keys -> in the kitchen
+[2026-04-02 17:11:55] Memory saved: klucze -> w kuchni
+[2026-04-02 17:11:55] Reminder added: id=c038fce1, seconds=30, message=drink water
+[2026-04-02 17:11:55] Reminder created: c038fce1
+[2026-04-02 17:11:55] Reminder added: id=fbf30f12, seconds=30, message=drink water
+[2026-04-02 17:11:55] Reminder created: fbf30f12
+[2026-04-02 17:11:55] Reminder added: id=a34b8692, seconds=30, message=drink water
+[2026-04-02 17:11:55] Reminder created: a34b8692
+[2026-04-02 17:11:55] Reminder added: id=58288b6c, seconds=30, message=drink water
+[2026-04-02 17:11:55] Reminder created: 58288b6c
+[2026-04-02 17:11:55] Reminder deleted: id=58288b6c
+[2026-04-02 17:11:55] Memory saved: keys -> in the kitchen
+[2026-04-02 17:11:55] Memory save skipped: empty key or value.
+[2026-04-02 17:11:55] Memory save skipped: empty key or value.
+[2026-04-02 17:11:55] Memory saved: car keys -> on the shelf
+[2026-04-02 17:11:55] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 17:11:55] Memory saved: keys -> kitchen
+[2026-04-02 17:11:55] Memory saved: wallet -> drawer
+[2026-04-02 17:11:55] Memory saved: keys -> kitchen
+[2026-04-02 17:11:55] Memory saved: key -> on the desk
+[2026-04-02 17:11:55] Memory recall matched 'keys' -> 'key'
+[2026-04-02 17:11:55] Memory saved: klucz -> na biurku
+[2026-04-02 17:11:55] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 17:11:55] Memory saved: wallet -> in the jacket
+[2026-04-02 17:11:55] Memory saved: keys -> in the drawer
+[2026-04-02 17:11:55] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 17:11:55] Memory saved: phone number -> 123456789
+[2026-04-02 17:11:55] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 17:11:55] Memory saved: klucz -> w plecaku
+[2026-04-02 17:11:55] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 17:11:55] Memory saved: keys -> in the kitchen
+[2026-04-02 17:11:55] Memory saved: klucze -> w kuchni
+[2026-04-02 17:11:55] Memory saved: my keys -> in the kitchen
+[2026-04-02 17:11:55] Memory saved: my keys -> in the backpack
+[2026-04-02 17:11:55] Reminder added: id=4cfad4f0, seconds=30, message=buy milk
+[2026-04-02 17:11:55] Reminder added: id=499104d1, seconds=1, message=test
+[2026-04-02 17:11:56] Reminder added: id=05ed6b48, seconds=60, message=future task
+[2026-04-02 17:11:56] Reminder added: id=12686d4b, seconds=5, message=call back
+[2026-04-02 17:11:56] Reminder added: id=069701a7, seconds=15, message=first
+[2026-04-02 17:11:56] Reminder added: id=090297ac, seconds=30, message=second
+[2026-04-02 17:11:56] Reminder marked done manually: id=069701a7
+[2026-04-02 17:11:56] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 17:11:56] Reminder added: id=79ffc8e4, seconds=15, message=meeting
+[2026-04-02 17:11:56] Reminder deleted: id=79ffc8e4
+[2026-04-02 17:11:56] Reminder added: id=d8a92e06, seconds=5, message=water plants
+[2026-04-02 17:11:56] Reminder added: id=acd95939, seconds=5, message=first
+[2026-04-02 17:11:56] Reminder added: id=cef47b35, seconds=10, message=second
+[2026-04-02 17:11:56] Reminder marked done manually: id=acd95939
+[2026-04-02 17:11:56] Reminder added: id=1aa44741, seconds=5, message=first
+[2026-04-02 17:11:56] Reminder added: id=c7281148, seconds=10, message=second
+[2026-04-02 17:11:56] Reminder marked done manually: id=1aa44741
+[2026-04-02 17:11:56] Reminder added: id=8b5472ec, seconds=15, message=stretch
+[2026-04-02 17:11:56] Reminder marked done manually: id=8b5472ec
+[2026-04-02 17:11:56] Reminder added: id=9cdd96ea, seconds=20, message=zakupach
+[2026-04-02 17:11:56] Reminder added: id=2367f55e, seconds=20, message=drink water
+[2026-04-02 17:14:57] Reminder added: id=c26615a6, seconds=30, message=drink water
+[2026-04-02 17:14:57] Reminder created: c26615a6
+[2026-04-02 17:14:57] Reminder added: id=52875146, seconds=30, message=drink water
+[2026-04-02 17:14:57] Reminder created: 52875146
+[2026-04-02 17:14:57] Reminder added: id=53d8d3f4, seconds=60, message=stand up
+[2026-04-02 17:14:57] Reminder created: 53d8d3f4
+[2026-04-02 17:14:57] Reminder added: id=0ba3049d, seconds=30, message=drink water
+[2026-04-02 17:14:57] Reminder created: 0ba3049d
+[2026-04-02 17:14:57] Reminder added: id=c056ae8e, seconds=60, message=stand up
+[2026-04-02 17:14:57] Reminder created: c056ae8e
+[2026-04-02 17:14:57] Reminder deleted: id=0ba3049d
+[2026-04-02 17:14:57] Reminder deleted: id=c056ae8e
+[2026-04-02 17:14:57] Memory saved: keys -> in the kitchen
+[2026-04-02 17:14:57] Memory saved: keys -> in the kitchen
+[2026-04-02 17:14:57] Memory saved: keys -> in the kitchen
+[2026-04-02 17:14:57] Memory saved: phone -> on desk
+[2026-04-02 17:14:57] Memory cleared: removed 2 item(s).
+[2026-04-02 17:14:57] Memory saved: klucze -> w kuchni
+[2026-04-02 17:14:57] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 17:14:57] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 17:14:57] Memory saved: keys -> in the kitchen
+[2026-04-02 17:14:57] Memory saved: keys -> in the kitchen
+[2026-04-02 17:14:57] Memory deleted: keys
+[2026-04-02 17:14:57] Memory saved: keys -> in the kitchen
+[2026-04-02 17:14:57] Memory saved: klucze -> w kuchni
+[2026-04-02 17:14:57] Reminder added: id=a6edb1bf, seconds=30, message=drink water
+[2026-04-02 17:14:57] Reminder created: a6edb1bf
+[2026-04-02 17:14:57] Reminder added: id=80899821, seconds=30, message=drink water
+[2026-04-02 17:14:57] Reminder created: 80899821
+[2026-04-02 17:14:57] Reminder added: id=af552196, seconds=30, message=drink water
+[2026-04-02 17:14:57] Reminder created: af552196
+[2026-04-02 17:14:57] Reminder added: id=683aa808, seconds=30, message=drink water
+[2026-04-02 17:14:57] Reminder created: 683aa808
+[2026-04-02 17:14:57] Reminder deleted: id=683aa808
+[2026-04-02 17:14:58] Memory saved: keys -> in the kitchen
+[2026-04-02 17:14:58] Memory save skipped: empty key or value.
+[2026-04-02 17:14:58] Memory save skipped: empty key or value.
+[2026-04-02 17:14:58] Memory saved: car keys -> on the shelf
+[2026-04-02 17:14:58] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 17:14:58] Memory saved: keys -> kitchen
+[2026-04-02 17:14:58] Memory saved: wallet -> drawer
+[2026-04-02 17:14:58] Memory saved: keys -> kitchen
+[2026-04-02 17:14:58] Memory saved: key -> on the desk
+[2026-04-02 17:14:58] Memory recall matched 'keys' -> 'key'
+[2026-04-02 17:14:58] Memory saved: klucz -> na biurku
+[2026-04-02 17:14:58] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 17:14:58] Memory saved: wallet -> in the jacket
+[2026-04-02 17:14:58] Memory saved: keys -> in the drawer
+[2026-04-02 17:14:58] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 17:14:58] Memory saved: phone number -> 123456789
+[2026-04-02 17:14:58] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 17:14:58] Memory saved: klucz -> w plecaku
+[2026-04-02 17:14:58] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 17:14:58] Memory saved: keys -> in the kitchen
+[2026-04-02 17:14:58] Memory saved: klucze -> w kuchni
+[2026-04-02 17:14:58] Memory saved: my keys -> in the kitchen
+[2026-04-02 17:14:58] Memory saved: my keys -> in the backpack
+[2026-04-02 17:14:58] Reminder added: id=c1391da1, seconds=30, message=buy milk
+[2026-04-02 17:14:58] Reminder added: id=da1e5968, seconds=1, message=test
+[2026-04-02 17:14:58] Reminder added: id=db385cf3, seconds=60, message=future task
+[2026-04-02 17:14:58] Reminder added: id=880cefe2, seconds=5, message=call back
+[2026-04-02 17:14:58] Reminder added: id=71a6d62a, seconds=15, message=first
+[2026-04-02 17:14:58] Reminder added: id=75f54b01, seconds=30, message=second
+[2026-04-02 17:14:58] Reminder marked done manually: id=71a6d62a
+[2026-04-02 17:14:58] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 17:14:58] Reminder added: id=9c6bacd9, seconds=15, message=meeting
+[2026-04-02 17:14:58] Reminder deleted: id=9c6bacd9
+[2026-04-02 17:14:58] Reminder added: id=88048c5b, seconds=5, message=water plants
+[2026-04-02 17:14:58] Reminder added: id=73fcedd0, seconds=5, message=first
+[2026-04-02 17:14:58] Reminder added: id=24aa924f, seconds=10, message=second
+[2026-04-02 17:14:58] Reminder marked done manually: id=73fcedd0
+[2026-04-02 17:14:58] Reminder added: id=0335fe30, seconds=5, message=first
+[2026-04-02 17:14:58] Reminder added: id=2aa30754, seconds=10, message=second
+[2026-04-02 17:14:58] Reminder marked done manually: id=0335fe30
+[2026-04-02 17:14:58] Reminder added: id=7a371373, seconds=15, message=stretch
+[2026-04-02 17:14:58] Reminder marked done manually: id=7a371373
+[2026-04-02 17:14:58] Reminder added: id=2916efd9, seconds=20, message=zakupach
+[2026-04-02 17:14:58] Reminder added: id=edb57376, seconds=20, message=drink water
+[2026-04-02 17:17:00] Reminder added: id=d0cb6067, seconds=30, message=drink water
+[2026-04-02 17:17:00] Reminder created: d0cb6067
+[2026-04-02 17:17:00] Reminder added: id=13bf1f04, seconds=30, message=drink water
+[2026-04-02 17:17:00] Reminder created: 13bf1f04
+[2026-04-02 17:17:00] Reminder added: id=b64a7c58, seconds=60, message=stand up
+[2026-04-02 17:17:00] Reminder created: b64a7c58
+[2026-04-02 17:17:00] Reminder added: id=76af2984, seconds=30, message=drink water
+[2026-04-02 17:17:00] Reminder created: 76af2984
+[2026-04-02 17:17:00] Reminder added: id=ac3e3c05, seconds=60, message=stand up
+[2026-04-02 17:17:00] Reminder created: ac3e3c05
+[2026-04-02 17:17:00] Reminder deleted: id=76af2984
+[2026-04-02 17:17:00] Reminder deleted: id=ac3e3c05
+[2026-04-02 17:17:00] Memory saved: keys -> in the kitchen
+[2026-04-02 17:17:00] Memory saved: keys -> in the kitchen
+[2026-04-02 17:17:00] Memory saved: keys -> in the kitchen
+[2026-04-02 17:17:00] Memory saved: phone -> on desk
+[2026-04-02 17:17:00] Memory cleared: removed 2 item(s).
+[2026-04-02 17:17:00] Memory saved: klucze -> w kuchni
+[2026-04-02 17:17:00] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 17:17:00] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 17:17:00] Memory saved: keys -> in the kitchen
+[2026-04-02 17:17:00] Memory saved: keys -> in the kitchen
+[2026-04-02 17:17:00] Memory deleted: keys
+[2026-04-02 17:17:00] Memory saved: keys -> in the kitchen
+[2026-04-02 17:17:00] Memory saved: klucze -> w kuchni
+[2026-04-02 17:17:00] Reminder added: id=481e9d87, seconds=30, message=drink water
+[2026-04-02 17:17:00] Reminder created: 481e9d87
+[2026-04-02 17:17:00] Reminder added: id=c8ba5111, seconds=30, message=drink water
+[2026-04-02 17:17:00] Reminder created: c8ba5111
+[2026-04-02 17:17:00] Reminder added: id=cace8143, seconds=30, message=drink water
+[2026-04-02 17:17:00] Reminder created: cace8143
+[2026-04-02 17:17:00] Reminder added: id=8f200f8a, seconds=30, message=drink water
+[2026-04-02 17:17:00] Reminder created: 8f200f8a
+[2026-04-02 17:17:00] Reminder deleted: id=8f200f8a
+[2026-04-02 17:17:00] Memory saved: keys -> in the kitchen
+[2026-04-02 17:17:01] Memory save skipped: empty key or value.
+[2026-04-02 17:17:01] Memory save skipped: empty key or value.
+[2026-04-02 17:17:01] Memory saved: car keys -> on the shelf
+[2026-04-02 17:17:01] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 17:17:01] Memory saved: keys -> kitchen
+[2026-04-02 17:17:01] Memory saved: wallet -> drawer
+[2026-04-02 17:17:01] Memory saved: keys -> kitchen
+[2026-04-02 17:17:01] Memory saved: key -> on the desk
+[2026-04-02 17:17:01] Memory recall matched 'keys' -> 'key'
+[2026-04-02 17:17:01] Memory saved: klucz -> na biurku
+[2026-04-02 17:17:01] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 17:17:01] Memory saved: wallet -> in the jacket
+[2026-04-02 17:17:01] Memory saved: keys -> in the drawer
+[2026-04-02 17:17:01] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 17:17:01] Memory saved: phone number -> 123456789
+[2026-04-02 17:17:01] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 17:17:01] Memory saved: klucz -> w plecaku
+[2026-04-02 17:17:01] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 17:17:01] Memory saved: keys -> in the kitchen
+[2026-04-02 17:17:01] Memory saved: klucze -> w kuchni
+[2026-04-02 17:17:01] Memory saved: my keys -> in the kitchen
+[2026-04-02 17:17:01] Memory saved: my keys -> in the backpack
+[2026-04-02 17:17:01] Reminder added: id=41956a4c, seconds=30, message=buy milk
+[2026-04-02 17:17:01] Reminder added: id=bfa92b58, seconds=1, message=test
+[2026-04-02 17:17:01] Reminder added: id=87eca64a, seconds=60, message=future task
+[2026-04-02 17:17:01] Reminder added: id=47ed8378, seconds=5, message=call back
+[2026-04-02 17:17:01] Reminder added: id=2b29e888, seconds=15, message=first
+[2026-04-02 17:17:01] Reminder added: id=b51d643a, seconds=30, message=second
+[2026-04-02 17:17:01] Reminder marked done manually: id=2b29e888
+[2026-04-02 17:17:01] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 17:17:01] Reminder added: id=0f2a1a42, seconds=15, message=meeting
+[2026-04-02 17:17:01] Reminder deleted: id=0f2a1a42
+[2026-04-02 17:17:01] Reminder added: id=3b2dd381, seconds=5, message=water plants
+[2026-04-02 17:17:01] Reminder added: id=90c0cbcd, seconds=5, message=first
+[2026-04-02 17:17:01] Reminder added: id=556a1ef6, seconds=10, message=second
+[2026-04-02 17:17:01] Reminder marked done manually: id=90c0cbcd
+[2026-04-02 17:17:01] Reminder added: id=d89f1d8d, seconds=5, message=first
+[2026-04-02 17:17:01] Reminder added: id=fd821d12, seconds=10, message=second
+[2026-04-02 17:17:01] Reminder marked done manually: id=d89f1d8d
+[2026-04-02 17:17:01] Reminder added: id=487a82ad, seconds=15, message=stretch
+[2026-04-02 17:17:01] Reminder marked done manually: id=487a82ad
+[2026-04-02 17:17:01] Reminder added: id=2b000cee, seconds=20, message=zakupach
+[2026-04-02 17:17:01] Reminder added: id=8f2f675b, seconds=20, message=drink water
+[2026-04-02 17:21:24] Reminder added: id=fafd24ad, seconds=30, message=drink water
+[2026-04-02 17:21:24] Reminder created: fafd24ad
+[2026-04-02 17:21:24] Reminder added: id=f4bd1666, seconds=30, message=drink water
+[2026-04-02 17:21:24] Reminder created: f4bd1666
+[2026-04-02 17:21:24] Reminder added: id=33993d66, seconds=60, message=stand up
+[2026-04-02 17:21:24] Reminder created: 33993d66
+[2026-04-02 17:21:24] Reminder added: id=9e803f5e, seconds=30, message=drink water
+[2026-04-02 17:21:24] Reminder created: 9e803f5e
+[2026-04-02 17:21:24] Reminder added: id=c7c5693b, seconds=60, message=stand up
+[2026-04-02 17:21:24] Reminder created: c7c5693b
+[2026-04-02 17:21:24] Reminder deleted: id=9e803f5e
+[2026-04-02 17:21:24] Reminder deleted: id=c7c5693b
+[2026-04-02 17:21:24] Memory saved: keys -> in the kitchen
+[2026-04-02 17:21:24] Memory saved: keys -> in the kitchen
+[2026-04-02 17:21:24] Memory saved: keys -> in the kitchen
+[2026-04-02 17:21:24] Memory saved: phone -> on desk
+[2026-04-02 17:21:24] Memory cleared: removed 2 item(s).
+[2026-04-02 17:21:24] Memory saved: klucze -> w kuchni
+[2026-04-02 17:21:24] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 17:21:24] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 17:21:24] Memory saved: keys -> in the kitchen
+[2026-04-02 17:21:24] Memory saved: keys -> in the kitchen
+[2026-04-02 17:21:24] Memory deleted: keys
+[2026-04-02 17:21:24] Memory saved: keys -> in the kitchen
+[2026-04-02 17:21:24] Memory saved: klucze -> w kuchni
+[2026-04-02 17:21:24] Reminder added: id=bd062cee, seconds=30, message=drink water
+[2026-04-02 17:21:24] Reminder created: bd062cee
+[2026-04-02 17:21:24] Reminder added: id=99e10616, seconds=30, message=drink water
+[2026-04-02 17:21:24] Reminder created: 99e10616
+[2026-04-02 17:21:24] Reminder added: id=2b233348, seconds=30, message=drink water
+[2026-04-02 17:21:24] Reminder created: 2b233348
+[2026-04-02 17:21:24] Reminder added: id=de696be0, seconds=30, message=drink water
+[2026-04-02 17:21:24] Reminder created: de696be0
+[2026-04-02 17:21:24] Reminder deleted: id=de696be0
+[2026-04-02 17:21:24] Memory saved: keys -> in the kitchen
+[2026-04-02 17:21:24] Memory save skipped: empty key or value.
+[2026-04-02 17:21:24] Memory save skipped: empty key or value.
+[2026-04-02 17:21:24] Memory saved: car keys -> on the shelf
+[2026-04-02 17:21:24] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 17:21:24] Memory saved: keys -> kitchen
+[2026-04-02 17:21:24] Memory saved: wallet -> drawer
+[2026-04-02 17:21:24] Memory saved: keys -> kitchen
+[2026-04-02 17:21:24] Memory saved: key -> on the desk
+[2026-04-02 17:21:24] Memory recall matched 'keys' -> 'key'
+[2026-04-02 17:21:24] Memory saved: klucz -> na biurku
+[2026-04-02 17:21:24] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 17:21:24] Memory saved: wallet -> in the jacket
+[2026-04-02 17:21:24] Memory saved: keys -> in the drawer
+[2026-04-02 17:21:24] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 17:21:24] Memory saved: phone number -> 123456789
+[2026-04-02 17:21:24] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 17:21:24] Memory saved: klucz -> w plecaku
+[2026-04-02 17:21:24] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 17:21:24] Memory saved: keys -> in the kitchen
+[2026-04-02 17:21:24] Memory saved: klucze -> w kuchni
+[2026-04-02 17:21:24] Memory saved: my keys -> in the kitchen
+[2026-04-02 17:21:24] Memory saved: my keys -> in the backpack
+[2026-04-02 17:21:24] Reminder added: id=35a6a28b, seconds=30, message=buy milk
+[2026-04-02 17:21:24] Reminder added: id=e084255a, seconds=1, message=test
+[2026-04-02 17:21:24] Reminder added: id=5e12908c, seconds=60, message=future task
+[2026-04-02 17:21:24] Reminder added: id=33a77b5e, seconds=5, message=call back
+[2026-04-02 17:21:24] Reminder added: id=56a40365, seconds=15, message=first
+[2026-04-02 17:21:24] Reminder added: id=e9f85102, seconds=30, message=second
+[2026-04-02 17:21:24] Reminder marked done manually: id=56a40365
+[2026-04-02 17:21:24] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 17:21:24] Reminder added: id=14b6dc25, seconds=15, message=meeting
+[2026-04-02 17:21:24] Reminder deleted: id=14b6dc25
+[2026-04-02 17:21:24] Reminder added: id=df2d0a4a, seconds=5, message=water plants
+[2026-04-02 17:21:25] Reminder added: id=94f016ec, seconds=5, message=first
+[2026-04-02 17:21:25] Reminder added: id=df04f803, seconds=10, message=second
+[2026-04-02 17:21:25] Reminder marked done manually: id=94f016ec
+[2026-04-02 17:21:25] Reminder added: id=349cb964, seconds=5, message=first
+[2026-04-02 17:21:25] Reminder added: id=a50ca719, seconds=10, message=second
+[2026-04-02 17:21:25] Reminder marked done manually: id=349cb964
+[2026-04-02 17:21:25] Reminder added: id=9e5a6b3c, seconds=15, message=stretch
+[2026-04-02 17:21:25] Reminder marked done manually: id=9e5a6b3c
+[2026-04-02 17:21:25] Reminder added: id=cc6cf4d5, seconds=20, message=zakupach
+[2026-04-02 17:21:25] Reminder added: id=03c93941, seconds=20, message=drink water
+[2026-04-02 17:26:02] Reminder added: id=4502457f, seconds=30, message=drink water
+[2026-04-02 17:26:02] Reminder created: 4502457f
+[2026-04-02 17:26:02] Reminder added: id=9e8dd27e, seconds=30, message=drink water
+[2026-04-02 17:26:02] Reminder created: 9e8dd27e
+[2026-04-02 17:26:02] Reminder added: id=fe1371f8, seconds=60, message=stand up
+[2026-04-02 17:26:02] Reminder created: fe1371f8
+[2026-04-02 17:26:02] Reminder added: id=4ec35486, seconds=30, message=drink water
+[2026-04-02 17:26:02] Reminder created: 4ec35486
+[2026-04-02 17:26:02] Reminder added: id=6bc243b3, seconds=60, message=stand up
+[2026-04-02 17:26:02] Reminder created: 6bc243b3
+[2026-04-02 17:26:02] Reminder deleted: id=4ec35486
+[2026-04-02 17:26:02] Reminder deleted: id=6bc243b3
+[2026-04-02 17:26:02] Memory saved: keys -> in the kitchen
+[2026-04-02 17:26:02] Memory saved: keys -> in the kitchen
+[2026-04-02 17:26:02] Memory saved: keys -> in the kitchen
+[2026-04-02 17:26:02] Memory saved: phone -> on desk
+[2026-04-02 17:26:02] Memory cleared: removed 2 item(s).
+[2026-04-02 17:26:02] Memory saved: klucze -> w kuchni
+[2026-04-02 17:26:02] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 17:26:02] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 17:26:03] Memory saved: keys -> in the kitchen
+[2026-04-02 17:26:03] Memory saved: keys -> in the kitchen
+[2026-04-02 17:26:03] Memory deleted: keys
+[2026-04-02 17:26:03] Memory saved: keys -> in the kitchen
+[2026-04-02 17:26:03] Memory saved: klucze -> w kuchni
+[2026-04-02 17:26:03] Reminder added: id=3112b03d, seconds=30, message=drink water
+[2026-04-02 17:26:03] Reminder created: 3112b03d
+[2026-04-02 17:26:03] Reminder added: id=57821f34, seconds=30, message=drink water
+[2026-04-02 17:26:03] Reminder created: 57821f34
+[2026-04-02 17:26:03] Reminder added: id=a4da2414, seconds=30, message=drink water
+[2026-04-02 17:26:03] Reminder created: a4da2414
+[2026-04-02 17:26:03] Reminder added: id=e56f05d3, seconds=30, message=drink water
+[2026-04-02 17:26:03] Reminder created: e56f05d3
+[2026-04-02 17:26:03] Reminder deleted: id=e56f05d3
+[2026-04-02 17:26:03] Memory saved: keys -> in the kitchen
+[2026-04-02 17:26:03] Memory save skipped: empty key or value.
+[2026-04-02 17:26:03] Memory save skipped: empty key or value.
+[2026-04-02 17:26:03] Memory saved: car keys -> on the shelf
+[2026-04-02 17:26:03] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 17:26:03] Memory saved: keys -> kitchen
+[2026-04-02 17:26:03] Memory saved: wallet -> drawer
+[2026-04-02 17:26:03] Memory saved: keys -> kitchen
+[2026-04-02 17:26:03] Memory saved: key -> on the desk
+[2026-04-02 17:26:03] Memory recall matched 'keys' -> 'key'
+[2026-04-02 17:26:03] Memory saved: klucz -> na biurku
+[2026-04-02 17:26:03] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 17:26:03] Memory saved: wallet -> in the jacket
+[2026-04-02 17:26:03] Memory saved: keys -> in the drawer
+[2026-04-02 17:26:03] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 17:26:03] Memory saved: phone number -> 123456789
+[2026-04-02 17:26:03] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 17:26:03] Memory saved: klucz -> w plecaku
+[2026-04-02 17:26:03] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 17:26:03] Memory saved: keys -> in the kitchen
+[2026-04-02 17:26:03] Memory saved: klucze -> w kuchni
+[2026-04-02 17:26:03] Memory saved: my keys -> in the kitchen
+[2026-04-02 17:26:03] Memory saved: my keys -> in the backpack
+[2026-04-02 17:26:03] Reminder added: id=5f4fbc67, seconds=30, message=buy milk
+[2026-04-02 17:26:03] Reminder added: id=d2b2e978, seconds=1, message=test
+[2026-04-02 17:26:03] Reminder added: id=bd34c891, seconds=60, message=future task
+[2026-04-02 17:26:03] Reminder added: id=e389cfb6, seconds=5, message=call back
+[2026-04-02 17:26:03] Reminder added: id=b3265d4c, seconds=15, message=first
+[2026-04-02 17:26:03] Reminder added: id=722f2e81, seconds=30, message=second
+[2026-04-02 17:26:03] Reminder marked done manually: id=b3265d4c
+[2026-04-02 17:26:03] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 17:26:03] Reminder added: id=9d4ef04f, seconds=15, message=meeting
+[2026-04-02 17:26:03] Reminder deleted: id=9d4ef04f
+[2026-04-02 17:26:03] Reminder added: id=81b06fe5, seconds=5, message=water plants
+[2026-04-02 17:26:03] Reminder added: id=a3557730, seconds=5, message=first
+[2026-04-02 17:26:03] Reminder added: id=7b98218d, seconds=10, message=second
+[2026-04-02 17:26:03] Reminder marked done manually: id=a3557730
+[2026-04-02 17:26:03] Reminder added: id=6410b330, seconds=5, message=first
+[2026-04-02 17:26:03] Reminder added: id=725cd672, seconds=10, message=second
+[2026-04-02 17:26:03] Reminder marked done manually: id=6410b330
+[2026-04-02 17:26:03] Reminder added: id=6fd38ca0, seconds=15, message=stretch
+[2026-04-02 17:26:03] Reminder marked done manually: id=6fd38ca0
+[2026-04-02 17:26:03] Reminder added: id=f6f29bcd, seconds=20, message=zakupach
+[2026-04-02 17:26:03] Reminder added: id=0748e18b, seconds=20, message=drink water
+[2026-04-02 17:29:37] Reminder added: id=697badf7, seconds=30, message=drink water
+[2026-04-02 17:29:37] Reminder created: 697badf7
+[2026-04-02 17:29:37] Reminder added: id=ae3178fc, seconds=30, message=drink water
+[2026-04-02 17:29:37] Reminder created: ae3178fc
+[2026-04-02 17:29:37] Reminder added: id=6dd8ad63, seconds=60, message=stand up
+[2026-04-02 17:29:37] Reminder created: 6dd8ad63
+[2026-04-02 17:29:37] Reminder added: id=e61e7229, seconds=30, message=drink water
+[2026-04-02 17:29:37] Reminder created: e61e7229
+[2026-04-02 17:29:37] Reminder added: id=300ad447, seconds=60, message=stand up
+[2026-04-02 17:29:37] Reminder created: 300ad447
+[2026-04-02 17:29:37] Reminder deleted: id=e61e7229
+[2026-04-02 17:29:37] Reminder deleted: id=300ad447
+[2026-04-02 17:29:37] Memory saved: keys -> in the kitchen
+[2026-04-02 17:29:37] Memory saved: keys -> in the kitchen
+[2026-04-02 17:29:37] Memory saved: keys -> in the kitchen
+[2026-04-02 17:29:37] Memory saved: phone -> on desk
+[2026-04-02 17:29:37] Memory cleared: removed 2 item(s).
+[2026-04-02 17:29:37] Memory saved: klucze -> w kuchni
+[2026-04-02 17:29:37] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 17:29:37] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 17:29:37] Memory saved: keys -> in the kitchen
+[2026-04-02 17:29:37] Memory saved: keys -> in the kitchen
+[2026-04-02 17:29:37] Memory deleted: keys
+[2026-04-02 17:29:37] Memory saved: keys -> in the kitchen
+[2026-04-02 17:29:37] Memory saved: klucze -> w kuchni
+[2026-04-02 17:29:37] Reminder added: id=de2c132f, seconds=30, message=drink water
+[2026-04-02 17:29:37] Reminder created: de2c132f
+[2026-04-02 17:29:37] Reminder added: id=38a68639, seconds=30, message=drink water
+[2026-04-02 17:29:37] Reminder created: 38a68639
+[2026-04-02 17:29:37] Reminder added: id=7848ad6f, seconds=30, message=drink water
+[2026-04-02 17:29:37] Reminder created: 7848ad6f
+[2026-04-02 17:29:37] Reminder added: id=f25c32c6, seconds=30, message=drink water
+[2026-04-02 17:29:37] Reminder created: f25c32c6
+[2026-04-02 17:29:37] Reminder deleted: id=f25c32c6
+[2026-04-02 17:29:37] Memory saved: keys -> in the kitchen
+[2026-04-02 17:29:37] Memory save skipped: empty key or value.
+[2026-04-02 17:29:37] Memory save skipped: empty key or value.
+[2026-04-02 17:29:37] Memory saved: car keys -> on the shelf
+[2026-04-02 17:29:37] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 17:29:37] Memory saved: keys -> kitchen
+[2026-04-02 17:29:37] Memory saved: wallet -> drawer
+[2026-04-02 17:29:37] Memory saved: keys -> kitchen
+[2026-04-02 17:29:37] Memory saved: key -> on the desk
+[2026-04-02 17:29:37] Memory recall matched 'keys' -> 'key'
+[2026-04-02 17:29:37] Memory saved: klucz -> na biurku
+[2026-04-02 17:29:37] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 17:29:37] Memory saved: wallet -> in the jacket
+[2026-04-02 17:29:37] Memory saved: keys -> in the drawer
+[2026-04-02 17:29:37] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 17:29:37] Memory saved: phone number -> 123456789
+[2026-04-02 17:29:37] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 17:29:37] Memory saved: klucz -> w plecaku
+[2026-04-02 17:29:37] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 17:29:37] Memory saved: keys -> in the kitchen
+[2026-04-02 17:29:37] Memory saved: klucze -> w kuchni
+[2026-04-02 17:29:37] Memory saved: my keys -> in the kitchen
+[2026-04-02 17:29:37] Memory saved: my keys -> in the backpack
+[2026-04-02 17:29:37] Reminder added: id=3864dc10, seconds=30, message=buy milk
+[2026-04-02 17:29:37] Reminder added: id=e4a78300, seconds=1, message=test
+[2026-04-02 17:29:37] Reminder added: id=6629d985, seconds=60, message=future task
+[2026-04-02 17:29:37] Reminder added: id=88ba90d3, seconds=5, message=call back
+[2026-04-02 17:29:37] Reminder added: id=6aa3d1c1, seconds=15, message=first
+[2026-04-02 17:29:37] Reminder added: id=b7238519, seconds=30, message=second
+[2026-04-02 17:29:37] Reminder marked done manually: id=6aa3d1c1
+[2026-04-02 17:29:37] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 17:29:37] Reminder added: id=d918158b, seconds=15, message=meeting
+[2026-04-02 17:29:37] Reminder deleted: id=d918158b
+[2026-04-02 17:29:37] Reminder added: id=f6ad7247, seconds=5, message=water plants
+[2026-04-02 17:29:37] Reminder added: id=b49162cf, seconds=5, message=first
+[2026-04-02 17:29:37] Reminder added: id=960020c0, seconds=10, message=second
+[2026-04-02 17:29:37] Reminder marked done manually: id=b49162cf
+[2026-04-02 17:29:37] Reminder added: id=e50fc695, seconds=5, message=first
+[2026-04-02 17:29:37] Reminder added: id=a1dc674b, seconds=10, message=second
+[2026-04-02 17:29:37] Reminder marked done manually: id=e50fc695
+[2026-04-02 17:29:37] Reminder added: id=9272a808, seconds=15, message=stretch
+[2026-04-02 17:29:37] Reminder marked done manually: id=9272a808
+[2026-04-02 17:29:37] Reminder added: id=24e54b2e, seconds=20, message=zakupach
+[2026-04-02 17:29:37] Reminder added: id=931a86af, seconds=20, message=drink water
+[2026-04-02 17:32:24] Reminder added: id=3ef7dc4f, seconds=30, message=drink water
+[2026-04-02 17:32:24] Reminder created: 3ef7dc4f
+[2026-04-02 17:32:24] Reminder added: id=838a719c, seconds=30, message=drink water
+[2026-04-02 17:32:24] Reminder created: 838a719c
+[2026-04-02 17:32:24] Reminder added: id=6daa68eb, seconds=60, message=stand up
+[2026-04-02 17:32:24] Reminder created: 6daa68eb
+[2026-04-02 17:32:24] Reminder added: id=007b8894, seconds=30, message=drink water
+[2026-04-02 17:32:24] Reminder created: 007b8894
+[2026-04-02 17:32:24] Reminder added: id=7a97a1b4, seconds=60, message=stand up
+[2026-04-02 17:32:24] Reminder created: 7a97a1b4
+[2026-04-02 17:32:24] Reminder deleted: id=007b8894
+[2026-04-02 17:32:24] Reminder deleted: id=7a97a1b4
+[2026-04-02 17:32:24] Memory saved: keys -> in the kitchen
+[2026-04-02 17:32:24] Memory saved: keys -> in the kitchen
+[2026-04-02 17:32:24] Memory saved: keys -> in the kitchen
+[2026-04-02 17:32:24] Memory saved: phone -> on desk
+[2026-04-02 17:32:24] Memory cleared: removed 2 item(s).
+[2026-04-02 17:32:24] Memory saved: klucze -> w kuchni
+[2026-04-02 17:32:24] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 17:32:24] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 17:32:24] Memory saved: keys -> in the kitchen
+[2026-04-02 17:32:24] Memory saved: keys -> in the kitchen
+[2026-04-02 17:32:24] Memory deleted: keys
+[2026-04-02 17:32:24] Memory saved: keys -> in the kitchen
+[2026-04-02 17:32:24] Memory saved: klucze -> w kuchni
+[2026-04-02 17:32:24] Reminder added: id=3e1c1339, seconds=30, message=drink water
+[2026-04-02 17:32:24] Reminder created: 3e1c1339
+[2026-04-02 17:32:24] Reminder added: id=20a5f89f, seconds=30, message=drink water
+[2026-04-02 17:32:24] Reminder created: 20a5f89f
+[2026-04-02 17:32:24] Reminder added: id=4ac6a1aa, seconds=30, message=drink water
+[2026-04-02 17:32:24] Reminder created: 4ac6a1aa
+[2026-04-02 17:32:24] Reminder added: id=00b4e2b4, seconds=30, message=drink water
+[2026-04-02 17:32:24] Reminder created: 00b4e2b4
+[2026-04-02 17:32:24] Reminder deleted: id=00b4e2b4
+[2026-04-02 17:32:24] Memory saved: keys -> in the kitchen
+[2026-04-02 17:32:24] Memory save skipped: empty key or value.
+[2026-04-02 17:32:24] Memory save skipped: empty key or value.
+[2026-04-02 17:32:24] Memory saved: car keys -> on the shelf
+[2026-04-02 17:32:24] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 17:32:24] Memory saved: keys -> kitchen
+[2026-04-02 17:32:24] Memory saved: wallet -> drawer
+[2026-04-02 17:32:24] Memory saved: keys -> kitchen
+[2026-04-02 17:32:24] Memory saved: key -> on the desk
+[2026-04-02 17:32:24] Memory recall matched 'keys' -> 'key'
+[2026-04-02 17:32:24] Memory saved: klucz -> na biurku
+[2026-04-02 17:32:24] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 17:32:24] Memory saved: wallet -> in the jacket
+[2026-04-02 17:32:24] Memory saved: keys -> in the drawer
+[2026-04-02 17:32:24] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 17:32:24] Memory saved: phone number -> 123456789
+[2026-04-02 17:32:24] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 17:32:24] Memory saved: klucz -> w plecaku
+[2026-04-02 17:32:24] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 17:32:24] Memory saved: keys -> in the kitchen
+[2026-04-02 17:32:24] Memory saved: klucze -> w kuchni
+[2026-04-02 17:32:24] Memory saved: my keys -> in the kitchen
+[2026-04-02 17:32:24] Memory saved: my keys -> in the backpack
+[2026-04-02 17:32:24] Reminder added: id=4228c3e5, seconds=30, message=buy milk
+[2026-04-02 17:32:24] Reminder added: id=a01dee0b, seconds=1, message=test
+[2026-04-02 17:32:24] Reminder added: id=7433adee, seconds=60, message=future task
+[2026-04-02 17:32:24] Reminder added: id=e5c27908, seconds=5, message=call back
+[2026-04-02 17:32:24] Reminder added: id=e870166b, seconds=15, message=first
+[2026-04-02 17:32:24] Reminder added: id=6235abcb, seconds=30, message=second
+[2026-04-02 17:32:24] Reminder marked done manually: id=e870166b
+[2026-04-02 17:32:24] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 17:32:24] Reminder added: id=d53ca0dc, seconds=15, message=meeting
+[2026-04-02 17:32:24] Reminder deleted: id=d53ca0dc
+[2026-04-02 17:32:24] Reminder added: id=e05aaa36, seconds=5, message=water plants
+[2026-04-02 17:32:24] Reminder added: id=2c63ec18, seconds=5, message=first
+[2026-04-02 17:32:24] Reminder added: id=08c4d2e3, seconds=10, message=second
+[2026-04-02 17:32:24] Reminder marked done manually: id=2c63ec18
+[2026-04-02 17:32:24] Reminder added: id=8eedbb19, seconds=5, message=first
+[2026-04-02 17:32:24] Reminder added: id=27bb319f, seconds=10, message=second
+[2026-04-02 17:32:24] Reminder marked done manually: id=8eedbb19
+[2026-04-02 17:32:24] Reminder added: id=dff75de9, seconds=15, message=stretch
+[2026-04-02 17:32:24] Reminder marked done manually: id=dff75de9
+[2026-04-02 17:32:24] Reminder added: id=20dce825, seconds=20, message=zakupach
+[2026-04-02 17:32:24] Reminder added: id=6799c1fe, seconds=20, message=drink water
+[2026-04-02 17:35:56] Reminder added: id=0a42a936, seconds=30, message=drink water
+[2026-04-02 17:35:56] Reminder created: 0a42a936
+[2026-04-02 17:35:56] Reminder added: id=8ee869a3, seconds=30, message=drink water
+[2026-04-02 17:35:56] Reminder created: 8ee869a3
+[2026-04-02 17:35:56] Reminder added: id=97ad6c3a, seconds=60, message=stand up
+[2026-04-02 17:35:56] Reminder created: 97ad6c3a
+[2026-04-02 17:35:56] Reminder added: id=0ec70f43, seconds=30, message=drink water
+[2026-04-02 17:35:56] Reminder created: 0ec70f43
+[2026-04-02 17:35:56] Reminder added: id=ccf92c12, seconds=60, message=stand up
+[2026-04-02 17:35:56] Reminder created: ccf92c12
+[2026-04-02 17:35:56] Reminder deleted: id=0ec70f43
+[2026-04-02 17:35:56] Reminder deleted: id=ccf92c12
+[2026-04-02 17:35:56] Memory saved: keys -> in the kitchen
+[2026-04-02 17:35:56] Memory saved: keys -> in the kitchen
+[2026-04-02 17:35:56] Memory saved: keys -> in the kitchen
+[2026-04-02 17:35:56] Memory saved: phone -> on desk
+[2026-04-02 17:35:56] Memory cleared: removed 2 item(s).
+[2026-04-02 17:35:56] Memory saved: klucze -> w kuchni
+[2026-04-02 17:35:56] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 17:35:56] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 17:35:56] Memory saved: keys -> in the kitchen
+[2026-04-02 17:35:56] Memory saved: keys -> in the kitchen
+[2026-04-02 17:35:56] Memory deleted: keys
+[2026-04-02 17:35:56] Memory saved: keys -> in the kitchen
+[2026-04-02 17:35:56] Memory saved: klucze -> w kuchni
+[2026-04-02 17:35:56] Reminder added: id=1ea4b760, seconds=30, message=drink water
+[2026-04-02 17:35:56] Reminder created: 1ea4b760
+[2026-04-02 17:35:56] Reminder added: id=8e9325c9, seconds=30, message=drink water
+[2026-04-02 17:35:56] Reminder created: 8e9325c9
+[2026-04-02 17:35:56] Reminder added: id=8be7bf76, seconds=30, message=drink water
+[2026-04-02 17:35:56] Reminder created: 8be7bf76
+[2026-04-02 17:35:56] Reminder added: id=a148c019, seconds=30, message=drink water
+[2026-04-02 17:35:56] Reminder created: a148c019
+[2026-04-02 17:35:56] Reminder deleted: id=a148c019
+[2026-04-02 17:35:57] Memory saved: keys -> in the kitchen
+[2026-04-02 17:35:57] Memory save skipped: empty key or value.
+[2026-04-02 17:35:57] Memory save skipped: empty key or value.
+[2026-04-02 17:35:57] Memory saved: car keys -> on the shelf
+[2026-04-02 17:35:57] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 17:35:57] Memory saved: keys -> kitchen
+[2026-04-02 17:35:57] Memory saved: wallet -> drawer
+[2026-04-02 17:35:57] Memory saved: keys -> kitchen
+[2026-04-02 17:35:57] Memory saved: key -> on the desk
+[2026-04-02 17:35:57] Memory recall matched 'keys' -> 'key'
+[2026-04-02 17:35:57] Memory saved: klucz -> na biurku
+[2026-04-02 17:35:57] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 17:35:57] Memory saved: wallet -> in the jacket
+[2026-04-02 17:35:57] Memory saved: keys -> in the drawer
+[2026-04-02 17:35:57] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 17:35:57] Memory saved: phone number -> 123456789
+[2026-04-02 17:35:57] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 17:35:57] Memory saved: klucz -> w plecaku
+[2026-04-02 17:35:57] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 17:35:57] Memory saved: keys -> in the kitchen
+[2026-04-02 17:35:57] Memory saved: klucze -> w kuchni
+[2026-04-02 17:35:57] Memory saved: my keys -> in the kitchen
+[2026-04-02 17:35:57] Memory saved: my keys -> in the backpack
+[2026-04-02 17:35:57] Reminder added: id=1210064a, seconds=30, message=buy milk
+[2026-04-02 17:35:57] Reminder added: id=deb179bc, seconds=1, message=test
+[2026-04-02 17:35:57] Reminder added: id=03b60789, seconds=60, message=future task
+[2026-04-02 17:35:57] Reminder added: id=3e7b127a, seconds=5, message=call back
+[2026-04-02 17:35:57] Reminder added: id=1933c0a7, seconds=15, message=first
+[2026-04-02 17:35:57] Reminder added: id=11465721, seconds=30, message=second
+[2026-04-02 17:35:57] Reminder marked done manually: id=1933c0a7
+[2026-04-02 17:35:57] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 17:35:57] Reminder added: id=d13e709a, seconds=15, message=meeting
+[2026-04-02 17:35:57] Reminder deleted: id=d13e709a
+[2026-04-02 17:35:57] Reminder added: id=83cb7b86, seconds=5, message=water plants
+[2026-04-02 17:35:57] Reminder added: id=1b500de9, seconds=5, message=first
+[2026-04-02 17:35:57] Reminder added: id=20acad9d, seconds=10, message=second
+[2026-04-02 17:35:57] Reminder marked done manually: id=1b500de9
+[2026-04-02 17:35:57] Reminder added: id=46b05d6c, seconds=5, message=first
+[2026-04-02 17:35:57] Reminder added: id=5ca94287, seconds=10, message=second
+[2026-04-02 17:35:57] Reminder marked done manually: id=46b05d6c
+[2026-04-02 17:35:57] Reminder added: id=82fbe035, seconds=15, message=stretch
+[2026-04-02 17:35:57] Reminder marked done manually: id=82fbe035
+[2026-04-02 17:35:57] Reminder added: id=5bceb15c, seconds=20, message=zakupach
+[2026-04-02 17:35:57] Reminder added: id=3df1bcf4, seconds=20, message=drink water
+[2026-04-02 17:36:49] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language=auto, vad=off
+[2026-04-02 17:36:49] Startup sequence initiated.
+[2026-04-02 17:36:49] Startup check [OK] settings: found settings.json
+[2026-04-02 17:36:49] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 17:36:49] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 17:36:49] Startup check [OK] voice output: piper models ready
+[2026-04-02 17:36:49] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 17:36:52] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-02 17:36:56] Startup completed successfully.
+[2026-04-02 17:37:08] User said: Pek się nazywasz.
+[2026-04-02 17:37:08] Parsed intent: action=unclear, data={}, text=pek sie nazywasz, lang=pl
+[2026-04-02 17:37:08] Assistant said [pl]: Czy chodziło ci o przedstaw się? Powiedz tak albo nie.
+[2026-04-02 17:37:26] User said: Tak.
+[2026-04-02 17:37:26] Parsed intent: action=introduce_self, data={}, text=Tak., lang=pl
+[2026-04-02 17:37:26] Assistant said [pl]: Jestem Smart Assistant. Mogę zapamiętywać rzeczy, ustawiać przypomnienia i pomagać ci podczas nauki. Jak masz na imię?
+[2026-04-02 17:37:44] Ignored silent input: recognizer returned None.
+[2026-04-02 17:37:52] Ignored silent input: recognizer returned None.
+[2026-04-02 17:38:01] User said: Andrzej.
+[2026-04-02 17:38:01] Assistant said [pl]: Miło mi, Andrzej. Czy chcesz, żebym zapamiętała twoje imię?
+[2026-04-02 17:38:17] User said: Yeah.
+[2026-04-02 17:38:17] Assistant said [pl]: Dobrze. Zapamiętałam twoje imię, Andrzej.
+[2026-04-02 17:38:33] User said: Która jest godzina.
+[2026-04-02 17:38:33] Parsed intent: action=ask_time, data={}, text=ktora jest godzina, lang=pl
+[2026-04-02 17:38:33] Assistant said [pl]: Jest 17:38.
+[2026-04-02 17:38:39] Assistant said [pl]: Czy chcesz, żebym pokazała to na ekranie?
+[2026-04-02 17:38:51] User said: Yeah.
+[2026-04-02 17:38:51] Assistant said [pl]: Dobrze. Pokazuję to na ekranie.
+[2026-04-02 17:39:07] User said: de un fascista.
+[2026-04-02 17:39:07] Parsed intent: action=unknown, data={}, text=de un fascista, lang=pl
+[2026-04-02 17:39:07] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 17:39:24] User said: They won't assist them.
+[2026-04-02 17:39:24] Parsed intent: action=unknown, data={}, text=they won t assist them, lang=pl
+[2026-04-02 17:39:24] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 17:39:39] Ignored silent input: recognizer returned None.
+[2026-04-02 17:39:47] Ignored silent input: recognizer returned None.
+[2026-04-02 17:39:55] Ignored silent input: recognizer returned None.
+[2026-04-02 17:40:01] User said: Exit.
+[2026-04-02 17:40:01] Parsed intent: action=exit, data={}, text=exit, lang=pl
+[2026-04-02 17:40:01] Assistant said [pl]: Czy na pewno mam zamknąć asystenta?
+[2026-04-02 17:40:09] User said: Tak.
+[2026-04-02 17:40:09] Assistant said [pl]: Dobrze. Zamykam asystenta.
+[2026-04-02 17:40:12] Assistant said [pl]: Wyłączam Smart Assistant.
+[2026-04-02 17:40:14] Assistant shut down.
+[2026-04-02 17:40:52] Reminder added: id=e7e0546c, seconds=30, message=drink water
+[2026-04-02 17:40:52] Reminder created: e7e0546c
+[2026-04-02 17:40:52] Reminder added: id=de064f31, seconds=30, message=drink water
+[2026-04-02 17:40:52] Reminder created: de064f31
+[2026-04-02 17:40:52] Reminder added: id=ee013b67, seconds=60, message=stand up
+[2026-04-02 17:40:52] Reminder created: ee013b67
+[2026-04-02 17:40:52] Reminder added: id=f77da814, seconds=30, message=drink water
+[2026-04-02 17:40:52] Reminder created: f77da814
+[2026-04-02 17:40:52] Reminder added: id=929ad6b6, seconds=60, message=stand up
+[2026-04-02 17:40:52] Reminder created: 929ad6b6
+[2026-04-02 17:40:52] Reminder deleted: id=f77da814
+[2026-04-02 17:40:52] Reminder deleted: id=929ad6b6
+[2026-04-02 17:40:52] Memory saved: keys -> in the kitchen
+[2026-04-02 17:40:52] Memory saved: keys -> in the kitchen
+[2026-04-02 17:40:52] Memory saved: keys -> in the kitchen
+[2026-04-02 17:40:52] Memory saved: phone -> on desk
+[2026-04-02 17:40:52] Memory cleared: removed 2 item(s).
+[2026-04-02 17:40:52] Memory saved: klucze -> w kuchni
+[2026-04-02 17:40:52] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 17:40:52] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 17:40:52] Memory saved: keys -> in the kitchen
+[2026-04-02 17:40:52] Memory saved: keys -> in the kitchen
+[2026-04-02 17:40:52] Memory deleted: keys
+[2026-04-02 17:40:52] Memory saved: keys -> in the kitchen
+[2026-04-02 17:40:52] Memory saved: klucze -> w kuchni
+[2026-04-02 17:40:52] Reminder added: id=218e34df, seconds=30, message=drink water
+[2026-04-02 17:40:52] Reminder created: 218e34df
+[2026-04-02 17:40:52] Reminder added: id=e4f4dad6, seconds=30, message=drink water
+[2026-04-02 17:40:52] Reminder created: e4f4dad6
+[2026-04-02 17:40:52] Reminder added: id=7e49ee0d, seconds=30, message=drink water
+[2026-04-02 17:40:52] Reminder created: 7e49ee0d
+[2026-04-02 17:40:52] Reminder added: id=5fcfa0f2, seconds=30, message=drink water
+[2026-04-02 17:40:52] Reminder created: 5fcfa0f2
+[2026-04-02 17:40:52] Reminder deleted: id=5fcfa0f2
+[2026-04-02 17:40:53] Memory saved: keys -> in the kitchen
+[2026-04-02 17:40:53] Memory save skipped: empty key or value.
+[2026-04-02 17:40:53] Memory save skipped: empty key or value.
+[2026-04-02 17:40:53] Memory saved: car keys -> on the shelf
+[2026-04-02 17:40:53] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 17:40:53] Memory saved: keys -> kitchen
+[2026-04-02 17:40:53] Memory saved: wallet -> drawer
+[2026-04-02 17:40:53] Memory saved: keys -> kitchen
+[2026-04-02 17:40:53] Memory saved: key -> on the desk
+[2026-04-02 17:40:53] Memory recall matched 'keys' -> 'key'
+[2026-04-02 17:40:53] Memory saved: klucz -> na biurku
+[2026-04-02 17:40:53] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 17:40:53] Memory saved: wallet -> in the jacket
+[2026-04-02 17:40:53] Memory saved: keys -> in the drawer
+[2026-04-02 17:40:53] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 17:40:53] Memory saved: phone number -> 123456789
+[2026-04-02 17:40:53] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 17:40:53] Memory saved: klucz -> w plecaku
+[2026-04-02 17:40:53] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 17:40:53] Memory saved: keys -> in the kitchen
+[2026-04-02 17:40:53] Memory saved: klucze -> w kuchni
+[2026-04-02 17:40:53] Memory saved: my keys -> in the kitchen
+[2026-04-02 17:40:53] Memory saved: my keys -> in the backpack
+[2026-04-02 17:40:53] Reminder added: id=bb2e04e3, seconds=30, message=buy milk
+[2026-04-02 17:40:53] Reminder added: id=c9501d47, seconds=1, message=test
+[2026-04-02 17:40:53] Reminder added: id=40a946f4, seconds=60, message=future task
+[2026-04-02 17:40:53] Reminder added: id=8b81df31, seconds=5, message=call back
+[2026-04-02 17:40:53] Reminder added: id=1db40e45, seconds=15, message=first
+[2026-04-02 17:40:53] Reminder added: id=78d8d5ea, seconds=30, message=second
+[2026-04-02 17:40:53] Reminder marked done manually: id=1db40e45
+[2026-04-02 17:40:53] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 17:40:53] Reminder added: id=0af91f2a, seconds=15, message=meeting
+[2026-04-02 17:40:53] Reminder deleted: id=0af91f2a
+[2026-04-02 17:40:53] Reminder added: id=8d09fc62, seconds=5, message=water plants
+[2026-04-02 17:40:53] Reminder added: id=4c204c3a, seconds=5, message=first
+[2026-04-02 17:40:53] Reminder added: id=b699b74c, seconds=10, message=second
+[2026-04-02 17:40:53] Reminder marked done manually: id=4c204c3a
+[2026-04-02 17:40:53] Reminder added: id=77ab9e51, seconds=5, message=first
+[2026-04-02 17:40:53] Reminder added: id=4024b796, seconds=10, message=second
+[2026-04-02 17:40:53] Reminder marked done manually: id=77ab9e51
+[2026-04-02 17:40:53] Reminder added: id=abd0fffd, seconds=15, message=stretch
+[2026-04-02 17:40:53] Reminder marked done manually: id=abd0fffd
+[2026-04-02 17:40:53] Reminder added: id=5e24e3f8, seconds=20, message=zakupach
+[2026-04-02 17:40:53] Reminder added: id=932cea37, seconds=20, message=drink water
+[2026-04-02 17:45:42] Reminder added: id=2e5a575d, seconds=30, message=drink water
+[2026-04-02 17:45:42] Reminder created: 2e5a575d
+[2026-04-02 17:45:42] Reminder added: id=38d2703e, seconds=30, message=drink water
+[2026-04-02 17:45:42] Reminder created: 38d2703e
+[2026-04-02 17:45:42] Reminder added: id=5bcc67b7, seconds=60, message=stand up
+[2026-04-02 17:45:42] Reminder created: 5bcc67b7
+[2026-04-02 17:45:42] Reminder added: id=60b9fcc4, seconds=30, message=drink water
+[2026-04-02 17:45:42] Reminder created: 60b9fcc4
+[2026-04-02 17:45:42] Reminder added: id=6df2468e, seconds=60, message=stand up
+[2026-04-02 17:45:42] Reminder created: 6df2468e
+[2026-04-02 17:45:42] Reminder deleted: id=60b9fcc4
+[2026-04-02 17:45:42] Reminder deleted: id=6df2468e
+[2026-04-02 17:45:43] Memory saved: keys -> in the kitchen
+[2026-04-02 17:45:43] Memory saved: keys -> in the kitchen
+[2026-04-02 17:45:43] Memory saved: keys -> in the kitchen
+[2026-04-02 17:45:43] Memory saved: phone -> on desk
+[2026-04-02 17:45:43] Memory cleared: removed 2 item(s).
+[2026-04-02 17:45:43] Memory saved: klucze -> w kuchni
+[2026-04-02 17:45:43] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 17:45:43] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 17:45:43] Memory saved: keys -> in the kitchen
+[2026-04-02 17:45:43] Memory saved: keys -> in the kitchen
+[2026-04-02 17:45:43] Memory deleted: keys
+[2026-04-02 17:45:43] Memory saved: keys -> in the kitchen
+[2026-04-02 17:45:43] Memory saved: klucze -> w kuchni
+[2026-04-02 17:45:43] Reminder added: id=a93622b2, seconds=30, message=drink water
+[2026-04-02 17:45:43] Reminder created: a93622b2
+[2026-04-02 17:45:43] Reminder added: id=1024929f, seconds=30, message=drink water
+[2026-04-02 17:45:43] Reminder created: 1024929f
+[2026-04-02 17:45:43] Reminder added: id=a28a0980, seconds=30, message=drink water
+[2026-04-02 17:45:43] Reminder created: a28a0980
+[2026-04-02 17:45:43] Reminder added: id=28bf2501, seconds=30, message=drink water
+[2026-04-02 17:45:43] Reminder created: 28bf2501
+[2026-04-02 17:45:43] Reminder deleted: id=28bf2501
+[2026-04-02 17:45:43] Memory saved: keys -> in the kitchen
+[2026-04-02 17:45:43] Memory save skipped: empty key or value.
+[2026-04-02 17:45:43] Memory save skipped: empty key or value.
+[2026-04-02 17:45:43] Memory saved: car keys -> on the shelf
+[2026-04-02 17:45:43] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 17:45:43] Memory saved: keys -> kitchen
+[2026-04-02 17:45:43] Memory saved: wallet -> drawer
+[2026-04-02 17:45:43] Memory saved: keys -> kitchen
+[2026-04-02 17:45:43] Memory saved: key -> on the desk
+[2026-04-02 17:45:43] Memory recall matched 'keys' -> 'key'
+[2026-04-02 17:45:43] Memory saved: klucz -> na biurku
+[2026-04-02 17:45:43] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 17:45:43] Memory saved: wallet -> in the jacket
+[2026-04-02 17:45:43] Memory saved: keys -> in the drawer
+[2026-04-02 17:45:43] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 17:45:43] Memory saved: phone number -> 123456789
+[2026-04-02 17:45:43] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 17:45:43] Memory saved: klucz -> w plecaku
+[2026-04-02 17:45:43] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 17:45:43] Memory saved: keys -> in the kitchen
+[2026-04-02 17:45:43] Memory saved: klucze -> w kuchni
+[2026-04-02 17:45:43] Memory saved: my keys -> in the kitchen
+[2026-04-02 17:45:43] Memory saved: my keys -> in the backpack
+[2026-04-02 17:45:43] Reminder added: id=a13a2bd2, seconds=30, message=buy milk
+[2026-04-02 17:45:43] Reminder added: id=4f235bed, seconds=1, message=test
+[2026-04-02 17:45:43] Reminder added: id=57deb6cf, seconds=60, message=future task
+[2026-04-02 17:45:43] Reminder added: id=f1ff04d4, seconds=5, message=call back
+[2026-04-02 17:45:43] Reminder added: id=f4edfc9f, seconds=15, message=first
+[2026-04-02 17:45:43] Reminder added: id=f847e0fb, seconds=30, message=second
+[2026-04-02 17:45:43] Reminder marked done manually: id=f4edfc9f
+[2026-04-02 17:45:43] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 17:45:43] Reminder added: id=5469e1e7, seconds=15, message=meeting
+[2026-04-02 17:45:43] Reminder deleted: id=5469e1e7
+[2026-04-02 17:45:43] Reminder added: id=f07d5b8c, seconds=5, message=water plants
+[2026-04-02 17:45:43] Reminder added: id=7232d46b, seconds=5, message=first
+[2026-04-02 17:45:43] Reminder added: id=ef3c18a9, seconds=10, message=second
+[2026-04-02 17:45:43] Reminder marked done manually: id=7232d46b
+[2026-04-02 17:45:43] Reminder added: id=2c88a62f, seconds=5, message=first
+[2026-04-02 17:45:43] Reminder added: id=96aa6b9c, seconds=10, message=second
+[2026-04-02 17:45:43] Reminder marked done manually: id=2c88a62f
+[2026-04-02 17:45:43] Reminder added: id=2e8f9d7f, seconds=15, message=stretch
+[2026-04-02 17:45:43] Reminder marked done manually: id=2e8f9d7f
+[2026-04-02 17:45:43] Reminder added: id=37e00d6f, seconds=20, message=zakupach
+[2026-04-02 17:45:43] Reminder added: id=11ea2878, seconds=20, message=drink water
+[2026-04-02 17:46:00] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language=auto, vad=off
+[2026-04-02 17:46:00] Startup sequence initiated.
+[2026-04-02 17:46:00] Startup check [OK] settings: found settings.json
+[2026-04-02 17:46:00] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 17:46:00] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 17:46:00] Startup check [OK] voice output: piper models ready
+[2026-04-02 17:46:00] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 17:46:03] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-02 17:46:06] Startup completed successfully.
+[2026-04-02 17:46:13] User said: Só para o trafico.
+[2026-04-02 17:46:13] Parsed intent: action=unknown, data={}, text=so para o trafico, lang=pl
+[2026-04-02 17:46:13] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 17:46:24] User said: Co potrafisz?
+[2026-04-02 17:46:24] Parsed intent: action=help, data={}, text=co potrafisz, lang=pl
+[2026-04-02 17:46:24] Assistant said [pl]: Mogę zapamiętywać informacje, ustawiać przypomnienia i timery, podawać godzinę, datę, dzień i rok, prowadzić focus mode i przerwę, usuwać pamięć i przypomnienia oraz pokazywać informacje na ekranie.
+[2026-04-02 17:46:47] User said: Która jest godzino.
+[2026-04-02 17:46:47] Parsed intent: action=unclear, data={}, text=ktora jest godzino, lang=pl
+[2026-04-02 17:46:47] Assistant said [pl]: Czy chodziło ci o godzina? Powiedz tak albo nie.
+[2026-04-02 17:46:55] User said: up.
+[2026-04-02 17:46:55] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 17:47:01] User said: Tak.
+[2026-04-02 17:47:01] Parsed intent: action=ask_time, data={}, text=Tak., lang=pl
+[2026-04-02 17:47:01] Assistant said [pl]: Jest 17:47.
+[2026-04-02 17:47:07] Assistant said [pl]: Czy chcesz, żebym pokazała to na ekranie?
+[2026-04-02 17:47:15] User said: Yeah.
+[2026-04-02 17:47:15] Assistant said [pl]: Dobrze. Pokazuję to na ekranie.
+[2026-04-02 17:47:26] User said: Jakie dzisiaj zdzieli?
+[2026-04-02 17:47:26] Parsed intent: action=unclear, data={}, text=jakie dzisiaj zdzieli, lang=pl
+[2026-04-02 17:47:26] Assistant said [pl]: Czy chodziło ci o dzień? Powiedz tak albo nie.
+[2026-04-02 17:47:34] User said: Thank you.
+[2026-04-02 17:47:34] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 17:47:41] User said: Tuck.
+[2026-04-02 17:47:41] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 17:47:48] User said: Yes.
+[2026-04-02 17:47:48] Parsed intent: action=ask_day, data={}, text=Yes., lang=pl
+[2026-04-02 17:47:48] Assistant said [pl]: Dzisiaj jest czwartek.
+[2026-04-02 17:47:50] Assistant said [pl]: Czy chcesz, żebym pokazała to na ekranie?
+[2026-04-02 17:47:58] User said: No.
+[2026-04-02 17:47:58] Assistant said [pl]: Dobrze.
+[2026-04-02 17:48:03] Ignored silent input: recognizer returned None.
+[2026-04-02 17:48:13] Ignored silent input: recognizer returned None.
+[2026-04-02 17:48:22] User said: Zapamiętaj że klucze są w kuchni.
+[2026-04-02 17:48:22] Parsed intent: action=memory_store, data={'key': 'klucze', 'value': 'w kuchni', 'memory_text': 'klucze sa w kuchni'}, text=zapamietaj ze klucze sa w kuchni, lang=pl
+[2026-04-02 17:48:22] Memory saved: klucze -> w kuchni
+[2026-04-02 17:48:22] Assistant said [pl]: Dobrze. Zapamiętałam, że klucze jest w kuchni.
+[2026-04-02 17:48:38] User said: Where are my keys?
+[2026-04-02 17:48:38] Parsed intent: action=memory_recall, data={'key': 'keys'}, text=where are my keys, lang=en
+[2026-04-02 17:48:38] Assistant said [en]: keys is in the kitchen.
+[2026-04-02 17:48:52] Ignored silent input: recognizer returned None.
+[2026-04-02 17:48:58] Ignored silent input: recognizer returned None.
+[2026-04-02 17:49:04] Ignored silent input: recognizer returned None.
+[2026-04-02 17:49:09] Ignored silent input: recognizer returned None.
+[2026-04-02 17:49:16] Ignored silent input: recognizer returned None.
+[2026-04-02 17:49:21] Ignored silent input: recognizer returned None.
+[2026-04-02 17:49:29] User said: Przypomnij mi za 10 sekund, że muszę coś zjeść.
+[2026-04-02 17:49:29] Parsed intent: action=reminder_create, data={'seconds': 10, 'message': 'ze musze cos zjesc'}, text=przypomnij mi za 10 sekund ze musze cos zjesc, lang=pl
+[2026-04-02 17:49:29] Reminder added: id=d2ce582c, seconds=10, message=ze musze cos zjesc
+[2026-04-02 17:49:29] Assistant said [pl]: Dobrze. Przypomnę ci o tym za 10 sekund.
+[2026-04-02 17:49:35] Reminder created: d2ce582c
+[2026-04-02 17:49:40] Assistant said [pl]: Przypomnienie. ze musze cos zjesc
+[2026-04-02 17:49:44] Ignored silent input: recognizer returned None.
+[2026-04-02 17:49:47] Reminder triggered: message=ze musze cos zjesc
+[2026-04-02 17:49:52] User said: Czy po mnie nie zamuszą, co zjest?
+[2026-04-02 17:49:52] Parsed intent: action=unknown, data={}, text=czy po mnie nie zamusza co zjest, lang=pl
+[2026-04-02 17:49:52] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 17:50:01] Ignored silent input: recognizer returned None.
+[2026-04-02 17:50:13] User said: [MUSIC PLAYING]
+[2026-04-02 17:50:13] Parsed intent: action=unknown, data={}, text=music playing, lang=pl
+[2026-04-02 17:50:13] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 17:50:24] User said: Só para o traficio.
+[2026-04-02 17:50:24] Parsed intent: action=unknown, data={}, text=so para o traficio, lang=pl
+[2026-04-02 17:50:24] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 17:50:35] User said: Você pode trafizar.
+[2026-04-02 17:50:35] Parsed intent: action=unknown, data={}, text=voce pode trafizar, lang=pl
+[2026-04-02 17:50:35] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 17:50:48] Ignored silent input: recognizer returned None.
+[2026-04-02 17:50:54] Ignored silent input: recognizer returned None.
+[2026-04-02 17:51:02] Ignored silent input: recognizer returned None.
+[2026-04-02 17:51:07] Ignored silent input: recognizer returned None.
+[2026-04-02 17:51:16] Ignored silent input: recognizer returned None.
+[2026-04-02 17:51:26] Ignored silent input: recognizer returned None.
+[2026-04-02 17:51:37] Ignored silent input: recognizer returned None.
+[2026-04-02 17:51:46] Ignored silent input: recognizer returned None.
+[2026-04-02 17:51:52] Ignored silent input: recognizer returned None.
+[2026-04-02 17:51:58] Ignored silent input: recognizer returned None.
+[2026-04-02 17:52:08] Ignored silent input: recognizer returned None.
+[2026-04-02 17:52:35] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language=auto, vad=off
+[2026-04-02 17:52:36] Startup sequence initiated.
+[2026-04-02 17:52:36] Startup check [OK] settings: found settings.json
+[2026-04-02 17:52:36] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 17:52:36] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 17:52:36] Startup check [OK] voice output: piper models ready
+[2026-04-02 17:52:36] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 17:52:39] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-02 17:52:42] Startup completed successfully.
+[2026-04-02 17:52:49] User said: Só para o trafico.
+[2026-04-02 17:52:49] Parsed intent: action=unknown, data={}, text=so para o trafico, lang=pl
+[2026-04-02 17:52:49] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 17:52:59] Ignored silent input: recognizer returned None.
+[2026-04-02 17:53:09] Ignored silent input: recognizer returned None.
+[2026-04-02 17:53:17] User said: (keyboard clicking)
+[2026-04-02 17:53:17] Parsed intent: action=unknown, data={}, text=keyboard clicking, lang=pl
+[2026-04-02 17:53:17] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 17:53:28] Ignored silent input: recognizer returned None.
+[2026-04-02 17:53:36] Ignored silent input: recognizer returned None.
+[2026-04-02 17:53:46] User said: [typing]
+[2026-04-02 17:53:46] Parsed intent: action=unknown, data={}, text=typing, lang=pl
+[2026-04-02 17:53:46] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 17:53:59] User said: Thanks, it.
+[2026-04-02 17:53:59] Parsed intent: action=unknown, data={}, text=thanks it, lang=pl
+[2026-04-02 17:53:59] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 17:54:09] User said: Exit.
+[2026-04-02 17:54:09] Parsed intent: action=exit, data={}, text=exit, lang=pl
+[2026-04-02 17:54:09] Assistant said [pl]: Czy na pewno mam zamknąć asystenta?
+[2026-04-02 17:54:21] User said: Yes.
+[2026-04-02 17:54:21] Assistant said [pl]: Dobrze. Zamykam asystenta.
+[2026-04-02 17:54:23] Assistant said [pl]: Wyłączam Smart Assistant.
+[2026-04-02 17:54:25] Assistant shut down.
+[2026-04-02 18:18:56] Reminder added: id=c184a0b8, seconds=30, message=drink water
+[2026-04-02 18:18:56] Reminder created: c184a0b8
+[2026-04-02 18:18:56] Reminder added: id=c520703b, seconds=30, message=drink water
+[2026-04-02 18:18:56] Reminder created: c520703b
+[2026-04-02 18:18:56] Reminder added: id=6bf69ebb, seconds=60, message=stand up
+[2026-04-02 18:18:56] Reminder created: 6bf69ebb
+[2026-04-02 18:18:56] Reminder added: id=7561994c, seconds=30, message=drink water
+[2026-04-02 18:18:56] Reminder created: 7561994c
+[2026-04-02 18:18:56] Reminder added: id=9ab16dd0, seconds=60, message=stand up
+[2026-04-02 18:18:56] Reminder created: 9ab16dd0
+[2026-04-02 18:18:56] Reminder deleted: id=7561994c
+[2026-04-02 18:18:56] Reminder deleted: id=9ab16dd0
+[2026-04-02 18:18:56] Memory saved: keys -> in the kitchen
+[2026-04-02 18:18:56] Memory saved: keys -> in the kitchen
+[2026-04-02 18:18:56] Memory saved: keys -> in the kitchen
+[2026-04-02 18:18:56] Memory saved: phone -> on desk
+[2026-04-02 18:18:56] Memory cleared: removed 2 item(s).
+[2026-04-02 18:18:56] Memory saved: klucze -> w kuchni
+[2026-04-02 18:18:56] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 18:18:56] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 18:18:56] Memory saved: keys -> in the kitchen
+[2026-04-02 18:18:56] Memory saved: keys -> in the kitchen
+[2026-04-02 18:18:56] Memory deleted: keys
+[2026-04-02 18:18:56] Memory saved: keys -> in the kitchen
+[2026-04-02 18:18:56] Memory saved: klucze -> w kuchni
+[2026-04-02 18:18:56] Reminder added: id=64d864aa, seconds=30, message=drink water
+[2026-04-02 18:18:56] Reminder created: 64d864aa
+[2026-04-02 18:18:56] Reminder added: id=c00bba18, seconds=30, message=drink water
+[2026-04-02 18:18:56] Reminder created: c00bba18
+[2026-04-02 18:18:56] Reminder added: id=c558cd21, seconds=30, message=drink water
+[2026-04-02 18:18:56] Reminder created: c558cd21
+[2026-04-02 18:18:56] Reminder added: id=55de2060, seconds=30, message=drink water
+[2026-04-02 18:18:56] Reminder created: 55de2060
+[2026-04-02 18:18:56] Reminder deleted: id=55de2060
+[2026-04-02 18:18:56] Memory saved: keys -> in the kitchen
+[2026-04-02 18:18:56] Memory save skipped: empty key or value.
+[2026-04-02 18:18:56] Memory save skipped: empty key or value.
+[2026-04-02 18:18:56] Memory saved: car keys -> on the shelf
+[2026-04-02 18:18:56] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 18:18:56] Memory saved: keys -> kitchen
+[2026-04-02 18:18:56] Memory saved: wallet -> drawer
+[2026-04-02 18:18:56] Memory saved: keys -> kitchen
+[2026-04-02 18:18:56] Memory saved: key -> on the desk
+[2026-04-02 18:18:56] Memory recall matched 'keys' -> 'key'
+[2026-04-02 18:18:56] Memory saved: klucz -> na biurku
+[2026-04-02 18:18:56] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 18:18:56] Memory saved: wallet -> in the jacket
+[2026-04-02 18:18:56] Memory saved: keys -> in the drawer
+[2026-04-02 18:18:56] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 18:18:56] Memory saved: phone number -> 123456789
+[2026-04-02 18:18:56] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 18:18:56] Memory saved: klucz -> w plecaku
+[2026-04-02 18:18:56] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 18:18:56] Memory saved: keys -> in the kitchen
+[2026-04-02 18:18:56] Memory saved: klucze -> w kuchni
+[2026-04-02 18:18:56] Memory saved: my keys -> in the kitchen
+[2026-04-02 18:18:56] Memory saved: my keys -> in the backpack
+[2026-04-02 18:18:57] Reminder added: id=23e55374, seconds=30, message=buy milk
+[2026-04-02 18:18:57] Reminder added: id=ceaaa344, seconds=1, message=test
+[2026-04-02 18:18:57] Reminder added: id=9a71b033, seconds=60, message=future task
+[2026-04-02 18:18:57] Reminder added: id=6478c2c7, seconds=5, message=call back
+[2026-04-02 18:18:57] Reminder added: id=9e6d001a, seconds=15, message=first
+[2026-04-02 18:18:57] Reminder added: id=059c6317, seconds=30, message=second
+[2026-04-02 18:18:57] Reminder marked done manually: id=9e6d001a
+[2026-04-02 18:18:57] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 18:18:57] Reminder added: id=e720b433, seconds=15, message=meeting
+[2026-04-02 18:18:57] Reminder deleted: id=e720b433
+[2026-04-02 18:18:57] Reminder added: id=157f5fc3, seconds=5, message=water plants
+[2026-04-02 18:18:57] Reminder added: id=c606ea31, seconds=5, message=first
+[2026-04-02 18:18:57] Reminder added: id=1ae1761e, seconds=10, message=second
+[2026-04-02 18:18:57] Reminder marked done manually: id=c606ea31
+[2026-04-02 18:18:57] Reminder added: id=a497e30e, seconds=5, message=first
+[2026-04-02 18:18:57] Reminder added: id=be3fab5d, seconds=10, message=second
+[2026-04-02 18:18:57] Reminder marked done manually: id=a497e30e
+[2026-04-02 18:18:57] Reminder added: id=a17a2998, seconds=15, message=stretch
+[2026-04-02 18:18:57] Reminder marked done manually: id=a17a2998
+[2026-04-02 18:18:57] Reminder added: id=114f7c90, seconds=20, message=zakupach
+[2026-04-02 18:18:57] Reminder added: id=b54c38f1, seconds=20, message=drink water
+[2026-04-02 18:21:54] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language=auto, vad=off
+[2026-04-02 18:21:55] Startup sequence initiated.
+[2026-04-02 18:21:55] Startup check [OK] settings: found settings.json
+[2026-04-02 18:21:55] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 18:21:55] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 18:21:55] Startup check [OK] voice output: piper models ready
+[2026-04-02 18:21:55] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 18:21:58] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-02 18:22:01] Startup completed successfully.
+[2026-04-02 18:22:06] Ignored silent input: recognizer returned None.
+[2026-04-02 18:22:12] Ignored silent input: recognizer returned None.
+[2026-04-02 18:22:18] User said: No.
+[2026-04-02 18:22:18] Parsed intent: action=confirm_no, data={}, text=no, lang=en
+[2026-04-02 18:22:18] Assistant said [en]: There is nothing to confirm right now.
+[2026-04-02 18:22:28] Ignored silent input: recognizer returned None.
+[2026-04-02 18:22:38] Ignored silent input: recognizer returned None.
+[2026-04-02 18:22:44] User said: exit
+[2026-04-02 18:22:44] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-02 18:22:44] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 18:22:51] User said: Thank you.
+[2026-04-02 18:22:51] Assistant said [en]: Please say yes or no.
+[2026-04-02 18:22:59] User said: Yes.
+[2026-04-02 18:22:59] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 18:23:01] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 18:23:03] Assistant shut down.
+[2026-04-02 18:33:33] Reminder added: id=15c82b2f, seconds=30, message=drink water
+[2026-04-02 18:33:33] Reminder created: 15c82b2f
+[2026-04-02 18:33:33] Reminder added: id=be2850f2, seconds=30, message=drink water
+[2026-04-02 18:33:33] Reminder created: be2850f2
+[2026-04-02 18:33:33] Reminder added: id=6b90a9a7, seconds=60, message=stand up
+[2026-04-02 18:33:33] Reminder created: 6b90a9a7
+[2026-04-02 18:33:33] Reminder added: id=116caf20, seconds=30, message=drink water
+[2026-04-02 18:33:33] Reminder created: 116caf20
+[2026-04-02 18:33:33] Reminder added: id=dffda299, seconds=60, message=stand up
+[2026-04-02 18:33:33] Reminder created: dffda299
+[2026-04-02 18:33:33] Reminder deleted: id=116caf20
+[2026-04-02 18:33:33] Reminder deleted: id=dffda299
+[2026-04-02 18:33:33] Memory saved: keys -> in the kitchen
+[2026-04-02 18:33:33] Memory saved: keys -> in the kitchen
+[2026-04-02 18:33:33] Memory saved: keys -> in the kitchen
+[2026-04-02 18:33:33] Memory saved: phone -> on desk
+[2026-04-02 18:33:33] Memory cleared: removed 2 item(s).
+[2026-04-02 18:33:33] Memory saved: klucze -> w kuchni
+[2026-04-02 18:33:33] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 18:33:33] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 18:33:33] Memory saved: keys -> in the kitchen
+[2026-04-02 18:33:33] Memory saved: keys -> in the kitchen
+[2026-04-02 18:33:33] Memory deleted: keys
+[2026-04-02 18:33:33] Memory saved: keys -> in the kitchen
+[2026-04-02 18:33:33] Memory saved: klucze -> w kuchni
+[2026-04-02 18:33:33] Reminder added: id=8d1d157b, seconds=30, message=drink water
+[2026-04-02 18:33:33] Reminder created: 8d1d157b
+[2026-04-02 18:33:33] Reminder added: id=2637e3c3, seconds=30, message=drink water
+[2026-04-02 18:33:33] Reminder created: 2637e3c3
+[2026-04-02 18:33:33] Reminder added: id=aff309a5, seconds=30, message=drink water
+[2026-04-02 18:33:33] Reminder created: aff309a5
+[2026-04-02 18:33:33] Reminder added: id=969f5295, seconds=30, message=drink water
+[2026-04-02 18:33:33] Reminder created: 969f5295
+[2026-04-02 18:33:33] Reminder deleted: id=969f5295
+[2026-04-02 18:33:34] Memory saved: keys -> in the kitchen
+[2026-04-02 18:33:34] Memory save skipped: empty key or value.
+[2026-04-02 18:33:34] Memory save skipped: empty key or value.
+[2026-04-02 18:33:34] Memory saved: car keys -> on the shelf
+[2026-04-02 18:33:34] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 18:33:34] Memory saved: keys -> kitchen
+[2026-04-02 18:33:34] Memory saved: wallet -> drawer
+[2026-04-02 18:33:34] Memory saved: keys -> kitchen
+[2026-04-02 18:33:34] Memory saved: key -> on the desk
+[2026-04-02 18:33:34] Memory recall matched 'keys' -> 'key'
+[2026-04-02 18:33:34] Memory saved: klucz -> na biurku
+[2026-04-02 18:33:34] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 18:33:34] Memory saved: wallet -> in the jacket
+[2026-04-02 18:33:34] Memory saved: keys -> in the drawer
+[2026-04-02 18:33:34] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 18:33:34] Memory saved: phone number -> 123456789
+[2026-04-02 18:33:34] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 18:33:34] Memory saved: klucz -> w plecaku
+[2026-04-02 18:33:34] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 18:33:34] Memory saved: keys -> in the kitchen
+[2026-04-02 18:33:34] Memory saved: klucze -> w kuchni
+[2026-04-02 18:33:34] Memory saved: my keys -> in the kitchen
+[2026-04-02 18:33:34] Memory saved: my keys -> in the backpack
+[2026-04-02 18:33:34] Reminder added: id=d720ed21, seconds=30, message=buy milk
+[2026-04-02 18:33:34] Reminder added: id=bba25f7d, seconds=1, message=test
+[2026-04-02 18:33:34] Reminder added: id=119de60e, seconds=60, message=future task
+[2026-04-02 18:33:34] Reminder added: id=bc7a8a92, seconds=5, message=call back
+[2026-04-02 18:33:34] Reminder added: id=ade8396c, seconds=15, message=first
+[2026-04-02 18:33:34] Reminder added: id=5a38071b, seconds=30, message=second
+[2026-04-02 18:33:34] Reminder marked done manually: id=ade8396c
+[2026-04-02 18:33:34] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 18:33:34] Reminder added: id=4b7ce061, seconds=15, message=meeting
+[2026-04-02 18:33:34] Reminder deleted: id=4b7ce061
+[2026-04-02 18:33:34] Reminder added: id=58c9b329, seconds=5, message=water plants
+[2026-04-02 18:33:34] Reminder added: id=cfab7dac, seconds=5, message=first
+[2026-04-02 18:33:34] Reminder added: id=8d92fca3, seconds=10, message=second
+[2026-04-02 18:33:34] Reminder marked done manually: id=cfab7dac
+[2026-04-02 18:33:34] Reminder added: id=d9f98f6b, seconds=5, message=first
+[2026-04-02 18:33:34] Reminder added: id=d18f516f, seconds=10, message=second
+[2026-04-02 18:33:34] Reminder marked done manually: id=d9f98f6b
+[2026-04-02 18:33:34] Reminder added: id=ae1856ee, seconds=15, message=stretch
+[2026-04-02 18:33:34] Reminder marked done manually: id=ae1856ee
+[2026-04-02 18:33:34] Reminder added: id=d0c43e50, seconds=20, message=zakupach
+[2026-04-02 18:33:34] Reminder added: id=810324be, seconds=20, message=drink water
+[2026-04-02 18:35:04] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=en+pl, vad=off
+[2026-04-02 18:35:04] Startup sequence initiated.
+[2026-04-02 18:35:04] Startup check [OK] settings: found settings.json
+[2026-04-02 18:35:04] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 18:35:04] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 18:35:04] Startup check [OK] voice output: piper models ready
+[2026-04-02 18:35:04] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 18:35:07] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-02 18:35:10] Startup completed successfully.
+[2026-04-02 18:35:18] User said: (speaking in foreign language)
+[2026-04-02 18:35:18] Parsed intent: action=unknown, data={}, text=speaking in foreign language, lang=en
+[2026-04-02 18:35:18] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 18:35:27] Whisper chose secondary transcript (pl) after empty/invalid primary.
+[2026-04-02 18:35:27] User said: Dzień dobry.
+[2026-04-02 18:35:27] Parsed intent: action=unknown, data={}, text=dzien dobry, lang=pl
+[2026-04-02 18:35:27] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 18:35:40] Whisper selected secondary transcript: primary=en:1.00, secondary=pl:2.60
+[2026-04-02 18:35:40] User said: Która jest godzina.
+[2026-04-02 18:35:40] Parsed intent: action=ask_time, data={}, text=ktora jest godzina, lang=pl
+[2026-04-02 18:35:40] Assistant said [pl]: Jest 18:35.
+[2026-04-02 18:35:45] Assistant said [pl]: Czy chcesz, żebym pokazała to na ekranie?
+[2026-04-02 18:35:55] User said: Yeah.
+[2026-04-02 18:35:55] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 18:36:02] Whisper chose secondary transcript (pl) after empty/invalid primary.
+[2026-04-02 18:36:02] User said: [oklaski]
+[2026-04-02 18:36:02] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 18:36:09] Whisper chose secondary transcript (pl) after empty/invalid primary.
+[2026-04-02 18:36:09] User said: [pogodna muzyka]
+[2026-04-02 18:36:09] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 18:36:23] User said: (clock ticking)
+[2026-04-02 18:36:23] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 18:36:31] Whisper chose secondary transcript (pl) after empty/invalid primary.
+[2026-04-02 18:36:31] User said: [oklaski]
+[2026-04-02 18:36:31] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 18:36:41] Whisper chose secondary transcript (pl) after empty/invalid primary.
+[2026-04-02 18:36:41] User said: [muzyka]
+[2026-04-02 18:36:41] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 18:36:52] User said: Talk.
+[2026-04-02 18:36:52] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 18:37:08] User said: Agh.
+[2026-04-02 18:37:08] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 18:56:16] Reminder added: id=bf33ac2a, seconds=30, message=drink water
+[2026-04-02 18:56:16] Reminder created: bf33ac2a
+[2026-04-02 18:56:16] Reminder added: id=5e35188d, seconds=30, message=drink water
+[2026-04-02 18:56:16] Reminder created: 5e35188d
+[2026-04-02 18:56:16] Reminder added: id=17125a98, seconds=60, message=stand up
+[2026-04-02 18:56:16] Reminder created: 17125a98
+[2026-04-02 18:56:16] Reminder added: id=b97b2bb5, seconds=30, message=drink water
+[2026-04-02 18:56:16] Reminder created: b97b2bb5
+[2026-04-02 18:56:16] Reminder added: id=4001f724, seconds=60, message=stand up
+[2026-04-02 18:56:16] Reminder created: 4001f724
+[2026-04-02 18:56:16] Reminder deleted: id=b97b2bb5
+[2026-04-02 18:56:16] Reminder deleted: id=4001f724
+[2026-04-02 18:56:16] Memory saved: keys -> in the kitchen
+[2026-04-02 18:56:16] Memory saved: keys -> in the kitchen
+[2026-04-02 18:56:16] Memory saved: keys -> in the kitchen
+[2026-04-02 18:56:16] Memory saved: phone -> on desk
+[2026-04-02 18:56:16] Memory cleared: removed 2 item(s).
+[2026-04-02 18:56:16] Memory saved: klucze -> w kuchni
+[2026-04-02 18:56:16] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 18:56:16] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 18:56:16] Memory saved: keys -> in the kitchen
+[2026-04-02 18:56:16] Memory saved: keys -> in the kitchen
+[2026-04-02 18:56:16] Memory deleted: keys
+[2026-04-02 18:56:16] Memory saved: keys -> in the kitchen
+[2026-04-02 18:56:16] Memory saved: klucze -> w kuchni
+[2026-04-02 18:56:16] Reminder added: id=f8654487, seconds=30, message=drink water
+[2026-04-02 18:56:16] Reminder created: f8654487
+[2026-04-02 18:56:16] Reminder added: id=4a9d4bdc, seconds=30, message=drink water
+[2026-04-02 18:56:16] Reminder created: 4a9d4bdc
+[2026-04-02 18:56:16] Reminder added: id=237e4d04, seconds=30, message=drink water
+[2026-04-02 18:56:16] Reminder created: 237e4d04
+[2026-04-02 18:56:16] Reminder added: id=0ec58613, seconds=30, message=drink water
+[2026-04-02 18:56:16] Reminder created: 0ec58613
+[2026-04-02 18:56:16] Reminder deleted: id=0ec58613
+[2026-04-02 18:56:16] Memory saved: keys -> in the kitchen
+[2026-04-02 18:56:16] Memory save skipped: empty key or value.
+[2026-04-02 18:56:16] Memory save skipped: empty key or value.
+[2026-04-02 18:56:16] Memory saved: car keys -> on the shelf
+[2026-04-02 18:56:16] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 18:56:16] Memory saved: keys -> kitchen
+[2026-04-02 18:56:16] Memory saved: wallet -> drawer
+[2026-04-02 18:56:16] Memory saved: keys -> kitchen
+[2026-04-02 18:56:16] Memory saved: key -> on the desk
+[2026-04-02 18:56:16] Memory recall matched 'keys' -> 'key'
+[2026-04-02 18:56:16] Memory saved: klucz -> na biurku
+[2026-04-02 18:56:16] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 18:56:16] Memory saved: wallet -> in the jacket
+[2026-04-02 18:56:16] Memory saved: keys -> in the drawer
+[2026-04-02 18:56:16] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 18:56:16] Memory saved: phone number -> 123456789
+[2026-04-02 18:56:16] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 18:56:16] Memory saved: klucz -> w plecaku
+[2026-04-02 18:56:16] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 18:56:16] Memory saved: keys -> in the kitchen
+[2026-04-02 18:56:16] Memory saved: klucze -> w kuchni
+[2026-04-02 18:56:16] Memory saved: my keys -> in the kitchen
+[2026-04-02 18:56:16] Memory saved: my keys -> in the backpack
+[2026-04-02 18:56:16] Reminder added: id=7d41c2a8, seconds=30, message=buy milk
+[2026-04-02 18:56:16] Reminder added: id=5db3d661, seconds=1, message=test
+[2026-04-02 18:56:16] Reminder added: id=5016a771, seconds=60, message=future task
+[2026-04-02 18:56:16] Reminder added: id=a6615530, seconds=5, message=call back
+[2026-04-02 18:56:16] Reminder added: id=ad366ff0, seconds=15, message=first
+[2026-04-02 18:56:16] Reminder added: id=7d63a78b, seconds=30, message=second
+[2026-04-02 18:56:16] Reminder marked done manually: id=ad366ff0
+[2026-04-02 18:56:16] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 18:56:16] Reminder added: id=7d9e4803, seconds=15, message=meeting
+[2026-04-02 18:56:16] Reminder deleted: id=7d9e4803
+[2026-04-02 18:56:16] Reminder added: id=bbb1f1d0, seconds=5, message=water plants
+[2026-04-02 18:56:16] Reminder added: id=c0b6bacc, seconds=5, message=first
+[2026-04-02 18:56:16] Reminder added: id=7388d487, seconds=10, message=second
+[2026-04-02 18:56:16] Reminder marked done manually: id=c0b6bacc
+[2026-04-02 18:56:16] Reminder added: id=9e24ece6, seconds=5, message=first
+[2026-04-02 18:56:16] Reminder added: id=d40c7e51, seconds=10, message=second
+[2026-04-02 18:56:16] Reminder marked done manually: id=9e24ece6
+[2026-04-02 18:56:16] Reminder added: id=f7ab0b3c, seconds=15, message=stretch
+[2026-04-02 18:56:16] Reminder marked done manually: id=f7ab0b3c
+[2026-04-02 18:56:16] Reminder added: id=92d2cdae, seconds=20, message=zakupach
+[2026-04-02 18:56:16] Reminder added: id=ec877174, seconds=20, message=drink water
+[2026-04-02 19:05:28] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=en+pl, vad=off
+[2026-04-02 19:05:28] Startup sequence initiated.
+[2026-04-02 19:05:28] Startup check [OK] settings: found settings.json
+[2026-04-02 19:05:28] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 19:05:28] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 19:05:28] Startup check [OK] voice output: piper models ready
+[2026-04-02 19:05:28] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 19:05:31] Assistant said [en]: Hello. I am ready. You can speak in Polish or in English.
+[2026-04-02 19:05:34] Startup completed successfully.
+[2026-04-02 19:05:39] User said: What time is it?
+[2026-04-02 19:05:39] Parsed intent: action=ask_time, data={}, text=what time is it, lang=en
+[2026-04-02 19:05:39] Assistant said [en]: It is 19:05.
+[2026-04-02 19:05:44] Assistant said [en]: Would you like me to show that on the screen?
+[2026-04-02 19:05:51] User said: No.
+[2026-04-02 19:05:52] Assistant said [en]: Okay.
+[2026-04-02 19:05:59] Ignored silent input: recognizer returned None.
+[2026-04-02 19:06:07] Whisper chose secondary transcript (pl) after empty/invalid primary.
+[2026-04-02 19:06:07] User said: [śmiech]
+[2026-04-02 19:06:07] Parsed intent: action=unknown, data={}, text=smiech, lang=pl
+[2026-04-02 19:06:07] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 19:06:19] User said: So what do you want?
+[2026-04-02 19:06:19] Parsed intent: action=unknown, data={}, text=so what do you want, lang=pl
+[2026-04-02 19:06:19] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 19:06:29] User said: So, what do you want?
+[2026-04-02 19:06:29] Parsed intent: action=unknown, data={}, text=so what do you want, lang=pl
+[2026-04-02 19:06:29] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 19:06:40] Ignored silent input: recognizer returned None.
+[2026-04-02 19:06:47] Whisper chose secondary transcript (pl) after empty/invalid primary.
+[2026-04-02 19:06:47] User said: Dzień dobry.
+[2026-04-02 19:06:47] Parsed intent: action=unknown, data={}, text=dzien dobry, lang=pl
+[2026-04-02 19:06:47] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 19:06:58] Whisper selected secondary transcript: primary=en:1.00, secondary=pl:2.60
+[2026-04-02 19:06:58] User said: Jak masz na imię?
+[2026-04-02 19:06:58] Parsed intent: action=unknown, data={}, text=jak masz na imie, lang=pl
+[2026-04-02 19:06:58] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 19:07:11] User said: What's your name?
+[2026-04-02 19:07:11] Parsed intent: action=unknown, data={}, text=what s your name, lang=en
+[2026-04-02 19:07:11] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 19:07:21] Ignored silent input: recognizer returned None.
+[2026-04-02 19:07:35] Ignored silent input: recognizer returned None.
+[2026-04-02 19:07:41] Ignored silent input: recognizer returned None.
+[2026-04-02 19:07:47] Ignored silent input: recognizer returned None.
+[2026-04-02 19:07:52] Ignored silent input: recognizer returned None.
+[2026-04-02 19:07:58] Ignored silent input: recognizer returned None.
+[2026-04-02 19:08:08] User said: (coughing)
+[2026-04-02 19:08:08] Parsed intent: action=unknown, data={}, text=coughing, lang=en
+[2026-04-02 19:08:08] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 19:08:20] Whisper selected secondary transcript: primary=en:1.00, secondary=pl:2.60
+[2026-04-02 19:08:20] User said: Dzień dobry. Dzień dobry.
+[2026-04-02 19:08:20] Parsed intent: action=unknown, data={}, text=dzien dobry dzien dobry, lang=pl
+[2026-04-02 19:08:20] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 19:08:33] User said: Exit.
+[2026-04-02 19:08:33] Parsed intent: action=exit, data={}, text=exit, lang=pl
+[2026-04-02 19:08:33] Assistant said [pl]: Czy na pewno mam zamknąć asystenta?
+[2026-04-02 19:08:42] Whisper selected secondary transcript: primary=en:1.00, secondary=pl:2.00
+[2026-04-02 19:08:42] User said: Tak.
+[2026-04-02 19:08:42] Assistant said [pl]: Dobrze. Zamykam asystenta.
+[2026-04-02 19:08:45] Assistant said [pl]: Wyłączam Smart Assistant.
+[2026-04-02 19:08:47] Assistant shut down.
+[2026-04-02 21:26:09] Memory saved: keys -> in the kitchen
+[2026-04-02 21:26:09] Memory save skipped: empty key or value.
+[2026-04-02 21:26:09] Memory save skipped: empty key or value.
+[2026-04-02 21:26:09] Memory saved: car keys -> on the shelf
+[2026-04-02 21:26:09] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 21:26:09] Memory saved: keys -> kitchen
+[2026-04-02 21:26:09] Memory saved: wallet -> drawer
+[2026-04-02 21:26:09] Memory saved: keys -> kitchen
+[2026-04-02 21:26:09] Memory saved: key -> on the desk
+[2026-04-02 21:26:09] Memory recall matched 'keys' -> 'key'
+[2026-04-02 21:26:09] Memory saved: klucz -> na biurku
+[2026-04-02 21:26:09] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 21:26:09] Memory saved: wallet -> in the jacket
+[2026-04-02 21:26:09] Memory saved: keys -> in the drawer
+[2026-04-02 21:26:09] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 21:26:09] Memory saved: phone number -> 123456789
+[2026-04-02 21:26:09] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 21:26:09] Memory saved: klucz -> w plecaku
+[2026-04-02 21:26:09] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 21:26:09] Memory saved: keys -> in the kitchen
+[2026-04-02 21:26:09] Memory saved: klucze -> w kuchni
+[2026-04-02 21:26:09] Memory saved: my keys -> in the kitchen
+[2026-04-02 21:26:09] Memory saved: my keys -> in the backpack
+[2026-04-02 21:26:09] Reminder added: id=e6c36712, seconds=30, message=buy milk
+[2026-04-02 21:26:09] Reminder added: id=a4c6e197, seconds=1, message=test
+[2026-04-02 21:26:09] Reminder added: id=181b46ec, seconds=60, message=future task
+[2026-04-02 21:26:09] Reminder added: id=25ae1778, seconds=5, message=call back
+[2026-04-02 21:26:09] Reminder added: id=272715b8, seconds=15, message=first
+[2026-04-02 21:26:09] Reminder added: id=08d79f80, seconds=30, message=second
+[2026-04-02 21:26:09] Reminder marked done manually: id=272715b8
+[2026-04-02 21:26:09] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 21:26:09] Reminder added: id=9a4b9241, seconds=15, message=meeting
+[2026-04-02 21:26:09] Reminder deleted: id=9a4b9241
+[2026-04-02 21:26:09] Reminder added: id=557f80f5, seconds=5, message=water plants
+[2026-04-02 21:26:09] Reminder added: id=ac63e81b, seconds=5, message=first
+[2026-04-02 21:26:09] Reminder added: id=7e970f1d, seconds=10, message=second
+[2026-04-02 21:26:09] Reminder marked done manually: id=ac63e81b
+[2026-04-02 21:26:09] Reminder added: id=433e26b3, seconds=5, message=first
+[2026-04-02 21:26:09] Reminder added: id=6d249c6e, seconds=10, message=second
+[2026-04-02 21:26:09] Reminder marked done manually: id=433e26b3
+[2026-04-02 21:26:09] Reminder added: id=a21455b9, seconds=15, message=stretch
+[2026-04-02 21:26:09] Reminder marked done manually: id=a21455b9
+[2026-04-02 21:26:09] Reminder added: id=269ff0a1, seconds=20, message=zakupach
+[2026-04-02 21:26:09] Reminder added: id=9eee48bf, seconds=20, message=drink water
+[2026-04-02 21:26:25] Memory saved: keys -> in the kitchen
+[2026-04-02 21:26:25] Memory save skipped: empty key or value.
+[2026-04-02 21:26:25] Memory save skipped: empty key or value.
+[2026-04-02 21:26:25] Memory saved: car keys -> on the shelf
+[2026-04-02 21:26:25] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 21:26:25] Memory saved: keys -> kitchen
+[2026-04-02 21:26:25] Memory saved: wallet -> drawer
+[2026-04-02 21:26:25] Memory saved: keys -> kitchen
+[2026-04-02 21:26:25] Memory saved: key -> on the desk
+[2026-04-02 21:26:25] Memory recall matched 'keys' -> 'key'
+[2026-04-02 21:26:25] Memory saved: klucz -> na biurku
+[2026-04-02 21:26:25] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 21:26:25] Memory saved: wallet -> in the jacket
+[2026-04-02 21:26:25] Memory saved: keys -> in the drawer
+[2026-04-02 21:26:25] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 21:26:25] Memory saved: phone number -> 123456789
+[2026-04-02 21:26:25] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 21:26:25] Memory saved: klucz -> w plecaku
+[2026-04-02 21:26:25] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 21:26:25] Memory saved: keys -> in the kitchen
+[2026-04-02 21:26:25] Memory saved: klucze -> w kuchni
+[2026-04-02 21:26:25] Memory saved: my keys -> in the kitchen
+[2026-04-02 21:26:25] Memory saved: my keys -> in the backpack
+[2026-04-02 21:26:25] Reminder added: id=da85d2aa, seconds=30, message=buy milk
+[2026-04-02 21:26:25] Reminder added: id=4f985776, seconds=1, message=test
+[2026-04-02 21:26:25] Reminder added: id=08925639, seconds=60, message=future task
+[2026-04-02 21:26:25] Reminder added: id=41c79db4, seconds=5, message=call back
+[2026-04-02 21:26:25] Reminder added: id=2f8784b8, seconds=15, message=first
+[2026-04-02 21:26:25] Reminder added: id=65ea5f60, seconds=30, message=second
+[2026-04-02 21:26:25] Reminder marked done manually: id=2f8784b8
+[2026-04-02 21:26:25] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 21:26:25] Reminder added: id=97ce76d8, seconds=15, message=meeting
+[2026-04-02 21:26:25] Reminder deleted: id=97ce76d8
+[2026-04-02 21:26:25] Reminder added: id=604483ac, seconds=5, message=water plants
+[2026-04-02 21:26:25] Reminder added: id=c38b3aa2, seconds=5, message=first
+[2026-04-02 21:26:25] Reminder added: id=7f8d5286, seconds=10, message=second
+[2026-04-02 21:26:25] Reminder marked done manually: id=c38b3aa2
+[2026-04-02 21:26:25] Reminder added: id=dd57137a, seconds=5, message=first
+[2026-04-02 21:26:25] Reminder added: id=a7aacc79, seconds=10, message=second
+[2026-04-02 21:26:25] Reminder marked done manually: id=dd57137a
+[2026-04-02 21:26:25] Reminder added: id=c76b4c9f, seconds=15, message=stretch
+[2026-04-02 21:26:25] Reminder marked done manually: id=c76b4c9f
+[2026-04-02 21:26:25] Reminder added: id=1ee9ffda, seconds=20, message=zakupach
+[2026-04-02 21:26:25] Reminder added: id=4ac404f2, seconds=20, message=drink water
+[2026-04-02 21:31:45] Memory saved: keys -> in the kitchen
+[2026-04-02 21:31:45] Memory save skipped: empty key or value.
+[2026-04-02 21:31:45] Memory save skipped: empty key or value.
+[2026-04-02 21:31:45] Memory saved: car keys -> on the shelf
+[2026-04-02 21:31:45] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 21:31:45] Memory saved: keys -> kitchen
+[2026-04-02 21:31:45] Memory saved: wallet -> drawer
+[2026-04-02 21:31:45] Memory saved: keys -> kitchen
+[2026-04-02 21:31:45] Memory saved: key -> on the desk
+[2026-04-02 21:31:45] Memory recall matched 'keys' -> 'key'
+[2026-04-02 21:31:45] Memory saved: klucz -> na biurku
+[2026-04-02 21:31:45] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 21:31:45] Memory saved: wallet -> in the jacket
+[2026-04-02 21:31:45] Memory saved: keys -> in the drawer
+[2026-04-02 21:31:45] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 21:31:45] Memory saved: phone number -> 123456789
+[2026-04-02 21:31:45] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 21:31:45] Memory saved: klucz -> w plecaku
+[2026-04-02 21:31:45] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 21:31:45] Memory saved: keys -> in the kitchen
+[2026-04-02 21:31:45] Memory saved: klucze -> w kuchni
+[2026-04-02 21:31:45] Memory saved: my keys -> in the kitchen
+[2026-04-02 21:31:45] Memory saved: my keys -> in the backpack
+[2026-04-02 21:31:45] Reminder added: id=ccb6ae32, seconds=30, message=buy milk
+[2026-04-02 21:31:45] Reminder added: id=ac2a89ba, seconds=1, message=test
+[2026-04-02 21:31:45] Reminder added: id=edce8122, seconds=60, message=future task
+[2026-04-02 21:31:45] Reminder added: id=db98884c, seconds=5, message=call back
+[2026-04-02 21:31:45] Reminder added: id=602cc143, seconds=15, message=first
+[2026-04-02 21:31:45] Reminder added: id=811ebe34, seconds=30, message=second
+[2026-04-02 21:31:45] Reminder marked done manually: id=602cc143
+[2026-04-02 21:31:45] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 21:31:45] Reminder added: id=f6702fb6, seconds=15, message=meeting
+[2026-04-02 21:31:45] Reminder deleted: id=f6702fb6
+[2026-04-02 21:31:45] Reminder added: id=2f51bed9, seconds=5, message=water plants
+[2026-04-02 21:31:45] Reminder added: id=dd93d7b6, seconds=5, message=first
+[2026-04-02 21:31:45] Reminder added: id=7e8175b8, seconds=10, message=second
+[2026-04-02 21:31:45] Reminder marked done manually: id=dd93d7b6
+[2026-04-02 21:31:45] Reminder added: id=5efa65e6, seconds=5, message=first
+[2026-04-02 21:31:45] Reminder added: id=3885bbb4, seconds=10, message=second
+[2026-04-02 21:31:45] Reminder marked done manually: id=5efa65e6
+[2026-04-02 21:31:45] Reminder added: id=c57d03af, seconds=15, message=stretch
+[2026-04-02 21:31:45] Reminder marked done manually: id=c57d03af
+[2026-04-02 21:31:45] Reminder added: id=0f805720, seconds=20, message=zakupach
+[2026-04-02 21:31:45] Reminder added: id=a7f252cf, seconds=20, message=drink water
+[2026-04-02 21:36:22] Memory saved: keys -> in the kitchen
+[2026-04-02 21:36:22] Memory save skipped: empty key or value.
+[2026-04-02 21:36:22] Memory save skipped: empty key or value.
+[2026-04-02 21:36:22] Memory saved: car keys -> on the shelf
+[2026-04-02 21:36:22] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 21:36:22] Memory saved: keys -> kitchen
+[2026-04-02 21:36:22] Memory saved: wallet -> drawer
+[2026-04-02 21:36:22] Memory saved: keys -> kitchen
+[2026-04-02 21:36:22] Memory saved: key -> on the desk
+[2026-04-02 21:36:22] Memory recall matched 'keys' -> 'key'
+[2026-04-02 21:36:22] Memory saved: klucz -> na biurku
+[2026-04-02 21:36:22] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 21:36:22] Memory saved: wallet -> in the jacket
+[2026-04-02 21:36:22] Memory saved: keys -> in the drawer
+[2026-04-02 21:36:22] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 21:36:22] Memory saved: phone number -> 123456789
+[2026-04-02 21:36:22] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 21:36:22] Memory saved: klucz -> w plecaku
+[2026-04-02 21:36:22] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 21:36:22] Memory saved: keys -> in the kitchen
+[2026-04-02 21:36:22] Memory saved: klucze -> w kuchni
+[2026-04-02 21:36:22] Memory saved: my keys -> in the kitchen
+[2026-04-02 21:36:22] Memory saved: my keys -> in the backpack
+[2026-04-02 21:36:22] Reminder added: id=e1868beb, seconds=30, message=buy milk
+[2026-04-02 21:36:22] Reminder added: id=2fdfc371, seconds=1, message=test
+[2026-04-02 21:36:22] Reminder added: id=eed67045, seconds=60, message=future task
+[2026-04-02 21:36:22] Reminder added: id=7ecaef3c, seconds=5, message=call back
+[2026-04-02 21:36:22] Reminder added: id=26e57f28, seconds=15, message=first
+[2026-04-02 21:36:22] Reminder added: id=5e117fa6, seconds=30, message=second
+[2026-04-02 21:36:22] Reminder marked done manually: id=26e57f28
+[2026-04-02 21:36:22] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 21:36:22] Reminder added: id=f8e0bffe, seconds=15, message=meeting
+[2026-04-02 21:36:22] Reminder deleted: id=f8e0bffe
+[2026-04-02 21:36:22] Reminder added: id=53fa75e6, seconds=5, message=water plants
+[2026-04-02 21:36:22] Reminder added: id=b3f3d5e1, seconds=5, message=first
+[2026-04-02 21:36:22] Reminder added: id=1c2eac7c, seconds=10, message=second
+[2026-04-02 21:36:22] Reminder marked done manually: id=b3f3d5e1
+[2026-04-02 21:36:22] Reminder added: id=d8119bfc, seconds=5, message=first
+[2026-04-02 21:36:22] Reminder added: id=cec07377, seconds=10, message=second
+[2026-04-02 21:36:22] Reminder marked done manually: id=d8119bfc
+[2026-04-02 21:36:22] Reminder added: id=90fede76, seconds=15, message=stretch
+[2026-04-02 21:36:22] Reminder marked done manually: id=90fede76
+[2026-04-02 21:36:22] Reminder added: id=1a932f26, seconds=20, message=zakupach
+[2026-04-02 21:36:22] Reminder added: id=a36e400a, seconds=20, message=drink water
+[2026-04-02 21:36:43] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=en+pl, vad=off
+[2026-04-02 21:36:43] Startup sequence initiated.
+[2026-04-02 21:36:43] Startup check [OK] settings: found settings.json
+[2026-04-02 21:36:43] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 21:36:43] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 21:36:43] Startup check [OK] voice output: piper models ready
+[2026-04-02 21:36:43] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 21:36:46] Assistant said [en]: Hello. I am Smart Assistant. English is my main language, and you can also speak to me in Polish. Ask me how I can help you.
+[2026-04-02 21:36:58] Startup completed successfully.
+[2026-04-02 21:37:05] Ignored silent input: recognizer returned None.
+[2026-04-02 21:37:20] Ignored silent input: recognizer returned None.
+[2026-04-02 21:37:26] Ignored silent input: recognizer returned None.
+[2026-04-02 21:37:31] User said: Help me.
+[2026-04-02 21:37:31] Parsed intent: action=unclear, data={}, text=help me, lang=en
+[2026-04-02 21:37:31] Assistant said [en]: Did you mean help? Say yes or no.
+[2026-04-02 21:37:38] User said: Yes.
+[2026-04-02 21:37:38] Parsed intent: action=help, data={}, text=Yes., lang=en
+[2026-04-02 21:37:38] Assistant said [en]: I can help you in a few main ways. I can remember information, set reminders, set a timer, and start focus mode or break mode, which can be useful while studying. These are my main features right now.
+[2026-04-02 21:38:04] Ignored silent input: recognizer returned None.
+[2026-04-02 21:38:09] User said: What's your name?
+[2026-04-02 21:38:09] Parsed intent: action=introduce_self, data={}, text=what s your name, lang=en
+[2026-04-02 21:38:09] Assistant said [en]: I am Smart Assistant. English is my main language, and I also support Polish. If you want, ask me how I can help you.
+[2026-04-02 21:38:25] User said: How can we help?
+[2026-04-02 21:38:25] Parsed intent: action=unclear, data={}, text=how can we help, lang=en
+[2026-04-02 21:38:25] Assistant said [en]: Did you mean help? Say yes or no.
+[2026-04-02 21:38:32] Whisper selected secondary transcript: primary=en:0.40, secondary=pl:2.20
+[2026-04-02 21:38:32] User said: Tak.
+[2026-04-02 21:38:32] Parsed intent: action=help, data={}, text=Tak., lang=en
+[2026-04-02 21:38:32] Assistant said [en]: I can help you in a few main ways. I can remember information, set reminders, set a timer, and start focus mode or break mode, which can be useful while studying. These are my main features right now.
+[2026-04-02 21:38:50] Ignored silent input: recognizer returned None.
+[2026-04-02 21:38:56] Ignored silent input: recognizer returned None.
+[2026-04-02 21:39:04] Ignored silent input: recognizer returned None.
+[2026-04-02 21:39:10] User said: What time is it?
+[2026-04-02 21:39:10] Parsed intent: action=ask_time, data={}, text=what time is it, lang=en
+[2026-04-02 21:39:10] Assistant said [en]: It is 9:39 PM.
+[2026-04-02 21:39:15] Assistant said [en]: Would you like me to show that on the screen?
+[2026-04-02 21:39:24] User said: Yeah.
+[2026-04-02 21:39:24] Assistant said [en]: Okay. I am showing it on the screen.
+[2026-04-02 21:39:38] Ignored non-speech style transcript: [śmiech] [śmiech]
+[2026-04-02 21:39:38] Ignored silent input: recognizer returned None.
+[2026-04-02 21:39:45] User said: I'm going to the machine name.
+[2026-04-02 21:39:45] Parsed intent: action=unknown, data={}, text=i m going to the machine name, lang=en
+[2026-04-02 21:39:45] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 21:39:59] Ignored silent input: recognizer returned None.
+[2026-04-02 21:40:07] Whisper chose secondary transcript (pl) after empty/invalid primary.
+[2026-04-02 21:40:07] User said: [niezwyczaj]
+[2026-04-02 21:40:07] Parsed intent: action=unknown, data={}, text=niezwyczaj, lang=en
+[2026-04-02 21:40:07] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 21:40:17] Whisper chose secondary transcript (pl) after empty/invalid primary.
+[2026-04-02 21:40:17] User said: Dzień dobry.
+[2026-04-02 21:40:17] Parsed intent: action=unknown, data={}, text=dzien dobry, lang=pl
+[2026-04-02 21:40:17] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 21:40:26] User said: What do you think?
+[2026-04-02 21:40:26] Parsed intent: action=unclear, data={}, text=what do you think, lang=en
+[2026-04-02 21:40:26] Assistant said [en]: Did you mean help or memory? Say yes or no.
+[2026-04-02 21:40:40] User said: - No. - No.
+[2026-04-02 21:40:40] Assistant said [en]: Okay. Please say it again in a different way.
+[2026-04-02 21:40:52] Ignored silent input: recognizer returned None.
+[2026-04-02 21:40:58] Ignored silent input: recognizer returned None.
+[2026-04-02 21:41:02] User said: Exit.
+[2026-04-02 21:41:02] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-02 21:41:02] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 21:41:09] User said: Yes.
+[2026-04-02 21:41:09] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 21:41:11] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 21:41:13] Assistant shut down.
+[2026-04-02 21:41:24] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=en+pl, vad=off
+[2026-04-02 21:41:24] Startup sequence initiated.
+[2026-04-02 21:41:24] Startup check [OK] settings: found settings.json
+[2026-04-02 21:41:24] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 21:41:24] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 21:41:24] Startup check [OK] voice output: piper models ready
+[2026-04-02 21:41:24] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 21:41:27] Assistant said [en]: Hello. I am Smart Assistant. English is my main language, and you can also speak to me in Polish. Ask me how I can help you.
+[2026-04-02 21:41:35] Startup completed successfully.
+[2026-04-02 21:41:41] Ignored silent input: recognizer returned None.
+[2026-04-02 21:41:48] User said: Like a mouse name.
+[2026-04-02 21:41:48] Parsed intent: action=unknown, data={}, text=like a mouse name, lang=en
+[2026-04-02 21:41:48] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 21:41:57] Ignored silent input: recognizer returned None.
+[2026-04-02 21:42:03] Ignored silent input: recognizer returned None.
+[2026-04-02 21:42:09] Ignored silent input: recognizer returned None.
+[2026-04-02 21:42:16] User said: Exit.
+[2026-04-02 21:42:16] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-02 21:42:16] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 21:42:24] User said: Yes.
+[2026-04-02 21:42:24] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 21:42:26] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 21:42:28] Assistant shut down.
+[2026-04-02 21:51:45] Memory saved: keys -> in the kitchen
+[2026-04-02 21:51:45] Memory save skipped: empty key or value.
+[2026-04-02 21:51:45] Memory save skipped: empty key or value.
+[2026-04-02 21:51:45] Memory saved: car keys -> on the shelf
+[2026-04-02 21:51:45] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 21:51:45] Memory saved: keys -> kitchen
+[2026-04-02 21:51:45] Memory saved: wallet -> drawer
+[2026-04-02 21:51:45] Memory saved: keys -> kitchen
+[2026-04-02 21:51:45] Memory saved: key -> on the desk
+[2026-04-02 21:51:45] Memory recall matched 'keys' -> 'key'
+[2026-04-02 21:51:45] Memory saved: klucz -> na biurku
+[2026-04-02 21:51:45] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 21:51:45] Memory saved: wallet -> in the jacket
+[2026-04-02 21:51:45] Memory saved: keys -> in the drawer
+[2026-04-02 21:51:45] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 21:51:45] Memory saved: phone number -> 123456789
+[2026-04-02 21:51:45] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 21:51:45] Memory saved: klucz -> w plecaku
+[2026-04-02 21:51:45] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 21:51:45] Memory saved: keys -> in the kitchen
+[2026-04-02 21:51:45] Memory saved: klucze -> w kuchni
+[2026-04-02 21:51:45] Memory saved: my keys -> in the kitchen
+[2026-04-02 21:51:45] Memory saved: my keys -> in the backpack
+[2026-04-02 21:51:45] Reminder added: id=cdbf0cbd, seconds=30, message=buy milk
+[2026-04-02 21:51:45] Reminder added: id=3db35f71, seconds=1, message=test
+[2026-04-02 21:51:45] Reminder added: id=15931786, seconds=60, message=future task
+[2026-04-02 21:51:45] Reminder added: id=2e87efd3, seconds=5, message=call back
+[2026-04-02 21:51:45] Reminder added: id=ec6fd911, seconds=15, message=first
+[2026-04-02 21:51:45] Reminder added: id=4b234fe0, seconds=30, message=second
+[2026-04-02 21:51:45] Reminder marked done manually: id=ec6fd911
+[2026-04-02 21:51:45] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 21:51:45] Reminder added: id=efeb1592, seconds=15, message=meeting
+[2026-04-02 21:51:45] Reminder deleted: id=efeb1592
+[2026-04-02 21:51:45] Reminder added: id=733867c3, seconds=5, message=water plants
+[2026-04-02 21:51:45] Reminder added: id=69a8cab4, seconds=5, message=first
+[2026-04-02 21:51:45] Reminder added: id=605daecd, seconds=10, message=second
+[2026-04-02 21:51:45] Reminder marked done manually: id=69a8cab4
+[2026-04-02 21:51:45] Reminder added: id=8359c6a1, seconds=5, message=first
+[2026-04-02 21:51:45] Reminder added: id=af72d2d1, seconds=10, message=second
+[2026-04-02 21:51:45] Reminder marked done manually: id=8359c6a1
+[2026-04-02 21:51:45] Reminder added: id=14f11e7c, seconds=15, message=stretch
+[2026-04-02 21:51:45] Reminder marked done manually: id=14f11e7c
+[2026-04-02 21:51:45] Reminder added: id=313ee7c1, seconds=20, message=zakupach
+[2026-04-02 21:51:45] Reminder added: id=61558adc, seconds=20, message=drink water
+[2026-04-02 21:51:49] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=en+pl, candidate_plan=[None, 'en', 'pl'], vad=off
+[2026-04-02 21:51:49] Startup sequence initiated.
+[2026-04-02 21:51:49] Startup check [OK] settings: found settings.json
+[2026-04-02 21:51:49] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 21:51:49] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 21:51:49] Startup check [OK] voice output: piper models ready
+[2026-04-02 21:51:49] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 21:51:52] Assistant said [en]: Hello. I am Smart Assistant. English is my main language, and you can also speak to me in Polish. Ask me how I can help you.
+[2026-04-02 21:52:00] Startup completed successfully.
+[2026-04-02 21:52:09] User said: jak się nazywa?
+[2026-04-02 21:52:09] Parsed intent: action=unclear, data={}, text=jak sie nazywa, lang=pl
+[2026-04-02 21:52:09] Assistant said [pl]: Czy chodziło ci o przedstaw się? Powiedz tak albo nie.
+[2026-04-02 21:52:20] User said: Tak.
+[2026-04-02 21:52:20] Parsed intent: action=introduce_self, data={}, text=Tak., lang=pl
+[2026-04-02 21:52:20] Assistant said [pl]: Jestem Smart Assistant. Angielski jest moim głównym językiem, ale obsługuję też polski. Jeśli chcesz, zapytaj mnie, jak mogę pomóc.
+[2026-04-02 21:52:39] User said: How can you help me?
+[2026-04-02 21:52:39] Parsed intent: action=help, data={}, text=how can you help me, lang=en
+[2026-04-02 21:52:39] Assistant said [en]: I can help you in a few main ways. I can remember information, set reminders, set a timer, and start focus mode or break mode, which can be useful while studying. These are my main features right now.
+[2026-04-02 21:53:04] Ignored blank audio marker: [BLANK_AUDIO]
+[2026-04-02 21:53:08] Ignored non-speech style transcript: (upbeat music)
+[2026-04-02 21:53:10] Ignored non-speech style transcript: (upbeat music)
+[2026-04-02 21:53:18] User said: [MUZYKA]
+[2026-04-02 21:53:18] Parsed intent: action=unknown, data={}, text=muzyka, lang=en
+[2026-04-02 21:53:18] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 21:53:32] Ignored blank audio marker: [BLANK_AUDIO]
+[2026-04-02 21:53:38] User said: Who is there?
+[2026-04-02 21:53:38] Parsed intent: action=unknown, data={}, text=who is there, lang=en
+[2026-04-02 21:53:38] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 21:53:52] User said: Dzień dobry.
+[2026-04-02 21:53:52] Parsed intent: action=unknown, data={}, text=dzien dobry, lang=pl
+[2026-04-02 21:53:52] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 21:54:01] User said: What's time is it?
+[2026-04-02 21:54:01] Parsed intent: action=unclear, data={}, text=what s time is it, lang=en
+[2026-04-02 21:54:01] Assistant said [en]: Did you mean time or date? Say yes or no.
+[2026-04-02 21:54:17] Ignored silent input: recognizer returned None.
+[2026-04-02 21:54:29] User said: (keyboard clicking)
+[2026-04-02 21:54:29] Assistant said [en]: Please say yes or no.
+[2026-04-02 21:54:35] User said: Yes.
+[2026-04-02 21:54:35] Parsed intent: action=ask_time, data={}, text=Yes., lang=en
+[2026-04-02 21:54:35] Assistant said [en]: It is 9:54 PM.
+[2026-04-02 21:54:40] Assistant said [en]: Would you like me to show that on the screen?
+[2026-04-02 21:54:45] User said: No.
+[2026-04-02 21:54:45] Assistant said [en]: Okay.
+[2026-04-02 21:54:54] User said: So, potrafis.
+[2026-04-02 21:54:54] Parsed intent: action=unclear, data={}, text=so potrafis, lang=en
+[2026-04-02 21:54:54] Assistant said [en]: Did you mean help? Say yes or no.
+[2026-04-02 21:55:00] User said: No.
+[2026-04-02 21:55:00] Assistant said [en]: Okay. Please say it again in a different way.
+[2026-04-02 21:55:13] Ignored blank audio marker: [BLANK_AUDIO]
+[2026-04-02 21:55:21] Ignored blank audio marker: [BLANK_AUDIO]
+[2026-04-02 21:55:29] User said: It's bad.
+[2026-04-02 21:55:29] Parsed intent: action=unknown, data={}, text=it s bad, lang=en
+[2026-04-02 21:55:29] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 21:55:43] User said: Dzień dobry.
+[2026-04-02 21:55:43] Parsed intent: action=unknown, data={}, text=dzien dobry, lang=pl
+[2026-04-02 21:55:43] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 21:55:56] User said: Go sleep.
+[2026-04-02 21:55:56] Parsed intent: action=exit, data={}, text=go sleep, lang=en
+[2026-04-02 21:55:56] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 21:56:03] User said: Yes.
+[2026-04-02 21:56:03] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 21:56:05] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 21:56:07] Assistant shut down.
+[2026-04-02 22:15:21] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=en+pl, candidate_plan=[None, 'en', 'pl'], vad=off
+[2026-04-02 22:15:21] Startup sequence initiated.
+[2026-04-02 22:15:21] Startup check [OK] settings: found settings.json
+[2026-04-02 22:15:21] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 22:15:21] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 22:15:21] Startup check [OK] voice output: piper models ready
+[2026-04-02 22:15:21] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 22:15:24] Assistant said [en]: Hello. I am Smart Assistant. English is my main language, and you can also speak to me in Polish. Ask me how I can help you.
+[2026-04-02 22:15:31] Startup completed successfully.
+[2026-04-02 22:15:36] User said: How can you help?
+[2026-04-02 22:15:36] Parsed intent: action=unclear, data={}, text=how can you help, lang=en
+[2026-04-02 22:15:36] Assistant said [en]: Did you mean help? Say yes or no.
+[2026-04-02 22:15:45] User said: Tak.
+[2026-04-02 22:15:45] Parsed intent: action=help, data={}, text=Tak., lang=en
+[2026-04-02 22:15:45] Assistant said [en]: I can help you in a few main ways. I can remember information, set reminders, set a timer, and start focus mode or break mode, which can be useful while studying. These are my main features right now.
+[2026-04-02 22:16:10] User said: która jest godzina.
+[2026-04-02 22:16:10] Parsed intent: action=ask_time, data={}, text=ktora jest godzina, lang=pl
+[2026-04-02 22:16:10] Assistant said [pl]: Jest 22:16.
+[2026-04-02 22:16:15] Assistant said [pl]: Czy chcesz, żebym pokazała to na ekranie?
+[2026-04-02 22:16:22] User said: Yeah.
+[2026-04-02 22:16:22] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 22:16:28] User said: Yeah.
+[2026-04-02 22:16:28] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 22:16:34] User said: No.
+[2026-04-02 22:16:34] Assistant said [pl]: Dobrze.
+[2026-04-02 22:16:43] User said: What do you want?
+[2026-04-02 22:16:43] Parsed intent: action=unclear, data={}, text=what do you want, lang=en
+[2026-04-02 22:16:43] Assistant said [en]: Did you mean help or memory? Say yes or no.
+[2026-04-02 22:16:50] User said: No.
+[2026-04-02 22:16:50] Assistant said [en]: Okay. Please say it again in a different way.
+[2026-04-02 22:17:04] User said: just to get the trafist
+[2026-04-02 22:17:04] Parsed intent: action=unknown, data={}, text=just to get the trafist, lang=en
+[2026-04-02 22:17:04] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 22:17:15] User said: So, what are you doing?
+[2026-04-02 22:17:15] Parsed intent: action=unclear, data={}, text=so what are you doing, lang=en
+[2026-04-02 22:17:15] Assistant said [en]: Did you mean introduce yourself or help? Say yes or no.
+[2026-04-02 22:17:35] Ignored bracketed non-speech transcript: [MUSIC]
+[2026-04-02 22:17:41] User said: How can you help me?
+[2026-04-02 22:17:41] Parsed intent: action=help, data={}, text=How can you help me?, lang=en
+[2026-04-02 22:17:41] Assistant said [en]: I can help you in a few main ways. I can remember information, set reminders, set a timer, and start focus mode or break mode, which can be useful while studying. These are my main features right now.
+[2026-04-02 22:18:03] User said: So, potrafiz.
+[2026-04-02 22:18:03] Parsed intent: action=unclear, data={}, text=so potrafiz, lang=en
+[2026-04-02 22:18:03] Assistant said [en]: Did you mean help? Say yes or no.
+[2026-04-02 22:18:15] Ignored blank audio marker: [BLANK_AUDIO]
+[2026-04-02 22:18:25] Ignored blank audio marker: [BLANK_AUDIO]
+[2026-04-02 22:18:35] User said: To jest godzina.
+[2026-04-02 22:18:35] Assistant said [en]: Please say yes or no.
+[2026-04-02 22:18:40] User said: Yes.
+[2026-04-02 22:18:40] Parsed intent: action=help, data={}, text=Yes., lang=en
+[2026-04-02 22:18:40] Assistant said [en]: I can help you in a few main ways. I can remember information, set reminders, set a timer, and start focus mode or break mode, which can be useful while studying. These are my main features right now.
+[2026-04-02 22:19:03] Ignored blank audio marker: [BLANK_AUDIO]
+[2026-04-02 22:19:08] User said: Who is there?
+[2026-04-02 22:19:08] Parsed intent: action=unknown, data={}, text=who is there, lang=en
+[2026-04-02 22:19:08] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 22:19:22] User said: [MUSIC PLAYING]
+[2026-04-02 22:19:22] Parsed intent: action=unknown, data={}, text=music playing, lang=en
+[2026-04-02 22:19:22] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 22:19:31] User said: Who is it?
+[2026-04-02 22:19:31] Parsed intent: action=unknown, data={}, text=who is it, lang=en
+[2026-04-02 22:19:31] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 22:19:41] User said: "Ktura jest godzino"
+[2026-04-02 22:19:41] Parsed intent: action=unclear, data={}, text=ktura jest godzino, lang=pl
+[2026-04-02 22:19:41] Assistant said [pl]: Czy chodziło ci o godzina? Powiedz tak albo nie.
+[2026-04-02 22:19:51] User said: Tak.
+[2026-04-02 22:19:51] Parsed intent: action=ask_time, data={}, text=Tak., lang=pl
+[2026-04-02 22:19:51] Assistant said [pl]: Jest 22:19.
+[2026-04-02 22:19:57] Assistant said [pl]: Czy chcesz, żebym pokazała to na ekranie?
+[2026-04-02 22:20:08] User said: Tak.
+[2026-04-02 22:20:08] Assistant said [pl]: Dobrze. Pokazuję to na ekranie.
+[2026-04-02 22:20:20] User said: Each spa
+[2026-04-02 22:20:20] Parsed intent: action=unknown, data={}, text=each spa, lang=pl
+[2026-04-02 22:20:20] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 22:20:30] User said: and it's time to sleep.
+[2026-04-02 22:20:30] Parsed intent: action=unknown, data={}, text=and it s time to sleep, lang=en
+[2026-04-02 22:20:30] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 22:20:42] User said: i z pod
+[2026-04-02 22:20:42] Parsed intent: action=unknown, data={}, text=i z pod, lang=pl
+[2026-04-02 22:20:42] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 22:20:55] User said: spa
+[2026-04-02 22:20:55] Parsed intent: action=unknown, data={}, text=spa, lang=pl
+[2026-04-02 22:20:55] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 22:21:10] User said: Wydaje się, że to jest skoroś.
+[2026-04-02 22:21:10] Parsed intent: action=unknown, data={}, text=wydaje sie ze to jest skoros, lang=pl
+[2026-04-02 22:21:10] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 22:21:29] User said: Wytrzymy się, że to jest ten tak.
+[2026-04-02 22:21:29] Parsed intent: action=unknown, data={}, text=wytrzymy sie ze to jest ten tak, lang=pl
+[2026-04-02 22:21:29] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 22:21:42] Ignored non-speech style transcript: [pogodna muzyka]
+[2026-04-02 22:21:42] Ignored blank audio marker: [BLANK_AUDIO]
+[2026-04-02 22:21:45] User said: Exit!
+[2026-04-02 22:21:45] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-02 22:21:45] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 22:21:51] User said: Yes.
+[2026-04-02 22:21:51] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 22:21:53] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 22:21:55] Assistant shut down.
+[2026-04-02 22:40:02] Whisper input init failed, falling back to text input: VAD model not found at: /home/devdul/Projects/SmartDeskAI_Assistant/models/ggml-silero-v6.2.0.bin
+[2026-04-02 22:40:03] Startup sequence initiated.
+[2026-04-02 22:40:03] Startup check [OK] settings: found settings.json
+[2026-04-02 22:40:03] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 22:40:03] Startup check [FAIL] voice input: vad model missing
+[2026-04-02 22:40:03] Startup check [OK] voice output: piper models ready
+[2026-04-02 22:40:03] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 22:40:06] Assistant said [en]: Hello. I am Smart Assistant. I started with some warnings, so a few things may work in limited mode. English is my main language, and you can also speak to me in Polish. Ask me how I can help you.
+[2026-04-02 22:40:23] Startup completed with warnings.
+[2026-04-02 22:40:57] User said: exit
+[2026-04-02 22:40:57] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-02 22:40:57] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 22:40:59] User said: yes
+[2026-04-02 22:40:59] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 22:41:01] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 22:41:03] Assistant shut down.
+[2026-04-02 22:41:17] Memory saved: keys -> in the kitchen
+[2026-04-02 22:41:17] Memory save skipped: empty key or value.
+[2026-04-02 22:41:17] Memory save skipped: empty key or value.
+[2026-04-02 22:41:17] Memory saved: car keys -> on the shelf
+[2026-04-02 22:41:17] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 22:41:17] Memory saved: keys -> kitchen
+[2026-04-02 22:41:17] Memory saved: wallet -> drawer
+[2026-04-02 22:41:17] Memory saved: keys -> kitchen
+[2026-04-02 22:41:17] Memory saved: key -> on the desk
+[2026-04-02 22:41:17] Memory recall matched 'keys' -> 'key'
+[2026-04-02 22:41:17] Memory saved: klucz -> na biurku
+[2026-04-02 22:41:17] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 22:41:17] Memory saved: wallet -> in the jacket
+[2026-04-02 22:41:17] Memory saved: keys -> in the drawer
+[2026-04-02 22:41:17] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 22:41:17] Memory saved: phone number -> 123456789
+[2026-04-02 22:41:17] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 22:41:17] Memory saved: klucz -> w plecaku
+[2026-04-02 22:41:17] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 22:41:17] Memory saved: keys -> in the kitchen
+[2026-04-02 22:41:17] Memory saved: klucze -> w kuchni
+[2026-04-02 22:41:17] Memory saved: my keys -> in the kitchen
+[2026-04-02 22:41:17] Memory saved: my keys -> in the backpack
+[2026-04-02 22:41:17] Reminder added: id=30f15b48, seconds=30, message=buy milk
+[2026-04-02 22:41:17] Reminder added: id=05960bf5, seconds=1, message=test
+[2026-04-02 22:41:17] Reminder added: id=69d9c463, seconds=60, message=future task
+[2026-04-02 22:41:17] Reminder added: id=7c493477, seconds=5, message=call back
+[2026-04-02 22:41:17] Reminder added: id=19fb8dba, seconds=15, message=first
+[2026-04-02 22:41:17] Reminder added: id=c5d7bc0d, seconds=30, message=second
+[2026-04-02 22:41:17] Reminder marked done manually: id=19fb8dba
+[2026-04-02 22:41:17] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 22:41:17] Reminder added: id=256c8691, seconds=15, message=meeting
+[2026-04-02 22:41:17] Reminder deleted: id=256c8691
+[2026-04-02 22:41:17] Reminder added: id=1904a9e9, seconds=5, message=water plants
+[2026-04-02 22:41:17] Reminder added: id=842f5a03, seconds=5, message=first
+[2026-04-02 22:41:17] Reminder added: id=990c0963, seconds=10, message=second
+[2026-04-02 22:41:17] Reminder marked done manually: id=842f5a03
+[2026-04-02 22:41:17] Reminder added: id=35cac1a5, seconds=5, message=first
+[2026-04-02 22:41:17] Reminder added: id=8b83dfaa, seconds=10, message=second
+[2026-04-02 22:41:17] Reminder marked done manually: id=35cac1a5
+[2026-04-02 22:41:17] Reminder added: id=4d6aef57, seconds=15, message=stretch
+[2026-04-02 22:41:17] Reminder marked done manually: id=4d6aef57
+[2026-04-02 22:41:17] Reminder added: id=0a8fe53a, seconds=20, message=zakupach
+[2026-04-02 22:41:17] Reminder added: id=f70659b6, seconds=20, message=drink water
+[2026-04-02 22:41:29] Whisper input init failed, falling back to text input: VAD model not found at: /home/devdul/Projects/SmartDeskAI_Assistant/models/ggml-silero-v6.2.0.bin
+[2026-04-02 22:41:29] Startup sequence initiated.
+[2026-04-02 22:41:29] Startup check [OK] settings: found settings.json
+[2026-04-02 22:41:29] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 22:41:29] Startup check [FAIL] voice input: vad model missing
+[2026-04-02 22:41:29] Startup check [OK] voice output: piper models ready
+[2026-04-02 22:41:29] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 22:41:32] Assistant said [en]: Hello. I am Smart Assistant. I started with some warnings, so a few things may work in limited mode. English is my main language, and you can also speak to me in Polish. Ask me how I can help you.
+[2026-04-02 22:41:44] Startup completed with warnings.
+[2026-04-02 22:42:05] User said: exit
+[2026-04-02 22:42:05] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-02 22:42:05] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 22:42:08] User said: yes
+[2026-04-02 22:42:08] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 22:42:10] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 22:42:12] Assistant shut down.
+[2026-04-02 22:51:57] Whisper input ready: device='default', sample_rate=16000, language_mode=auto, candidate_plan=[None, 'en', 'pl'], vad=off
+[2026-04-02 22:51:57] Startup sequence initiated.
+[2026-04-02 22:51:57] Startup check [OK] settings: found settings.json
+[2026-04-02 22:51:57] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 22:51:57] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 22:51:57] Startup check [OK] voice output: piper models ready
+[2026-04-02 22:51:57] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 22:52:00] Assistant said [en]: Hello. I am Smart Assistant. English is my main language, and you can also speak to me in Polish. Ask me how I can help you.
+[2026-04-02 22:52:08] Startup completed successfully.
+[2026-04-02 22:52:18] Ignored silent input: recognizer returned None.
+[2026-04-02 22:52:28] Ignored silent input: recognizer returned None.
+[2026-04-02 22:52:38] Ignored silent input: recognizer returned None.
+[2026-04-02 23:04:12] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, candidate_plan=[None, 'en', 'pl'], vad=off
+[2026-04-02 23:04:12] Startup sequence initiated.
+[2026-04-02 23:04:12] Startup check [OK] settings: found settings.json
+[2026-04-02 23:04:12] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 23:04:12] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 23:04:12] Startup check [OK] voice output: piper models ready
+[2026-04-02 23:04:12] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 23:04:15] Assistant said [en]: Hello. I am Smart Assistant. English is my main language, and you can also speak to me in Polish. Ask me how I can help you.
+[2026-04-02 23:04:23] Startup completed successfully.
+[2026-04-02 23:05:01] User said: Jak nie rozumiesz?
+[2026-04-02 23:05:01] Parsed intent: action=unknown, data={}, text=jak nie rozumiesz, lang=pl
+[2026-04-02 23:05:01] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 23:05:17] User said: How can you help me?
+[2026-04-02 23:05:17] Parsed intent: action=help, data={}, text=how can you help me, lang=en
+[2026-04-02 23:05:17] Assistant said [en]: I can help you in a few main ways. I can remember information, set reminders, set a timer, and start focus mode or break mode, which can be useful while studying. These are my main features right now.
+[2026-04-02 23:05:41] User said: How can you help me?
+[2026-04-02 23:05:41] Parsed intent: action=help, data={}, text=how can you help me, lang=en
+[2026-04-02 23:05:41] Assistant said [en]: I can help you in a few main ways. I can remember information, set reminders, set a timer, and start focus mode or break mode, which can be useful while studying. These are my main features right now.
+[2026-04-02 23:06:16] User said: która jest godzina
+[2026-04-02 23:06:16] Parsed intent: action=ask_time, data={}, text=ktora jest godzina, lang=pl
+[2026-04-02 23:06:16] Assistant said [pl]: Jest 23:06.
+[2026-04-02 23:06:22] Assistant said [pl]: Czy chcesz, żebym pokazała to na ekranie?
+[2026-04-02 23:06:33] User said: Yeah.
+[2026-04-02 23:06:33] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 23:06:57] User said: Tak.
+[2026-04-02 23:06:57] Assistant said [pl]: Dobrze. Pokazuję to na ekranie.
+[2026-04-02 23:07:10] User said: What's your name?
+[2026-04-02 23:07:10] Parsed intent: action=introduce_self, data={}, text=what s your name, lang=en
+[2026-04-02 23:07:10] Assistant said [en]: I am Smart Assistant. English is my main language, and I also support Polish. If you want, ask me how I can help you.
+[2026-04-02 23:08:03] User said: (typing)
+[2026-04-02 23:08:03] Parsed intent: action=unknown, data={}, text=typing, lang=en
+[2026-04-02 23:08:03] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 23:08:29] Ignored blank audio marker: [BLANK_AUDIO]
+[2026-04-02 23:08:51] User said: Each spot.
+[2026-04-02 23:08:51] Parsed intent: action=unknown, data={}, text=each spot, lang=en
+[2026-04-02 23:08:51] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 23:09:05] User said: Go to sleep.
+[2026-04-02 23:09:05] Parsed intent: action=exit, data={}, text=go to sleep, lang=en
+[2026-04-02 23:09:05] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 23:09:19] Ignored non-speech style transcript: - Okay.
+[2026-04-02 23:09:30] Ignored non-speech style transcript: - Okay.
+[2026-04-02 23:09:40] User said: Tak.
+[2026-04-02 23:09:40] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 23:09:42] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 23:09:44] Assistant shut down.
+[2026-04-02 23:13:41] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=off
+[2026-04-02 23:13:41] Startup sequence initiated.
+[2026-04-02 23:13:41] Startup check [OK] settings: found settings.json
+[2026-04-02 23:13:41] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 23:13:41] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 23:13:41] Startup check [OK] voice output: piper models ready
+[2026-04-02 23:13:41] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 23:13:44] Assistant said [en]: Hello. I am Smart Assistant. English is my main language, and you can also speak to me in Polish. Ask me how I can help you.
+[2026-04-02 23:13:52] Startup completed successfully.
+[2026-04-02 23:14:01] User said: How can you help me?
+[2026-04-02 23:14:01] Parsed intent: action=help, data={}, text=how can you help me, lang=en
+[2026-04-02 23:14:01] Assistant said [en]: I can help you in a few main ways. I can remember information, set reminders, set a timer, and start focus mode or break mode, which can be useful while studying. These are my main features right now.
+[2026-04-02 23:14:38] User said: która jest godzina
+[2026-04-02 23:14:38] Parsed intent: action=ask_time, data={}, text=ktora jest godzina, lang=pl
+[2026-04-02 23:14:38] Assistant said [pl]: Jest 23:14.
+[2026-04-02 23:14:43] Assistant said [pl]: Czy chcesz, żebym pokazała to na ekranie?
+[2026-04-02 23:14:55] User said: Yeah.
+[2026-04-02 23:14:55] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 23:15:05] User said: No.
+[2026-04-02 23:15:05] Assistant said [pl]: Dobrze.
+[2026-04-02 23:15:27] User said: [oklaski]
+[2026-04-02 23:15:27] Parsed intent: action=unknown, data={}, text=oklaski, lang=pl
+[2026-04-02 23:15:27] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 23:15:41] User said: What's your name?
+[2026-04-02 23:15:41] Parsed intent: action=introduce_self, data={}, text=what s your name, lang=en
+[2026-04-02 23:15:41] Assistant said [en]: I am Smart Assistant. English is my main language, and I also support Polish. If you want, ask me how I can help you.
+[2026-04-02 23:16:13] User said: idź spadź
+[2026-04-02 23:16:13] Parsed intent: action=unknown, data={}, text=idz spadz, lang=pl
+[2026-04-02 23:16:13] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-02 23:16:26] User said: and go to sleep.
+[2026-04-02 23:16:26] Parsed intent: action=exit, data={}, text=and go to sleep, lang=en
+[2026-04-02 23:16:26] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 23:16:36] User said: Yes.
+[2026-04-02 23:16:36] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 23:16:38] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 23:16:40] Assistant shut down.
+[2026-04-02 23:27:10] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=off
+[2026-04-02 23:27:10] Startup sequence initiated.
+[2026-04-02 23:27:10] Startup check [OK] settings: found settings.json
+[2026-04-02 23:27:10] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 23:27:10] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 23:27:10] Startup check [OK] voice output: piper models ready
+[2026-04-02 23:27:10] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 23:27:13] Assistant said [en]: Hello. I am Smart Assistant. English is my main language, and you can also speak to me in Polish. Ask me how I can help you.
+[2026-04-02 23:27:21] Startup completed successfully.
+[2026-04-02 23:27:30] User said: How can you help me?
+[2026-04-02 23:27:30] Parsed intent: action=help, data={}, text=how can you help me, lang=en
+[2026-04-02 23:27:30] Assistant said [en]: I can help you in a few main ways. I can remember information, set reminders, set a timer, and start focus mode or break mode, which can be useful while studying. These are my main features right now.
+[2026-04-02 23:27:56] User said: Which is an hour?
+[2026-04-02 23:27:56] Parsed intent: action=unknown, data={}, text=which is an hour, lang=en
+[2026-04-02 23:27:56] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 23:28:09] User said: Which is an hour.
+[2026-04-02 23:28:09] Parsed intent: action=unknown, data={}, text=which is an hour, lang=en
+[2026-04-02 23:28:09] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 23:28:27] User said: (speaking in foreign language)
+[2026-04-02 23:28:27] Parsed intent: action=unknown, data={}, text=speaking in foreign language, lang=en
+[2026-04-02 23:28:27] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 23:28:41] User said: Which is an hour?
+[2026-04-02 23:28:41] Parsed intent: action=unknown, data={}, text=which is an hour, lang=en
+[2026-04-02 23:28:41] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 23:29:00] User said: and sleep.
+[2026-04-02 23:29:00] Parsed intent: action=unknown, data={}, text=and sleep, lang=en
+[2026-04-02 23:29:00] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 23:29:25] User said: Exit.
+[2026-04-02 23:29:25] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-02 23:29:25] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-02 23:29:35] User said: Yes.
+[2026-04-02 23:29:35] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-02 23:29:38] Assistant said [en]: Shutting down Smart Assistant.
+[2026-04-02 23:29:39] Assistant shut down.
+[2026-04-02 23:35:55] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=off
+[2026-04-02 23:35:55] Startup sequence initiated.
+[2026-04-02 23:35:55] Startup check [OK] settings: found settings.json
+[2026-04-02 23:35:55] Startup check [OK] directories: data, logs, config ready
+[2026-04-02 23:35:55] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-02 23:35:55] Startup check [OK] voice output: piper models ready
+[2026-04-02 23:35:55] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-02 23:35:58] Assistant said [en]: Hello. I am Smart Assistant. English is my main language, and you can also speak to me in Polish. Ask me how I can help you.
+[2026-04-02 23:36:05] Startup completed successfully.
+[2026-04-02 23:36:20] User said: How can you help me?
+[2026-04-02 23:36:20] Parsed intent: action=help, data={}, text=how can you help me, lang=en
+[2026-04-02 23:36:20] Assistant said [en]: I can help you in a few main ways. I can remember information, set reminders, set a timer, and start focus mode or break mode, which can be useful while studying. These are my main features right now.
+[2026-04-02 23:36:54] User said: która jest godzina.
+[2026-04-02 23:36:54] Parsed intent: action=ask_time, data={}, text=ktora jest godzina, lang=pl
+[2026-04-02 23:36:54] Assistant said [pl]: Jest 23:36.
+[2026-04-02 23:37:00] Assistant said [pl]: Czy chcesz, żebym pokazała to na ekranie?
+[2026-04-02 23:37:11] User said: Yeah.
+[2026-04-02 23:37:11] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-02 23:37:21] User said: No.
+[2026-04-02 23:37:21] Assistant said [pl]: Dobrze.
+[2026-04-02 23:37:32] User said: What time is it?
+[2026-04-02 23:37:32] Parsed intent: action=ask_time, data={}, text=what time is it, lang=en
+[2026-04-02 23:37:32] Assistant said [en]: It is 11:37 PM.
+[2026-04-02 23:37:37] Assistant said [en]: Would you like me to show that on the screen?
+[2026-04-02 23:37:48] User said: Yes.
+[2026-04-02 23:37:48] Assistant said [en]: Okay. I am showing it on the screen.
+[2026-04-02 23:38:10] User said: zapamiętaj, że klucze są w
+[2026-04-02 23:38:10] Parsed intent: action=memory_store, data={'key': 'klucze', 'value': 'w', 'memory_text': 'klucze sa w'}, text=zapamietaj ze klucze sa w, lang=pl
+[2026-04-02 23:38:10] Memory saved: klucze -> w
+[2026-04-02 23:38:10] Memory stored from structured input: klucze -> w
+[2026-04-02 23:38:10] Assistant said [pl]: Dobrze. Zapamiętałam, że klucze jest w.
+[2026-04-02 23:38:34] User said: Where are the keys?
+[2026-04-02 23:38:34] Parsed intent: action=memory_recall, data={'key': 'keys'}, text=where are the keys, lang=en
+[2026-04-02 23:38:34] Assistant said [en]: keys is in the kitchen.
+[2026-04-02 23:39:01] User said: (speaking in foreign language)
+[2026-04-02 23:39:01] Assistant said [en]: Please say yes or no.
+[2026-04-02 23:39:12] User said: Yes.
+[2026-04-02 23:39:12] Assistant said [en]: Okay. I am showing it on the screen.
+[2026-04-02 23:39:34] User said: Voice key from memory.
+[2026-04-02 23:39:34] Parsed intent: action=unknown, data={}, text=voice key from memory, lang=en
+[2026-04-02 23:39:34] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 23:39:55] User said: [oklaski]
+[2026-04-02 23:39:55] Parsed intent: action=unknown, data={}, text=oklaski, lang=en
+[2026-04-02 23:39:55] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 23:40:09] User said: How can you help me?
+[2026-04-02 23:40:09] Parsed intent: action=help, data={}, text=how can you help me, lang=en
+[2026-04-02 23:40:09] Assistant said [en]: I can help you in a few main ways. I can remember information, set reminders, set a timer, and start focus mode or break mode, which can be useful while studying. These are my main features right now.
+[2026-04-02 23:40:33] User said: Remember me for 10 seconds that I'm going to eat something.
+[2026-04-02 23:40:33] Parsed intent: action=memory_store, data={'memory_text': 'me for 10 seconds that i m going to eat something'}, text=remember me for 10 seconds that i m going to eat something, lang=en
+[2026-04-02 23:40:33] Memory saved: me for 10 seconds that i m going to eat something -> me for 10 seconds that i m going to eat something
+[2026-04-02 23:40:33] Memory stored from free text: me for 10 seconds that i m going to eat something
+[2026-04-02 23:40:33] Assistant said [en]: Okay. I remembered that information.
+[2026-04-02 23:40:49] Ignored silent input: recognizer returned None.
+[2026-04-02 23:41:13] User said: [oklaski]
+[2026-04-02 23:41:13] Parsed intent: action=unknown, data={}, text=oklaski, lang=en
+[2026-04-02 23:41:13] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-02 23:41:35] User said: Idź spać.
+[2026-04-02 23:41:35] Parsed intent: action=exit, data={}, text=idz spac, lang=pl
+[2026-04-02 23:41:35] Assistant said [pl]: Czy na pewno mam zamknąć asystenta?
+[2026-04-02 23:41:58] User said: Tak.
+[2026-04-02 23:41:58] Assistant said [pl]: Dobrze. Zamykam asystenta.
+[2026-04-02 23:42:01] Assistant said [pl]: Wyłączam Smart Assistant.
+[2026-04-02 23:42:03] Assistant shut down.

@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 import unicodedata
 import wave
 from collections import deque
@@ -39,9 +40,9 @@ class WhisperVoiceInput:
         resolved_cli = self._resolve_whisper_cli_path(whisper_cli_path)
         self.whisper_cli_path = str(resolved_cli)
         self.model_path = str(self._resolve_project_path(model_path))
-        self.vad_enabled = vad_enabled
+        self.vad_enabled = bool(vad_enabled)
         self.vad_model_path = str(self._resolve_project_path(vad_model_path)) if vad_model_path else None
-        self.language = language
+        self.language = (language or "auto").strip().lower()
 
         self.max_record_seconds = float(max_record_seconds)
         self.silence_threshold = float(silence_threshold)
@@ -51,10 +52,11 @@ class WhisperVoiceInput:
         self.min_speech_seconds = float(min_speech_seconds)
         self.transcription_timeout_seconds = float(transcription_timeout_seconds)
 
-        self.blocksize = 1024
+        self.blocksize = 512
         self.channels = 1
         self.dtype = "int16"
         self.audio_queue: queue.Queue[bytes] = queue.Queue()
+        self._tail_keep_chunks = 2
 
         self.device = self._resolve_input_device(device_index, device_name_contains)
         input_info = sd.query_devices(self.device, "input")
@@ -74,16 +76,203 @@ class WhisperVoiceInput:
         if self.vad_enabled and self.vad_model_path and not Path(self.vad_model_path).exists():
             raise FileNotFoundError(f"VAD model not found at: {self.vad_model_path}")
 
+        self._session_temp_dir = Path(tempfile.mkdtemp(prefix="smartdesk_whisper_"))
+        self._wav_path = self._session_temp_dir / "utterance.wav"
+        self._output_prefix_base = self._session_temp_dir / "utterance"
+
+        self._whisper_base_cmd_common = [
+            self.whisper_cli_path,
+            "--model",
+            self.model_path,
+            "--threads",
+            str(self.threads),
+            "--output-txt",
+            "--no-timestamps",
+            "--no-prints",
+        ]
+
+        if self.vad_enabled and self.vad_model_path:
+            self._whisper_base_cmd_common.extend(["--vad", "--vad-model", self.vad_model_path])
+
+        self._lang_keywords = {
+            "en": {
+                "help",
+                "menu",
+                "time",
+                "date",
+                "day",
+                "year",
+                "timer",
+                "focus",
+                "break",
+                "status",
+                "memory",
+                "reminder",
+                "reminders",
+                "show",
+                "display",
+                "assistant",
+                "what",
+                "where",
+                "remember",
+                "remind",
+                "stop",
+                "exit",
+                "shutdown",
+                "yes",
+                "no",
+                "name",
+                "who",
+                "how",
+                "sleep",
+                "rest",
+                "turn",
+                "off",
+                "hour",
+            },
+            "pl": {
+                "pomoc",
+                "menu",
+                "godzina",
+                "czas",
+                "data",
+                "dzien",
+                "dzień",
+                "rok",
+                "timer",
+                "focus",
+                "przerwa",
+                "stan",
+                "status",
+                "pamiec",
+                "pamięć",
+                "przypomnienie",
+                "przypomnienia",
+                "pokaz",
+                "pokaż",
+                "wyswietl",
+                "wyświetl",
+                "asystent",
+                "asystenta",
+                "ktora",
+                "która",
+                "jaka",
+                "co",
+                "gdzie",
+                "zapamietaj",
+                "zapamiętaj",
+                "przypomnij",
+                "stop",
+                "wyjdz",
+                "wyjdź",
+                "wylacz",
+                "wyłącz",
+                "tak",
+                "nie",
+                "imie",
+                "imię",
+                "potrafisz",
+                "jak",
+                "mozesz",
+                "możesz",
+                "spac",
+                "spać",
+                "odpocznij",
+                "idz",
+                "idź",
+                "jest",
+            },
+        }
+
+        self._exact_command_phrases = {
+            "en": {
+                "what time is it",
+                "show time",
+                "show menu",
+                "help",
+                "menu",
+                "status",
+                "what can you do",
+                "how can you help me",
+                "what is your name",
+                "whats your name",
+                "who are you",
+                "go to sleep",
+                "turn off assistant",
+            },
+            "pl": {
+                "ktora jest godzina",
+                "która jest godzina",
+                "ktora godzina",
+                "jaka jest godzina",
+                "pokaz godzine",
+                "pokaż godzinę",
+                "pokaz menu",
+                "pokaż menu",
+                "pomoc",
+                "menu",
+                "co potrafisz",
+                "status",
+                "jak mozesz mi pomoc",
+                "jak możesz mi pomóc",
+                "idz spac",
+                "idź spać",
+                "wylacz asystenta",
+                "wyłącz asystenta",
+                "odpocznij",
+            },
+        }
+
+        self._strong_confirmation_tokens = {
+            "en": {"yes", "yeah", "yep", "no", "nope"},
+            "pl": {"tak", "nie", "jasne", "pewnie", "anuluj"},
+        }
+
+        self._fuzzy_confirmation_tokens = {
+            "en": {"ye", "yeh", "ya"},
+            "pl": {"tag", "tac", "tek", "tok", "ni", "ne", "nje", "nee"},
+        }
+
+        self._ambiguous_short_tokens = {
+            "no",
+            "yeah",
+            "yep",
+            "yes",
+            "tak",
+            "nie",
+            "tag",
+            "tac",
+            "tek",
+            "tok",
+            "ni",
+            "ne",
+            "nje",
+            "nee",
+            "ye",
+            "yeh",
+            "ya",
+        }
+
+        self._suspicious_auto_phrases = {
+            "which is an hour",
+            "which is hour",
+            "which hour",
+            "which is the hour",
+            "which is a hour",
+        }
+
         append_log(
             f"Whisper input ready: device='{self.device_name}', sample_rate={self.sample_rate}, "
-            f"language={self.language}, vad={'on' if self.vad_enabled else 'off'}"
+            f"language_mode={self.language}, vad={'on' if self.vad_enabled else 'off'}"
         )
+
     @staticmethod
     def _resolve_project_path(raw_path: str) -> Path:
         candidate = Path(raw_path).expanduser()
         if candidate.is_absolute():
             return candidate
         return BASE_DIR / candidate
+
     def _resolve_whisper_cli_path(self, whisper_cli_path: str) -> Path:
         direct_path = self._resolve_project_path(whisper_cli_path)
         if direct_path.exists():
@@ -158,6 +347,48 @@ class WhisperVoiceInput:
             append_log(f"Audio callback status: {status}")
         self.audio_queue.put(bytes(indata))
 
+    def _required_end_silence(self, elapsed_speech: float) -> float:
+        required = self.end_silence_seconds
+
+        if elapsed_speech >= 1.0:
+            required = min(required, 0.18)
+        elif elapsed_speech >= 0.60:
+            required = min(required, 0.24)
+        elif elapsed_speech >= 0.30:
+            required = min(required, 0.30)
+
+        return max(required, 0.14)
+
+    def _trim_trailing_silence(self, recorded_chunks: list[bytes], trailing_silence_chunks: int) -> list[bytes]:
+        if trailing_silence_chunks <= 0:
+            return recorded_chunks
+
+        keep_back = min(trailing_silence_chunks, self._tail_keep_chunks)
+        drop_count = max(trailing_silence_chunks - keep_back, 0)
+
+        if drop_count <= 0:
+            return recorded_chunks
+
+        if drop_count >= len(recorded_chunks):
+            return recorded_chunks
+
+        return recorded_chunks[:-drop_count]
+
+    def _adaptive_start_threshold(self, ambient_rms: list[float]) -> float:
+        if not ambient_rms:
+            return self.silence_threshold
+
+        median_noise = float(np.median(ambient_rms))
+        mean_noise = float(np.mean(ambient_rms))
+
+        adaptive = max(
+            self.silence_threshold,
+            median_noise * 2.8,
+            mean_noise * 2.4,
+            median_noise + 30.0,
+        )
+        return adaptive
+
     def _record_until_silence(self, timeout: float, debug: bool = False) -> bytes | None:
         self.audio_queue = queue.Queue()
 
@@ -168,7 +399,10 @@ class WhisperVoiceInput:
         speech_started = False
         speech_start_time: float | None = None
         silence_started_at: float | None = None
+        trailing_silence_chunks = 0
         listen_started_at = self._now()
+
+        ambient_rms: list[float] = []
 
         try:
             stream = sd.RawInputStream(
@@ -186,7 +420,7 @@ class WhisperVoiceInput:
         with stream:
             while True:
                 try:
-                    chunk = self.audio_queue.get(timeout=0.15)
+                    chunk = self.audio_queue.get(timeout=0.04)
                 except queue.Empty:
                     now = self._now()
 
@@ -204,21 +438,26 @@ class WhisperVoiceInput:
 
                 audio = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
                 rms = float(np.sqrt(np.mean(np.square(audio)))) if len(audio) else 0.0
-
-                if debug:
-                    print(f"RMS: {rms:.2f}")
-
                 now = self._now()
 
                 if not speech_started:
                     pre_roll.append(chunk)
 
-                    if rms >= self.silence_threshold:
+                    if len(ambient_rms) < 30:
+                        ambient_rms.append(rms)
+
+                    start_threshold = self._adaptive_start_threshold(ambient_rms)
+
+                    if debug:
+                        print(f"RMS: {rms:.2f} | start_threshold: {start_threshold:.2f}")
+
+                    if rms >= start_threshold:
                         speech_started = True
                         speech_start_time = now
                         recorded_chunks.extend(pre_roll)
                         recorded_chunks.append(chunk)
                         silence_started_at = None
+                        trailing_silence_chunks = 0
                         if debug:
                             print("Speech started.")
                     else:
@@ -233,16 +472,29 @@ class WhisperVoiceInput:
                 assert speech_start_time is not None
 
                 elapsed_speech = now - speech_start_time
-                if rms < self.silence_threshold:
+                required_end_silence = self._required_end_silence(elapsed_speech)
+                start_threshold = self._adaptive_start_threshold(ambient_rms)
+                end_threshold = max(self.silence_threshold, start_threshold * 0.45)
+
+                if debug:
+                    print(f"RMS: {rms:.2f} | end_threshold: {end_threshold:.2f}")
+
+                if rms < end_threshold:
+                    trailing_silence_chunks += 1
+
                     if elapsed_speech >= self.min_speech_seconds:
                         if silence_started_at is None:
                             silence_started_at = now
-                        elif (now - silence_started_at) >= self.end_silence_seconds:
+                        elif (now - silence_started_at) >= required_end_silence:
                             if debug:
-                                print("Detected end-of-speech silence.")
+                                print(
+                                    "Detected end-of-speech silence "
+                                    f"(elapsed={elapsed_speech:.2f}s, required={required_end_silence:.2f}s)."
+                                )
                             break
                 else:
                     silence_started_at = None
+                    trailing_silence_chunks = 0
 
                 if elapsed_speech >= self.max_record_seconds:
                     if debug:
@@ -252,67 +504,106 @@ class WhisperVoiceInput:
         if not recorded_chunks:
             return None
 
-        combined = b"".join(recorded_chunks)
+        trimmed_chunks = self._trim_trailing_silence(recorded_chunks, trailing_silence_chunks)
+        combined = b"".join(trimmed_chunks)
         if not combined:
             return None
 
         return combined
 
-    def _write_wav(self, pcm_bytes: bytes) -> Path:
-        temp_dir = Path(tempfile.mkdtemp(prefix="smartdesk_whisper_"))
-        wav_path = temp_dir / "utterance.wav"
+    def _transcript_prefix(self, label: str) -> Path:
+        return self._output_prefix_base.with_name(f"{self._output_prefix_base.name}_{label}")
 
-        with wave.open(str(wav_path), "wb") as wav_file:
+    def _clear_previous_output_files(self) -> None:
+        try:
+            if self._wav_path.exists():
+                self._wav_path.unlink()
+        except OSError:
+            pass
+
+        for label in {"auto", "pl"}:
+            prefix = self._transcript_prefix(label)
+            for path in [
+                prefix.with_suffix(".txt"),
+                prefix.with_suffix(".srt"),
+                prefix.with_suffix(".vtt"),
+                prefix.with_suffix(".json"),
+                prefix.with_suffix(".lrc"),
+            ]:
+                try:
+                    if path.exists():
+                        path.unlink()
+                except OSError:
+                    pass
+
+    def _clear_previous_transcript_files(self, label: str) -> None:
+        prefix = self._transcript_prefix(label)
+        for path in [
+            prefix.with_suffix(".txt"),
+            prefix.with_suffix(".srt"),
+            prefix.with_suffix(".vtt"),
+            prefix.with_suffix(".json"),
+            prefix.with_suffix(".lrc"),
+        ]:
+            try:
+                if path.exists():
+                    path.unlink()
+            except OSError:
+                pass
+
+    def _write_wav(self, pcm_bytes: bytes) -> Path:
+        self._clear_previous_output_files()
+
+        with wave.open(str(self._wav_path), "wb") as wav_file:
             wav_file.setnchannels(self.channels)
             wav_file.setsampwidth(2)
             wav_file.setframerate(self.sample_rate)
             wav_file.writeframes(pcm_bytes)
 
-        return wav_path
+        return self._wav_path
 
-    def _transcribe(self, wav_path: Path, debug: bool = False) -> str:
-        output_prefix = wav_path.with_suffix("")
+    def _build_whisper_command(self, wav_path: Path, label: str) -> list[str]:
+        prefix = self._transcript_prefix(label)
         cmd = [
-            self.whisper_cli_path,
-            "--model",
-            self.model_path,
+            *self._whisper_base_cmd_common,
+            "--output-file",
+            str(prefix),
             "--file",
             str(wav_path),
-            "--language",
-            self.language,
-            "--threads",
-            str(self.threads),
-            "--output-txt",
-            "--output-file",
-            str(output_prefix),
-            "--no-timestamps",
-            "--no-prints",
         ]
 
-        if self.vad_enabled and self.vad_model_path:
-            cmd.extend(["--vad", "--vad-model", self.vad_model_path])
+        if label != "auto":
+            cmd.extend(["--language", label])
+
+        return cmd
+
+    def _transcribe(self, wav_path: Path, label: str, debug: bool = False) -> str:
+        self._clear_previous_transcript_files(label)
+        cmd = self._build_whisper_command(wav_path, label)
 
         if debug:
             print(f"Using input device: {self.device_name}")
             print(f"Using sample rate: {self.sample_rate}")
-            print("Whisper command:")
+            print(f"Whisper command ({label}):")
             print(" ".join(cmd))
 
         completed = subprocess.run(
             cmd,
-            capture_output=True,
+            capture_output=debug,
             text=True,
             check=False,
             timeout=self.transcription_timeout_seconds,
         )
 
         if completed.returncode != 0:
-            raise RuntimeError(
-                "Whisper transcription failed.\n"
-                f"STDOUT:\n{completed.stdout}\n\nSTDERR:\n{completed.stderr}"
-            )
+            if debug:
+                raise RuntimeError(
+                    f"Whisper transcription failed for language '{label}'.\n"
+                    f"STDOUT:\n{completed.stdout}\n\nSTDERR:\n{completed.stderr}"
+                )
+            raise RuntimeError(f"Whisper transcription failed for language '{label}'.")
 
-        transcript_path = output_prefix.with_suffix(".txt")
+        transcript_path = self._transcript_prefix(label).with_suffix(".txt")
         if not transcript_path.exists():
             return ""
 
@@ -323,8 +614,13 @@ class WhisperVoiceInput:
         lowered = unicodedata.normalize("NFKD", lowered)
         lowered = "".join(ch for ch in lowered if not unicodedata.combining(ch))
         lowered = lowered.replace("ł", "l")
+        lowered = re.sub(r"[^a-zA-ZÀ-ÿ0-9\s]", " ", lowered)
         lowered = re.sub(r"\s+", " ", lowered)
         return lowered.strip()
+
+    def _normalized_word_tokens(self, text: str) -> list[str]:
+        normalized = self._normalize_text(text)
+        return [token for token in normalized.split() if token]
 
     def _cleanup_transcript(self, transcript: str, debug: bool = False) -> str | None:
         if not transcript:
@@ -332,32 +628,92 @@ class WhisperVoiceInput:
 
         cleaned = transcript.strip()
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
-
         if not cleaned:
             return None
 
         normalized = self._normalize_text(cleaned)
 
-        blank_markers = {
+        bad_markers = {
             "",
-            "[blank_audio]",
+            "blank audio",
             "blank_audio",
-            "[silence]",
             "silence",
             "no speech",
             "no speech recognized",
-            "[noise]",
             "noise",
-            "...",
-            ".",
-            "-",
-        }
-
-        hallucination_markers = {
             "thank you",
             "thanks for watching",
             "you",
-            "bye",
+        }
+
+        if normalized in bad_markers:
+            if debug:
+                print(f"Ignored blank marker transcript: {cleaned}")
+            return None
+
+        alpha_only = re.sub(r"[^a-zA-ZÀ-ÿ]", "", cleaned)
+        if len(alpha_only) <= 1:
+            return None
+
+        return cleaned
+
+    def _keyword_hits(self, tokens: set[str], lang: str) -> int:
+        return len(tokens & self._lang_keywords[lang])
+
+    def _is_exact_phrase(self, normalized: str, lang: str) -> bool:
+        return normalized in self._exact_command_phrases[lang]
+
+    def _is_confirmation_candidate(self, normalized: str) -> bool:
+        return (
+            normalized in self._strong_confirmation_tokens["en"]
+            or normalized in self._strong_confirmation_tokens["pl"]
+            or normalized in self._fuzzy_confirmation_tokens["en"]
+            or normalized in self._fuzzy_confirmation_tokens["pl"]
+        )
+
+    def _score_transcript(self, transcript: str | None, lang: str) -> float:
+        if not transcript:
+            return -999.0
+
+        normalized = self._normalize_text(transcript)
+        if not normalized:
+            return -999.0
+
+        if lang == "auto":
+            score = max(
+                self._score_transcript(transcript, "en"),
+                self._score_transcript(transcript, "pl"),
+            ) + 0.25
+            if normalized in self._suspicious_auto_phrases:
+                score -= 1.6
+            return score
+
+        tokens = set(self._normalized_word_tokens(transcript))
+        score = 0.0
+
+        non_speech_tokens = {
+            "music",
+            "muzyka",
+            "upbeat",
+            "pogodna",
+            "applause",
+            "oklaski",
+            "laughter",
+            "smiech",
+            "śmiech",
+            "noise",
+            "szum",
+            "silence",
+            "cisza",
+            "ambient",
+            "background",
+            "static",
+            "instrumental",
+        }
+
+        filler_tokens = {
+            "yeah",
+            "yep",
             "okay",
             "ok",
             "hmm",
@@ -367,49 +723,160 @@ class WhisperVoiceInput:
             "um",
         }
 
-        if normalized in blank_markers:
-            if debug:
-                print(f"Ignored blank marker transcript: {cleaned}")
+        if len(normalized) >= 2:
+            score += 0.4
+        if len(tokens) >= 2:
+            score += 0.6
+
+        if normalized in self._exact_command_phrases[lang]:
+            score += 5.0
+
+        keyword_hits = len(tokens & self._lang_keywords[lang])
+        score += min(keyword_hits * 1.6, 6.0)
+
+        if normalized in self._strong_confirmation_tokens[lang]:
+            score += 3.0
+
+        if normalized in self._fuzzy_confirmation_tokens[lang]:
+            score += 2.0
+
+        other_lang = "pl" if lang == "en" else "en"
+        if normalized in self._strong_confirmation_tokens[other_lang]:
+            score -= 0.8
+
+        noise_hits = len(tokens & non_speech_tokens)
+        filler_hits = len(tokens & filler_tokens)
+
+        if noise_hits:
+            score -= noise_hits * 2.4
+
+        if len(tokens) <= 4 and noise_hits >= 1 and not (tokens & self._lang_keywords[lang]):
+            score -= 2.5
+
+        if len(tokens) <= 4 and noise_hits >= 2 and (noise_hits + filler_hits) >= len(tokens):
+            score -= 5.0
+
+        if len(tokens) == 1 and normalized in self._ambiguous_short_tokens:
+            score += 0.2
+
+        return score
+
+    def _should_try_forced_languages(self, auto_transcript: str | None) -> bool:
+        if auto_transcript is None:
+            return True
+
+        normalized = self._normalize_text(auto_transcript)
+        tokens = set(self._normalized_word_tokens(auto_transcript))
+        auto_score = self._score_transcript(auto_transcript, "auto")
+        auto_en_score = self._score_transcript(auto_transcript, "en")
+        auto_pl_score = self._score_transcript(auto_transcript, "pl")
+
+        if self._is_confirmation_candidate(normalized):
+            return False
+
+        if self._is_exact_phrase(normalized, "en") or self._is_exact_phrase(normalized, "pl"):
+            return False
+
+        if normalized in self._suspicious_auto_phrases:
+            return True
+
+        # Good and clearly English -> do not waste time on Polish.
+        if auto_en_score >= 3.4 and auto_en_score >= auto_pl_score + 1.0 and len(tokens) >= 2:
+            return False
+
+        # Good and clearly Polish already from auto -> no need forced Polish.
+        if auto_pl_score >= 3.4 and auto_pl_score >= auto_en_score + 0.6 and len(tokens) >= 2:
+            return False
+
+        if len(tokens) <= 1 and normalized in self._ambiguous_short_tokens:
+            return True
+
+        if len(tokens) <= 5 and auto_score < 3.2:
+            return True
+
+        if auto_pl_score >= auto_en_score and len(tokens) <= 5:
+            return True
+
+        return False
+
+    def _select_best_transcript(self, wav_path: Path, debug: bool = False) -> str | None:
+        auto_raw = self._transcribe(wav_path, "auto", debug=debug)
+        auto_clean = self._cleanup_transcript(auto_raw, debug=debug)
+
+        if not self._should_try_forced_languages(auto_clean):
+            if debug and auto_clean:
+                print(f"Selected auto transcript directly: {auto_clean}")
+            return auto_clean
+
+        pl_raw = self._transcribe(wav_path, "pl", debug=debug)
+        pl_clean = self._cleanup_transcript(pl_raw, debug=debug)
+
+        if auto_clean is None and pl_clean is None:
             return None
 
-        if normalized in hallucination_markers:
+        if auto_clean is None:
+            if debug and pl_clean:
+                print("Selected transcript from: pl (auto was empty)")
+            return pl_clean
+
+        if pl_clean is None:
+            if debug and auto_clean:
+                print("Selected transcript from: auto (pl was empty)")
+            return auto_clean
+
+        auto_score = self._score_transcript(auto_clean, "auto")
+        pl_score = self._score_transcript(pl_clean, "pl")
+
+        auto_normalized = self._normalize_text(auto_clean)
+        auto_tokens = set(self._normalized_word_tokens(auto_clean))
+        pl_normalized = self._normalize_text(pl_clean)
+
+        if debug:
+            print(
+                "Candidate summary: "
+                f"auto={repr(auto_clean)} score={auto_score:.2f} | "
+                f"pl={repr(pl_clean)} score={pl_score:.2f}"
+            )
+
+        if self._is_exact_phrase(pl_normalized, "pl"):
             if debug:
-                print(f"Ignored likely silence hallucination: {cleaned}")
-            append_log(f"Ignored likely silence hallucination: {cleaned}")
-            return None
+                print("Selected transcript from: pl (exact polish phrase)")
+            return pl_clean
 
-        stripped_symbols = re.sub(r"[\[\](){}<>\-_=~.,!?\"'`]", "", cleaned).strip()
-        if not stripped_symbols:
+        if self._is_exact_phrase(auto_normalized, "en") or self._is_exact_phrase(auto_normalized, "pl"):
             if debug:
-                print(f"Ignored symbol-only transcript: {cleaned}")
-            return None
+                print("Selected transcript from: auto (exact phrase)")
+            return auto_clean
 
-        if len(normalized) <= 1:
+        if auto_normalized in self._suspicious_auto_phrases and pl_score >= 1.6:
             if debug:
-                print(f"Ignored too-short transcript: {cleaned}")
-            return None
+                print("Selected transcript from: pl (suspicious auto phrase)")
+            return pl_clean
 
-        return cleaned
+        if pl_score > (auto_score + 0.25):
+            if debug:
+                print("Selected transcript from: pl")
+            return pl_clean
 
-    def _cleanup_temp_files(self, wav_path: Path) -> None:
+        if len(auto_tokens) <= 5 and pl_score >= auto_score and pl_score >= 2.0:
+            if debug:
+                print("Selected transcript from: pl (short utterance tie-break)")
+            return pl_clean
+
+        if debug:
+            print("Selected transcript from: auto")
+        return auto_clean
+
+    def _cleanup_temp_files(self) -> None:
+        self._clear_previous_output_files()
+
+    def close(self) -> None:
+        self._cleanup_temp_files()
         try:
-            output_prefix = wav_path.with_suffix("")
-            txt_path = output_prefix.with_suffix(".txt")
-            srt_path = output_prefix.with_suffix(".srt")
-            vtt_path = output_prefix.with_suffix(".vtt")
-            json_path = output_prefix.with_suffix(".json")
-            lrc_path = output_prefix.with_suffix(".lrc")
-
-            for path in [wav_path, txt_path, srt_path, vtt_path, json_path, lrc_path]:
-                if path.exists():
-                    path.unlink()
-
-            temp_dir = wav_path.parent
-            if temp_dir.exists():
-                shutil.rmtree(temp_dir, ignore_errors=True)
-
+            if self._session_temp_dir.exists():
+                shutil.rmtree(self._session_temp_dir, ignore_errors=True)
         except Exception as error:
-            append_log(f"Temp cleanup warning: {error}")
+            append_log(f"Whisper temp directory cleanup warning: {error}")
 
     def listen(self, timeout: float = 8.0, debug: bool = False) -> Optional[str]:
         try:
@@ -423,8 +890,7 @@ class WhisperVoiceInput:
         wav_path = self._write_wav(pcm_bytes)
 
         try:
-            transcript = self._transcribe(wav_path, debug=debug)
-            cleaned = self._cleanup_transcript(transcript, debug=debug)
+            cleaned = self._select_best_transcript(wav_path, debug=debug)
 
             if debug and cleaned:
                 print(f"Whisper transcript: {cleaned}")
@@ -438,7 +904,7 @@ class WhisperVoiceInput:
             append_log(f"Whisper listen error: {error}")
             return None
         finally:
-            self._cleanup_temp_files(wav_path)
+            self._cleanup_temp_files()
 
     def listen_once(self, timeout: float = 8.0, debug: bool = False) -> Optional[str]:
         return self.listen(timeout=timeout, debug=debug)
@@ -449,6 +915,4 @@ class WhisperVoiceInput:
 
     @staticmethod
     def _now() -> float:
-        import time
-
-        return time.time()
+        return time.monotonic()

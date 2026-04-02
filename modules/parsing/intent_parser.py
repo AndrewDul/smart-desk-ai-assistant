@@ -26,15 +26,22 @@ class IntentParser:
             "yes",
             "yeah",
             "yep",
+            "sure",
+            "of course",
             "correct",
+            "do it",
             "show it",
             "display it",
             "tak",
-            "zgadza sie",
-            "zgadza się",
+            "jasne",
+            "pewnie",
             "dokladnie",
             "dokładnie",
+            "zgadza sie",
+            "zgadza się",
             "potwierdzam",
+            "zrob to",
+            "zrób to",
             "pokaz",
             "pokaż",
             "wyswietl",
@@ -44,52 +51,163 @@ class IntentParser:
             "no",
             "nope",
             "cancel",
-            "dont show it",
+            "stop",
+            "leave it",
+            "do not",
             "do not show it",
+            "dont show it",
+            "never mind",
             "nie",
+            "nie teraz",
             "anuluj",
+            "zostaw to",
+            "niewazne",
+            "nieważne",
             "nie pokazuj",
             "nie wyswietlaj",
             "nie wyświetlaj",
         }
-
         self.normalized_confirm_yes = {self._normalize_text(item) for item in self.confirm_yes}
         self.normalized_confirm_no = {self._normalize_text(item) for item in self.confirm_no}
 
-        self.action_phrases: dict[str, list[str]] = {
+        self.time_query_patterns = [
+            r"\bwhat(?:'s| is)? the time\b",
+            r"\bwhat time is it\b",
+            r"\btell me the time\b",
+            r"\bcurrent time\b",
+            r"\btime now\b",
+            r"\bktora jest godzina\b",
+            r"\bktora godzina\b",
+            r"\bjaka jest godzina\b",
+            r"\bpodaj godzine\b",
+            r"\bjaki jest czas\b",
+        ]
+        self.time_show_patterns = [
+            r"\bshow(?: me)? the time\b",
+            r"\bdisplay(?: me)? the time\b",
+            r"\bshow time\b",
+            r"\bdisplay time\b",
+            r"\bpokaz godzine\b",
+            r"\bpokaż godzinę\b",
+            r"\bwyswietl godzine\b",
+            r"\bwyświetl godzinę\b",
+            r"\bpokaz czas\b",
+            r"\bpokaż czas\b",
+        ]
+
+        self.date_query_patterns = [
+            r"\bwhat(?:'s| is)? the date\b",
+            r"\bwhat date is it\b",
+            r"\btell me the date\b",
+            r"\bjaka jest data\b",
+            r"\bpodaj date\b",
+        ]
+        self.date_show_patterns = [
+            r"\bshow(?: me)? the date\b",
+            r"\bdisplay(?: me)? the date\b",
+            r"\bshow date\b",
+            r"\bdisplay date\b",
+            r"\bpokaz date\b",
+            r"\bpokaż datę\b",
+            r"\bwyswietl date\b",
+            r"\bwyświetl datę\b",
+        ]
+
+        self.day_query_patterns = [
+            r"\bwhat day is it\b",
+            r"\bwhat day is today\b",
+            r"\btell me the day\b",
+            r"\bjaki jest dzisiaj dzien\b",
+            r"\bjaki mamy dzisiaj dzien\b",
+            r"\bktory dzien mamy dzisiaj\b",
+            r"\bpodaj dzien\b",
+        ]
+        self.day_show_patterns = [
+            r"\bshow(?: me)? the day\b",
+            r"\bdisplay(?: me)? the day\b",
+            r"\bshow day\b",
+            r"\bdisplay day\b",
+            r"\bpokaz dzien\b",
+            r"\bpokaż dzień\b",
+            r"\bwyswietl dzien\b",
+            r"\bwyświetl dzień\b",
+        ]
+
+        self.year_query_patterns = [
+            r"\bwhat year is it\b",
+            r"\btell me the year\b",
+            r"\bjaki jest rok\b",
+            r"\bktory mamy rok\b",
+            r"\bpodaj rok\b",
+        ]
+        self.year_show_patterns = [
+            r"\bshow(?: me)? the year\b",
+            r"\bdisplay(?: me)? the year\b",
+            r"\bshow year\b",
+            r"\bdisplay year\b",
+            r"\bpokaz rok\b",
+            r"\bpokaż rok\b",
+            r"\bwyswietl rok\b",
+            r"\bwyświetl rok\b",
+        ]
+
+        self.direct_action_phrases: dict[str, list[str]] = {
             "help": [
                 "help",
                 "show help",
                 "open help",
+                "show menu",
+                "open menu",
+                "assistant menu",
                 "what can you do",
+                "what do you do",
                 "how can you help me",
                 "what can you help me with",
                 "tell me how you can help",
-                "commands",
+                "what can i ask you",
+                "how do you help me",
+                "list your features",
+                "list your functions",
+                "show capabilities",
+                "assistant capabilities",
+                "i need help",
+                "i need assistance",
                 "pomoc",
                 "pokaz pomoc",
                 "pokaż pomoc",
+                "pokaz menu",
+                "pokaż menu",
+                "menu asystenta",
                 "co potrafisz",
+                "co umiesz",
                 "jak mozesz mi pomoc",
                 "jak możesz mi pomóc",
-                "w czym mozesz pomoc",
-                "w czym możesz pomóc",
+                "w czym mozesz mi pomoc",
+                "w czym możesz mi pomóc",
+                "powiedz co potrafisz",
+                "pokaz mozliwosci",
+                "pokaż możliwości",
                 "komendy",
             ],
             "status": [
                 "status",
                 "show status",
+                "assistant status",
                 "system status",
+                "device status",
+                "show assistant status",
                 "stan",
                 "pokaz stan",
                 "pokaż stan",
                 "status systemu",
+                "stan systemu",
             ],
             "memory_list": [
                 "memory",
                 "show memory",
                 "list memory",
                 "what do you remember",
+                "show what you remember",
                 "pamiec",
                 "pamięć",
                 "pokaz pamiec",
@@ -102,10 +220,12 @@ class IntentParser:
                 "wipe memory",
                 "delete all memory",
                 "remove all memory",
+                "forget everything",
                 "wyczysc pamiec",
                 "wyczyść pamięć",
                 "usun cala pamiec",
                 "usuń całą pamięć",
+                "zapomnij wszystko",
                 "skasuj pamiec",
                 "skasuj pamięć",
             ],
@@ -113,64 +233,99 @@ class IntentParser:
                 "reminders",
                 "show reminders",
                 "list reminders",
+                "show my reminders",
                 "przypomnienia",
                 "pokaz przypomnienia",
                 "pokaż przypomnienia",
+                "pokaz moje przypomnienia",
+                "pokaż moje przypomnienia",
             ],
             "timer_stop": [
                 "stop timer",
                 "stop the timer",
                 "cancel timer",
+                "end timer",
+                "turn off timer",
                 "stop focus",
-                "focus off",
+                "stop focus mode",
+                "end focus",
+                "end focus session",
                 "turn off focus",
                 "stop break",
-                "break off",
-                "end work",
-                "finish work",
-                "i am not studying now",
+                "stop break mode",
+                "end break",
+                "end break mode",
                 "zatrzymaj timer",
                 "stop timera",
                 "anuluj timer",
                 "wylacz timer",
                 "wyłącz timer",
+                "zatrzymaj focus",
                 "wylacz focus",
                 "wyłącz focus",
-                "koniec pracy",
-                "nie ucze sie teraz",
-                "nie uczę się teraz",
+                "zakoncz focus",
+                "zakończ focus",
+                "zatrzymaj przerwe",
+                "zatrzymaj przerwę",
                 "wylacz przerwe",
                 "wyłącz przerwę",
+                "zakoncz przerwe",
+                "zakończ przerwę",
             ],
             "introduce_self": [
-                "introduce yourself",
                 "who are you",
                 "what are you",
+                "what is your name",
+                "what's your name",
+                "tell me your name",
+                "say your name",
+                "introduce yourself",
                 "tell me about yourself",
                 "przedstaw sie",
                 "przedstaw się",
                 "kim jestes",
                 "kim jesteś",
-                "powiedz o sobie",
                 "jak sie nazywasz",
                 "jak się nazywasz",
+                "powiedz jak sie nazywasz",
+                "powiedz jak się nazywasz",
+                "powiedz o sobie",
             ],
             "exit": [
                 "exit",
                 "quit",
                 "close assistant",
                 "exit assistant",
+                "turn off assistant",
+                "switch off assistant",
+                "stop assistant",
+                "stop listening",
+                "go to sleep",
+                "sleep now",
+                "rest now",
+                "take a rest",
                 "goodbye",
-                "wyjdz",
-                "wyjdź",
+                "bye",
+                "bye bye",
+                "wylacz asystenta",
+                "wyłącz asystenta",
                 "zamknij asystenta",
-                "zamknij program",
+                "idz spac",
+                "idź spać",
+                "spij",
+                "śpij",
+                "odpocznij",
+                "przestan sluchac",
+                "przestań słuchać",
             ],
             "shutdown": [
                 "shutdown",
-                "power off",
-                "turn off system",
                 "shut down",
+                "power off",
+                "power off system",
+                "turn off system",
+                "turn off raspberry pi",
+                "power off raspberry pi",
                 "wylacz system",
                 "wyłącz system",
                 "zamknij system",
@@ -186,6 +341,7 @@ class IntentParser:
             "memory_clear": "clear memory / wyczyść pamięć",
             "reminders_list": "reminders / przypomnienia",
             "reminder_delete": "delete reminder / usuń przypomnienie",
+            "reminders_clear": "clear reminders / wyczyść przypomnienia",
             "timer_stop": "stop timer / wyłącz timer",
             "introduce_self": "introduce yourself / przedstaw się",
             "ask_time": "time / godzina",
@@ -205,80 +361,6 @@ class IntentParser:
             "exit": "exit / wyjście",
             "shutdown": "shutdown / wyłącz system",
         }
-
-        self.time_ask_patterns = [
-            "what time is it",
-            "tell me the time",
-            "current time",
-            "time now",
-            "ktora godzina",
-            "ktora jest godzina",
-            "podaj godzine",
-            "jaka jest godzina",
-            "jaki jest czas",
-        ]
-        self.time_show_patterns = [
-            "show time",
-            "display time",
-            "show the time",
-            "display the time",
-            "pokaz godzine",
-            "pokaż godzinę",
-            "wyswietl godzine",
-            "wyświetl godzinę",
-            "pokaz czas",
-            "pokaż czas",
-        ]
-
-        self.date_ask_patterns = [
-            "what date is it",
-            "what is the date",
-            "tell me the date",
-            "jaka jest data",
-            "podaj date",
-        ]
-        self.date_show_patterns = [
-            "show date",
-            "display date",
-            "pokaz date",
-            "pokaż datę",
-            "wyswietl date",
-            "wyświetl datę",
-        ]
-
-        self.day_ask_patterns = [
-            "what day is it",
-            "what day is today",
-            "tell me the day",
-            "jaki jest dzisiaj dzien",
-            "jaki mamy dzisiaj dzien",
-            "ktory dzien mamy dzisiaj",
-            "podaj dzien",
-        ]
-        self.day_show_patterns = [
-            "show day",
-            "display day",
-            "pokaz dzien",
-            "pokaż dzień",
-            "wyswietl dzien",
-            "wyświetl dzień",
-        ]
-
-        self.year_ask_patterns = [
-            "what year is it",
-            "tell me the year",
-            "jaki jest rok",
-            "ktory mamy rok",
-            "podaj rok",
-        ]
-        self.year_show_patterns = [
-            "show year",
-            "display year",
-            "pokaz rok",
-            "pokaż rok",
-            "wyswietl rok",
-            "wyświetl rok",
-        ]
 
         self.number_words_en = {
             "zero": 0,
@@ -307,7 +389,6 @@ class IntentParser:
             "fifty": 50,
             "sixty": 60,
         }
-
         self.number_words_pl = {
             "zero": 0,
             "jeden": 1,
@@ -356,7 +437,6 @@ class IntentParser:
             "szescdziesiat": 60,
             "sześćdziesiąt": 60,
         }
-
         self.duration_units = {
             "second",
             "seconds",
@@ -371,40 +451,70 @@ class IntentParser:
             "minuty",
             "minut",
         }
+        self.timer_trigger_phrases = [
+            "timer",
+            "set timer",
+            "start timer",
+            "countdown",
+            "ustaw timer",
+            "wlacz timer",
+            "włącz timer",
+            "uruchom timer",
+            "minutnik",
+        ]
+        self.focus_trigger_phrases = [
+            "focus",
+            "focus mode",
+            "focus session",
+            "start focus",
+            "start focus mode",
+            "study session",
+            "skupienie",
+            "tryb skupienia",
+            "sesja focus",
+            "sesja nauki",
+            "zacznij focus",
+            "wlacz focus",
+            "włącz focus",
+        ]
+        self.break_trigger_phrases = [
+            "break",
+            "break mode",
+            "start break",
+            "start break mode",
+            "take a break",
+            "przerwa",
+            "tryb przerwy",
+            "zacznij przerwe",
+            "zacznij przerwę",
+            "wlacz przerwe",
+            "włącz przerwę",
+        ]
 
         self.direct_action_map: dict[str, str] = {}
-        for action, phrases in self.action_phrases.items():
+        self.fuzzy_candidates: list[tuple[str, str, set[str]]] = []
+        for action, phrases in self.direct_action_phrases.items():
             for phrase in phrases:
-                self.direct_action_map[self._normalize_text(phrase)] = action
+                normalized_phrase = self._normalize_text(phrase)
+                self.direct_action_map[normalized_phrase] = action
+                if action not in {"exit", "shutdown", "memory_clear"}:
+                    self.fuzzy_candidates.append((normalized_phrase, action, set(normalized_phrase.split())))
 
-        self.time_ask_set = self._normalize_set(self.time_ask_patterns)
-        self.time_show_set = self._normalize_set(self.time_show_patterns)
-        self.date_ask_set = self._normalize_set(self.date_ask_patterns)
-        self.date_show_set = self._normalize_set(self.date_show_patterns)
-        self.day_ask_set = self._normalize_set(self.day_ask_patterns)
-        self.day_show_set = self._normalize_set(self.day_show_patterns)
-        self.year_ask_set = self._normalize_set(self.year_ask_patterns)
-        self.year_show_set = self._normalize_set(self.year_show_patterns)
-
-        self.fuzzy_candidates: list[tuple[str, str]] = []
-        for action, phrases in self.action_phrases.items():
-            if action in {"exit", "shutdown", "memory_clear"}:
-                continue
-            for phrase in phrases:
-                self.fuzzy_candidates.append((self._normalize_text(phrase), action))
-
-        for action, phrases in {
-            "ask_time": self.time_ask_patterns,
+        for action, patterns in {
+            "ask_time": self.time_query_patterns,
             "show_time": self.time_show_patterns,
-            "ask_date": self.date_ask_patterns,
+            "ask_date": self.date_query_patterns,
             "show_date": self.date_show_patterns,
-            "ask_day": self.day_ask_patterns,
+            "ask_day": self.day_query_patterns,
             "show_day": self.day_show_patterns,
-            "ask_year": self.year_ask_patterns,
+            "ask_year": self.year_query_patterns,
             "show_year": self.year_show_patterns,
         }.items():
-            for phrase in phrases:
-                self.fuzzy_candidates.append((self._normalize_text(phrase), action))
+            for pattern in patterns:
+                plain = pattern.replace(r"\b", "").replace("(?:'s| is)?", "").strip()
+                normalized_phrase = self._normalize_text(plain)
+                if normalized_phrase:
+                    self.fuzzy_candidates.append((normalized_phrase, action, set(normalized_phrase.split())))
 
     def parse(self, text: str) -> IntentResult:
         normalized = self._normalize_text(text)
@@ -413,53 +523,24 @@ class IntentParser:
 
         if normalized in self.normalized_confirm_yes:
             return IntentResult(action="confirm_yes", normalized_text=normalized)
-
         if normalized in self.normalized_confirm_no:
             return IntentResult(action="confirm_no", normalized_text=normalized)
 
-        direct_action = self._match_direct_action(normalized)
-        if direct_action:
-            return IntentResult(action=direct_action, normalized_text=normalized)
-
-        timer_result = self._parse_timer(normalized)
-        if timer_result:
-            timer_result.normalized_text = normalized
-            return timer_result
-
-        temporal_result = self._parse_temporal_query(normalized)
-        if temporal_result:
-            temporal_result.normalized_text = normalized
-            return temporal_result
-
-        reminder_delete_result = self._parse_reminder_delete(normalized)
-        if reminder_delete_result:
-            reminder_delete_result.normalized_text = normalized
-            return reminder_delete_result
-
-        reminder_result = self._parse_reminder(normalized)
-        if reminder_result:
-            reminder_result.normalized_text = normalized
-            return reminder_result
-
-        focus_result = self._parse_focus_or_break(normalized)
-        if focus_result:
-            focus_result.normalized_text = normalized
-            return focus_result
-
-        forget_result = self._parse_memory_forget(normalized)
-        if forget_result:
-            forget_result.normalized_text = normalized
-            return forget_result
-
-        recall_result = self._parse_memory_recall(normalized)
-        if recall_result:
-            recall_result.normalized_text = normalized
-            return recall_result
-
-        remember_result = self._parse_memory_store(normalized)
-        if remember_result:
-            remember_result.normalized_text = normalized
-            return remember_result
+        for parser in (
+            self._parse_direct_action,
+            self._parse_temporal_query,
+            self._parse_timer,
+            self._parse_focus_or_break,
+            self._parse_reminder_delete,
+            self._parse_reminder,
+            self._parse_memory_forget,
+            self._parse_memory_recall,
+            self._parse_memory_store,
+        ):
+            result = parser(normalized)
+            if result is not None:
+                result.normalized_text = normalized
+                return result
 
         suggestions = self._get_fuzzy_suggestions(normalized)
         if suggestions:
@@ -474,27 +555,17 @@ class IntentParser:
         return IntentResult(action="unknown", confidence=0.0, normalized_text=normalized)
 
     def find_action_in_text(self, text: str, allowed_actions: list[str] | None = None) -> str | None:
-        normalized = self._normalize_text(text)
-        if not normalized:
+        result = self.parse(text)
+        if result.action in {"unknown", "unclear", "confirm_yes", "confirm_no"}:
+            if result.action == "unclear" and result.suggestions:
+                candidate = result.suggestions[0]["action"]
+                if allowed_actions is None or candidate in allowed_actions:
+                    return candidate
             return None
 
-        direct_action = self._match_direct_action(normalized)
-        if direct_action and (allowed_actions is None or direct_action in allowed_actions):
-            return direct_action
-
-        timer_result = self._parse_timer(normalized)
-        if timer_result and (allowed_actions is None or timer_result.action in allowed_actions):
-            return timer_result.action
-
-        temporal_result = self._parse_temporal_query(normalized)
-        if temporal_result and (allowed_actions is None or temporal_result.action in allowed_actions):
-            return temporal_result.action
-
-        suggestions = self._get_fuzzy_suggestions(normalized, allowed_actions=allowed_actions)
-        if suggestions:
-            return suggestions[0]["action"]
-
-        return None
+        if allowed_actions is not None and result.action not in allowed_actions:
+            return None
+        return result.action
 
     @staticmethod
     def _normalize_text(text: str) -> str:
@@ -505,87 +576,110 @@ class IntentParser:
         lowered = lowered.replace("-", " ")
         lowered = re.sub(r"[^a-z0-9\s]", " ", lowered)
         lowered = re.sub(r"\s+", " ", lowered).strip()
-        return lowered
+        if not lowered:
+            return ""
 
-    def _normalize_set(self, values: list[str]) -> set[str]:
-        return {self._normalize_text(value) for value in values}
+        deduped_tokens: list[str] = []
+        for token in lowered.split():
+            if not deduped_tokens or deduped_tokens[-1] != token:
+                deduped_tokens.append(token)
+        return " ".join(deduped_tokens)
 
-    def _match_direct_action(self, normalized: str) -> str | None:
-        return self.direct_action_map.get(normalized)
+    def _parse_direct_action(self, normalized: str) -> IntentResult | None:
+        direct = self.direct_action_map.get(normalized)
+        if direct:
+            return IntentResult(action=direct)
 
-    def _parse_temporal_query(self, normalized: str) -> IntentResult | None:
-        if normalized in self.time_show_set:
-            return IntentResult(action="show_time")
-        if normalized in self.time_ask_set:
-            return IntentResult(action="ask_time")
+        tokens = set(normalized.split())
+        if not tokens:
+            return None
 
-        if normalized in self.date_show_set:
-            return IntentResult(action="show_date")
-        if normalized in self.date_ask_set:
-            return IntentResult(action="ask_date")
+        if {"what", "can", "you", "do"}.issubset(tokens):
+            return IntentResult(action="help")
+        if "pomoc" in tokens or "commands" in tokens or "komendy" in tokens:
+            return IntentResult(action="help")
+        if {"how", "can", "you", "help", "me"}.issubset(tokens):
+            return IntentResult(action="help")
+        if {"co", "potrafisz"}.issubset(tokens) or {"jak", "mozesz", "pomoc"}.issubset(tokens):
+            return IntentResult(action="help")
 
-        if normalized in self.day_show_set:
-            return IntentResult(action="show_day")
-        if normalized in self.day_ask_set:
-            return IntentResult(action="ask_day")
+        if "status" in tokens or ("stan" in tokens and "systemu" in tokens):
+            return IntentResult(action="status")
 
-        if normalized in self.year_show_set:
-            return IntentResult(action="show_year")
-        if normalized in self.year_ask_set:
-            return IntentResult(action="ask_year")
+        if {"what", "is", "your", "name"}.issubset(tokens) or {"who", "are", "you"}.issubset(tokens):
+            return IntentResult(action="introduce_self")
+        if {"jak", "sie", "nazywasz"}.issubset(tokens) or {"kim", "jestes"}.issubset(tokens):
+            return IntentResult(action="introduce_self")
+
+        if "assistant" in tokens and ({"turn", "off"}.issubset(tokens) or {"stop"}.issubset(tokens)):
+            return IntentResult(action="exit")
+        if {"go", "sleep"}.issubset(tokens) or {"rest", "now"}.issubset(tokens):
+            return IntentResult(action="exit")
+        if ("asystenta" in tokens or "asystent" in tokens) and (
+            "wylacz" in tokens or "wyłącz" in tokens or "zamknij" in tokens
+        ):
+            return IntentResult(action="exit")
+        if ("spac" in tokens or "spać" in tokens or "odpocznij" in tokens) and (
+            "idz" in tokens or "idź" in tokens or "spij" in tokens or "śpij" in tokens or "odpocznij" in tokens
+        ):
+            return IntentResult(action="exit")
+
+        if "shutdown" in tokens or ("system" in tokens and {"turn", "off"}.issubset(tokens)):
+            return IntentResult(action="shutdown")
+        if ("system" in tokens or {"raspberry", "pi"}.issubset(tokens)) and (
+            "wylacz" in tokens or "wyłącz" in tokens or "zamknij" in tokens or {"power", "off"}.issubset(tokens)
+        ):
+            return IntentResult(action="shutdown")
 
         return None
 
+    def _parse_temporal_query(self, normalized: str) -> IntentResult | None:
+        for action, patterns in (
+            ("show_time", self.time_show_patterns),
+            ("ask_time", self.time_query_patterns),
+            ("show_date", self.date_show_patterns),
+            ("ask_date", self.date_query_patterns),
+            ("show_day", self.day_show_patterns),
+            ("ask_day", self.day_query_patterns),
+            ("show_year", self.year_show_patterns),
+            ("ask_year", self.year_query_patterns),
+        ):
+            if self._matches_any_pattern(normalized, patterns):
+                return IntentResult(action=action)
+        return None
+
     def _parse_timer(self, normalized: str) -> IntentResult | None:
-        timer_triggers = [
-            "timer",
-            "set timer",
-            "start timer",
-            "ustaw timer",
-            "wlacz timer",
-            "włącz timer",
-            "uruchom timer",
-            "minutnik",
-        ]
-        minutes = self._extract_duration(normalized, triggers=timer_triggers)
+        minutes = self._extract_duration(normalized, self.timer_trigger_phrases)
         if minutes is not None:
             return IntentResult(action="timer_start", data={"minutes": minutes})
 
-        if normalized in {"timer", "set timer", "start timer", "ustaw timer", "uruchom timer", "minutnik"}:
+        if self._contains_any_phrase(normalized, self.timer_trigger_phrases):
             return IntentResult(action="timer_start", data={})
 
         return None
 
     def _parse_focus_or_break(self, normalized: str) -> IntentResult | None:
-        focus_number = self._extract_duration(
-            normalized,
-            triggers=["focus", "focus mode", "start focus", "skupienie", "tryb skupienia", "sesja nauki"],
-        )
-        if focus_number is not None:
-            return IntentResult(action="focus_start", data={"minutes": focus_number})
+        focus_minutes = self._extract_duration(normalized, self.focus_trigger_phrases)
+        if focus_minutes is not None:
+            return IntentResult(action="focus_start", data={"minutes": focus_minutes})
 
-        break_number = self._extract_duration(
-            normalized,
-            triggers=["break", "start break", "przerwa", "tryb przerwy", "session break"],
-        )
-        if break_number is not None:
-            return IntentResult(action="break_start", data={"minutes": break_number})
+        break_minutes = self._extract_duration(normalized, self.break_trigger_phrases)
+        if break_minutes is not None:
+            return IntentResult(action="break_start", data={"minutes": break_minutes})
 
-        if normalized in {"focus", "focus mode", "start focus", "skupienie", "tryb skupienia", "sesja nauki"}:
+        if self._contains_any_phrase(normalized, self.focus_trigger_phrases):
             return IntentResult(action="focus_start", data={})
-
-        if normalized in {"break", "start break", "przerwa", "tryb przerwy"}:
+        if self._contains_any_phrase(normalized, self.break_trigger_phrases):
             return IntentResult(action="break_start", data={})
 
         return None
 
     def _extract_duration(self, normalized: str, triggers: list[str]) -> float | None:
-        normalized_triggers = [self._normalize_text(trigger) for trigger in triggers]
-        if not any(trigger in normalized for trigger in normalized_triggers):
+        if not self._contains_any_phrase(normalized, triggers):
             return None
 
         digit_match = re.search(
-            r"(\d+(?:[\.,]\d+)?)\s*(second|seconds|sec|sekunda|sekundy|sekund|minuta|minuty|minut|minute|minutes|min)?",
+            r"(\d+(?:[\.,]\d+)?)\s*(second|seconds|sec|sekunda|sekundy|sekund|minute|minutes|min|minuta|minuty|minut)?",
             normalized,
         )
         if digit_match:
@@ -612,23 +706,19 @@ class IntentParser:
 
     def _extract_spoken_number_before_index(self, tokens: list[str], unit_index: int) -> int | None:
         start = max(0, unit_index - 3)
-        candidate_tokens = tokens[start:unit_index]
-
-        if not candidate_tokens:
+        candidates = tokens[start:unit_index]
+        if not candidates:
             return None
 
-        for size in range(min(3, len(candidate_tokens)), 0, -1):
-            chunk = candidate_tokens[-size:]
-            parsed = self._parse_spoken_number_tokens(chunk)
+        for size in range(min(3, len(candidates)), 0, -1):
+            parsed = self._parse_spoken_number_tokens(candidates[-size:])
             if parsed is not None:
                 return parsed
-
         return None
 
     def _parse_spoken_number_tokens(self, tokens: list[str]) -> int | None:
         if not tokens:
             return None
-
         if len(tokens) == 1 and tokens[0].isdigit():
             return int(tokens[0])
 
@@ -640,11 +730,10 @@ class IntentParser:
                 total += self.number_words_pl[token]
             else:
                 return None
-
         return total if total > 0 else None
 
     def _parse_reminder(self, normalized: str) -> IntentResult | None:
-        if not any(token in normalized for token in ["remind", "przypomnij"]):
+        if not any(word in normalized for word in {"remind", "przypomnij"}):
             return None
 
         patterns = [
@@ -674,7 +763,7 @@ class IntentParser:
 
             message = self._cleanup_reminder_message(raw_message)
             if not message:
-                return None
+                continue
 
             seconds = amount if unit.startswith("sec") or unit.startswith("sek") else amount * 60
             return IntentResult(action="reminder_create", data={"seconds": seconds, "message": message})
@@ -694,36 +783,28 @@ class IntentParser:
         if normalized in {self._normalize_text(item) for item in clear_phrases}:
             return IntentResult(action="reminders_clear")
 
-        explicit_id_patterns = [
+        for pattern in [
             r"^(?:delete reminder|remove reminder|cancel reminder)\s+id\s+([a-z0-9]{1,32})$",
             r"^(?:usun przypomnienie|usuń przypomnienie|skasuj przypomnienie)\s+id\s+([a-z0-9]{1,32})$",
-        ]
-        for pattern in explicit_id_patterns:
+        ]:
             match = re.match(pattern, normalized)
-            if not match:
-                continue
+            if match:
+                return IntentResult(action="reminder_delete", data={"id": match.group(1).strip()})
 
-            reminder_id = match.group(1).strip()
-            if reminder_id:
-                return IntentResult(action="reminder_delete", data={"id": reminder_id})
-
-        message_patterns = [
+        for pattern in [
             r"^(?:delete reminder|remove reminder|cancel reminder)(?: about)?\s+(.+)$",
             r"^(?:usun przypomnienie|usuń przypomnienie|skasuj przypomnienie)(?: o)?\s+(.+)$",
-        ]
-        for pattern in message_patterns:
+        ]:
             match = re.match(pattern, normalized)
-            if not match:
-                continue
-
-            message = self._cleanup_reminder_message(match.group(1))
-            if message:
-                return IntentResult(action="reminder_delete", data={"message": message})
+            if match:
+                message = self._cleanup_reminder_message(match.group(1))
+                if message:
+                    return IntentResult(action="reminder_delete", data={"message": message})
 
         return None
 
     def _parse_memory_recall(self, normalized: str) -> IntentResult | None:
-        recall_patterns = [
+        for pattern in [
             r"^(?:where are|where is) (?:my )?(.+)$",
             r"^where did i put (?:my )?(.+)$",
             r"^what do you remember about (.+)$",
@@ -734,30 +815,24 @@ class IntentParser:
             r"^gdzie polozylam (?:moje |moj |moja )?(.+)$",
             r"^co pamietasz o (.+)$",
             r"^czy pamietasz (.+)$",
-        ]
-
-        for pattern in recall_patterns:
+        ]:
             match = re.match(pattern, normalized)
             if match:
                 key = self._cleanup_subject(match.group(1))
                 if key:
                     return IntentResult(action="memory_recall", data={"key": key})
-
         return None
 
     def _parse_memory_forget(self, normalized: str) -> IntentResult | None:
-        forget_patterns = [
+        for pattern in [
             r"^(?:forget|remove from memory|delete from memory)\s+(.+)$",
             r"^(?:zapomnij o|usun z pamieci|usuń z pamięci)\s+(.+)$",
-        ]
-
-        for pattern in forget_patterns:
+        ]:
             match = re.match(pattern, normalized)
             if match:
                 key = self._cleanup_subject(match.group(1))
                 if key:
                     return IntentResult(action="memory_forget", data={"key": key})
-
         return None
 
     def _parse_memory_store(self, normalized: str) -> IntentResult | None:
@@ -772,7 +847,6 @@ class IntentParser:
 
         candidate = normalized
         matched_prefix = False
-
         for prefix in prefixes:
             if candidate.startswith(prefix):
                 candidate = candidate[len(prefix):].strip()
@@ -782,12 +856,10 @@ class IntentParser:
         if not matched_prefix or not candidate:
             return None
 
-        relation_patterns = [
+        for pattern in [
             r"^(.+?)\s+(?:is|are|jest|sa)\s+(.+)$",
             r"^(.+?)\s+(?:in|on|at|under|inside|obok|w|na|pod|przy)\s+(.+)$",
-        ]
-
-        for pattern in relation_patterns:
+        ]:
             match = re.match(pattern, candidate)
             if match:
                 subject = self._cleanup_subject(match.group(1))
@@ -808,16 +880,13 @@ class IntentParser:
         text = text.strip()
         if not text:
             return None
-
         if re.fullmatch(r"\d+", text):
             return int(text)
+        return self._parse_spoken_number_tokens(text.split())
 
-        tokens = text.split()
-        return self._parse_spoken_number_tokens(tokens)
-
-    def _cleanup_reminder_message(self, text: str) -> str:
+    @staticmethod
+    def _cleanup_reminder_message(text: str) -> str:
         cleaned = re.sub(r"\s+", " ", text.strip())
-
         prefixes = ("about ", "to ", "o ")
         changed = True
         while changed and cleaned:
@@ -826,12 +895,11 @@ class IntentParser:
                 if cleaned.startswith(prefix):
                     cleaned = cleaned[len(prefix):].strip()
                     changed = True
-
         return cleaned
 
-    def _cleanup_subject(self, text: str) -> str:
+    @staticmethod
+    def _cleanup_subject(text: str) -> str:
         cleaned = re.sub(r"\s+", " ", text.strip())
-
         prefixes = ("my ", "the ", "moje ", "moj ", "moja ")
         changed = True
         while changed and cleaned:
@@ -840,7 +908,6 @@ class IntentParser:
                 if cleaned.startswith(prefix):
                     cleaned = cleaned[len(prefix):].strip()
                     changed = True
-
         return cleaned
 
     def _get_fuzzy_suggestions(
@@ -848,28 +915,45 @@ class IntentParser:
         normalized: str,
         allowed_actions: list[str] | None = None,
     ) -> list[dict[str, Any]]:
+        normalized_tokens = set(normalized.split())
         scores: list[dict[str, Any]] = []
+        min_ratio = 0.72 if len(normalized) > 5 else 0.80
 
-        min_ratio = 0.72
-        if len(normalized) <= 5:
-            min_ratio = 0.8
-
-        for phrase, action in self.fuzzy_candidates:
+        for phrase, action, phrase_tokens in self.fuzzy_candidates:
             if allowed_actions is not None and action not in allowed_actions:
                 continue
 
-            ratio = SequenceMatcher(None, normalized, phrase).ratio()
-            if ratio >= min_ratio:
+            sequence_ratio = SequenceMatcher(None, normalized, phrase).ratio()
+            token_ratio = self._token_overlap_ratio(normalized_tokens, phrase_tokens)
+            combined_ratio = max(sequence_ratio, token_ratio)
+            if combined_ratio >= min_ratio:
                 scores.append(
                     {
                         "action": action,
                         "label": self.action_labels.get(action, action),
-                        "score": round(ratio, 3),
+                        "score": round(combined_ratio, 3),
                     }
                 )
 
         unique: dict[str, dict[str, Any]] = {}
         for item in sorted(scores, key=lambda x: x["score"], reverse=True):
             unique.setdefault(item["action"], item)
-
         return list(unique.values())[:2]
+
+    @staticmethod
+    def _token_overlap_ratio(left: set[str], right: set[str]) -> float:
+        if not left or not right:
+            return 0.0
+        return len(left & right) / max(len(left), len(right))
+
+    def _matches_any_pattern(self, normalized: str, patterns: list[str]) -> bool:
+        return any(re.search(pattern, normalized) for pattern in patterns)
+
+    def _contains_any_phrase(self, normalized: str, phrases: list[str]) -> bool:
+        for phrase in phrases:
+            normalized_phrase = self._normalize_text(phrase)
+            if normalized == normalized_phrase:
+                return True
+            if f" {normalized_phrase} " in f" {normalized} ":
+                return True
+        return False

@@ -7,6 +7,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+_SETTINGS_CACHE: dict[str, Any] | None = None
+_SETTINGS_CACHE_MTIME_NS: int | None = None
+
 
 def _find_project_root(start_file: Path) -> Path:
     """
@@ -155,12 +158,30 @@ def _deep_merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[st
     return result
 
 
-def load_settings() -> dict[str, Any]:
+def load_settings(force_reload: bool = False) -> dict[str, Any]:
+    global _SETTINGS_CACHE, _SETTINGS_CACHE_MTIME_NS
+
+    try:
+        current_mtime_ns = SETTINGS_PATH.stat().st_mtime_ns
+    except OSError:
+        current_mtime_ns = None
+
+    cache_valid = (
+        not force_reload
+        and _SETTINGS_CACHE is not None
+        and _SETTINGS_CACHE_MTIME_NS == current_mtime_ns
+    )
+    if cache_valid:
+        return deepcopy(_SETTINGS_CACHE)
+
     file_settings = load_json(SETTINGS_PATH, {})
     if not isinstance(file_settings, dict):
         file_settings = {}
 
-    return _deep_merge_dicts(DEFAULT_SETTINGS, file_settings)
+    merged_settings = _deep_merge_dicts(DEFAULT_SETTINGS, file_settings)
+    _SETTINGS_CACHE = deepcopy(merged_settings)
+    _SETTINGS_CACHE_MTIME_NS = current_mtime_ns
+    return merged_settings
 
 
 def _rotate_log_if_needed(log_path: Path, max_bytes: int, backup_count: int) -> None:
