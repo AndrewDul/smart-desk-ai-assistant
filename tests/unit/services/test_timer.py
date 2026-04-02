@@ -4,7 +4,7 @@ import threading
 import time
 import unittest
 
-from modules.timer import SessionTimer
+from modules.services.timer import SessionTimer
 
 
 class TestSessionTimer(unittest.TestCase):

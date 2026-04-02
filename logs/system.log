@@ -1009,3 +1009,385 @@
 [2026-04-02 02:29:22] Assistant said [pl]: Dobrze. Zamykam asystenta.
 [2026-04-02 02:29:28] Assistant said [pl]: Wyłączam Smart Assistant.
 [2026-04-02 02:29:30] Assistant shut down.
+[2026-04-02 11:01:05] Memory saved: keys -> in the kitchen
+[2026-04-02 11:01:05] Memory save skipped: empty key or value.
+[2026-04-02 11:01:05] Memory save skipped: empty key or value.
+[2026-04-02 11:01:05] Memory saved: car keys -> on the shelf
+[2026-04-02 11:01:05] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 11:01:05] Memory saved: keys -> kitchen
+[2026-04-02 11:01:05] Memory saved: wallet -> drawer
+[2026-04-02 11:01:05] Memory saved: keys -> kitchen
+[2026-04-02 11:01:05] Memory saved: key -> on the desk
+[2026-04-02 11:01:05] Memory recall matched 'keys' -> 'key'
+[2026-04-02 11:01:05] Memory saved: klucz -> na biurku
+[2026-04-02 11:01:05] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 11:01:05] Memory saved: wallet -> in the jacket
+[2026-04-02 11:01:05] Memory saved: keys -> in the drawer
+[2026-04-02 11:01:05] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 11:01:05] Memory saved: phone number -> 123456789
+[2026-04-02 11:01:05] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 11:01:05] Memory saved: klucz -> w plecaku
+[2026-04-02 11:01:05] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 11:01:05] Memory saved: keys -> in the kitchen
+[2026-04-02 11:01:05] Memory saved: klucze -> w kuchni
+[2026-04-02 11:01:05] Memory saved: my keys -> in the kitchen
+[2026-04-02 11:01:05] Memory saved: my keys -> in the backpack
+[2026-04-02 11:01:19] Memory saved: keys -> in the kitchen
+[2026-04-02 11:01:19] Memory save skipped: empty key or value.
+[2026-04-02 11:01:19] Memory save skipped: empty key or value.
+[2026-04-02 11:01:19] Memory saved: car keys -> on the shelf
+[2026-04-02 11:01:19] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 11:01:19] Memory saved: keys -> kitchen
+[2026-04-02 11:01:19] Memory saved: wallet -> drawer
+[2026-04-02 11:01:19] Memory saved: keys -> kitchen
+[2026-04-02 11:01:19] Memory saved: key -> on the desk
+[2026-04-02 11:01:19] Memory recall matched 'keys' -> 'key'
+[2026-04-02 11:01:19] Memory saved: klucz -> na biurku
+[2026-04-02 11:01:19] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 11:01:19] Memory saved: wallet -> in the jacket
+[2026-04-02 11:01:19] Memory saved: keys -> in the drawer
+[2026-04-02 11:01:19] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 11:01:19] Memory saved: phone number -> 123456789
+[2026-04-02 11:01:19] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 11:01:19] Memory saved: klucz -> w plecaku
+[2026-04-02 11:01:19] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 11:01:19] Memory saved: keys -> in the kitchen
+[2026-04-02 11:01:19] Memory saved: klucze -> w kuchni
+[2026-04-02 11:01:19] Memory saved: my keys -> in the kitchen
+[2026-04-02 11:01:19] Memory saved: my keys -> in the backpack
+[2026-04-02 11:01:19] Reminder added: id=38088898, seconds=30, message=buy milk
+[2026-04-02 11:01:19] Reminder added: id=f2356a3c, seconds=1, message=test
+[2026-04-02 11:01:19] Reminder added: id=2ca6ef8a, seconds=60, message=future task
+[2026-04-02 11:01:19] Reminder added: id=344ae213, seconds=5, message=call back
+[2026-04-02 11:01:19] Reminder added: id=0cc5af2c, seconds=15, message=first
+[2026-04-02 11:01:19] Reminder added: id=7deccff1, seconds=30, message=second
+[2026-04-02 11:01:19] Reminder marked done manually: id=0cc5af2c
+[2026-04-02 11:01:19] Reminder added: id=fc26e739, seconds=15, message=meeting
+[2026-04-02 11:01:19] Reminder deleted: id=fc26e739
+[2026-04-02 11:01:19] Reminder added: id=0a6f3f3a, seconds=5, message=water plants
+[2026-04-02 11:01:19] Reminder added: id=3893ba5a, seconds=5, message=first
+[2026-04-02 11:01:19] Reminder added: id=40cd29fa, seconds=10, message=second
+[2026-04-02 11:01:19] Reminder marked done manually: id=3893ba5a
+[2026-04-02 11:01:19] Reminder added: id=3b66bc16, seconds=5, message=first
+[2026-04-02 11:01:19] Reminder added: id=acbffff2, seconds=10, message=second
+[2026-04-02 11:01:19] Reminder marked done manually: id=3b66bc16
+[2026-04-02 11:01:19] Reminder added: id=6d0c38f9, seconds=15, message=stretch
+[2026-04-02 11:01:19] Reminder marked done manually: id=6d0c38f9
+[2026-04-02 11:01:19] Reminder added: id=f4a91bba, seconds=20, message=o zakupach
+[2026-04-02 11:01:19] Reminder added: id=a7f7ed94, seconds=20, message=to drink water
+[2026-04-02 11:04:59] Memory saved: keys -> in the kitchen
+[2026-04-02 11:04:59] Memory save skipped: empty key or value.
+[2026-04-02 11:04:59] Memory save skipped: empty key or value.
+[2026-04-02 11:04:59] Memory saved: car keys -> on the shelf
+[2026-04-02 11:04:59] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 11:04:59] Memory saved: keys -> kitchen
+[2026-04-02 11:04:59] Memory saved: wallet -> drawer
+[2026-04-02 11:04:59] Memory saved: keys -> kitchen
+[2026-04-02 11:04:59] Memory saved: key -> on the desk
+[2026-04-02 11:04:59] Memory recall matched 'keys' -> 'key'
+[2026-04-02 11:04:59] Memory saved: klucz -> na biurku
+[2026-04-02 11:04:59] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 11:04:59] Memory saved: wallet -> in the jacket
+[2026-04-02 11:04:59] Memory saved: keys -> in the drawer
+[2026-04-02 11:04:59] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 11:04:59] Memory saved: phone number -> 123456789
+[2026-04-02 11:04:59] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 11:04:59] Memory saved: klucz -> w plecaku
+[2026-04-02 11:04:59] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 11:04:59] Memory saved: keys -> in the kitchen
+[2026-04-02 11:04:59] Memory saved: klucze -> w kuchni
+[2026-04-02 11:04:59] Memory saved: my keys -> in the kitchen
+[2026-04-02 11:04:59] Memory saved: my keys -> in the backpack
+[2026-04-02 11:04:59] Reminder added: id=948a30c9, seconds=30, message=buy milk
+[2026-04-02 11:04:59] Reminder added: id=58e9357a, seconds=1, message=test
+[2026-04-02 11:04:59] Reminder added: id=1491b7f5, seconds=60, message=future task
+[2026-04-02 11:04:59] Reminder added: id=b0ab76fe, seconds=5, message=call back
+[2026-04-02 11:04:59] Reminder added: id=6593d184, seconds=15, message=first
+[2026-04-02 11:04:59] Reminder added: id=592a9886, seconds=30, message=second
+[2026-04-02 11:04:59] Reminder marked done manually: id=6593d184
+[2026-04-02 11:04:59] Reminder added: id=edb6c1ba, seconds=15, message=meeting
+[2026-04-02 11:04:59] Reminder deleted: id=edb6c1ba
+[2026-04-02 11:04:59] Reminder added: id=1f8225d5, seconds=5, message=water plants
+[2026-04-02 11:04:59] Reminder added: id=b25609ad, seconds=5, message=first
+[2026-04-02 11:04:59] Reminder added: id=b568b0b6, seconds=10, message=second
+[2026-04-02 11:04:59] Reminder marked done manually: id=b25609ad
+[2026-04-02 11:04:59] Reminder added: id=7254dcdf, seconds=5, message=first
+[2026-04-02 11:04:59] Reminder added: id=0426cdcf, seconds=10, message=second
+[2026-04-02 11:04:59] Reminder marked done manually: id=7254dcdf
+[2026-04-02 11:04:59] Reminder added: id=87805f2e, seconds=15, message=stretch
+[2026-04-02 11:04:59] Reminder marked done manually: id=87805f2e
+[2026-04-02 11:04:59] Reminder added: id=db216947, seconds=20, message=o zakupach
+[2026-04-02 11:04:59] Reminder added: id=d75d8396, seconds=20, message=to drink water
+[2026-04-02 11:06:05] Memory saved: keys -> in the kitchen
+[2026-04-02 11:06:05] Memory save skipped: empty key or value.
+[2026-04-02 11:06:05] Memory save skipped: empty key or value.
+[2026-04-02 11:06:05] Memory saved: car keys -> on the shelf
+[2026-04-02 11:06:05] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 11:06:05] Memory saved: keys -> kitchen
+[2026-04-02 11:06:05] Memory saved: wallet -> drawer
+[2026-04-02 11:06:05] Memory saved: keys -> kitchen
+[2026-04-02 11:06:05] Memory saved: key -> on the desk
+[2026-04-02 11:06:05] Memory recall matched 'keys' -> 'key'
+[2026-04-02 11:06:05] Memory saved: klucz -> na biurku
+[2026-04-02 11:06:05] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 11:06:05] Memory saved: wallet -> in the jacket
+[2026-04-02 11:06:05] Memory saved: keys -> in the drawer
+[2026-04-02 11:06:05] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 11:06:05] Memory saved: phone number -> 123456789
+[2026-04-02 11:06:05] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 11:06:05] Memory saved: klucz -> w plecaku
+[2026-04-02 11:06:05] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 11:06:05] Memory saved: keys -> in the kitchen
+[2026-04-02 11:06:05] Memory saved: klucze -> w kuchni
+[2026-04-02 11:06:05] Memory saved: my keys -> in the kitchen
+[2026-04-02 11:06:05] Memory saved: my keys -> in the backpack
+[2026-04-02 11:06:05] Reminder added: id=587819cf, seconds=30, message=buy milk
+[2026-04-02 11:06:05] Reminder added: id=a908d32d, seconds=1, message=test
+[2026-04-02 11:06:05] Reminder added: id=ea5112b5, seconds=60, message=future task
+[2026-04-02 11:06:05] Reminder added: id=61112a7f, seconds=5, message=call back
+[2026-04-02 11:06:05] Reminder added: id=d25ccfd9, seconds=15, message=first
+[2026-04-02 11:06:05] Reminder added: id=20f94228, seconds=30, message=second
+[2026-04-02 11:06:05] Reminder marked done manually: id=d25ccfd9
+[2026-04-02 11:06:05] Reminder added: id=df130d51, seconds=15, message=meeting
+[2026-04-02 11:06:05] Reminder deleted: id=df130d51
+[2026-04-02 11:06:05] Reminder added: id=23d12c0b, seconds=5, message=water plants
+[2026-04-02 11:06:05] Reminder added: id=b88eb0e8, seconds=5, message=first
+[2026-04-02 11:06:05] Reminder added: id=03269a5b, seconds=10, message=second
+[2026-04-02 11:06:05] Reminder marked done manually: id=b88eb0e8
+[2026-04-02 11:06:05] Reminder added: id=fd1e7881, seconds=5, message=first
+[2026-04-02 11:06:05] Reminder added: id=ae0a1769, seconds=10, message=second
+[2026-04-02 11:06:05] Reminder marked done manually: id=fd1e7881
+[2026-04-02 11:06:05] Reminder added: id=9fba466b, seconds=15, message=stretch
+[2026-04-02 11:06:05] Reminder marked done manually: id=9fba466b
+[2026-04-02 11:06:05] Reminder added: id=efc783ef, seconds=20, message=o zakupach
+[2026-04-02 11:06:05] Reminder added: id=2850a5f5, seconds=20, message=to drink water
+[2026-04-02 11:09:44] Reminder added: id=012e9733, seconds=30, message=drink water
+[2026-04-02 11:09:44] Reminder created: 012e9733
+[2026-04-02 11:09:44] Reminder added: id=d147d0a6, seconds=30, message=drink water
+[2026-04-02 11:09:44] Reminder created: d147d0a6
+[2026-04-02 11:09:44] Reminder added: id=41adb69a, seconds=60, message=stand up
+[2026-04-02 11:09:44] Reminder created: 41adb69a
+[2026-04-02 11:09:44] Reminder added: id=9e0adcaf, seconds=30, message=drink water
+[2026-04-02 11:09:44] Reminder created: 9e0adcaf
+[2026-04-02 11:09:44] Reminder added: id=ef6d2baa, seconds=60, message=stand up
+[2026-04-02 11:09:44] Reminder created: ef6d2baa
+[2026-04-02 11:09:44] Reminder deleted: id=9e0adcaf
+[2026-04-02 11:09:44] Reminder deleted: id=ef6d2baa
+[2026-04-02 11:09:44] Memory saved: keys -> in the kitchen
+[2026-04-02 11:09:44] Memory saved: keys -> in the kitchen
+[2026-04-02 11:09:44] Memory saved: keys -> in the kitchen
+[2026-04-02 11:09:44] Memory saved: phone -> on desk
+[2026-04-02 11:09:44] Memory cleared: removed 2 item(s).
+[2026-04-02 11:09:44] Memory saved: klucze -> w kuchni
+[2026-04-02 11:09:44] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 11:09:44] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 11:09:44] Memory saved: keys -> in the kitchen
+[2026-04-02 11:09:44] Memory saved: keys -> in the kitchen
+[2026-04-02 11:09:44] Memory deleted: keys
+[2026-04-02 11:09:44] Memory saved: keys -> in the kitchen
+[2026-04-02 11:09:44] Memory saved: klucze -> w kuchni
+[2026-04-02 11:09:44] Reminder added: id=94bc2a33, seconds=30, message=drink water
+[2026-04-02 11:09:44] Reminder created: 94bc2a33
+[2026-04-02 11:09:44] Reminder added: id=a11abafb, seconds=30, message=drink water
+[2026-04-02 11:09:44] Reminder created: a11abafb
+[2026-04-02 11:09:44] Reminder added: id=945dc8e5, seconds=30, message=drink water
+[2026-04-02 11:09:44] Reminder created: 945dc8e5
+[2026-04-02 11:09:44] Reminder added: id=11795e2f, seconds=30, message=drink water
+[2026-04-02 11:09:44] Reminder created: 11795e2f
+[2026-04-02 11:09:44] Reminder deleted: id=11795e2f
+[2026-04-02 11:18:20] Reminder added: id=874e60cc, seconds=30, message=drink water
+[2026-04-02 11:18:20] Reminder created: 874e60cc
+[2026-04-02 11:18:20] Reminder added: id=ff741d8c, seconds=30, message=drink water
+[2026-04-02 11:18:20] Reminder created: ff741d8c
+[2026-04-02 11:18:20] Reminder added: id=5ef23ed8, seconds=60, message=stand up
+[2026-04-02 11:18:20] Reminder created: 5ef23ed8
+[2026-04-02 11:18:20] Reminder added: id=20586d0f, seconds=30, message=drink water
+[2026-04-02 11:18:20] Reminder created: 20586d0f
+[2026-04-02 11:18:20] Reminder added: id=12772f0e, seconds=60, message=stand up
+[2026-04-02 11:18:20] Reminder created: 12772f0e
+[2026-04-02 11:18:20] Reminder deleted: id=20586d0f
+[2026-04-02 11:18:20] Reminder deleted: id=12772f0e
+[2026-04-02 11:18:20] Memory saved: keys -> in the kitchen
+[2026-04-02 11:18:20] Memory saved: keys -> in the kitchen
+[2026-04-02 11:18:20] Memory saved: keys -> in the kitchen
+[2026-04-02 11:18:20] Memory saved: phone -> on desk
+[2026-04-02 11:18:20] Memory cleared: removed 2 item(s).
+[2026-04-02 11:18:20] Memory saved: klucze -> w kuchni
+[2026-04-02 11:18:20] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 11:18:20] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 11:18:21] Memory saved: keys -> in the kitchen
+[2026-04-02 11:18:21] Memory saved: keys -> in the kitchen
+[2026-04-02 11:18:21] Memory deleted: keys
+[2026-04-02 11:18:21] Memory saved: keys -> in the kitchen
+[2026-04-02 11:18:21] Memory saved: klucze -> w kuchni
+[2026-04-02 11:18:21] Reminder added: id=59817ba7, seconds=30, message=drink water
+[2026-04-02 11:18:21] Reminder created: 59817ba7
+[2026-04-02 11:18:21] Reminder added: id=003e7662, seconds=30, message=drink water
+[2026-04-02 11:18:21] Reminder created: 003e7662
+[2026-04-02 11:18:21] Reminder added: id=0706305f, seconds=30, message=drink water
+[2026-04-02 11:18:21] Reminder created: 0706305f
+[2026-04-02 11:18:21] Reminder added: id=d4dc0bcc, seconds=30, message=drink water
+[2026-04-02 11:18:21] Reminder created: d4dc0bcc
+[2026-04-02 11:18:21] Reminder deleted: id=d4dc0bcc
+[2026-04-02 11:19:03] Reminder added: id=97e6856b, seconds=30, message=buy milk
+[2026-04-02 11:19:03] Reminder added: id=a5ecb2c3, seconds=1, message=test
+[2026-04-02 11:19:03] Reminder added: id=4d76f94a, seconds=60, message=future task
+[2026-04-02 11:19:03] Reminder added: id=22e2b6cd, seconds=5, message=call back
+[2026-04-02 11:19:03] Reminder added: id=2bd76c97, seconds=15, message=first
+[2026-04-02 11:19:03] Reminder added: id=6187e142, seconds=30, message=second
+[2026-04-02 11:19:03] Reminder marked done manually: id=2bd76c97
+[2026-04-02 11:19:03] Reminder added: id=1dcb59a3, seconds=15, message=meeting
+[2026-04-02 11:19:03] Reminder deleted: id=1dcb59a3
+[2026-04-02 11:19:03] Reminder added: id=c7280727, seconds=5, message=water plants
+[2026-04-02 11:19:03] Reminder added: id=c991b5b4, seconds=5, message=first
+[2026-04-02 11:19:03] Reminder added: id=a86585f8, seconds=10, message=second
+[2026-04-02 11:19:03] Reminder marked done manually: id=c991b5b4
+[2026-04-02 11:19:03] Reminder added: id=7c9d5cce, seconds=5, message=first
+[2026-04-02 11:19:03] Reminder added: id=46a3d498, seconds=10, message=second
+[2026-04-02 11:19:03] Reminder marked done manually: id=7c9d5cce
+[2026-04-02 11:19:03] Reminder added: id=020de59e, seconds=15, message=stretch
+[2026-04-02 11:19:03] Reminder marked done manually: id=020de59e
+[2026-04-02 11:19:03] Reminder added: id=3cb0e256, seconds=20, message=o zakupach
+[2026-04-02 11:19:03] Reminder added: id=b588db06, seconds=20, message=to drink water
+[2026-04-02 11:19:28] Reminder added: id=070be7d7, seconds=30, message=buy milk
+[2026-04-02 11:19:28] Reminder added: id=f6178b75, seconds=1, message=test
+[2026-04-02 11:19:28] Reminder added: id=a7cc2411, seconds=60, message=future task
+[2026-04-02 11:19:28] Reminder added: id=d4f64ef5, seconds=5, message=call back
+[2026-04-02 11:19:28] Reminder added: id=b877322e, seconds=15, message=first
+[2026-04-02 11:19:28] Reminder added: id=810652fe, seconds=30, message=second
+[2026-04-02 11:19:28] Reminder marked done manually: id=b877322e
+[2026-04-02 11:19:28] Reminder added: id=b6e0f200, seconds=15, message=meeting
+[2026-04-02 11:19:28] Reminder deleted: id=b6e0f200
+[2026-04-02 11:19:28] Reminder added: id=055e4cd2, seconds=5, message=water plants
+[2026-04-02 11:19:28] Reminder added: id=acfe4da3, seconds=5, message=first
+[2026-04-02 11:19:28] Reminder added: id=c0d6e8f4, seconds=10, message=second
+[2026-04-02 11:19:28] Reminder marked done manually: id=acfe4da3
+[2026-04-02 11:19:28] Reminder added: id=fbad1b4b, seconds=5, message=first
+[2026-04-02 11:19:28] Reminder added: id=b9e5c45f, seconds=10, message=second
+[2026-04-02 11:19:28] Reminder marked done manually: id=fbad1b4b
+[2026-04-02 11:19:28] Reminder added: id=cfa74a4f, seconds=15, message=stretch
+[2026-04-02 11:19:28] Reminder marked done manually: id=cfa74a4f
+[2026-04-02 11:19:28] Reminder added: id=c8ec7fe1, seconds=20, message=o zakupach
+[2026-04-02 11:19:28] Reminder added: id=d7a7c261, seconds=20, message=to drink water
+[2026-04-02 11:19:37] Memory saved: keys -> in the kitchen
+[2026-04-02 11:19:37] Memory save skipped: empty key or value.
+[2026-04-02 11:19:37] Memory save skipped: empty key or value.
+[2026-04-02 11:19:37] Memory saved: car keys -> on the shelf
+[2026-04-02 11:19:37] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 11:19:37] Memory saved: keys -> kitchen
+[2026-04-02 11:19:37] Memory saved: wallet -> drawer
+[2026-04-02 11:19:37] Memory saved: keys -> kitchen
+[2026-04-02 11:19:37] Memory saved: key -> on the desk
+[2026-04-02 11:19:37] Memory recall matched 'keys' -> 'key'
+[2026-04-02 11:19:37] Memory saved: klucz -> na biurku
+[2026-04-02 11:19:37] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 11:19:37] Memory saved: wallet -> in the jacket
+[2026-04-02 11:19:37] Memory saved: keys -> in the drawer
+[2026-04-02 11:19:37] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 11:19:37] Memory saved: phone number -> 123456789
+[2026-04-02 11:19:37] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 11:19:37] Memory saved: klucz -> w plecaku
+[2026-04-02 11:19:37] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 11:19:37] Memory saved: keys -> in the kitchen
+[2026-04-02 11:19:37] Memory saved: klucze -> w kuchni
+[2026-04-02 11:19:37] Memory saved: my keys -> in the kitchen
+[2026-04-02 11:19:37] Memory saved: my keys -> in the backpack
+[2026-04-02 11:23:05] Reminder added: id=88986f31, seconds=30, message=buy milk
+[2026-04-02 11:23:05] Reminder added: id=7d2a8c21, seconds=1, message=test
+[2026-04-02 11:23:05] Reminder added: id=ba89b443, seconds=60, message=future task
+[2026-04-02 11:23:05] Reminder added: id=e4895644, seconds=5, message=call back
+[2026-04-02 11:23:05] Reminder added: id=e54c5d9f, seconds=15, message=first
+[2026-04-02 11:23:05] Reminder added: id=86acb943, seconds=30, message=second
+[2026-04-02 11:23:05] Reminder marked done manually: id=e54c5d9f
+[2026-04-02 11:23:05] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 11:23:05] Reminder added: id=217f0829, seconds=15, message=meeting
+[2026-04-02 11:23:05] Reminder deleted: id=217f0829
+[2026-04-02 11:23:05] Reminder added: id=65a15d1d, seconds=5, message=water plants
+[2026-04-02 11:23:05] Reminder added: id=b911c760, seconds=5, message=first
+[2026-04-02 11:23:05] Reminder added: id=fe5c9e19, seconds=10, message=second
+[2026-04-02 11:23:05] Reminder marked done manually: id=b911c760
+[2026-04-02 11:23:05] Reminder added: id=fe344a7b, seconds=5, message=first
+[2026-04-02 11:23:05] Reminder added: id=9c694f04, seconds=10, message=second
+[2026-04-02 11:23:05] Reminder marked done manually: id=fe344a7b
+[2026-04-02 11:23:05] Reminder added: id=6ecb7cde, seconds=15, message=stretch
+[2026-04-02 11:23:05] Reminder marked done manually: id=6ecb7cde
+[2026-04-02 11:23:05] Reminder added: id=5d5da202, seconds=20, message=zakupach
+[2026-04-02 11:23:05] Reminder added: id=4cc16093, seconds=20, message=drink water
+[2026-04-02 11:23:14] Reminder added: id=c4a33813, seconds=30, message=drink water
+[2026-04-02 11:23:14] Reminder created: c4a33813
+[2026-04-02 11:23:14] Reminder added: id=f24e5662, seconds=30, message=drink water
+[2026-04-02 11:23:14] Reminder created: f24e5662
+[2026-04-02 11:23:14] Reminder added: id=63394b58, seconds=60, message=stand up
+[2026-04-02 11:23:14] Reminder created: 63394b58
+[2026-04-02 11:23:14] Reminder added: id=0991b6ce, seconds=30, message=drink water
+[2026-04-02 11:23:14] Reminder created: 0991b6ce
+[2026-04-02 11:23:14] Reminder added: id=d03242e0, seconds=60, message=stand up
+[2026-04-02 11:23:14] Reminder created: d03242e0
+[2026-04-02 11:23:14] Reminder deleted: id=0991b6ce
+[2026-04-02 11:23:14] Reminder deleted: id=d03242e0
+[2026-04-02 11:23:15] Memory saved: keys -> in the kitchen
+[2026-04-02 11:23:15] Memory saved: keys -> in the kitchen
+[2026-04-02 11:23:15] Memory saved: keys -> in the kitchen
+[2026-04-02 11:23:15] Memory saved: phone -> on desk
+[2026-04-02 11:23:15] Memory cleared: removed 2 item(s).
+[2026-04-02 11:23:15] Memory saved: klucze -> w kuchni
+[2026-04-02 11:23:15] Memory recall matched 'kluczach' -> 'klucze'
+[2026-04-02 11:23:15] Memory recall matched 'klucz' -> 'klucze'
+[2026-04-02 11:23:15] Memory saved: keys -> in the kitchen
+[2026-04-02 11:23:15] Memory saved: keys -> in the kitchen
+[2026-04-02 11:23:15] Memory deleted: keys
+[2026-04-02 11:23:15] Memory saved: keys -> in the kitchen
+[2026-04-02 11:23:15] Memory saved: klucze -> w kuchni
+[2026-04-02 11:23:15] Reminder added: id=1f762ff1, seconds=30, message=drink water
+[2026-04-02 11:23:15] Reminder created: 1f762ff1
+[2026-04-02 11:23:15] Reminder added: id=62b6d13e, seconds=30, message=drink water
+[2026-04-02 11:23:15] Reminder created: 62b6d13e
+[2026-04-02 11:23:15] Reminder added: id=5c1ab1c8, seconds=30, message=drink water
+[2026-04-02 11:23:15] Reminder created: 5c1ab1c8
+[2026-04-02 11:23:15] Reminder added: id=6e5839c3, seconds=30, message=drink water
+[2026-04-02 11:23:15] Reminder created: 6e5839c3
+[2026-04-02 11:23:15] Reminder deleted: id=6e5839c3
+[2026-04-02 11:23:15] Memory saved: keys -> in the kitchen
+[2026-04-02 11:23:15] Memory save skipped: empty key or value.
+[2026-04-02 11:23:15] Memory save skipped: empty key or value.
+[2026-04-02 11:23:15] Memory saved: car keys -> on the shelf
+[2026-04-02 11:23:15] Memory recall matched 'keys' -> 'car keys'
+[2026-04-02 11:23:15] Memory saved: keys -> kitchen
+[2026-04-02 11:23:15] Memory saved: wallet -> drawer
+[2026-04-02 11:23:15] Memory saved: keys -> kitchen
+[2026-04-02 11:23:15] Memory saved: key -> on the desk
+[2026-04-02 11:23:15] Memory recall matched 'keys' -> 'key'
+[2026-04-02 11:23:15] Memory saved: klucz -> na biurku
+[2026-04-02 11:23:15] Memory recall matched 'klucze' -> 'klucz'
+[2026-04-02 11:23:15] Memory saved: wallet -> in the jacket
+[2026-04-02 11:23:15] Memory saved: keys -> in the drawer
+[2026-04-02 11:23:15] Memory recall matched 'my keys' -> 'keys'
+[2026-04-02 11:23:15] Memory saved: phone number -> 123456789
+[2026-04-02 11:23:15] Memory recall matched 'my phone number' -> 'phone number'
+[2026-04-02 11:23:15] Memory saved: klucz -> w plecaku
+[2026-04-02 11:23:15] Memory recall matched 'moj klucz' -> 'klucz'
+[2026-04-02 11:23:15] Memory saved: keys -> in the kitchen
+[2026-04-02 11:23:15] Memory saved: klucze -> w kuchni
+[2026-04-02 11:23:15] Memory saved: my keys -> in the kitchen
+[2026-04-02 11:23:15] Memory saved: my keys -> in the backpack
+[2026-04-02 11:23:15] Reminder added: id=a24c44a2, seconds=30, message=buy milk
+[2026-04-02 11:23:15] Reminder added: id=bb921781, seconds=1, message=test
+[2026-04-02 11:23:15] Reminder added: id=5e03e842, seconds=60, message=future task
+[2026-04-02 11:23:15] Reminder added: id=db322376, seconds=5, message=call back
+[2026-04-02 11:23:15] Reminder added: id=698b58ee, seconds=15, message=first
+[2026-04-02 11:23:15] Reminder added: id=9e8beba9, seconds=30, message=second
+[2026-04-02 11:23:15] Reminder marked done manually: id=698b58ee
+[2026-04-02 11:23:15] Completed reminders cleared: removed 1 item(s).
+[2026-04-02 11:23:15] Reminder added: id=e5707e07, seconds=15, message=meeting
+[2026-04-02 11:23:15] Reminder deleted: id=e5707e07
+[2026-04-02 11:23:15] Reminder added: id=838fb320, seconds=5, message=water plants
+[2026-04-02 11:23:15] Reminder added: id=cef51e93, seconds=5, message=first
+[2026-04-02 11:23:15] Reminder added: id=035a1a18, seconds=10, message=second
+[2026-04-02 11:23:15] Reminder marked done manually: id=cef51e93
+[2026-04-02 11:23:15] Reminder added: id=95cc2a73, seconds=5, message=first
+[2026-04-02 11:23:15] Reminder added: id=46a060c2, seconds=10, message=second
+[2026-04-02 11:23:15] Reminder marked done manually: id=95cc2a73
+[2026-04-02 11:23:15] Reminder added: id=40b35b8f, seconds=15, message=stretch
+[2026-04-02 11:23:15] Reminder marked done manually: id=40b35b8f
+[2026-04-02 11:23:15] Reminder added: id=8b62d55f, seconds=20, message=zakupach
+[2026-04-02 11:23:15] Reminder added: id=fedf91d4, seconds=20, message=drink water

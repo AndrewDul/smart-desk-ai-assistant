@@ -5,7 +5,7 @@ import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from modules.reminders import ReminderManager
+from modules.services.reminders import ReminderManager
 
 
 class TestReminderManager(unittest.TestCase):

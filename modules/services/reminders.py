@@ -60,7 +60,7 @@ class ReminderManager:
                 continue
 
             try:
-                due_time = datetime.fromisoformat(due_at_raw)
+                due_time = datetime.fromisoformat(str(due_at_raw))
             except ValueError:
                 append_log(f"Reminder skipped due to invalid due_at: {reminder}")
                 continue
@@ -113,8 +113,8 @@ class ReminderManager:
         if matched is None:
             return None, None
 
-        matched_id = matched["id"]
-        matched_message = matched["message"]
+        matched_id = str(matched["id"])
+        matched_message = str(matched["message"])
 
         new_reminders = [item for item in reminders if item.get("id") != matched_id]
         self._save_reminders(new_reminders)
@@ -188,6 +188,17 @@ class ReminderManager:
         append_log(f"All reminders cleared: removed {count} item(s).")
         return count
 
+    def clear_done(self) -> int:
+        reminders = self._load_reminders()
+        kept = [item for item in reminders if item.get("status") != "done"]
+        removed = len(reminders) - len(kept)
+
+        if removed > 0:
+            self._save_reminders(kept)
+            append_log(f"Completed reminders cleared: removed {removed} item(s).")
+
+        return removed
+
     def _load_reminders(self) -> list[dict[str, Any]]:
         data = load_json(self.path, [])
         if not isinstance(data, list):
@@ -206,13 +217,13 @@ class ReminderManager:
             status = str(item.get("status", "pending")).strip() or "pending"
             triggered_at = str(item.get("triggered_at", "")).strip()
 
-            if not reminder_id or not message or not created_at or not due_at:
+            if not reminder_id or not message or not due_at:
                 continue
 
             cleaned_item = {
                 "id": reminder_id,
                 "message": message,
-                "created_at": created_at,
+                "created_at": created_at or due_at,
                 "due_at": due_at,
                 "status": status,
             }
@@ -234,8 +245,17 @@ class ReminderManager:
         return (0 if status == "pending" else 1, due_at)
 
     def _clean_message(self, message: str) -> str:
-        cleaned = message.strip()
-        cleaned = re.sub(r"\s+", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", str(message).strip())
+
+        prefixes = ("about ", "to ", "o ")
+        changed = True
+        while changed and cleaned:
+            changed = False
+            for prefix in prefixes:
+                if cleaned.startswith(prefix):
+                    cleaned = cleaned[len(prefix):].strip()
+                    changed = True
+
         return cleaned
 
     def _normalize_text(self, text: str) -> str:

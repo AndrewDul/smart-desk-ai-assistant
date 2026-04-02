@@ -8,15 +8,10 @@ from copy import deepcopy
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-
-fake_display_module = types.ModuleType("modules.display")
-fake_voice_out_module = types.ModuleType("modules.voice_out")
-fake_text_input_module = types.ModuleType("modules.text_input")
-fake_whisper_input_module = types.ModuleType("modules.whisper_input")
+fake_display_module = types.ModuleType("modules.io.display")
+fake_voice_out_module = types.ModuleType("modules.io.voice_out")
+fake_text_input_module = types.ModuleType("modules.io.text_input")
+fake_whisper_input_module = types.ModuleType("modules.io.whisper_input")
 
 
 class FakeDisplay:
@@ -78,12 +73,12 @@ fake_voice_out_module.VoiceOutput = FakeVoiceOutput
 fake_text_input_module.TextInput = FakeTextInput
 fake_whisper_input_module.WhisperVoiceInput = FakeWhisperVoiceInput
 
-sys.modules["modules.display"] = fake_display_module
-sys.modules["modules.voice_out"] = fake_voice_out_module
-sys.modules["modules.text_input"] = fake_text_input_module
-sys.modules["modules.whisper_input"] = fake_whisper_input_module
+sys.modules["modules.io.display"] = fake_display_module
+sys.modules["modules.io.voice_out"] = fake_voice_out_module
+sys.modules["modules.io.text_input"] = fake_text_input_module
+sys.modules["modules.io.whisper_input"] = fake_whisper_input_module
 
-from modules.assistant_logic import CoreAssistant
+from modules.core.assistant import CoreAssistant
 
 
 class TestVoiceCommandScenarios(unittest.TestCase):
@@ -126,13 +121,13 @@ class TestVoiceCommandScenarios(unittest.TestCase):
         }
 
         self.load_json_patcher = patch(
-            "modules.assistant_logic.load_json",
+            "modules.core.assistant.load_json",
             side_effect=lambda path, default: deepcopy(default),
         )
-        self.save_json_patcher = patch("modules.assistant_logic.save_json", side_effect=lambda path, data: None)
-        self.settings_patcher = patch("modules.assistant_logic.load_settings", return_value=deepcopy(self.settings))
-        self.ensure_files_patcher = patch("modules.assistant_logic.ensure_project_files", side_effect=lambda: None)
-        self.log_patcher = patch("modules.assistant_logic.append_log", side_effect=lambda message: None)
+        self.save_json_patcher = patch("modules.core.assistant.save_json", side_effect=lambda path, data: None)
+        self.settings_patcher = patch("modules.core.assistant.load_settings", return_value=deepcopy(self.settings))
+        self.ensure_files_patcher = patch("modules.core.assistant.ensure_project_files", side_effect=lambda: None)
+        self.log_patcher = patch("modules.core.assistant.append_log", side_effect=lambda message: None)
 
         self.load_json_patcher.start()
         self.save_json_patcher.start()

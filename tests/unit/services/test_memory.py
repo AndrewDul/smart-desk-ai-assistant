@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from modules.memory import SimpleMemory
+from modules.services.memory import SimpleMemory
 
 
 class TestSimpleMemory(unittest.TestCase):

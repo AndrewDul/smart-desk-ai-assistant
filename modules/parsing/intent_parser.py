@@ -307,6 +307,7 @@ class IntentParser:
             "fifty": 50,
             "sixty": 60,
         }
+
         self.number_words_pl = {
             "zero": 0,
             "jeden": 1,
@@ -370,6 +371,20 @@ class IntentParser:
             "minuty",
             "minut",
         }
+
+        self.direct_action_map: dict[str, str] = {}
+        for action, phrases in self.action_phrases.items():
+            for phrase in phrases:
+                self.direct_action_map[self._normalize_text(phrase)] = action
+
+        self.time_ask_set = self._normalize_set(self.time_ask_patterns)
+        self.time_show_set = self._normalize_set(self.time_show_patterns)
+        self.date_ask_set = self._normalize_set(self.date_ask_patterns)
+        self.date_show_set = self._normalize_set(self.date_show_patterns)
+        self.day_ask_set = self._normalize_set(self.day_ask_patterns)
+        self.day_show_set = self._normalize_set(self.day_show_patterns)
+        self.year_ask_set = self._normalize_set(self.year_ask_patterns)
+        self.year_show_set = self._normalize_set(self.year_show_patterns)
 
         self.fuzzy_candidates: list[tuple[str, str]] = []
         for action, phrases in self.action_phrases.items():
@@ -492,32 +507,31 @@ class IntentParser:
         lowered = re.sub(r"\s+", " ", lowered).strip()
         return lowered
 
+    def _normalize_set(self, values: list[str]) -> set[str]:
+        return {self._normalize_text(value) for value in values}
+
     def _match_direct_action(self, normalized: str) -> str | None:
-        for action, phrases in self.action_phrases.items():
-            for phrase in phrases:
-                if normalized == self._normalize_text(phrase):
-                    return action
-        return None
+        return self.direct_action_map.get(normalized)
 
     def _parse_temporal_query(self, normalized: str) -> IntentResult | None:
-        if self._matches_any(normalized, self.time_show_patterns):
+        if normalized in self.time_show_set:
             return IntentResult(action="show_time")
-        if self._matches_any(normalized, self.time_ask_patterns):
+        if normalized in self.time_ask_set:
             return IntentResult(action="ask_time")
 
-        if self._matches_any(normalized, self.date_show_patterns):
+        if normalized in self.date_show_set:
             return IntentResult(action="show_date")
-        if self._matches_any(normalized, self.date_ask_patterns):
+        if normalized in self.date_ask_set:
             return IntentResult(action="ask_date")
 
-        if self._matches_any(normalized, self.day_show_patterns):
+        if normalized in self.day_show_set:
             return IntentResult(action="show_day")
-        if self._matches_any(normalized, self.day_ask_patterns):
+        if normalized in self.day_ask_set:
             return IntentResult(action="ask_day")
 
-        if self._matches_any(normalized, self.year_show_patterns):
+        if normalized in self.year_show_set:
             return IntentResult(action="show_year")
-        if self._matches_any(normalized, self.year_ask_patterns):
+        if normalized in self.year_ask_set:
             return IntentResult(action="ask_year")
 
         return None
@@ -566,7 +580,8 @@ class IntentParser:
         return None
 
     def _extract_duration(self, normalized: str, triggers: list[str]) -> float | None:
-        if not any(trigger in normalized for trigger in triggers):
+        normalized_triggers = [self._normalize_text(trigger) for trigger in triggers]
+        if not any(trigger in normalized for trigger in normalized_triggers):
             return None
 
         digit_match = re.search(
@@ -667,37 +682,41 @@ class IntentParser:
         return None
 
     def _parse_reminder_delete(self, normalized: str) -> IntentResult | None:
-        direct_clear_patterns = [
-            r"^(?:clear reminders|delete all reminders|remove all reminders)$",
-            r"^(?:wyczysc przypomnienia|wyczyść przypomnienia|usun wszystkie przypomnienia|usuń wszystkie przypomnienia)$",
-        ]
-        for pattern in direct_clear_patterns:
-            if re.match(pattern, normalized):
-                return IntentResult(action="reminders_clear")
+        clear_phrases = {
+            "clear reminders",
+            "delete all reminders",
+            "remove all reminders",
+            "wyczysc przypomnienia",
+            "wyczyść przypomnienia",
+            "usun wszystkie przypomnienia",
+            "usuń wszystkie przypomnienia",
+        }
+        if normalized in {self._normalize_text(item) for item in clear_phrases}:
+            return IntentResult(action="reminders_clear")
 
-        patterns = [
-            r"^(?:delete reminder|remove reminder|cancel reminder)(?: about)?\s+(.+)$",
-            r"^(?:usun przypomnienie|usuń przypomnienie|skasuj przypomnienie)(?: o)?\s+(.+)$",
-            r"^(?:delete reminder|remove reminder|cancel reminder)\s+id\s+([a-z0-9]+)$",
-            r"^(?:usun przypomnienie|usuń przypomnienie|skasuj przypomnienie)\s+id\s+([a-z0-9]+)$",
+        explicit_id_patterns = [
+            r"^(?:delete reminder|remove reminder|cancel reminder)\s+id\s+([a-z0-9]{1,32})$",
+            r"^(?:usun przypomnienie|usuń przypomnienie|skasuj przypomnienie)\s+id\s+([a-z0-9]{1,32})$",
         ]
-
-        for pattern in patterns:
+        for pattern in explicit_id_patterns:
             match = re.match(pattern, normalized)
             if not match:
                 continue
 
-            value = match.group(1).strip()
-            if not value:
+            reminder_id = match.group(1).strip()
+            if reminder_id:
+                return IntentResult(action="reminder_delete", data={"id": reminder_id})
+
+        message_patterns = [
+            r"^(?:delete reminder|remove reminder|cancel reminder)(?: about)?\s+(.+)$",
+            r"^(?:usun przypomnienie|usuń przypomnienie|skasuj przypomnienie)(?: o)?\s+(.+)$",
+        ]
+        for pattern in message_patterns:
+            match = re.match(pattern, normalized)
+            if not match:
                 continue
 
-            if value.startswith("id "):
-                value = value[3:].strip()
-
-            if re.fullmatch(r"[a-z0-9]{4,12}", value):
-                return IntentResult(action="reminder_delete", data={"id": value})
-
-            message = self._cleanup_reminder_message(value)
+            message = self._cleanup_reminder_message(match.group(1))
             if message:
                 return IntentResult(action="reminder_delete", data={"message": message})
 
@@ -790,28 +809,39 @@ class IntentParser:
         if not text:
             return None
 
-        digit_match = re.fullmatch(r"\d+", text)
-        if digit_match:
+        if re.fullmatch(r"\d+", text):
             return int(text)
 
         tokens = text.split()
         return self._parse_spoken_number_tokens(tokens)
 
     def _cleanup_reminder_message(self, text: str) -> str:
-        cleaned = text.strip()
-        cleaned = re.sub(r"^(about|to|o)\s+", "", cleaned)
-        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        cleaned = re.sub(r"\s+", " ", text.strip())
+
+        prefixes = ("about ", "to ", "o ")
+        changed = True
+        while changed and cleaned:
+            changed = False
+            for prefix in prefixes:
+                if cleaned.startswith(prefix):
+                    cleaned = cleaned[len(prefix):].strip()
+                    changed = True
+
         return cleaned
 
     def _cleanup_subject(self, text: str) -> str:
-        cleaned = text.strip()
-        cleaned = re.sub(r"^(my|the|moje|moj|moja)\s+", "", cleaned)
-        cleaned = re.sub(r"\s+", " ", cleaned).strip()
-        return cleaned
+        cleaned = re.sub(r"\s+", " ", text.strip())
 
-    def _matches_any(self, normalized: str, patterns: list[str]) -> bool:
-        normalized_patterns = {self._normalize_text(item) for item in patterns}
-        return normalized in normalized_patterns
+        prefixes = ("my ", "the ", "moje ", "moj ", "moja ")
+        changed = True
+        while changed and cleaned:
+            changed = False
+            for prefix in prefixes:
+                if cleaned.startswith(prefix):
+                    cleaned = cleaned[len(prefix):].strip()
+                    changed = True
+
+        return cleaned
 
     def _get_fuzzy_suggestions(
         self,

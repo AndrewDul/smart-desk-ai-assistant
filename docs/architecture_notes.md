@@ -529,3 +529,14 @@ Finally, it creates a stronger foundation for future cleanup, including the remo
 From an architectural point of view, this refactor moves the project from a flatter and more tightly mixed structure toward a more organised modular design. This is important for a system such as Smart Desk AI Assistant, where hardware interaction, assistant logic, timers, memory, reminders, speech handling, and configuration management all need to work together without becoming tangled.
 
 This refactor does not change the main purpose of the system. Instead, it improves the internal structure so that future development can continue more cleanly and with lower risk.
+
+
+## Test Structure Reorganisation and Logic Stabilisation
+
+I reorganised the automated test suite into a clearer structure based on test purpose.  
+The tests are now separated into unit and integration areas, with a shared configuration under the main `tests` directory. This makes the test suite easier to understand, maintain, and extend as the project grows.
+
+At the same time, I fixed several logic issues discovered through the updated test runs.  
+The intent parser was improved so reminder deletion commands are interpreted more reliably, especially when the user refers to a reminder by message rather than by identifier. The reminder manager was also improved by cleaning reminder messages more consistently, supporting cleanup of completed reminders, and handling partially valid stored reminder entries more safely.
+
+These changes improved both the internal organisation of the project and the reliability of the reminder-related assistant features. They also helped confirm that the refactored architecture remains stable under automated testing.
