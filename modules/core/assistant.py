@@ -67,6 +67,8 @@ from modules.system.utils import (
 
 
 class CoreAssistant:
+    ASSISTANT_NAME = "NeXa"
+
     def __init__(self) -> None:
         ensure_project_files()
 
@@ -90,6 +92,9 @@ class CoreAssistant:
         self.pending_follow_up: dict[str, Any] | None = None
         self.last_language = "en"
         self.shutdown_requested = False
+
+        self._last_raw_command_text = ""
+        self._last_normalized_command_text = ""
 
         if voice_input_cfg.get("enabled", True):
             engine = str(voice_input_cfg.get("engine", "whisper")).lower().strip()
@@ -186,13 +191,14 @@ class CoreAssistant:
         self.pending_confirmation = None
         self.pending_follow_up = None
         self.shutdown_requested = False
+        self._last_raw_command_text = ""
+        self._last_normalized_command_text = ""
 
         self.display.show_block(
-            "SMART ASSISTANT",
+            self.ASSISTANT_NAME,
             [
                 "starting up...",
-                "english is primary",
-                "ask: how can you help me",
+                "voice assistant ready",
             ],
             duration=self.boot_overlay_seconds,
         )
@@ -204,7 +210,7 @@ class CoreAssistant:
         time.sleep(0.15)
 
         self.voice_out.speak(
-            "Hello. I am Smart Assistant. English is my main language, and you can also speak to me in Polish. Ask me how I can help you.",
+            self._startup_greeting(report_ok=True),
             language="en",
         )
 
@@ -233,8 +239,8 @@ class CoreAssistant:
 
         self._speak_localized(
             self.last_language,
-            "Wyłączam Smart Assistant.",
-            "Shutting down Smart Assistant.",
+            f"Wyłączam {self.ASSISTANT_NAME}.",
+            f"Shutting down {self.ASSISTANT_NAME}.",
         )
 
         append_log("Assistant shut down.")
@@ -352,51 +358,87 @@ class CoreAssistant:
             return
         on_timer_stopped(self)
 
+    def _startup_greeting(self, report_ok: bool) -> str:
+        if report_ok:
+            return f"Hello. I am {self.ASSISTANT_NAME}. You can ask me at any time how I can help."
+
+        return (
+            f"Hello. I am {self.ASSISTANT_NAME}. "
+            "I started with some warnings, so a few things may work in limited mode. "
+            "You can ask me at any time how I can help."
+        )
+
+    def _normalize_lang(self, lang: str | None) -> str:
+        normalized = str(lang or "").strip().lower()
+        if normalized in {"pl", "en"}:
+            return normalized
+        return "en"
+
+    def _commit_language(self, lang: str | None) -> None:
+        normalized = self._normalize_lang(lang)
+        self.last_language = normalized
+
+    def _reminder_language(self, reminder: dict[str, Any]) -> str:
+        stored = reminder.get("language") or reminder.get("lang")
+        return self._normalize_lang(stored or self.last_language)
+
     def _reminder_loop(self) -> None:
         while not self._stop_background.is_set():
             due_reminders = self.reminders.check_due_reminders()
 
             for reminder in due_reminders:
-                message = reminder.get("message", "Reminder triggered.")
-                lang = self.last_language
+                message = str(reminder.get("message", "Reminder triggered.")).strip() or "Reminder triggered."
+                lang = self._reminder_language(reminder)
 
                 self.display.show_block(
                     self._localized(lang, "PRZYPOMNIENIE", "REMINDER"),
                     [message],
-                    duration=self.default_overlay_seconds,
+                    duration=max(self.default_overlay_seconds, 12.0),
                 )
-                self._speak_localized(
-                    lang,
-                    f"Przypomnienie. {message}",
-                    f"Reminder. {message}",
+
+                self.voice_out.speak(
+                    self._localized(
+                        lang,
+                        f"Przypomnienie. {message}",
+                        f"Reminder. {message}",
+                    ),
+                    language=lang,
                 )
-                append_log(f"Reminder triggered: message={message}")
+
+                append_log(
+                    f"Reminder triggered: id={reminder.get('id')}, lang={lang}, message={message}"
+                )
 
             time.sleep(1)
 
     def _execute_intent(self, result: IntentResult, lang: str) -> bool:
-        self.last_language = lang
+        command_lang = self._normalize_lang(lang)
+
         append_log(
-            f"Parsed intent: action={result.action}, data={result.data}, text={result.normalized_text}, lang={lang}"
+            f"Parsed intent: action={result.action}, data={result.data}, text={result.normalized_text}, lang={command_lang}"
         )
 
-        handled = dispatch_intent(self, result, lang)
+        handled = dispatch_intent(self, result, command_lang)
         if handled is not None:
+            self._commit_language(command_lang)
             return handled
 
         if result.action in {"confirm_yes", "confirm_no"}:
+            self._commit_language(command_lang)
             self._speak_localized(
-                lang,
+                command_lang,
                 "Nie ma teraz nic do potwierdzenia.",
                 "There is nothing to confirm right now.",
             )
             return True
 
         if result.action == "unclear" and result.suggestions:
-            return self._ask_for_confirmation(result.suggestions, lang)
+            self._commit_language(command_lang)
+            return self._ask_for_confirmation(result.suggestions, command_lang)
 
+        self._commit_language(command_lang)
         self._speak_localized(
-            lang,
+            command_lang,
             "Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.",
             "I did not fully understand that. Please say it again in a slightly different way.",
         )
@@ -407,18 +449,28 @@ class CoreAssistant:
         if not cleaned:
             return True
 
+        self._last_raw_command_text = cleaned
+        self._last_normalized_command_text = self._normalize_text(cleaned)
+
         detected_lang = self._detect_language(cleaned)
-        lang = self._context_language(cleaned, detected_lang)
-        self.last_language = lang
-        append_log(f"User said: {cleaned}")
+        command_lang = self._context_language(cleaned, detected_lang)
+        command_lang = self._normalize_lang(command_lang)
+
+        append_log(
+            f"User said: {cleaned} | normalized={self._last_normalized_command_text} | "
+            f"detected_lang={detected_lang} | command_lang={command_lang}"
+        )
 
         if self.pending_confirmation:
-            return self._handle_pending_confirmation(cleaned, lang)
+            handled_confirmation = self._handle_pending_confirmation(cleaned, command_lang)
+            self._commit_language(command_lang)
+            return handled_confirmation
 
         if self.pending_follow_up:
-            handled = self._handle_pending_follow_up(cleaned, lang)
-            if handled is not None:
-                return handled
+            handled_follow_up = self._handle_pending_follow_up(cleaned, command_lang)
+            if handled_follow_up is not None:
+                self._commit_language(command_lang)
+                return handled_follow_up
 
         result = self.parser.parse(cleaned)
-        return self._execute_intent(result, lang)
+        return self._execute_intent(result, command_lang)

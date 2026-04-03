@@ -53,6 +53,15 @@ _NAME_BLOCKLIST = {
     "yes",
 }
 
+_POLISH_NOISE_NAME_TOKENS = {
+    "eee",
+    "yyy",
+    "hmm",
+    "hm",
+    "uh",
+    "um",
+}
+
 _INTERRUPTABLE_ACTIONS = {
     "help",
     "status",
@@ -82,6 +91,8 @@ _INTERRUPTABLE_ACTIONS = {
     "shutdown",
 }
 
+_SHUTDOWN_DELAY_SECONDS = 2.2
+
 
 def _normalize_name_token(token: str) -> str:
     cleaned = token.strip(" '-")
@@ -96,6 +107,9 @@ def _looks_like_name_candidate(token: str) -> bool:
 
     lowered = token.lower()
     if lowered in _NAME_BLOCKLIST:
+        return False
+
+    if lowered in _POLISH_NOISE_NAME_TOKENS:
         return False
 
     if not re.fullmatch(r"[A-Za-zÀ-ÿ'-]{2,20}", token):
@@ -117,9 +131,9 @@ def extract_name(text: str) -> str | None:
         if not match:
             continue
 
-        name = match.group(1).strip().split()[0]
-        if _looks_like_name_candidate(name):
-            return _normalize_name_token(name)
+        first_token = match.group(1).strip().split()[0]
+        if _looks_like_name_candidate(first_token):
+            return _normalize_name_token(first_token)
 
     simple_tokens = re.findall(r"[A-Za-zÀ-ÿ'-]+", raw)
     if len(simple_tokens) == 1:
@@ -138,6 +152,21 @@ def _yes_no_retry(assistant, lang: str) -> None:
     )
 
 
+def _short_line(text: str, limit: int = 24) -> str:
+    cleaned = " ".join(str(text).strip().split())
+    if len(cleaned) <= limit:
+        return cleaned
+    return f"{cleaned[: limit - 3].rstrip()}..."
+
+
+def _follow_up_language(assistant, current_lang: str) -> str:
+    follow_up = assistant.pending_follow_up or {}
+    stored = str(follow_up.get("lang", "")).strip().lower()
+    if stored in {"pl", "en"}:
+        return stored
+    return current_lang
+
+
 def _try_interrupt_with_new_command(assistant, text: str, lang: str) -> bool | None:
     result = assistant.parser.parse(text)
     if result.action not in _INTERRUPTABLE_ACTIONS:
@@ -146,13 +175,18 @@ def _try_interrupt_with_new_command(assistant, text: str, lang: str) -> bool | N
     assistant.pending_confirmation = None
     assistant.pending_follow_up = None
     return assistant._execute_intent(
-        IntentResult(action=result.action, data=result.data, normalized_text=result.normalized_text),
+        IntentResult(
+            action=result.action,
+            data=result.data,
+            normalized_text=result.normalized_text,
+        ),
         lang,
     )
 
 
 def _parse_confirmation_choice(text: str) -> int | None:
     lowered = text.lower().strip()
+    normalized = re.sub(r"\s+", " ", lowered)
 
     first_markers = {
         "1",
@@ -182,8 +216,6 @@ def _parse_confirmation_choice(text: str) -> int | None:
         "opcja dwa",
         "numer dwa",
     }
-
-    normalized = re.sub(r"\s+", " ", lowered)
 
     if normalized in first_markers:
         return 0
@@ -269,16 +301,17 @@ def handle_pending_confirmation(assistant, text: str, current_lang: str) -> bool
 def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
     follow_up = assistant.pending_follow_up or {}
     follow_type = follow_up.get("type")
+    follow_lang = _follow_up_language(assistant, lang)
 
     if follow_type == "capture_name":
-        interrupted = _try_interrupt_with_new_command(assistant, text, lang)
+        interrupted = _try_interrupt_with_new_command(assistant, text, follow_lang)
         if interrupted is not None:
             return interrupted
 
         name = extract_name(text)
         if not name:
             assistant._speak_localized(
-                lang,
+                follow_lang,
                 "Nie usłyszałam wyraźnie imienia. Powiedz proszę jeszcze raz swoje imię.",
                 "I did not catch your name clearly. Please say your name again.",
             )
@@ -286,25 +319,34 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
 
         assistant.pending_follow_up = {
             "type": "confirm_save_name",
-            "lang": lang,
+            "lang": follow_lang,
             "name": name,
         }
+
+        assistant.display.show_block(
+            assistant._localized(follow_lang, "ZAPISAĆ IMIĘ?", "SAVE NAME?"),
+            [
+                name,
+                assistant._localized(follow_lang, "powiedz tak lub nie", "say yes or no"),
+            ],
+            duration=8.0,
+        )
         assistant._speak_localized(
-            lang,
+            follow_lang,
             f"Miło mi, {name}. Czy chcesz, żebym zapamiętała twoje imię?",
             f"Nice to meet you, {name}. Would you like me to remember your name?",
         )
         return True
 
     if follow_type == "confirm_save_name":
-        name = follow_up.get("name", "")
+        name = str(follow_up.get("name", "")).strip()
 
         if assistant._is_yes(text):
             assistant.user_profile["conversation_partner_name"] = name
             assistant._save_user_profile()
             assistant.pending_follow_up = None
             assistant._show_localized_block(
-                lang,
+                follow_lang,
                 "IMIĘ ZAPISANE",
                 "NAME SAVED",
                 [name, "zapamiętałam imię"],
@@ -312,7 +354,7 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
                 duration=8.0,
             )
             assistant._speak_localized(
-                lang,
+                follow_lang,
                 f"Dobrze. Zapamiętałam twoje imię, {name}.",
                 f"Okay. I will remember your name, {name}.",
             )
@@ -321,21 +363,21 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
         if assistant._is_no(text):
             assistant.pending_follow_up = None
             assistant._speak_localized(
-                lang,
+                follow_lang,
                 "Dobrze. Nie zapisuję twojego imienia.",
                 "Okay. I will not save your name.",
             )
             return True
 
-        interrupted = _try_interrupt_with_new_command(assistant, text, lang)
+        interrupted = _try_interrupt_with_new_command(assistant, text, follow_lang)
         if interrupted is not None:
             return interrupted
 
-        _yes_no_retry(assistant, lang)
+        _yes_no_retry(assistant, follow_lang)
         return True
 
     if follow_type == "confirm_memory_forget":
-        key = follow_up.get("key", "")
+        key = str(follow_up.get("key", "")).strip()
 
         if assistant._is_yes(text):
             assistant.pending_follow_up = None
@@ -343,19 +385,19 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
 
             if deleted_key is None:
                 assistant._speak_localized(
-                    lang,
+                    follow_lang,
                     "Nie mogę już znaleźć tej informacji w pamięci.",
                     "I cannot find that information in memory anymore.",
                 )
                 return True
 
             assistant.display.show_block(
-                assistant._localized(lang, "USUNIĘTO", "DELETED"),
-                [deleted_key],
+                assistant._localized(follow_lang, "USUNIĘTO", "DELETED"),
+                [_short_line(deleted_key)],
                 duration=6.0,
             )
             assistant._speak_localized(
-                lang,
+                follow_lang,
                 f"Dobrze. Usunęłam z pamięci {deleted_key}.",
                 f"Okay. I removed {deleted_key} from memory.",
             )
@@ -364,17 +406,17 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
         if assistant._is_no(text):
             assistant.pending_follow_up = None
             assistant._speak_localized(
-                lang,
+                follow_lang,
                 "Dobrze. Nie usuwam tej informacji z pamięci.",
                 "Okay. I will not remove that information from memory.",
             )
             return True
 
-        interrupted = _try_interrupt_with_new_command(assistant, text, lang)
+        interrupted = _try_interrupt_with_new_command(assistant, text, follow_lang)
         if interrupted is not None:
             return interrupted
 
-        _yes_no_retry(assistant, lang)
+        _yes_no_retry(assistant, follow_lang)
         return True
 
     if follow_type == "confirm_memory_clear":
@@ -382,12 +424,12 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
             assistant.pending_follow_up = None
             removed = assistant.memory.clear()
             assistant.display.show_block(
-                assistant._localized(lang, "PAMIĘĆ WYCZYSZCZONA", "MEMORY CLEARED"),
-                [assistant._localized(lang, f"usunięto: {removed}", f"removed: {removed}")],
+                assistant._localized(follow_lang, "PAMIĘĆ WYCZYSZCZONA", "MEMORY CLEARED"),
+                [assistant._localized(follow_lang, f"usunięto: {removed}", f"removed: {removed}")],
                 duration=6.0,
             )
             assistant._speak_localized(
-                lang,
+                follow_lang,
                 f"Dobrze. Wyczyściłam pamięć. Usunięto {removed} wpisów.",
                 f"Okay. I cleared memory. Removed {removed} items.",
             )
@@ -396,60 +438,61 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
         if assistant._is_no(text):
             assistant.pending_follow_up = None
             assistant._speak_localized(
-                lang,
+                follow_lang,
                 "Dobrze. Nie czyszczę pamięci.",
                 "Okay. I will not clear memory.",
             )
             return True
 
-        interrupted = _try_interrupt_with_new_command(assistant, text, lang)
+        interrupted = _try_interrupt_with_new_command(assistant, text, follow_lang)
         if interrupted is not None:
             return interrupted
 
-        _yes_no_retry(assistant, lang)
+        _yes_no_retry(assistant, follow_lang)
         return True
 
     if follow_type == "confirm_reminder_delete":
-        reminder_id = follow_up.get("reminder_id", "")
-        reminder_message = follow_up.get("message", "")
+        reminder_id = str(follow_up.get("reminder_id", "")).strip()
+        reminder_message = str(follow_up.get("message", "")).strip()
 
         if assistant._is_yes(text):
             assistant.pending_follow_up = None
             deleted = assistant.reminders.delete(reminder_id)
+
             if not deleted:
                 assistant._speak_localized(
-                    lang,
+                    follow_lang,
                     "Nie mogę już znaleźć tego przypomnienia.",
                     "I cannot find that reminder anymore.",
                 )
                 return True
 
             assistant.display.show_block(
-                assistant._localized(lang, "USUNIĘTO", "DELETED"),
-                [reminder_message or reminder_id],
+                assistant._localized(follow_lang, "USUNIĘTO", "DELETED"),
+                [_short_line(reminder_message or reminder_id)],
                 duration=6.0,
             )
             assistant._speak_localized(
-                lang,
-                f"Dobrze. Usunęłam przypomnienie {reminder_message}.",
-                f"Okay. I deleted the reminder {reminder_message}.",
+                follow_lang,
+                f"Dobrze. Usunęłam przypomnienie {_short_line(reminder_message or reminder_id, limit=40)}.",
+                f"Okay. I deleted the reminder {_short_line(reminder_message or reminder_id, limit=40)}.",
             )
             return True
 
         if assistant._is_no(text):
             assistant.pending_follow_up = None
             assistant._speak_localized(
-                lang,
+                follow_lang,
                 "Dobrze. Nie usuwam przypomnienia.",
                 "Okay. I will not delete the reminder.",
             )
             return True
 
-        interrupted = _try_interrupt_with_new_command(assistant, text, lang)
+        interrupted = _try_interrupt_with_new_command(assistant, text, follow_lang)
         if interrupted is not None:
             return interrupted
 
-        _yes_no_retry(assistant, lang)
+        _yes_no_retry(assistant, follow_lang)
         return True
 
     if follow_type == "confirm_reminders_clear":
@@ -457,12 +500,12 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
             assistant.pending_follow_up = None
             removed = assistant._delete_all_reminders()
             assistant.display.show_block(
-                assistant._localized(lang, "PRZYPOMNIENIA WYCZYSZCZONE", "REMINDERS CLEARED"),
-                [assistant._localized(lang, f"usunięto: {removed}", f"removed: {removed}")],
+                assistant._localized(follow_lang, "PRZYPOMNIENIA WYCZYSZCZONE", "REMINDERS CLEARED"),
+                [assistant._localized(follow_lang, f"usunięto: {removed}", f"removed: {removed}")],
                 duration=6.0,
             )
             assistant._speak_localized(
-                lang,
+                follow_lang,
                 f"Dobrze. Usunęłam wszystkie przypomnienia. Usunięto {removed}.",
                 f"Okay. I deleted all reminders. Removed {removed}.",
             )
@@ -471,24 +514,24 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
         if assistant._is_no(text):
             assistant.pending_follow_up = None
             assistant._speak_localized(
-                lang,
+                follow_lang,
                 "Dobrze. Nie usuwam przypomnień.",
                 "Okay. I will not delete reminders.",
             )
             return True
 
-        interrupted = _try_interrupt_with_new_command(assistant, text, lang)
+        interrupted = _try_interrupt_with_new_command(assistant, text, follow_lang)
         if interrupted is not None:
             return interrupted
 
-        _yes_no_retry(assistant, lang)
+        _yes_no_retry(assistant, follow_lang)
         return True
 
     if follow_type == "confirm_exit":
         if assistant._is_yes(text):
             assistant.pending_follow_up = None
             assistant._show_localized_block(
-                lang,
+                follow_lang,
                 "DO WIDZENIA",
                 "GOODBYE",
                 ["zamykam asystenta"],
@@ -496,7 +539,7 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
                 duration=4.0,
             )
             assistant._speak_localized(
-                lang,
+                follow_lang,
                 "Dobrze. Zamykam asystenta.",
                 "Okay. Closing the assistant.",
             )
@@ -505,17 +548,17 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
         if assistant._is_no(text):
             assistant.pending_follow_up = None
             assistant._speak_localized(
-                lang,
+                follow_lang,
                 "Dobrze. Zostaję włączona.",
                 "Okay. I will stay on.",
             )
             return True
 
-        interrupted = _try_interrupt_with_new_command(assistant, text, lang)
+        interrupted = _try_interrupt_with_new_command(assistant, text, follow_lang)
         if interrupted is not None:
             return interrupted
 
-        _yes_no_retry(assistant, lang)
+        _yes_no_retry(assistant, follow_lang)
         return True
 
     if follow_type == "confirm_shutdown":
@@ -523,46 +566,46 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
             assistant.pending_follow_up = None
             assistant.shutdown_requested = True
             assistant._show_localized_block(
-                lang,
+                follow_lang,
                 "WYŁĄCZANIE",
                 "SHUTTING DOWN",
-                ["zamykam system"],
-                ["shutting down system"],
-                duration=4.0,
+                ["zamykam asystenta", "i system"],
+                ["closing assistant", "and system"],
+                duration=_SHUTDOWN_DELAY_SECONDS,
             )
             assistant._speak_localized(
-                lang,
-                "Dobrze. Wyłączam system.",
-                "Okay. Shutting down the system.",
+                follow_lang,
+                "Dobrze. Zamykam asystenta i wyłączam system.",
+                "Okay. I am closing the assistant and shutting down the system.",
             )
             return False
 
         if assistant._is_no(text):
             assistant.pending_follow_up = None
             assistant._speak_localized(
-                lang,
+                follow_lang,
                 "Dobrze. Nie wyłączam systemu.",
                 "Okay. I will not shut down the system.",
             )
             return True
 
-        interrupted = _try_interrupt_with_new_command(assistant, text, lang)
+        interrupted = _try_interrupt_with_new_command(assistant, text, follow_lang)
         if interrupted is not None:
             return interrupted
 
-        _yes_no_retry(assistant, lang)
+        _yes_no_retry(assistant, follow_lang)
         return True
 
     if follow_type in {"timer_duration", "focus_duration", "break_duration"}:
         minutes = assistant._extract_minutes_from_text(text)
 
         if minutes is None or minutes <= 0:
-            interrupted = _try_interrupt_with_new_command(assistant, text, lang)
+            interrupted = _try_interrupt_with_new_command(assistant, text, follow_lang)
             if interrupted is not None:
                 return interrupted
 
             assistant._speak_localized(
-                lang,
+                follow_lang,
                 "Podaj proszę czas w minutach albo sekundach.",
                 "Please tell me the duration in minutes or seconds.",
             )
@@ -571,68 +614,37 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
         assistant.pending_follow_up = None
 
         if follow_type == "timer_duration":
-            return assistant._start_timer_mode(minutes, "timer", lang)
+            return assistant._start_timer_mode(minutes, "timer", follow_lang)
         if follow_type == "focus_duration":
-            return assistant._start_timer_mode(minutes, "focus", lang)
-        return assistant._start_timer_mode(minutes, "break", lang)
-
-    if follow_type == "display_offer":
-        if assistant._is_yes(text):
-            assistant.pending_follow_up = None
-            assistant.display.show_block(
-                follow_up.get("title", "INFO"),
-                follow_up.get("lines", []),
-                duration=assistant.default_overlay_seconds,
-            )
-            assistant._speak_localized(
-                lang,
-                "Dobrze. Pokazuję to na ekranie.",
-                "Okay. I am showing it on the screen.",
-            )
-            return True
-
-        if assistant._is_no(text):
-            assistant.pending_follow_up = None
-            assistant._speak_localized(
-                lang,
-                "Dobrze.",
-                "Okay.",
-            )
-            return True
-
-        interrupted = _try_interrupt_with_new_command(assistant, text, lang)
-        if interrupted is not None:
-            return interrupted
-
-        _yes_no_retry(assistant, lang)
-        return True
+            return assistant._start_timer_mode(minutes, "focus", follow_lang)
+        return assistant._start_timer_mode(minutes, "break", follow_lang)
 
     if follow_type == "post_focus_break_offer":
         direct_minutes = assistant._extract_minutes_from_text(text)
         if direct_minutes is not None and direct_minutes > 0 and not assistant._is_no(text):
             assistant.pending_follow_up = None
-            return assistant._start_timer_mode(direct_minutes, "break", lang)
+            return assistant._start_timer_mode(direct_minutes, "break", follow_lang)
 
         if assistant._is_yes(text):
             assistant.pending_follow_up = None
             default_break = float(getattr(assistant.parser, "default_break_minutes", 5))
-            return assistant._start_timer_mode(default_break, "break", lang)
+            return assistant._start_timer_mode(default_break, "break", follow_lang)
 
         if assistant._is_no(text):
             assistant.pending_follow_up = None
             assistant._speak_localized(
-                lang,
+                follow_lang,
                 "Dobrze. Nie uruchamiam przerwy.",
                 "Okay. I will not start a break.",
             )
             return True
 
-        interrupted = _try_interrupt_with_new_command(assistant, text, lang)
+        interrupted = _try_interrupt_with_new_command(assistant, text, follow_lang)
         if interrupted is not None:
             return interrupted
 
         assistant._speak_localized(
-            lang,
+            follow_lang,
             "Powiedz tak, nie albo od razu podaj długość przerwy.",
             "Say yes, no, or tell me the break duration right away.",
         )

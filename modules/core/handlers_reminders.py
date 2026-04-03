@@ -6,7 +6,7 @@ from modules.system.utils import append_log
 
 
 def _short_message(text: str, limit: int = 26) -> str:
-    cleaned = " ".join(text.strip().split())
+    cleaned = " ".join(str(text).strip().split())
     if len(cleaned) <= limit:
         return cleaned
     return f"{cleaned[: limit - 3].rstrip()}..."
@@ -16,6 +16,17 @@ def _status_label(status: str, lang: str) -> str:
     if lang == "pl":
         return "oczekuje" if status == "pending" else "gotowe"
     return "pending" if status == "pending" else "done"
+
+
+def _plural_reminders(count: int, lang: str) -> str:
+    if lang == "pl":
+        if count == 1:
+            return "1 przypomnienie"
+        if count % 10 in {2, 3, 4} and count % 100 not in {12, 13, 14}:
+            return f"{count} przypomnienia"
+        return f"{count} przypomnień"
+
+    return f"{count} reminder" if count == 1 else f"{count} reminders"
 
 
 def _format_due_text(reminder: dict, lang: str) -> str:
@@ -34,7 +45,8 @@ def _format_due_text(reminder: dict, lang: str) -> str:
     if due_at.date() == now.date():
         return f"dzis {time_part}" if lang == "pl" else f"today {time_part}"
 
-    if due_at.date() == now.date().fromordinal(now.date().toordinal() + 1):
+    tomorrow = now.date().fromordinal(now.date().toordinal() + 1)
+    if due_at.date() == tomorrow:
         return f"jutro {time_part}" if lang == "pl" else f"tomorrow {time_part}"
 
     date_part = due_at.strftime("%d-%m")
@@ -51,8 +63,14 @@ def _summary_line(reminder: dict, lang: str) -> str:
     return f"{reminder_id} {status}"
 
 
+def _language_badge(reminder: dict) -> str:
+    language = str(reminder.get("language", "en")).strip().lower()
+    return "PL" if language == "pl" else "EN"
+
+
 def handle_reminders_list(assistant, lang: str) -> bool:
     reminders = assistant.reminders.list_all()
+
     if not reminders:
         assistant._show_localized_block(
             lang,
@@ -83,7 +101,7 @@ def handle_reminders_list(assistant, lang: str) -> bool:
 
     for reminder in first_items:
         lines.append(_summary_line(reminder, lang))
-        lines.append(_short_message(str(reminder.get("message", "")), limit=24))
+        lines.append(f"{_language_badge(reminder)} {_short_message(str(reminder.get('message', '')), limit=20)}")
 
     assistant.display.show_block(
         assistant._localized(lang, "PRZYPOMNIENIA", "REMINDERS"),
@@ -93,8 +111,8 @@ def handle_reminders_list(assistant, lang: str) -> bool:
 
     assistant._speak_localized(
         lang,
-        f"Mam zapisane {total_count} przypomnienia. {pending_count} nadal oczekują.",
-        f"I have {total_count} saved reminders. {pending_count} are still pending.",
+        f"Mam zapisane {_plural_reminders(total_count, 'pl')}. {_plural_reminders(pending_count, 'pl')} nadal oczekuje.",
+        f"I have {_plural_reminders(total_count, 'en')} saved. {_plural_reminders(pending_count, 'en')} still pending.",
     )
     return True
 
@@ -103,10 +121,10 @@ def handle_reminder_delete(assistant, result, lang: str) -> bool:
     reminder = None
 
     if "id" in result.data:
-        reminder_id = result.data["id"].strip()
+        reminder_id = str(result.data["id"]).strip()
         reminder = assistant.reminders.find_by_id(reminder_id)
     elif "message" in result.data:
-        reminder_message = result.data["message"].strip()
+        reminder_message = str(result.data["message"]).strip()
         reminder = assistant.reminders.find_by_message(reminder_message)
 
     if reminder is None:
@@ -145,6 +163,7 @@ def handle_reminder_delete(assistant, result, lang: str) -> bool:
         lines[:3],
         duration=8.0,
     )
+
     assistant._speak_localized(
         lang,
         f"Czy na pewno mam usunąć przypomnienie {_short_message(reminder_message, limit=40)}?",
@@ -155,6 +174,7 @@ def handle_reminder_delete(assistant, result, lang: str) -> bool:
 
 def handle_reminders_clear(assistant, lang: str) -> bool:
     reminders = assistant.reminders.list_all()
+
     if not reminders:
         assistant._show_localized_block(
             lang,
@@ -195,9 +215,14 @@ def handle_reminders_clear(assistant, lang: str) -> bool:
 
 
 def handle_reminder_create(assistant, result, lang: str) -> bool:
-    seconds = int(result.data["seconds"])
-    message = result.data["message"].strip()
-    reminder = assistant.reminders.add_after_seconds(seconds, message)
+    seconds = max(1, int(result.data["seconds"]))
+    message = str(result.data["message"]).strip()
+
+    reminder = assistant.reminders.add_after_seconds(
+        seconds=seconds,
+        message=message,
+        language=lang,
+    )
 
     spoken_duration = assistant._format_duration_text(seconds, lang)
     reminder_id = str(reminder.get("id", "")).strip()
@@ -218,5 +243,7 @@ def handle_reminder_create(assistant, result, lang: str) -> bool:
         f"Okay. I set a reminder for {spoken_duration}.",
     )
 
-    append_log(f"Reminder created: {reminder_id} -> {message}")
+    append_log(
+        f"Reminder created: id={reminder_id}, lang={lang}, seconds={seconds}, message={message}"
+    )
     return True

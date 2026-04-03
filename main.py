@@ -70,9 +70,94 @@ def _is_bracketed_non_speech(text: str) -> bool:
         "coughing",
         "breathing",
         "sigh",
+        "keyboard",
+        "typing",
+        "knocking",
+        "chair",
+        "chair movement",
+        "moving chair",
+        "desk hit",
+        "clap",
+        "clapping",
+        "stukanie",
+        "stukniecie",
+        "stukniecia",
+        "klawiatura",
+        "pisanie",
+        "pisanie na klawiaturze",
+        "krzeslo",
+        "ruch krzesla",
+        "przesuwanie krzesla",
+        "klasniecie",
+        "klasniecia",
+        "klaskanie",
     }
 
     return inner in non_speech_terms
+
+
+def _looks_like_non_speech_description(normalized: str) -> bool:
+    if not normalized:
+        return True
+
+    exact_non_speech = {
+        "keyboard",
+        "typing",
+        "knocking",
+        "chair",
+        "chair movement",
+        "moving chair",
+        "desk hit",
+        "clap",
+        "clapping",
+        "applause",
+        "music",
+        "laughter",
+        "noise",
+        "static",
+        "stukanie",
+        "stukniecie",
+        "stukniecia",
+        "klawiatura",
+        "pisanie",
+        "pisanie na klawiaturze",
+        "krzeslo",
+        "ruch krzesla",
+        "przesuwanie krzesla",
+        "klasniecie",
+        "klasniecia",
+        "klaskanie",
+    }
+
+    if normalized in exact_non_speech:
+        return True
+
+    non_speech_keywords = {
+        "keyboard",
+        "typing",
+        "knocking",
+        "chair",
+        "clap",
+        "clapping",
+        "applause",
+        "music",
+        "noise",
+        "static",
+        "stukanie",
+        "klawiatura",
+        "krzeslo",
+        "klasniecie",
+        "klaskanie",
+    }
+
+    tokens = set(normalized.split())
+    if tokens and tokens.issubset(non_speech_keywords):
+        return True
+
+    if len(tokens) <= 4 and (tokens & non_speech_keywords):
+        return True
+
+    return False
 
 
 def _is_low_value_noise(text: str, assistant: CoreAssistant) -> bool:
@@ -105,12 +190,39 @@ def _is_low_value_noise(text: str, assistant: CoreAssistant) -> bool:
         "bye",
         "foreign",
         "speaking in foreign language",
+        "keyboard",
+        "typing",
+        "knocking",
+        "chair",
+        "chair movement",
+        "moving chair",
+        "clap",
+        "clapping",
+        "applause",
+        "music",
+        "noise",
+        "static",
+        "stukanie",
+        "stukniecie",
+        "stukniecia",
+        "klawiatura",
+        "pisanie",
+        "pisanie na klawiaturze",
+        "krzeslo",
+        "ruch krzesla",
+        "przesuwanie krzesla",
+        "klasniecie",
+        "klasniecia",
+        "klaskanie",
     }
 
     if normalized in filler_words:
         return True
 
     if normalized in silence_hallucinations:
+        return True
+
+    if _looks_like_non_speech_description(normalized):
         return True
 
     if not re.search(r"[a-z]", normalized):
@@ -141,10 +253,7 @@ def _should_ignore_duplicate_transcript(
         return False
 
     now = time.monotonic()
-    if normalized == last_transcript_normalized and (now - last_transcript_time) <= cooldown_seconds:
-        return True
-
-    return False
+    return normalized == last_transcript_normalized and (now - last_transcript_time) <= cooldown_seconds
 
 
 def _should_log_gate_event(
@@ -162,41 +271,20 @@ def _should_log_gate_event(
     return False
 
 
-def _startup_greeting(report_ok: bool) -> str:
-    if report_ok:
-        return (
-            "Hello. I am Smart Assistant. "
-            "English is my main language, and you can also speak to me in Polish. "
-            "Ask me how I can help you."
-        )
-
-    return (
-        "Hello. I am Smart Assistant. "
-        "I started with some warnings, so a few things may work in limited mode. "
-        "English is my main language, and you can also speak to me in Polish. "
-        "Ask me how I can help you."
-    )
+def _startup_greeting() -> str:
+    return "Hello. I am NeXa. You can ask me at any time how I can help."
 
 
 def _run_startup_sequence(assistant: CoreAssistant) -> None:
     append_log("Startup sequence initiated.")
 
+    checker = SystemHealthChecker(assistant.settings)
+    report = checker.run()
+
     assistant.last_language = "en"
     assistant.pending_follow_up = None
     assistant.pending_confirmation = None
     assistant.shutdown_requested = False
-
-    assistant.display.show_block(
-        "SMART ASSISTANT",
-        [
-            "starting up...",
-            "checking system...",
-        ],
-        duration=assistant.boot_overlay_seconds,
-    )
-
-    checker = SystemHealthChecker(assistant.settings)
-    report = checker.run()
 
     assistant.state["assistant_running"] = True
     assistant.state["focus_mode"] = False
@@ -207,22 +295,21 @@ def _run_startup_sequence(assistant: CoreAssistant) -> None:
     if not assistant._reminder_thread.is_alive():
         assistant._reminder_thread.start()
 
-    time.sleep(max(assistant.boot_overlay_seconds, 0.8))
-    assistant.display.clear_overlay()
-    time.sleep(0.2)
-
     assistant.display.show_block(
-        "SMART ASSISTANT",
+        "NeXa",
         [
-            "english is primary",
-            "polish is supported",
-            "ask: how can you help me",
+            "starting up...",
+            "voice assistant ready",
         ],
-        duration=8.0,
+        duration=assistant.boot_overlay_seconds,
     )
 
+    time.sleep(max(assistant.boot_overlay_seconds, 0.8))
+    assistant.display.clear_overlay()
+    time.sleep(0.15)
+
     assistant.voice_out.speak(
-        _startup_greeting(report.ok),
+        _startup_greeting(),
         language="en",
     )
 

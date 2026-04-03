@@ -947,3 +947,201 @@ Examples of improvements:
 The assistant now feels much more like a real product and less like a set of isolated test commands.
 
 
+---
+
+## 040. Assistant mixed Polish and English during normal conversation
+
+### Symptom
+The assistant sometimes answered in English after a Polish question, even when the recognised command was clearly meant to be Polish.
+
+Examples included:
+- Polish help queries answered in English
+- Polish memory replies answered in English
+- Polish reminder creation confirmed in English
+
+### Cause
+The language routing was too loose.
+
+The assistant could fall back to:
+- previous conversation language
+- ambiguous short transcript logic
+- English default behaviour after uncertain recognition
+
+This made the reply language less stable than I wanted.
+
+### Fix
+I rebuilt the language routing logic so that:
+- the current command language is decided more strictly
+- short Polish command patterns have stronger weight
+- confirmation context keeps its own language
+- the assistant commits language after command handling, not too early
+
+### Result
+Language behaviour became more stable and more predictable, especially for common Polish commands.
+
+---
+
+## 041. Short Polish commands were often replaced by English auto-transcripts
+
+### Symptom
+The assistant sometimes understood the meaning of a Polish command, but the transcript selected by the speech layer was English.
+
+Examples included:
+- Polish memory commands turned into English memory phrases
+- Polish reminder commands turned into English reminder phrases
+- Polish identity questions turned into English-style wording
+
+### Cause
+Whisper `auto` mode worked well overall, but for short commands it sometimes produced an English transcript that looked more confident than the real Polish input.
+
+### Fix
+I updated the Whisper selection layer so that:
+- short commands are rechecked with forced Polish transcription
+- exact Polish command phrases get stronger priority
+- short Polish command token sets receive a stronger score
+- Polish is preferred when the transcript clearly looks like a short Polish command
+
+### Result
+Short Polish commands became much more reliable.
+
+---
+
+## 042. Assistant reacted to keyboard typing, claps, and chair movement
+
+### Symptom
+The assistant sometimes reacted to non-speech sounds and described them as:
+- typing
+- clapping
+- chair movement
+- similar noise descriptions
+
+This was not the behaviour I wanted. I wanted the assistant to ignore these sounds completely.
+
+### Cause
+Some noise events were still reaching the transcript stage and were being treated as low-confidence user input.
+
+### Fix
+I strengthened non-speech filtering in two places:
+- the microphone capture and speech gating layer
+- the main command loop transcript gate
+
+I explicitly filtered common non-speech descriptions such as:
+- `typing`
+- `keyboard`
+- `clapping`
+- `chair movement`
+- `stukanie`
+- `klaskanie`
+- `krzeslo`
+
+### Result
+The assistant became much quieter around non-speech noise and was less likely to reply when no real speech was present.
+
+---
+
+## 043. The assistant still asked whether time/date should be shown on screen
+
+### Symptom
+After a simple spoken query such as asking for the time, the assistant could still ask an extra follow-up about showing the result on the display.
+
+This interrupted the conversation and made the interaction feel less natural.
+
+### Cause
+Older display-offer logic was still present in the response path.
+
+### Fix
+I removed the old screen-offer flow from the main interaction model and changed the rule to:
+
+- normal question -> speak only
+- explicit `show / pokaż / display` command -> speak and show
+
+I also updated the response helpers so the old OLED offer behaviour would not return accidentally.
+
+### Result
+The interaction became simpler and closer to the premium behaviour I wanted.
+
+---
+
+## 044. Memory stored broken fragments after cut speech input
+
+### Symptom
+When speech was cut early, the assistant could save incomplete memory values.
+
+Example:
+- `klucze -> w`
+
+### Cause
+The earlier memory flow trusted partial parser output too easily.
+
+### Fix
+I added memory validation so that:
+- very short fragments are rejected
+- weak one-word endings are rejected
+- suspicious incomplete values are not saved
+- the assistant asks me to say the sentence again more clearly
+
+I also cleared old bad entries from `memory.json`.
+
+### Result
+Memory became safer and cleaner.
+
+---
+
+## 045. Polish memory and reminder commands were not reliable enough
+
+### Symptom
+Some natural Polish commands were still unstable, especially:
+- `usuń klucze z pamięci`
+- reminder requests in Polish
+- some memory recall flows
+
+### Cause
+The parser handled some English forms well, but several natural Polish sentence patterns needed better support.
+
+### Fix
+I updated the intent parser and follow-up logic so that:
+- `usuń X z pamięci` is recognised
+- Polish reminder phrasing is handled more naturally
+- follow-up confirmations stay in the correct language
+- reminder entries store the language used when they were created
+
+### Result
+Memory deletion and reminder handling became more consistent.
+
+---
+
+## 046. Assistant identity response did not match the intended behaviour
+
+### Symptom
+When I asked for the assistant name, it sometimes gave the full identity answer instead of only saying its name.
+
+### Cause
+The introduction flow did not distinguish clearly enough between:
+- asking only for the name
+- asking what or who the assistant is
+
+### Fix
+I changed the introduction logic so that:
+- `What is your name?` / `Jak się nazywasz?` returns only the name
+- `Who are you?` / `Kim jesteś?` / `Czym jesteś?` returns the fuller description
+
+### Result
+The assistant identity flow now matches the intended behaviour much better.
+
+---
+
+## 047. NeXa name pronunciation sounded wrong in speech output
+
+### Symptom
+The assistant name `NeXa` was pronounced incorrectly by TTS and sounded closer to `Nexar` than `Neksa`.
+
+### Cause
+Mixed-case branding text is not always pronounced well by local TTS engines.
+
+### Fix
+I applied pronunciation control in the voice output path and also replaced the spoken form in identity responses with a more phonetic version.
+
+I also refreshed the TTS cache path so old cached audio would not keep replaying the wrong pronunciation.
+
+### Result
+The name pronunciation became easier to control and much closer to the intended spoken form.

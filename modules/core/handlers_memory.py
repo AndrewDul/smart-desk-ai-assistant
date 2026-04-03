@@ -1,6 +1,97 @@
 from __future__ import annotations
 
+import re
+
 from modules.system.utils import append_log
+
+
+_WEAK_SINGLE_TOKENS = {
+    "a",
+    "an",
+    "and",
+    "at",
+    "by",
+    "do",
+    "for",
+    "from",
+    "in",
+    "is",
+    "it",
+    "my",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "under",
+    "with",
+    "i",
+    "me",
+    "you",
+    "w",
+    "na",
+    "pod",
+    "przy",
+    "obok",
+    "do",
+    "od",
+    "u",
+    "i",
+    "a",
+    "to",
+    "jest",
+    "sa",
+    "moj",
+    "moja",
+    "moje",
+    "mi",
+    "mnie",
+    "ze",
+}
+
+_WEAK_ENDINGS = {
+    "a",
+    "an",
+    "and",
+    "at",
+    "by",
+    "for",
+    "from",
+    "in",
+    "is",
+    "it",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "under",
+    "with",
+    "w",
+    "na",
+    "pod",
+    "przy",
+    "obok",
+    "do",
+    "od",
+    "u",
+    "jest",
+    "sa",
+    "ze",
+}
+
+_MEMORY_FILLER_PREFIXES = (
+    "that ",
+    "to ",
+    "about ",
+    "o ",
+    "ze ",
+)
+
+_MEMORY_FILLER_SUFFIXES = (
+    " please",
+    " prosze",
+)
 
 
 def _short_text(text: str, limit: int = 22) -> str:
@@ -19,6 +110,111 @@ def _memory_count_line(count: int, lang: str) -> str:
         return f"{count} wpisów"
 
     return f"{count} item" if count == 1 else f"{count} items"
+
+
+def _normalize_for_validation(assistant, text: str) -> str:
+    normalized = assistant._normalize_text(str(text or "").strip())
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized
+
+
+def _strip_memory_fillers(text: str) -> str:
+    cleaned = " ".join(str(text or "").strip().split())
+
+    changed = True
+    while changed and cleaned:
+        changed = False
+        lowered = cleaned.lower()
+
+        for prefix in _MEMORY_FILLER_PREFIXES:
+            if lowered.startswith(prefix):
+                cleaned = cleaned[len(prefix):].strip()
+                changed = True
+                break
+
+        lowered = cleaned.lower()
+        for suffix in _MEMORY_FILLER_SUFFIXES:
+            if lowered.endswith(suffix):
+                cleaned = cleaned[: -len(suffix)].strip()
+                changed = True
+                break
+
+    return cleaned
+
+
+def _looks_like_truncated_fragment(assistant, text: str) -> bool:
+    normalized = _normalize_for_validation(assistant, text)
+    if not normalized:
+        return True
+
+    tokens = normalized.split()
+    if not tokens:
+        return True
+
+    if len(tokens) == 1 and tokens[0] in _WEAK_SINGLE_TOKENS:
+        return True
+
+    if tokens[-1] in _WEAK_ENDINGS:
+        return True
+
+    if len(normalized) <= 2:
+        return True
+
+    if len(tokens) == 1 and len(tokens[0]) <= 2:
+        return True
+
+    return False
+
+
+def _clean_memory_key(assistant, key: str) -> str:
+    cleaned = _strip_memory_fillers(key)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    normalized = _normalize_for_validation(assistant, cleaned)
+
+    if not normalized:
+        return ""
+
+    if normalized in _WEAK_SINGLE_TOKENS:
+        return ""
+
+    return cleaned
+
+
+def _clean_memory_value(assistant, value: str) -> str:
+    cleaned = _strip_memory_fillers(value)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    if _looks_like_truncated_fragment(assistant, cleaned):
+        return ""
+
+    return cleaned
+
+
+def _clean_memory_text(assistant, memory_text: str) -> str:
+    cleaned = _strip_memory_fillers(memory_text)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    normalized = _normalize_for_validation(assistant, cleaned)
+    if not normalized:
+        return ""
+
+    tokens = normalized.split()
+    if len(tokens) < 2:
+        return ""
+
+    if tokens[-1] in _WEAK_ENDINGS:
+        return ""
+
+    return cleaned
+
+
+def _memory_save_failed_reply(assistant, lang: str) -> bool:
+    assistant._speak_localized(
+        lang,
+        "Nie zapisałam tego, bo zdanie wygląda na ucięte. Powiedz to jeszcze raz spokojnie.",
+        "I did not save that because the sentence looks cut off. Please say it again clearly.",
+    )
+    return True
 
 
 def handle_memory_list(assistant, lang: str) -> bool:
@@ -41,15 +237,21 @@ def handle_memory_list(assistant, lang: str) -> bool:
         return True
 
     items = list(all_memory.items())
-    lines: list[str] = [_memory_count_line(len(items), lang)]
+    lines_pl: list[str] = [_memory_count_line(len(items), "pl")]
+    lines_en: list[str] = [_memory_count_line(len(items), "en")]
 
     for key, value in items[:2]:
-        lines.append(_short_text(key, limit=20))
-        lines.append(_short_text(value, limit=20))
+        lines_pl.append(_short_text(key, limit=20))
+        lines_pl.append(_short_text(value, limit=20))
+        lines_en.append(_short_text(key, limit=20))
+        lines_en.append(_short_text(value, limit=20))
 
-    assistant.display.show_block(
-        assistant._localized(lang, "PAMIĘĆ", "MEMORY"),
-        lines[:4],
+    assistant._show_localized_block(
+        lang,
+        "PAMIĘĆ",
+        "MEMORY",
+        lines_pl[:4],
+        lines_en[:4],
         duration=assistant.default_overlay_seconds,
     )
 
@@ -105,11 +307,21 @@ def handle_memory_clear(assistant, lang: str) -> bool:
 
 
 def handle_memory_store(assistant, result, lang: str) -> bool:
-    key = str(result.data.get("key", "")).strip().lower()
-    value = str(result.data.get("value", "")).strip()
-    memory_text = str(result.data.get("memory_text", "")).strip()
+    raw_key = str(result.data.get("key", "")).strip()
+    raw_value = str(result.data.get("value", "")).strip()
+    raw_memory_text = str(result.data.get("memory_text", "")).strip()
 
-    if key and value:
+    key = _clean_memory_key(assistant, raw_key)
+    value = _clean_memory_value(assistant, raw_value)
+    memory_text = _clean_memory_text(assistant, raw_memory_text)
+
+    if raw_key or raw_value:
+        if not key or not value:
+            append_log(
+                f"Memory save rejected: suspicious structured fragment | raw_key='{raw_key}' raw_value='{raw_value}'"
+            )
+            return _memory_save_failed_reply(assistant, lang)
+
         assistant.memory.remember(key, value)
         append_log(f"Memory stored from structured input: {key} -> {value}")
 
@@ -148,16 +360,24 @@ def handle_memory_store(assistant, result, lang: str) -> bool:
         )
         return True
 
-    assistant._speak_localized(
-        lang,
-        "Nie usłyszałam, co mam zapamiętać.",
-        "I did not catch what I should remember.",
+    append_log(
+        f"Memory save rejected: empty or suspicious free text | raw_memory_text='{raw_memory_text}'"
     )
-    return True
+    return _memory_save_failed_reply(assistant, lang)
 
 
 def handle_memory_recall(assistant, result, lang: str) -> bool:
-    key = str(result.data["key"]).strip().lower()
+    raw_key = str(result.data["key"]).strip()
+    key = _clean_memory_key(assistant, raw_key)
+
+    if not key:
+        assistant._speak_localized(
+            lang,
+            "Nie usłyszałam wyraźnie, o co pytasz w pamięci.",
+            "I did not clearly catch what you want to recall from memory.",
+        )
+        return True
+
     value = assistant.memory.recall(key)
 
     if value is None:
@@ -167,7 +387,11 @@ def handle_memory_recall(assistant, result, lang: str) -> bool:
             "MEMORY",
             [
                 _short_text(key, limit=22),
-                assistant._localized(lang, "brak wyniku", "not found"),
+                "brak wyniku",
+            ],
+            [
+                _short_text(key, limit=22),
+                "not found",
             ],
             duration=6.0,
         )
@@ -178,23 +402,35 @@ def handle_memory_recall(assistant, result, lang: str) -> bool:
         )
         return True
 
+    assistant.display.show_block(
+        assistant._localized(lang, "PAMIĘĆ", "MEMORY"),
+        [
+            _short_text(key, limit=20),
+            _short_text(value, limit=20),
+        ],
+        duration=6.0,
+    )
+
     assistant._speak_localized(
         lang,
         f"{key} jest {value}.",
         f"{key} is {value}.",
     )
-
-    assistant._offer_oled_display(
-        lang,
-        assistant._localized(lang, "ODPOWIEDŹ", "ANSWER"),
-        [f"{key}: {value}"],
-        speak_prompt=False,
-    )
     return True
 
 
 def handle_memory_forget(assistant, result, lang: str) -> bool:
-    key = str(result.data["key"]).strip().lower()
+    raw_key = str(result.data["key"]).strip()
+    key = _clean_memory_key(assistant, raw_key)
+
+    if not key:
+        assistant._speak_localized(
+            lang,
+            "Nie usłyszałam wyraźnie, co mam usunąć z pamięci.",
+            "I did not clearly catch what I should remove from memory.",
+        )
+        return True
+
     value = assistant.memory.recall(key)
 
     if value is None:
@@ -204,7 +440,11 @@ def handle_memory_forget(assistant, result, lang: str) -> bool:
             "MEMORY",
             [
                 _short_text(key, limit=22),
-                assistant._localized(lang, "brak wyniku", "not found"),
+                "brak wyniku",
+            ],
+            [
+                _short_text(key, limit=22),
+                "not found",
             ],
             duration=6.0,
         )

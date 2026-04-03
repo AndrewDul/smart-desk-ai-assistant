@@ -44,19 +44,24 @@ class WhisperVoiceInput:
         self.vad_model_path = str(self._resolve_project_path(vad_model_path)) if vad_model_path else None
         self.language = (language or "auto").strip().lower()
 
-        self.max_record_seconds = float(max_record_seconds)
+        self.max_record_seconds = max(float(max_record_seconds), 10.0)
         self.silence_threshold = float(silence_threshold)
-        self.end_silence_seconds = float(end_silence_seconds)
-        self.pre_roll_seconds = float(pre_roll_seconds)
+        self.end_silence_seconds = max(float(end_silence_seconds), 0.65)
+        self.pre_roll_seconds = max(float(pre_roll_seconds), 0.5)
         self.threads = int(threads)
-        self.min_speech_seconds = float(min_speech_seconds)
+        self.min_speech_seconds = max(float(min_speech_seconds), 0.28)
         self.transcription_timeout_seconds = float(transcription_timeout_seconds)
 
         self.blocksize = 512
         self.channels = 1
         self.dtype = "int16"
         self.audio_queue: queue.Queue[bytes] = queue.Queue()
-        self._tail_keep_chunks = 2
+        self._tail_keep_chunks = 3
+
+        self._speech_window_seconds = 0.42
+        self._speech_like_chunk_requirement = 4
+        self._speech_like_duration_requirement = 0.18
+        self._speech_start_reset_seconds = 0.85
 
         self.device = self._resolve_input_device(device_index, device_name_contains)
         input_info = sd.query_devices(self.device, "input")
@@ -129,6 +134,9 @@ class WhisperVoiceInput:
                 "turn",
                 "off",
                 "hour",
+                "keys",
+                "kitchen",
+                "eat",
             },
             "pl": {
                 "pomoc",
@@ -181,6 +189,18 @@ class WhisperVoiceInput:
                 "idz",
                 "idź",
                 "jest",
+                "jestes",
+                "jestes",
+                "kim",
+                "czym",
+                "nazywasz",
+                "klucze",
+                "kuchni",
+                "zjesc",
+                "zjeść",
+                "pamieci",
+                "pamięci",
+                "pomoc",
             },
         }
 
@@ -188,7 +208,13 @@ class WhisperVoiceInput:
             "en": {
                 "what time is it",
                 "show time",
-                "show menu",
+                "show me the time",
+                "show date",
+                "show me the date",
+                "show day",
+                "show me the day",
+                "show year",
+                "show me the year",
                 "help",
                 "menu",
                 "status",
@@ -197,29 +223,43 @@ class WhisperVoiceInput:
                 "what is your name",
                 "whats your name",
                 "who are you",
+                "what are you",
                 "go to sleep",
                 "turn off assistant",
+                "where are the keys",
+                "remember that the keys are in the kitchen",
             },
             "pl": {
                 "ktora jest godzina",
-                "która jest godzina",
                 "ktora godzina",
                 "jaka jest godzina",
                 "pokaz godzine",
-                "pokaż godzinę",
-                "pokaz menu",
-                "pokaż menu",
+                "pokaz mi godzine",
+                "pokaz date",
+                "pokaz mi date",
+                "pokaz dzien",
+                "pokaz mi dzien",
+                "pokaz rok",
+                "pokaz mi rok",
+                "jaka jest data",
+                "jaki jest dzisiaj dzien",
+                "jaki mamy dzisiaj dzien",
+                "jaki mamy rok",
                 "pomoc",
                 "menu",
                 "co potrafisz",
-                "status",
                 "jak mozesz mi pomoc",
-                "jak możesz mi pomóc",
+                "w czym mozesz mi pomoc",
+                "status",
+                "jak sie nazywasz",
+                "kim jestes",
+                "czym jestes",
                 "idz spac",
-                "idź spać",
                 "wylacz asystenta",
-                "wyłącz asystenta",
                 "odpocznij",
+                "gdzie sa klucze",
+                "zapamietaj ze klucze sa w kuchni",
+                "usun klucze z pamieci",
             },
         }
 
@@ -348,16 +388,13 @@ class WhisperVoiceInput:
         self.audio_queue.put(bytes(indata))
 
     def _required_end_silence(self, elapsed_speech: float) -> float:
-        required = self.end_silence_seconds
-
-        if elapsed_speech >= 1.0:
-            required = min(required, 0.18)
-        elif elapsed_speech >= 0.60:
-            required = min(required, 0.24)
-        elif elapsed_speech >= 0.30:
-            required = min(required, 0.30)
-
-        return max(required, 0.14)
+        if elapsed_speech < 0.9:
+            return max(self.end_silence_seconds, 0.95)
+        if elapsed_speech < 2.0:
+            return max(self.end_silence_seconds, 0.82)
+        if elapsed_speech < 4.0:
+            return max(self.end_silence_seconds, 0.72)
+        return max(self.end_silence_seconds, 0.65)
 
     def _trim_trailing_silence(self, recorded_chunks: list[bytes], trailing_silence_chunks: int) -> list[bytes]:
         if trailing_silence_chunks <= 0:
@@ -389,6 +426,78 @@ class WhisperVoiceInput:
         )
         return adaptive
 
+    def _analyze_chunk(self, chunk: bytes) -> dict[str, float]:
+        audio = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
+        if audio.size == 0:
+            return {
+                "rms": 0.0,
+                "peak": 0.0,
+                "zcr": 0.0,
+                "speech_band_ratio": 0.0,
+                "spectral_centroid": 0.0,
+                "duration": 0.0,
+            }
+
+        duration = float(audio.size) / float(self.sample_rate)
+        rms = float(np.sqrt(np.mean(np.square(audio)))) if audio.size else 0.0
+        peak = float(np.max(np.abs(audio))) if audio.size else 0.0
+
+        centered = audio - float(np.mean(audio))
+        if centered.size >= 2:
+            zero_crossings = np.count_nonzero(np.diff(np.signbit(centered)))
+            zcr = float(zero_crossings) / float(centered.size - 1)
+        else:
+            zcr = 0.0
+
+        window = np.hanning(centered.size) if centered.size > 1 else np.ones_like(centered)
+        windowed = centered * window
+        spectrum = np.abs(np.fft.rfft(windowed))
+        freqs = np.fft.rfftfreq(centered.size, d=1.0 / float(self.sample_rate)) if centered.size else np.array([0.0])
+
+        total_energy = float(np.sum(spectrum)) + 1e-9
+        speech_mask = (freqs >= 85.0) & (freqs <= 4000.0)
+        speech_energy = float(np.sum(spectrum[speech_mask]))
+        speech_band_ratio = speech_energy / total_energy
+
+        if float(np.sum(spectrum)) > 0.0:
+            spectral_centroid = float(np.sum(freqs * spectrum) / total_energy)
+        else:
+            spectral_centroid = 0.0
+
+        return {
+            "rms": rms,
+            "peak": peak,
+            "zcr": zcr,
+            "speech_band_ratio": speech_band_ratio,
+            "spectral_centroid": spectral_centroid,
+            "duration": duration,
+        }
+
+    def _is_speech_like_chunk(self, metrics: dict[str, float], start_threshold: float) -> bool:
+        rms = metrics["rms"]
+        peak = metrics["peak"]
+        zcr = metrics["zcr"]
+        speech_band_ratio = metrics["speech_band_ratio"]
+        spectral_centroid = metrics["spectral_centroid"]
+
+        if rms < start_threshold:
+            return False
+
+        transient_ratio = peak / max(rms, 1.0)
+        if transient_ratio >= 11.5 and speech_band_ratio < 0.76:
+            return False
+
+        if speech_band_ratio < 0.52:
+            return False
+
+        if zcr < 0.015 or zcr > 0.24:
+            return False
+
+        if spectral_centroid < 110.0 or spectral_centroid > 3600.0:
+            return False
+
+        return True
+
     def _record_until_silence(self, timeout: float, debug: bool = False) -> bytes | None:
         self.audio_queue = queue.Queue()
 
@@ -403,6 +512,8 @@ class WhisperVoiceInput:
         listen_started_at = self._now()
 
         ambient_rms: list[float] = []
+        speech_gate_window: deque[tuple[float, bool]] = deque()
+        last_speech_like_at: float | None = None
 
         try:
             stream = sd.RawInputStream(
@@ -436,8 +547,8 @@ class WhisperVoiceInput:
                             break
                     continue
 
-                audio = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
-                rms = float(np.sqrt(np.mean(np.square(audio)))) if len(audio) else 0.0
+                metrics = self._analyze_chunk(chunk)
+                rms = metrics["rms"]
                 now = self._now()
 
                 if not speech_started:
@@ -447,11 +558,31 @@ class WhisperVoiceInput:
                         ambient_rms.append(rms)
 
                     start_threshold = self._adaptive_start_threshold(ambient_rms)
+                    speech_like = self._is_speech_like_chunk(metrics, start_threshold)
+                    speech_gate_window.append((now, speech_like))
+
+                    while speech_gate_window and (now - speech_gate_window[0][0]) > self._speech_window_seconds:
+                        speech_gate_window.popleft()
+
+                    speech_like_count = sum(1 for _, flag in speech_gate_window if flag)
+                    speech_like_duration = sum(metrics["duration"] for _, flag in speech_gate_window if flag)
+
+                    if speech_like:
+                        last_speech_like_at = now
+                    elif last_speech_like_at is not None and (now - last_speech_like_at) > self._speech_start_reset_seconds:
+                        speech_gate_window.clear()
+                        last_speech_like_at = None
 
                     if debug:
-                        print(f"RMS: {rms:.2f} | start_threshold: {start_threshold:.2f}")
+                        print(
+                            f"RMS: {rms:.2f} | start_threshold: {start_threshold:.2f} | "
+                            f"speech_like={speech_like} | gate_count={speech_like_count}"
+                        )
 
-                    if rms >= start_threshold:
+                    if (
+                        speech_like_count >= self._speech_like_chunk_requirement
+                        or speech_like_duration >= self._speech_like_duration_requirement
+                    ):
                         speech_started = True
                         speech_start_time = now
                         recorded_chunks.extend(pre_roll)
@@ -474,7 +605,7 @@ class WhisperVoiceInput:
                 elapsed_speech = now - speech_start_time
                 required_end_silence = self._required_end_silence(elapsed_speech)
                 start_threshold = self._adaptive_start_threshold(ambient_rms)
-                end_threshold = max(self.silence_threshold, start_threshold * 0.45)
+                end_threshold = max(self.silence_threshold, start_threshold * 0.46)
 
                 if debug:
                     print(f"RMS: {rms:.2f} | end_threshold: {end_threshold:.2f}")
@@ -644,6 +775,14 @@ class WhisperVoiceInput:
             "thank you",
             "thanks for watching",
             "you",
+            "applause",
+            "keyboard",
+            "typing",
+            "knocking",
+            "chair",
+            "stukanie",
+            "klaskanie",
+            "krzeslo",
         }
 
         if normalized in bad_markers:
@@ -656,20 +795,6 @@ class WhisperVoiceInput:
             return None
 
         return cleaned
-
-    def _keyword_hits(self, tokens: set[str], lang: str) -> int:
-        return len(tokens & self._lang_keywords[lang])
-
-    def _is_exact_phrase(self, normalized: str, lang: str) -> bool:
-        return normalized in self._exact_command_phrases[lang]
-
-    def _is_confirmation_candidate(self, normalized: str) -> bool:
-        return (
-            normalized in self._strong_confirmation_tokens["en"]
-            or normalized in self._strong_confirmation_tokens["pl"]
-            or normalized in self._fuzzy_confirmation_tokens["en"]
-            or normalized in self._fuzzy_confirmation_tokens["pl"]
-        )
 
     def _score_transcript(self, transcript: str | None, lang: str) -> float:
         if not transcript:
@@ -700,7 +825,6 @@ class WhisperVoiceInput:
             "oklaski",
             "laughter",
             "smiech",
-            "śmiech",
             "noise",
             "szum",
             "silence",
@@ -709,6 +833,13 @@ class WhisperVoiceInput:
             "background",
             "static",
             "instrumental",
+            "keyboard",
+            "typing",
+            "knocking",
+            "chair",
+            "stukanie",
+            "klaskanie",
+            "krzeslo",
         }
 
         filler_tokens = {
@@ -729,10 +860,10 @@ class WhisperVoiceInput:
             score += 0.6
 
         if normalized in self._exact_command_phrases[lang]:
-            score += 5.0
+            score += 6.5
 
         keyword_hits = len(tokens & self._lang_keywords[lang])
-        score += min(keyword_hits * 1.6, 6.0)
+        score += min(keyword_hits * 1.8, 7.0)
 
         if normalized in self._strong_confirmation_tokens[lang]:
             score += 3.0
@@ -759,6 +890,23 @@ class WhisperVoiceInput:
         if len(tokens) == 1 and normalized in self._ambiguous_short_tokens:
             score += 0.2
 
+        if lang == "pl":
+            strong_token_sets = [
+                {"jak", "mozesz", "mi", "pomoc"},
+                {"w", "czym", "mozesz", "mi", "pomoc"},
+                {"jak", "sie", "nazywasz"},
+                {"kim", "jestes"},
+                {"czym", "jestes"},
+                {"jaki", "jest", "dzisiaj", "dzien"},
+                {"jaki", "mamy", "rok"},
+                {"pokaz", "mi", "godzine"},
+                {"gdzie", "sa", "klucze"},
+                {"usun", "klucze", "z", "pamieci"},
+            ]
+            for token_set in strong_token_sets:
+                if token_set.issubset(tokens):
+                    score += 4.0
+
         return score
 
     def _should_try_forced_languages(self, auto_transcript: str | None) -> bool:
@@ -771,22 +919,28 @@ class WhisperVoiceInput:
         auto_en_score = self._score_transcript(auto_transcript, "en")
         auto_pl_score = self._score_transcript(auto_transcript, "pl")
 
+        if self._normalize_text(auto_transcript) in self._exact_command_phrases["pl"]:
+            return True
+
         if self._is_confirmation_candidate(normalized):
             return False
 
         if self._is_exact_phrase(normalized, "en") or self._is_exact_phrase(normalized, "pl"):
+            if len(tokens) <= 6:
+                return True
             return False
 
         if normalized in self._suspicious_auto_phrases:
             return True
 
-        # Good and clearly English -> do not waste time on Polish.
-        if auto_en_score >= 3.4 and auto_en_score >= auto_pl_score + 1.0 and len(tokens) >= 2:
+        if len(tokens) <= 7:
+            return True
+
+        if auto_en_score >= 3.6 and auto_en_score >= auto_pl_score + 1.0 and len(tokens) >= 3:
             return False
 
-        # Good and clearly Polish already from auto -> no need forced Polish.
-        if auto_pl_score >= 3.4 and auto_pl_score >= auto_en_score + 0.6 and len(tokens) >= 2:
-            return False
+        if auto_pl_score >= 3.6 and auto_pl_score >= auto_en_score + 0.6 and len(tokens) >= 3:
+            return True
 
         if len(tokens) <= 1 and normalized in self._ambiguous_short_tokens:
             return True
@@ -794,10 +948,21 @@ class WhisperVoiceInput:
         if len(tokens) <= 5 and auto_score < 3.2:
             return True
 
-        if auto_pl_score >= auto_en_score and len(tokens) <= 5:
+        if auto_pl_score >= auto_en_score and len(tokens) <= 8:
             return True
 
         return False
+
+    def _is_exact_phrase(self, normalized: str, lang: str) -> bool:
+        return normalized in self._exact_command_phrases[lang]
+
+    def _is_confirmation_candidate(self, normalized: str) -> bool:
+        return (
+            normalized in self._strong_confirmation_tokens["en"]
+            or normalized in self._strong_confirmation_tokens["pl"]
+            or normalized in self._fuzzy_confirmation_tokens["en"]
+            or normalized in self._fuzzy_confirmation_tokens["pl"]
+        )
 
     def _select_best_transcript(self, wav_path: Path, debug: bool = False) -> str | None:
         auto_raw = self._transcribe(wav_path, "auto", debug=debug)
@@ -825,16 +990,18 @@ class WhisperVoiceInput:
             return auto_clean
 
         auto_score = self._score_transcript(auto_clean, "auto")
+        auto_en_score = self._score_transcript(auto_clean, "en")
         pl_score = self._score_transcript(pl_clean, "pl")
 
         auto_normalized = self._normalize_text(auto_clean)
         auto_tokens = set(self._normalized_word_tokens(auto_clean))
         pl_normalized = self._normalize_text(pl_clean)
+        pl_tokens = set(self._normalized_word_tokens(pl_clean))
 
         if debug:
             print(
                 "Candidate summary: "
-                f"auto={repr(auto_clean)} score={auto_score:.2f} | "
+                f"auto={repr(auto_clean)} score={auto_score:.2f} en={auto_en_score:.2f} | "
                 f"pl={repr(pl_clean)} score={pl_score:.2f}"
             )
 
@@ -843,17 +1010,21 @@ class WhisperVoiceInput:
                 print("Selected transcript from: pl (exact polish phrase)")
             return pl_clean
 
-        if self._is_exact_phrase(auto_normalized, "en") or self._is_exact_phrase(auto_normalized, "pl"):
+        if (
+            len(pl_tokens) <= 8
+            and pl_score >= auto_score - 0.2
+            and len(pl_tokens & self._lang_keywords["pl"]) >= 2
+        ):
             if debug:
-                print("Selected transcript from: auto (exact phrase)")
-            return auto_clean
+                print("Selected transcript from: pl (short utterance polish bias)")
+            return pl_clean
 
         if auto_normalized in self._suspicious_auto_phrases and pl_score >= 1.6:
             if debug:
                 print("Selected transcript from: pl (suspicious auto phrase)")
             return pl_clean
 
-        if pl_score > (auto_score + 0.25):
+        if pl_score > (auto_score + 0.20):
             if debug:
                 print("Selected transcript from: pl")
             return pl_clean

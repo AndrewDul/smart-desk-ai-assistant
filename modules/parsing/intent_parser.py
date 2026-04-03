@@ -19,8 +19,8 @@ class IntentResult:
 
 class IntentParser:
     def __init__(self, default_focus_minutes: float = 25, default_break_minutes: float = 5) -> None:
-        self.default_focus_minutes = default_focus_minutes
-        self.default_break_minutes = default_break_minutes
+        self.default_focus_minutes = float(default_focus_minutes)
+        self.default_break_minutes = float(default_break_minutes)
 
         self.confirm_yes = {
             "yes",
@@ -71,7 +71,7 @@ class IntentParser:
         self.normalized_confirm_no = {self._normalize_text(item) for item in self.confirm_no}
 
         self.time_query_patterns = [
-            r"\bwhat(?:'s| is)? the time\b",
+            r"\bwhat(?: s| is)? the time\b",
             r"\bwhat time is it\b",
             r"\btell me the time\b",
             r"\bcurrent time\b",
@@ -87,16 +87,14 @@ class IntentParser:
             r"\bdisplay(?: me)? the time\b",
             r"\bshow time\b",
             r"\bdisplay time\b",
-            r"\bpokaz godzine\b",
-            r"\bpokaż godzinę\b",
-            r"\bwyswietl godzine\b",
-            r"\bwyświetl godzinę\b",
-            r"\bpokaz czas\b",
-            r"\bpokaż czas\b",
+            r"\bpokaz(?: mi)? godzine\b",
+            r"\bwyswietl(?: mi)? godzine\b",
+            r"\bpokaz(?: mi)? czas\b",
+            r"\bwyswietl(?: mi)? czas\b",
         ]
 
         self.date_query_patterns = [
-            r"\bwhat(?:'s| is)? the date\b",
+            r"\bwhat(?: s| is)? the date\b",
             r"\bwhat date is it\b",
             r"\btell me the date\b",
             r"\bjaka jest data\b",
@@ -107,10 +105,8 @@ class IntentParser:
             r"\bdisplay(?: me)? the date\b",
             r"\bshow date\b",
             r"\bdisplay date\b",
-            r"\bpokaz date\b",
-            r"\bpokaż datę\b",
-            r"\bwyswietl date\b",
-            r"\bwyświetl datę\b",
+            r"\bpokaz(?: mi)? date\b",
+            r"\bwyswietl(?: mi)? date\b",
         ]
 
         self.day_query_patterns = [
@@ -127,10 +123,8 @@ class IntentParser:
             r"\bdisplay(?: me)? the day\b",
             r"\bshow day\b",
             r"\bdisplay day\b",
-            r"\bpokaz dzien\b",
-            r"\bpokaż dzień\b",
-            r"\bwyswietl dzien\b",
-            r"\bwyświetl dzień\b",
+            r"\bpokaz(?: mi)? dzien\b",
+            r"\bwyswietl(?: mi)? dzien\b",
         ]
 
         self.year_query_patterns = [
@@ -145,10 +139,8 @@ class IntentParser:
             r"\bdisplay(?: me)? the year\b",
             r"\bshow year\b",
             r"\bdisplay year\b",
-            r"\bpokaz rok\b",
-            r"\bpokaż rok\b",
-            r"\bwyswietl rok\b",
-            r"\bwyświetl rok\b",
+            r"\bpokaz(?: mi)? rok\b",
+            r"\bwyswietl(?: mi)? rok\b",
         ]
 
         self.direct_action_phrases: dict[str, list[str]] = {
@@ -174,19 +166,16 @@ class IntentParser:
                 "i need assistance",
                 "pomoc",
                 "pokaz pomoc",
-                "pokaż pomoc",
+                "pokaz mi pomoc",
                 "pokaz menu",
-                "pokaż menu",
+                "pokaz mi menu",
                 "menu asystenta",
                 "co potrafisz",
                 "co umiesz",
                 "jak mozesz mi pomoc",
-                "jak możesz mi pomóc",
                 "w czym mozesz mi pomoc",
-                "w czym możesz mi pomóc",
                 "powiedz co potrafisz",
                 "pokaz mozliwosci",
-                "pokaż możliwości",
                 "komendy",
             ],
             "status": [
@@ -198,7 +187,6 @@ class IntentParser:
                 "show assistant status",
                 "stan",
                 "pokaz stan",
-                "pokaż stan",
                 "status systemu",
                 "stan systemu",
             ],
@@ -209,11 +197,8 @@ class IntentParser:
                 "what do you remember",
                 "show what you remember",
                 "pamiec",
-                "pamięć",
                 "pokaz pamiec",
-                "pokaż pamięć",
                 "co pamietasz",
-                "co pamiętasz",
             ],
             "memory_clear": [
                 "clear memory",
@@ -222,12 +207,9 @@ class IntentParser:
                 "remove all memory",
                 "forget everything",
                 "wyczysc pamiec",
-                "wyczyść pamięć",
                 "usun cala pamiec",
-                "usuń całą pamięć",
                 "zapomnij wszystko",
                 "skasuj pamiec",
-                "skasuj pamięć",
             ],
             "reminders_list": [
                 "reminders",
@@ -236,9 +218,7 @@ class IntentParser:
                 "show my reminders",
                 "przypomnienia",
                 "pokaz przypomnienia",
-                "pokaż przypomnienia",
                 "pokaz moje przypomnienia",
-                "pokaż moje przypomnienia",
             ],
             "timer_stop": [
                 "stop timer",
@@ -259,36 +239,27 @@ class IntentParser:
                 "stop timera",
                 "anuluj timer",
                 "wylacz timer",
-                "wyłącz timer",
                 "zatrzymaj focus",
                 "wylacz focus",
-                "wyłącz focus",
                 "zakoncz focus",
-                "zakończ focus",
                 "zatrzymaj przerwe",
-                "zatrzymaj przerwę",
                 "wylacz przerwe",
-                "wyłącz przerwę",
                 "zakoncz przerwe",
-                "zakończ przerwę",
             ],
             "introduce_self": [
                 "who are you",
                 "what are you",
                 "what is your name",
-                "what's your name",
+                "what s your name",
                 "tell me your name",
                 "say your name",
                 "introduce yourself",
                 "tell me about yourself",
                 "przedstaw sie",
-                "przedstaw się",
                 "kim jestes",
-                "kim jesteś",
+                "czym jestes",
                 "jak sie nazywasz",
-                "jak się nazywasz",
                 "powiedz jak sie nazywasz",
-                "powiedz jak się nazywasz",
                 "powiedz o sobie",
             ],
             "exit": [
@@ -308,15 +279,11 @@ class IntentParser:
                 "bye",
                 "bye bye",
                 "wylacz asystenta",
-                "wyłącz asystenta",
                 "zamknij asystenta",
                 "idz spac",
-                "idź spać",
                 "spij",
-                "śpij",
                 "odpocznij",
                 "przestan sluchac",
-                "przestań słuchać",
             ],
             "shutdown": [
                 "shutdown",
@@ -327,10 +294,8 @@ class IntentParser:
                 "turn off raspberry pi",
                 "power off raspberry pi",
                 "wylacz system",
-                "wyłącz system",
                 "zamknij system",
                 "wylacz raspberry pi",
-                "wyłącz raspberry pi",
             ],
         }
 
@@ -399,43 +364,25 @@ class IntentParser:
             "trzy": 3,
             "cztery": 4,
             "piec": 5,
-            "pięć": 5,
             "szesc": 6,
-            "sześć": 6,
             "siedem": 7,
             "osiem": 8,
             "dziewiec": 9,
-            "dziewięć": 9,
             "dziesiec": 10,
-            "dziesięć": 10,
             "jedenascie": 11,
-            "jedenaście": 11,
             "dwanascie": 12,
-            "dwanaście": 12,
             "trzynascie": 13,
-            "trzynaście": 13,
             "czternascie": 14,
-            "czternaście": 14,
             "pietnascie": 15,
-            "piętnaście": 15,
             "szesnascie": 16,
-            "szesnaście": 16,
             "siedemnascie": 17,
-            "siedemnaście": 17,
             "osiemnascie": 18,
-            "osiemnaście": 18,
             "dziewietnascie": 19,
-            "dziewiętnaście": 19,
             "dwadziescia": 20,
-            "dwadzieścia": 20,
             "trzydziesci": 30,
-            "trzydzieści": 30,
             "czterdziesci": 40,
-            "czterdzieści": 40,
             "piecdziesiat": 50,
-            "pięćdziesiąt": 50,
             "szescdziesiat": 60,
-            "sześćdziesiąt": 60,
         }
         self.duration_units = {
             "second",
@@ -458,7 +405,6 @@ class IntentParser:
             "countdown",
             "ustaw timer",
             "wlacz timer",
-            "włącz timer",
             "uruchom timer",
             "minutnik",
         ]
@@ -475,7 +421,6 @@ class IntentParser:
             "sesja nauki",
             "zacznij focus",
             "wlacz focus",
-            "włącz focus",
         ]
         self.break_trigger_phrases = [
             "break",
@@ -486,13 +431,12 @@ class IntentParser:
             "przerwa",
             "tryb przerwy",
             "zacznij przerwe",
-            "zacznij przerwę",
             "wlacz przerwe",
-            "włącz przerwę",
         ]
 
         self.direct_action_map: dict[str, str] = {}
         self.fuzzy_candidates: list[tuple[str, str, set[str]]] = []
+
         for action, phrases in self.direct_action_phrases.items():
             for phrase in phrases:
                 normalized_phrase = self._normalize_text(phrase)
@@ -511,7 +455,7 @@ class IntentParser:
             "show_year": self.year_show_patterns,
         }.items():
             for pattern in patterns:
-                plain = pattern.replace(r"\b", "").replace("(?:'s| is)?", "").strip()
+                plain = pattern.replace(r"\b", "").replace("(?: s| is)?", "").strip()
                 normalized_phrase = self._normalize_text(plain)
                 if normalized_phrase:
                     self.fuzzy_candidates.append((normalized_phrase, action, set(normalized_phrase.split())))
@@ -556,6 +500,7 @@ class IntentParser:
 
     def find_action_in_text(self, text: str, allowed_actions: list[str] | None = None) -> str | None:
         result = self.parse(text)
+
         if result.action in {"unknown", "unclear", "confirm_yes", "confirm_no"}:
             if result.action == "unclear" and result.suggestions:
                 candidate = result.suggestions[0]["action"]
@@ -576,6 +521,7 @@ class IntentParser:
         lowered = lowered.replace("-", " ")
         lowered = re.sub(r"[^a-z0-9\s]", " ", lowered)
         lowered = re.sub(r"\s+", " ", lowered).strip()
+
         if not lowered:
             return ""
 
@@ -594,41 +540,39 @@ class IntentParser:
         if not tokens:
             return None
 
-        if {"what", "can", "you", "do"}.issubset(tokens):
+        if {"jak", "mozesz", "mi", "pomoc"}.issubset(tokens):
             return IntentResult(action="help")
-        if "pomoc" in tokens or "commands" in tokens or "komendy" in tokens:
+        if {"w", "czym", "mozesz", "mi", "pomoc"}.issubset(tokens):
+            return IntentResult(action="help")
+        if {"co", "potrafisz"}.issubset(tokens):
             return IntentResult(action="help")
         if {"how", "can", "you", "help", "me"}.issubset(tokens):
             return IntentResult(action="help")
-        if {"co", "potrafisz"}.issubset(tokens) or {"jak", "mozesz", "pomoc"}.issubset(tokens):
+        if {"what", "can", "you", "do"}.issubset(tokens):
             return IntentResult(action="help")
 
         if "status" in tokens or ("stan" in tokens and "systemu" in tokens):
             return IntentResult(action="status")
 
-        if {"what", "is", "your", "name"}.issubset(tokens) or {"who", "are", "you"}.issubset(tokens):
+        if {"jak", "sie", "nazywasz"}.issubset(tokens):
             return IntentResult(action="introduce_self")
-        if {"jak", "sie", "nazywasz"}.issubset(tokens) or {"kim", "jestes"}.issubset(tokens):
+        if {"kim", "jestes"}.issubset(tokens) or {"czym", "jestes"}.issubset(tokens):
+            return IntentResult(action="introduce_self")
+        if {"what", "is", "your", "name"}.issubset(tokens):
+            return IntentResult(action="introduce_self")
+        if {"who", "are", "you"}.issubset(tokens) or {"what", "are", "you"}.issubset(tokens):
             return IntentResult(action="introduce_self")
 
-        if "assistant" in tokens and ({"turn", "off"}.issubset(tokens) or {"stop"}.issubset(tokens)):
+        if ("asystenta" in tokens or "asystent" in tokens) and ("wylacz" in tokens or "zamknij" in tokens):
             return IntentResult(action="exit")
-        if {"go", "sleep"}.issubset(tokens) or {"rest", "now"}.issubset(tokens):
+        if {"idz", "spac"}.issubset(tokens) or "odpocznij" in tokens:
             return IntentResult(action="exit")
-        if ("asystenta" in tokens or "asystent" in tokens) and (
-            "wylacz" in tokens or "wyłącz" in tokens or "zamknij" in tokens
-        ):
-            return IntentResult(action="exit")
-        if ("spac" in tokens or "spać" in tokens or "odpocznij" in tokens) and (
-            "idz" in tokens or "idź" in tokens or "spij" in tokens or "śpij" in tokens or "odpocznij" in tokens
-        ):
+        if {"turn", "off", "assistant"}.issubset(tokens) or {"go", "to", "sleep"}.issubset(tokens):
             return IntentResult(action="exit")
 
-        if "shutdown" in tokens or ("system" in tokens and {"turn", "off"}.issubset(tokens)):
+        if ("system" in tokens or {"raspberry", "pi"}.issubset(tokens)) and ("wylacz" in tokens or "zamknij" in tokens):
             return IntentResult(action="shutdown")
-        if ("system" in tokens or {"raspberry", "pi"}.issubset(tokens)) and (
-            "wylacz" in tokens or "wyłącz" in tokens or "zamknij" in tokens or {"power", "off"}.issubset(tokens)
-        ):
+        if "shutdown" in tokens or {"power", "off"}.issubset(tokens):
             return IntentResult(action="shutdown")
 
         return None
@@ -669,6 +613,7 @@ class IntentParser:
 
         if self._contains_any_phrase(normalized, self.focus_trigger_phrases):
             return IntentResult(action="focus_start", data={})
+
         if self._contains_any_phrase(normalized, self.break_trigger_phrases):
             return IntentResult(action="break_start", data={})
 
@@ -733,7 +678,7 @@ class IntentParser:
         return total if total > 0 else None
 
     def _parse_reminder(self, normalized: str) -> IntentResult | None:
-        if not any(word in normalized for word in {"remind", "przypomnij"}):
+        if "remind" not in normalized and "przypomnij" not in normalized:
             return None
 
         patterns = [
@@ -776,16 +721,15 @@ class IntentParser:
             "delete all reminders",
             "remove all reminders",
             "wyczysc przypomnienia",
-            "wyczyść przypomnienia",
             "usun wszystkie przypomnienia",
-            "usuń wszystkie przypomnienia",
         }
-        if normalized in {self._normalize_text(item) for item in clear_phrases}:
+        normalized_clear = {self._normalize_text(item) for item in clear_phrases}
+        if normalized in normalized_clear:
             return IntentResult(action="reminders_clear")
 
         for pattern in [
             r"^(?:delete reminder|remove reminder|cancel reminder)\s+id\s+([a-z0-9]{1,32})$",
-            r"^(?:usun przypomnienie|usuń przypomnienie|skasuj przypomnienie)\s+id\s+([a-z0-9]{1,32})$",
+            r"^(?:usun przypomnienie|skasuj przypomnienie)\s+id\s+([a-z0-9]{1,32})$",
         ]:
             match = re.match(pattern, normalized)
             if match:
@@ -793,7 +737,7 @@ class IntentParser:
 
         for pattern in [
             r"^(?:delete reminder|remove reminder|cancel reminder)(?: about)?\s+(.+)$",
-            r"^(?:usun przypomnienie|usuń przypomnienie|skasuj przypomnienie)(?: o)?\s+(.+)$",
+            r"^(?:usun przypomnienie|skasuj przypomnienie)(?: o)?\s+(.+)$",
         ]:
             match = re.match(pattern, normalized)
             if match:
@@ -824,10 +768,14 @@ class IntentParser:
         return None
 
     def _parse_memory_forget(self, normalized: str) -> IntentResult | None:
-        for pattern in [
+        patterns = [
             r"^(?:forget|remove from memory|delete from memory)\s+(.+)$",
-            r"^(?:zapomnij o|usun z pamieci|usuń z pamięci)\s+(.+)$",
-        ]:
+            r"^(?:forget|remove|delete)\s+(.+?)\s+from\s+memory$",
+            r"^(?:zapomnij o|usun z pamieci|skasuj z pamieci)\s+(.+)$",
+            r"^(?:usun|skasuj)\s+(.+?)\s+z\s+pamieci$",
+        ]
+
+        for pattern in patterns:
             match = re.match(pattern, normalized)
             if match:
                 key = self._cleanup_subject(match.group(1))
@@ -887,7 +835,7 @@ class IntentParser:
     @staticmethod
     def _cleanup_reminder_message(text: str) -> str:
         cleaned = re.sub(r"\s+", " ", text.strip())
-        prefixes = ("about ", "to ", "o ")
+        prefixes = ("about ", "to ", "o ", "ze ", "zebym ", "ze mam ", "że ", "żebym ", "że mam ")
         changed = True
         while changed and cleaned:
             changed = False
@@ -917,7 +865,7 @@ class IntentParser:
     ) -> list[dict[str, Any]]:
         normalized_tokens = set(normalized.split())
         scores: list[dict[str, Any]] = []
-        min_ratio = 0.72 if len(normalized) > 5 else 0.80
+        min_ratio = 0.78 if len(normalized) > 5 else 0.85
 
         for phrase, action, phrase_tokens in self.fuzzy_candidates:
             if allowed_actions is not None and action not in allowed_actions:
@@ -926,6 +874,7 @@ class IntentParser:
             sequence_ratio = SequenceMatcher(None, normalized, phrase).ratio()
             token_ratio = self._token_overlap_ratio(normalized_tokens, phrase_tokens)
             combined_ratio = max(sequence_ratio, token_ratio)
+
             if combined_ratio >= min_ratio:
                 scores.append(
                     {
@@ -950,10 +899,11 @@ class IntentParser:
         return any(re.search(pattern, normalized) for pattern in patterns)
 
     def _contains_any_phrase(self, normalized: str, phrases: list[str]) -> bool:
+        wrapped = f" {normalized} "
         for phrase in phrases:
             normalized_phrase = self._normalize_text(phrase)
             if normalized == normalized_phrase:
                 return True
-            if f" {normalized_phrase} " in f" {normalized} ":
+            if f" {normalized_phrase} " in wrapped:
                 return True
         return False

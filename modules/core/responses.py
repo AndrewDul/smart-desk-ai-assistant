@@ -103,20 +103,22 @@ def offer_oled_display(
     lines: list[str],
     speak_prompt: bool = True,
 ) -> None:
-    assistant.pending_follow_up = {
-        "type": "display_offer",
-        "lang": lang,
-        "title": title,
-        "lines": lines,
-    }
+    # Premium flow:
+    # do not ask whether something should be shown.
+    # If this helper is still called from any older code path,
+    # just show the content directly and do not create any follow-up state.
+    assistant.pending_follow_up = None
+    assistant.display.show_block(
+        title,
+        lines,
+        duration=assistant.default_overlay_seconds,
+    )
 
     if speak_prompt:
-        speak_localized(
-            assistant,
-            lang,
-            "Czy chcesz, żebym pokazała to na ekranie?",
-            "Would you like me to show that on the screen?",
-        )
+        # Intentionally no spoken question here.
+        # This keeps backward compatibility without bringing back
+        # the old "show on screen?" conversational interruption.
+        return
 
 
 def action_label(action: str, lang: str) -> str:

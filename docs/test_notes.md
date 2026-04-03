@@ -445,3 +445,128 @@ This stage was a major improvement.
 The assistant is now in a much better state than before. It understands the main commands much more reliably and the bilingual recognition problem is much smaller than it was at the beginning of this work.
 
 It is still not perfect yet, but this was a big step forward.
+
+
+---
+
+# Test Notes
+
+## Date
+2026-04-03
+
+## Area
+Conversation upgrade, bilingual routing, memory, reminders, identity, and noise filtering
+
+---
+
+##  Main purpose of this test stage
+
+In this test stage I focused on improving the assistant conversation quality.
+
+The main goal was not only to make commands work, but to make the assistant behave more naturally during real use.
+
+The key targets were:
+- Polish and English separation
+- better handling of short voice commands
+- better memory reliability
+- better reminder language behaviour
+- ignoring non-speech sounds
+- removing unnecessary OLED follow-up questions
+- improving assistant identity responses
+
+---
+
+##  Main changes tested
+
+I tested changes in:
+- language routing
+- Whisper transcript selection
+- non-speech filtering
+- memory save / recall / forget
+- reminder language storage
+- follow-up confirmations
+- identity responses
+- time/date/day/year queries
+- OLED show vs speak-only behaviour
+- TTS pronunciation for the assistant name
+
+---
+
+## Successful results confirmed
+
+The following behaviour was confirmed working during this stage:
+
+- `Jak możesz mi pomóc` works
+- `Która jest godzina` works
+- `Jaka jest data` works
+- `Jaki jest dzisiaj dzień` works
+- `How can you help me` works
+- `What time is it` works
+- `What is the date` works
+- `What day is it today` works
+- `What year is it` works
+- `Pokaż mi godzinę` works
+- `Pokaż mi datę` works
+- `Pokaż mi dzień` works
+- `Show me the time` works
+- `Show me the date` works
+- `Show me the day` works
+- `Show me the year` works
+- `Jak się nazywasz` works
+- `Kim jesteś` works
+- `Czym jesteś` works
+- `What is your name` works
+- `Who are you` works
+- `What are you` works
+
+---
+
+## Problems found during testing
+
+I also found several problems during this test stage:
+
+- some Polish commands were still answered in English
+- short Polish commands could still be replaced by English transcripts
+- `jaki mamy rok` was unstable
+- memory behaviour was not always correct after Polish commands
+- `usuń klucze z pamięci` was unreliable at first
+- Polish reminder creation could still reply in English
+- the assistant reacted to keyboard typing and chair movement
+- the assistant name pronunciation was not correct at first
+- one memory recall path caused a runtime crash because of an outdated helper call
+
+---
+
+##  Fixes applied after testing
+
+After these tests I applied the following fixes:
+
+- stronger Polish language scoring
+- stronger Polish bias for short Whisper transcripts
+- improved parser support for natural Polish commands
+- stronger filtering for typing / clapping / chair movement transcripts
+- removal of the old screen-offer behaviour
+- safer memory validation
+- reminder entries now store language
+- follow-up confirmations now keep language context better
+- self-introduction split into:
+  - name-only answer
+  - fuller identity answer
+- pronunciation handling for the spoken form of NeXa
+- memory and reminder data cleaned to remove old broken entries
+
+---
+
+##  Current conclusion
+
+At the end of this stage, the assistant became much closer to the premium interaction style I wanted.
+
+The biggest improvements were:
+- cleaner bilingual behaviour
+- less unnecessary talking after noise
+- better control over identity responses
+- better screen behaviour
+- safer memory handling
+- stronger structure for future expansion
+
+Some Polish voice paths may still need more tuning, but the conversation layer is now much stronger than before.

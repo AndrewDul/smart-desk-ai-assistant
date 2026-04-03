@@ -25,14 +25,14 @@ def _help_voice_text(lang: str) -> str:
         return (
             "Mogę pomagać ci na kilka głównych sposobów. "
             "Mogę zapamiętywać informacje, ustawiać przypomnienia, ustawiać timer, "
-            "uruchamiać focus mode oraz break mode, które mogą być przydatne podczas nauki. "
+            "uruchamiać focus mode oraz break mode. "
             "To są teraz moje główne funkcje."
         )
 
     return (
         "I can help you in a few main ways. "
-        "I can remember information, set reminders, set a timer, "
-        "and start focus mode or break mode, which can be useful while studying. "
+        "I can remember information, set reminders, set timers, "
+        "and start focus mode or break mode. "
         "These are my main features right now."
     )
 
@@ -47,11 +47,7 @@ def handle_help(assistant, lang: str) -> bool:
         duration=12.0,
     )
 
-    assistant._speak_localized(
-        lang,
-        _help_voice_text("pl"),
-        _help_voice_text("en"),
-    )
+    assistant.voice_out.speak(_help_voice_text(lang), language=lang)
     return True
 
 
@@ -59,38 +55,70 @@ def handle_introduce_self(assistant, lang: str) -> bool:
     assistant.pending_follow_up = None
     assistant.pending_confirmation = None
 
+    normalized_last = ""
+    try:
+        normalized_last = assistant._normalize_text(
+            getattr(getattr(assistant, "parser", None), "_last_raw_text", "")
+        )
+    except Exception:
+        normalized_last = ""
+
+    # Fallback: rely on last raw text passed through handle_command if available.
+    if not normalized_last:
+        normalized_last = getattr(assistant, "_last_normalized_command_text", "")
+
+    asks_only_name = normalized_last in {
+        "jak sie nazywasz",
+        "what is your name",
+        "what s your name",
+        "tell me your name",
+        "say your name",
+    }
+
+    if asks_only_name:
+        if lang == "pl":
+            title = "NeXa"
+            lines = [
+                "nazywam sie NeXa",
+            ]
+            spoken = "Nazywam się NeXa."
+        else:
+            title = "NeXa"
+            lines = [
+                "my name is NeXa",
+            ]
+            spoken = "My name is NeXa."
+
+        assistant.display.show_block(title, lines, duration=6.0)
+        assistant.voice_out.speak(spoken, language=lang)
+        return True
+
     if lang == "pl":
-        title = "SMART ASSISTANT"
+        title = "NeXa"
         lines = [
-            "jestem Smart Assistant",
-            "angielski jest glowny",
-            "polski tez obsluguję",
-            "zapytaj: jak mozesz pomoc",
+            "nazywam sie NeXa",
+            "asystent AI",
+            "raspberry pi 5",
+            "ucze sie swiata",
         ]
         spoken = (
-            "Jestem Smart Assistant. "
-            "Angielski jest moim głównym językiem, ale obsługuję też polski. "
-            "Jeśli chcesz, zapytaj mnie, jak mogę pomóc."
+            "Nazywam się NeXa i jestem asystentem AI rozwijanym na Raspberry Pi 5. "
+            "Szybko się uczę, bardzo chętnie poznaję świat i lubię pomagać ludziom."
         )
     else:
-        title = "SMART ASSISTANT"
+        title = "NeXa"
         lines = [
-            "I am Smart Assistant",
-            "english is primary",
-            "i also support polish",
-            "ask: how can you help me",
+            "my name is NeXa",
+            "AI assistant",
+            "raspberry pi 5",
+            "learning the world",
         ]
         spoken = (
-            "I am Smart Assistant. "
-            "English is my main language, and I also support Polish. "
-            "If you want, ask me how I can help you."
+            "My name is NeXa and I am an AI assistant being developed on Raspberry Pi 5. "
+            "I learn quickly, I am very curious about the world, and I really enjoy helping people."
         )
 
-    assistant.display.show_block(
-        title,
-        lines,
-        duration=10.0,
-    )
+    assistant.display.show_block(title, lines, duration=10.0)
     assistant.voice_out.speak(spoken, language=lang)
     return True
 

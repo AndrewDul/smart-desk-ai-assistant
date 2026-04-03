@@ -745,3 +745,119 @@ This made the assistant much more usable. It is still not perfect yet, but it is
 
 Current known limitation:
 The assistant now understands commands much better, but language response selection is still not fully stable. Sometimes I ask something in English and it answers in Polish, and sometimes the opposite happens. So recognition is now much better, but response language behaviour still needs more refinement.
+
+
+---
+
+## Conversation and language routing update
+
+I upgraded the assistant from a basic command prototype into a more structured bilingual conversation system.
+
+The main goal of this update was to make the assistant feel more natural and more consistent during real speech interaction.
+
+### Main behaviour I wanted
+I wanted the assistant to follow these rules:
+
+- if I speak Polish, it should answer in Polish only
+- if I speak English, it should answer in English only
+- it should not mix Polish and English in one answer
+- it should not ask extra questions about showing information on the screen unless I explicitly ask for that
+- it should ignore keyboard typing, claps, chair movement, and similar non-speech sounds
+- it should handle memory and reminders more reliably
+- it should introduce itself as **NeXa**
+
+### Updated conversation flow
+The command flow is now more strict than before.
+
+1. audio is captured from the microphone
+2. non-speech noise is filtered more aggressively
+3. Whisper transcription is checked in `auto` mode and, when needed, compared with forced Polish transcription
+4. the assistant decides the language of the current command
+5. the command is parsed into an intent
+6. the correct handler is called
+7. the assistant replies in the same language as the command
+8. OLED output is shown only when the command explicitly asks to show something
+
+### Important design changes
+
+#### Language control
+Language selection was tightened so that the reply language is linked to the current command, not only to previous assistant state.
+
+This was needed because earlier versions could:
+- answer in English after a Polish command
+- answer in Polish after an English command
+- keep the wrong language after a noisy or partial transcript
+
+#### Whisper transcript selection
+The speech input layer was improved so that short Polish commands are less likely to be replaced by an English auto-transcript.
+
+This matters a lot for commands such as:
+- `jak możesz mi pomóc`
+- `jak się nazywasz`
+- `pokaż mi godzinę`
+- `zapamiętaj, że klucze są w kuchni`
+- `usuń klucze z pamięci`
+- `przypomnij mi za 10 sekund...`
+
+#### Non-speech filtering
+I added stronger filtering for microphone input so the assistant can ignore:
+- keyboard typing
+- claps
+- desk hits
+- chair movement
+- similar short noise events
+
+The assistant should stay silent in these cases instead of saying that it did not understand.
+
+#### Memory reliability
+The memory flow was improved so that short broken fragments are no longer saved as facts.
+
+This was important because earlier voice cuts could create bad entries such as:
+- `klucze -> w`
+
+The memory handlers now reject obviously incomplete values and ask for a clearer sentence instead.
+
+#### Reminder reliability
+Reminder data was extended so that each reminder stores its language.
+
+This means a reminder created in Polish should later trigger in Polish, and a reminder created in English should later trigger in English.
+
+#### Screen behaviour
+The old behaviour that asked whether information should also be shown on the screen was removed from the main conversation flow.
+
+The assistant now follows a simpler rule:
+- normal question -> speak only
+- explicit `show / pokaż / display` command -> speak and show
+
+#### Identity and branding
+The assistant identity was updated to **NeXa**.
+
+I also adjusted the self-introduction logic so that:
+- `What is your name?` / `Jak się nazywasz?` gives only the name
+- `Who are you?` / `Kim jesteś?` gives the fuller identity answer
+
+### Files mainly affected by this architecture update
+This improvement mainly changed the behaviour of:
+
+- `main.py`
+- `modules/core/assistant.py`
+- `modules/core/language.py`
+- `modules/io/whisper_input.py`
+- `modules/io/voice_out.py`
+- `modules/parsing/intent_parser.py`
+- `modules/core/followups.py`
+- `modules/core/handlers_system.py`
+- `modules/core/handlers_time.py`
+- `modules/core/handlers_memory.py`
+- `modules/core/handlers_reminders.py`
+- `modules/core/responses.py`
+
+### Result
+After this update, the assistant is closer to the premium behaviour I wanted:
+- better bilingual control
+- better command routing
+- cleaner memory behaviour
+- stronger speech-only focus
+- simpler OLED interaction
+- clearer assistant identity
+

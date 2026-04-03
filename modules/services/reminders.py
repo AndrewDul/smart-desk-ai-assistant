@@ -17,9 +17,15 @@ class ReminderManager:
         self._cache: list[dict[str, Any]] | None = None
         self._cache_mtime_ns: int | None = None
 
-    def add_after_seconds(self, seconds: int, message: str) -> dict[str, Any]:
+    def add_after_seconds(
+        self,
+        seconds: int,
+        message: str,
+        language: str | None = None,
+    ) -> dict[str, Any]:
         safe_seconds = max(1, int(seconds))
         clean_message = self._clean_message(message)
+        reminder_language = self._normalize_language(language)
 
         reminders = self._load_reminders()
         now = datetime.now()
@@ -27,16 +33,20 @@ class ReminderManager:
         reminder = {
             "id": str(uuid.uuid4())[:8],
             "message": clean_message,
+            "language": reminder_language,
             "created_at": now.isoformat(),
             "due_at": (now + timedelta(seconds=safe_seconds)).isoformat(),
             "status": "pending",
+            "acknowledged": False,
+            "delivered_count": 0,
         }
 
         reminders.append(reminder)
         self._save_reminders(reminders)
 
         append_log(
-            f"Reminder added: id={reminder['id']}, seconds={safe_seconds}, message={clean_message}"
+            "Reminder added: "
+            f"id={reminder['id']}, seconds={safe_seconds}, language={reminder_language}, message={clean_message}"
         )
         return reminder
 
@@ -71,7 +81,9 @@ class ReminderManager:
             if now >= due_time:
                 reminder["status"] = "done"
                 reminder["triggered_at"] = now.isoformat()
-                due_reminders.append(reminder)
+                reminder["acknowledged"] = False
+                reminder["delivered_count"] = int(reminder.get("delivered_count", 0)) + 1
+                due_reminders.append(copy.deepcopy(reminder))
                 changed = True
 
         if changed:
@@ -87,12 +99,34 @@ class ReminderManager:
             if reminder.get("id") == reminder_id and reminder.get("status") != "done":
                 reminder["status"] = "done"
                 reminder["triggered_at"] = datetime.now().isoformat()
+                reminder["acknowledged"] = False
+                reminder["delivered_count"] = int(reminder.get("delivered_count", 0)) + 1
                 changed = True
                 break
 
         if changed:
             self._save_reminders(reminders)
             append_log(f"Reminder marked done manually: id={reminder_id}")
+
+        return changed
+
+    def mark_acknowledged(self, reminder_id: str) -> bool:
+        reminders = self._load_reminders()
+        changed = False
+
+        for reminder in reminders:
+            if reminder.get("id") != reminder_id:
+                continue
+
+            if not bool(reminder.get("acknowledged", False)):
+                reminder["acknowledged"] = True
+                reminder["acknowledged_at"] = datetime.now().isoformat()
+                changed = True
+            break
+
+        if changed:
+            self._save_reminders(reminders)
+            append_log(f"Reminder acknowledged: id={reminder_id}")
 
         return changed
 
@@ -221,10 +255,14 @@ class ReminderManager:
 
             reminder_id = str(item.get("id", "")).strip()
             message = self._clean_message(str(item.get("message", "")))
+            language = self._normalize_language(item.get("language"))
             created_at = str(item.get("created_at", "")).strip()
             due_at = str(item.get("due_at", "")).strip()
-            status = str(item.get("status", "pending")).strip() or "pending"
+            status = self._normalize_status(item.get("status"))
             triggered_at = str(item.get("triggered_at", "")).strip()
+            acknowledged = bool(item.get("acknowledged", False))
+            acknowledged_at = str(item.get("acknowledged_at", "")).strip()
+            delivered_count = self._safe_int(item.get("delivered_count", 0), default=0)
 
             if not reminder_id or not message or not due_at:
                 continue
@@ -232,13 +270,19 @@ class ReminderManager:
             cleaned_item = {
                 "id": reminder_id,
                 "message": message,
+                "language": language,
                 "created_at": created_at or due_at,
                 "due_at": due_at,
                 "status": status,
+                "acknowledged": acknowledged,
+                "delivered_count": delivered_count,
             }
 
             if triggered_at:
                 cleaned_item["triggered_at"] = triggered_at
+
+            if acknowledged_at:
+                cleaned_item["acknowledged_at"] = acknowledged_at
 
             cleaned.append(cleaned_item)
 
@@ -260,19 +304,22 @@ class ReminderManager:
         return copy.deepcopy(cleaned)
 
     def _save_reminders(self, reminders: list[dict[str, Any]]) -> None:
-        save_json(self.path, reminders)
-
         cleaned: list[dict[str, Any]] = []
+
         for item in reminders:
             if not isinstance(item, dict):
                 continue
 
             reminder_id = str(item.get("id", "")).strip()
             message = self._clean_message(str(item.get("message", "")))
+            language = self._normalize_language(item.get("language"))
             created_at = str(item.get("created_at", "")).strip()
             due_at = str(item.get("due_at", "")).strip()
-            status = str(item.get("status", "pending")).strip() or "pending"
+            status = self._normalize_status(item.get("status"))
             triggered_at = str(item.get("triggered_at", "")).strip()
+            acknowledged = bool(item.get("acknowledged", False))
+            acknowledged_at = str(item.get("acknowledged_at", "")).strip()
+            delivered_count = self._safe_int(item.get("delivered_count", 0), default=0)
 
             if not reminder_id or not message or not due_at:
                 continue
@@ -280,16 +327,23 @@ class ReminderManager:
             cleaned_item = {
                 "id": reminder_id,
                 "message": message,
+                "language": language,
                 "created_at": created_at or due_at,
                 "due_at": due_at,
                 "status": status,
+                "acknowledged": acknowledged,
+                "delivered_count": delivered_count,
             }
 
             if triggered_at:
                 cleaned_item["triggered_at"] = triggered_at
 
+            if acknowledged_at:
+                cleaned_item["acknowledged_at"] = acknowledged_at
+
             cleaned.append(cleaned_item)
 
+        save_json(self.path, cleaned)
         self._cache = copy.deepcopy(cleaned)
         self._cache_mtime_ns = self._get_file_mtime_ns()
 
@@ -312,6 +366,20 @@ class ReminderManager:
                     changed = True
 
         return cleaned
+
+    @staticmethod
+    def _normalize_status(status: Any) -> str:
+        normalized = str(status or "pending").strip().lower()
+        if normalized not in {"pending", "done"}:
+            return "pending"
+        return normalized
+
+    @staticmethod
+    def _normalize_language(language: Any) -> str:
+        normalized = str(language or "").strip().lower()
+        if normalized in {"pl", "en"}:
+            return normalized
+        return "en"
 
     def _normalize_text(self, text: str) -> str:
         lowered = text.lower().strip()
@@ -339,3 +407,10 @@ class ReminderManager:
             return 0.0
 
         return len(common) / max(len(left_set), len(right_set))
+
+    @staticmethod
+    def _safe_int(value: Any, default: int = 0) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default

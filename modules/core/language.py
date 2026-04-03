@@ -4,6 +4,250 @@ import re
 import unicodedata
 
 
+POLISH_DIACRITICS = "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ"
+
+POLISH_FUNCTION_WORDS = {
+    "czy",
+    "jak",
+    "co",
+    "gdzie",
+    "ktora",
+    "ktorej",
+    "jaka",
+    "jaki",
+    "jest",
+    "sa",
+    "moge",
+    "mozesz",
+    "pomoc",
+    "mi",
+    "to",
+    "za",
+    "o",
+    "w",
+    "na",
+    "pod",
+    "przy",
+    "dzisiaj",
+    "teraz",
+    "sie",
+    "masz",
+    "mam",
+    "dla",
+    "ze",
+}
+
+ENGLISH_FUNCTION_WORDS = {
+    "what",
+    "whats",
+    "how",
+    "can",
+    "could",
+    "would",
+    "you",
+    "your",
+    "me",
+    "my",
+    "the",
+    "to",
+    "about",
+    "in",
+    "on",
+    "at",
+    "after",
+    "now",
+    "today",
+    "please",
+    "is",
+    "are",
+    "do",
+}
+
+POLISH_CONTENT_WORDS = {
+    "asystent",
+    "asystenta",
+    "pomoc",
+    "potrafisz",
+    "umiesz",
+    "godzina",
+    "godzine",
+    "czas",
+    "data",
+    "dzien",
+    "rok",
+    "przypomnij",
+    "przypomnienie",
+    "przypomnienia",
+    "zapamietaj",
+    "pamietasz",
+    "pamiec",
+    "zapomnij",
+    "usun",
+    "wyczysc",
+    "timer",
+    "focus",
+    "przerwa",
+    "skupienie",
+    "pokaz",
+    "wyswietl",
+    "wylacz",
+    "zamknij",
+    "idz",
+    "spac",
+    "odpocznij",
+    "sluchac",
+    "imie",
+    "nazywasz",
+    "ktora",
+    "ktory",
+    "ktore",
+    "mozliwosci",
+    "komendy",
+    "ekranie",
+    "klucze",
+    "kuchni",
+    "zjesc",
+}
+
+ENGLISH_CONTENT_WORDS = {
+    "assistant",
+    "help",
+    "time",
+    "date",
+    "day",
+    "year",
+    "remind",
+    "reminder",
+    "reminders",
+    "remember",
+    "memory",
+    "forget",
+    "delete",
+    "remove",
+    "clear",
+    "timer",
+    "focus",
+    "break",
+    "show",
+    "display",
+    "turn",
+    "off",
+    "sleep",
+    "rest",
+    "listening",
+    "name",
+    "introduce",
+    "shutdown",
+    "system",
+    "screen",
+    "menu",
+    "capabilities",
+    "features",
+    "clock",
+    "keys",
+    "kitchen",
+    "eat",
+}
+
+POLISH_STRONG_PHRASES = {
+    "jak mozesz mi pomoc",
+    "w czym mozesz mi pomoc",
+    "co potrafisz",
+    "co umiesz",
+    "jak sie nazywasz",
+    "kim jestes",
+    "czym jestes",
+    "wylacz asystenta",
+    "idz spac",
+    "odpocznij",
+    "pokaz godzine",
+    "pokaz mi godzine",
+    "jaka jest godzina",
+    "ktora jest godzina",
+    "jaka jest data",
+    "pokaz date",
+    "pokaz dzien",
+    "pokaz rok",
+    "pokaz mi date",
+    "pokaz mi dzien",
+    "pokaz mi rok",
+    "usun z pamieci",
+    "usun klucze z pamieci",
+    "zapamietaj ze",
+    "zapamietaj gdzie sa",
+    "gdzie sa klucze",
+    "przypomnij mi za",
+}
+
+ENGLISH_STRONG_PHRASES = {
+    "how can you help me",
+    "what can you do",
+    "what can i ask you",
+    "what is your name",
+    "whats your name",
+    "who are you",
+    "what are you",
+    "turn off assistant",
+    "go to sleep",
+    "rest now",
+    "what time is it",
+    "show time",
+    "show date",
+    "show day",
+    "show year",
+    "show me the time",
+    "show me the date",
+    "show me the day",
+    "show me the year",
+    "forget from memory",
+    "remove keys from memory",
+    "remember that",
+    "where are the keys",
+    "remind me in",
+    "remind me after",
+}
+
+STRONG_POLISH_SHORT = {
+    "pomoc",
+    "godzina",
+    "czas",
+    "data",
+    "dzien",
+    "rok",
+    "przerwa",
+    "pamiec",
+    "przypomnienia",
+    "pokaz",
+    "wyswietl",
+    "wylacz",
+    "odpocznij",
+    "zapamietaj",
+    "przypomnij",
+    "klucze",
+}
+
+STRONG_ENGLISH_SHORT = {
+    "help",
+    "time",
+    "date",
+    "day",
+    "year",
+    "break",
+    "memory",
+    "reminders",
+    "show",
+    "display",
+    "shutdown",
+    "remember",
+    "remind",
+    "assistant",
+    "keys",
+}
+
+POLISH_FUZZY_CONFIRM_YES = {"tag", "tac", "takg", "tek", "tok"}
+POLISH_FUZZY_CONFIRM_NO = {"ni", "ne", "nje", "nee"}
+
+
 def _fallback_normalize_text(text: str) -> str:
     lowered = text.lower().strip()
     lowered = unicodedata.normalize("NFKD", lowered)
@@ -147,13 +391,6 @@ def _classify_confirmation(assistant, text: str) -> str | None:
         "oczywiscie",
         "oczywiście",
     }
-    polish_yes_fuzzy = {
-        "tag",
-        "tac",
-        "takg",
-        "tek",
-        "tok",
-    }
 
     polish_no_strong = {
         "nie",
@@ -167,12 +404,6 @@ def _classify_confirmation(assistant, text: str) -> str | None:
         "nie pokazuj",
         "nie wyswietlaj",
         "nie wyświetlaj",
-    }
-    polish_no_fuzzy = {
-        "ni",
-        "ne",
-        "nje",
-        "nee",
     }
 
     english_yes_strong = {
@@ -198,19 +429,16 @@ def _classify_confirmation(assistant, text: str) -> str | None:
     }
 
     if context_lang == "pl":
-        if normalized in polish_no_strong or normalized in polish_no_fuzzy:
+        if normalized in polish_no_strong or normalized in POLISH_FUZZY_CONFIRM_NO:
             return "no"
-        if normalized in polish_yes_strong or normalized in polish_yes_soft or normalized in polish_yes_fuzzy:
+        if normalized in polish_yes_strong or normalized in polish_yes_soft or normalized in POLISH_FUZZY_CONFIRM_YES:
             return "yes"
-
         if normalized == "yes":
             return "yes"
         if normalized == "no":
             return "no"
-
         if normalized in {"yeah", "yep"}:
             return None
-
         if direct_parser_no:
             return "no"
         if direct_parser_yes:
@@ -222,15 +450,12 @@ def _classify_confirmation(assistant, text: str) -> str | None:
             return "no"
         if normalized in english_yes_strong:
             return "yes"
-
         if normalized == "tak":
             return "yes"
         if normalized == "nie":
             return "no"
-
-        if normalized in polish_yes_fuzzy or normalized in polish_no_fuzzy:
+        if normalized in POLISH_FUZZY_CONFIRM_YES or normalized in POLISH_FUZZY_CONFIRM_NO:
             return None
-
         if direct_parser_no:
             return "no"
         if direct_parser_yes:
@@ -241,7 +466,6 @@ def _classify_confirmation(assistant, text: str) -> str | None:
         return "yes"
     if direct_parser_no:
         return "no"
-
     return None
 
 
@@ -256,185 +480,25 @@ def _language_scores_from_text(normalized: str, raw_text: str) -> tuple[int, int
     polish_score = 0
     english_score = 0
 
-    if any(ch in raw_text for ch in "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ"):
-        polish_score += 5
-
-    polish_function_words = {
-        "czy",
-        "jak",
-        "co",
-        "gdzie",
-        "ktora",
-        "ktorej",
-        "jest",
-        "sa",
-        "moge",
-        "mozesz",
-        "pomoc",
-        "mi",
-        "to",
-        "za",
-        "o",
-        "w",
-        "na",
-        "pod",
-        "przy",
-        "dzisiaj",
-        "teraz",
-        "sie",
-    }
-    english_function_words = {
-        "what",
-        "whats",
-        "how",
-        "can",
-        "could",
-        "would",
-        "you",
-        "your",
-        "me",
-        "my",
-        "the",
-        "to",
-        "about",
-        "in",
-        "on",
-        "at",
-        "after",
-        "now",
-        "today",
-        "please",
-    }
-
-    polish_content_words = {
-        "asystent",
-        "asystenta",
-        "pomoc",
-        "potrafisz",
-        "umiesz",
-        "godzina",
-        "godzine",
-        "data",
-        "dzien",
-        "rok",
-        "przypomnij",
-        "przypomnienie",
-        "przypomnienia",
-        "zapamietaj",
-        "pamietasz",
-        "pamiec",
-        "zapomnij",
-        "usun",
-        "wyczysc",
-        "timer",
-        "focus",
-        "przerwa",
-        "skupienie",
-        "pokaz",
-        "wyswietl",
-        "wylacz",
-        "zamknij",
-        "idz",
-        "spac",
-        "odpocznij",
-        "sluchac",
-        "imie",
-        "nazywasz",
-        "ktora",
-    }
-    english_content_words = {
-        "assistant",
-        "help",
-        "time",
-        "date",
-        "day",
-        "year",
-        "remind",
-        "reminder",
-        "reminders",
-        "remember",
-        "memory",
-        "forget",
-        "delete",
-        "remove",
-        "clear",
-        "timer",
-        "focus",
-        "break",
-        "show",
-        "display",
-        "turn",
-        "off",
-        "sleep",
-        "rest",
-        "listening",
-        "name",
-        "introduce",
-        "shutdown",
-        "system",
-        "screen",
-        "menu",
-        "capabilities",
-        "features",
-    }
-
-    polish_strong_phrases = {
-        "jak mozesz mi pomoc",
-        "w czym mozesz mi pomoc",
-        "co potrafisz",
-        "co umiesz",
-        "jak sie nazywasz",
-        "kim jestes",
-        "wylacz asystenta",
-        "idz spac",
-        "odpocznij",
-        "pokaz godzine",
-        "jaka jest godzina",
-        "ktora jest godzina",
-        "jaka jest data",
-        "pokaz date",
-        "pokaz dzien",
-        "pokaz rok",
-        "wyłącz asystenta",
-        "idź spać",
-        "pokaż godzinę",
-        "która jest godzina",
-    }
-    english_strong_phrases = {
-        "how can you help me",
-        "what can you do",
-        "what can i ask you",
-        "what is your name",
-        "whats your name",
-        "who are you",
-        "turn off assistant",
-        "go to sleep",
-        "rest now",
-        "what time is it",
-        "show time",
-        "show date",
-        "show day",
-        "show year",
-    }
+    if any(ch in raw_text for ch in POLISH_DIACRITICS):
+        polish_score += 6
 
     for token in tokens:
-        if token in polish_function_words:
+        if token in POLISH_FUNCTION_WORDS:
             polish_score += 2
-        if token in english_function_words:
+        if token in ENGLISH_FUNCTION_WORDS:
             english_score += 2
-        if token in polish_content_words:
+        if token in POLISH_CONTENT_WORDS:
             polish_score += 3
-        if token in english_content_words:
+        if token in ENGLISH_CONTENT_WORDS:
             english_score += 3
 
-    for phrase in polish_strong_phrases:
-        phrase_normalized = _fallback_normalize_text(phrase)
-        if phrase_normalized and phrase_normalized in normalized:
+    for phrase in POLISH_STRONG_PHRASES:
+        if phrase in normalized:
             polish_score += 8
 
-    for phrase in english_strong_phrases:
-        phrase_normalized = _fallback_normalize_text(phrase)
-        if phrase_normalized and phrase_normalized in normalized:
+    for phrase in ENGLISH_STRONG_PHRASES:
+        if phrase in normalized:
             english_score += 8
 
     if {"what", "time", "is", "it"}.issubset(token_set):
@@ -443,70 +507,79 @@ def _language_scores_from_text(normalized: str, raw_text: str) -> tuple[int, int
         english_score += 7
     if {"what", "is", "your", "name"}.issubset(token_set) or {"who", "are", "you"}.issubset(token_set):
         english_score += 7
+    if {"what", "are", "you"}.issubset(token_set):
+        english_score += 7
     if {"turn", "off", "assistant"}.issubset(token_set) or {"go", "sleep"}.issubset(token_set):
         english_score += 7
+    if {"show", "me", "the", "time"}.issubset(token_set):
+        english_score += 8
 
     if {"jak", "mozesz", "mi", "pomoc"}.issubset(token_set):
-        polish_score += 8
+        polish_score += 10
     if {"w", "czym", "mozesz", "mi", "pomoc"}.issubset(token_set):
-        polish_score += 8
+        polish_score += 10
     if {"co", "potrafisz"}.issubset(token_set):
         polish_score += 8
-    if {"jak", "sie", "nazywasz"}.issubset(token_set) or {"kim", "jestes"}.issubset(token_set):
-        polish_score += 7
+    if {"jak", "sie", "nazywasz"}.issubset(token_set):
+        polish_score += 9
+    if {"kim", "jestes"}.issubset(token_set) or {"czym", "jestes"}.issubset(token_set):
+        polish_score += 9
     if {"wylacz", "asystenta"}.issubset(token_set) or {"idz", "spac"}.issubset(token_set):
         polish_score += 7
-    if {"ktora", "jest", "godzina"}.issubset(token_set):
+    if {"ktora", "jest", "godzina"}.issubset(token_set) or {"jaka", "jest", "godzina"}.issubset(token_set):
         polish_score += 8
-    if {"godzina"}.issubset(token_set) and "ktora" in token_set:
-        polish_score += 4
+    if {"pokaz", "mi", "godzine"}.issubset(token_set):
+        polish_score += 9
+    if {"zapamietaj", "ze"}.issubset(token_set):
+        polish_score += 8
+    if {"gdzie", "sa", "klucze"}.issubset(token_set):
+        polish_score += 8
+    if {"przypomnij", "mi", "za"}.issubset(token_set):
+        polish_score += 8
+    if {"usun", "klucze", "z", "pamieci"}.issubset(token_set):
+        polish_score += 10
 
     if len(tokens) == 1:
         token = tokens[0]
-        if token in {
-            "exit",
-            "shutdown",
-            "help",
-            "time",
-            "date",
-            "day",
-            "year",
-            "timer",
-            "focus",
-            "break",
-            "assistant",
-            "memory",
-            "reminders",
-        }:
-            english_score += 4
-        if token in {
-            "pomoc",
-            "godzina",
-            "data",
-            "dzien",
-            "rok",
-            "przerwa",
-            "timer",
-            "focus",
-            "pamiec",
-            "przypomnienia",
-            "odpocznij",
-        }:
-            polish_score += 4
+        if token in STRONG_ENGLISH_SHORT:
+            english_score += 5
+        if token in STRONG_POLISH_SHORT:
+            polish_score += 5
 
     return polish_score, english_score
+
+
+def _ambiguous_language_fallback(assistant, normalized: str, polish_score: int, english_score: int) -> str:
+    tokens = normalized.split()
+    token_set = set(tokens)
+
+    if token_set & STRONG_POLISH_SHORT:
+        return "pl"
+    if token_set & STRONG_ENGLISH_SHORT:
+        return "en"
+
+    if token_set & POLISH_FUNCTION_WORDS and not (token_set & ENGLISH_FUNCTION_WORDS):
+        return "pl"
+    if token_set & ENGLISH_FUNCTION_WORDS and not (token_set & POLISH_FUNCTION_WORDS):
+        return "en"
+
+    if polish_score > 0 and english_score == 0:
+        return "pl"
+    if english_score > 0 and polish_score == 0:
+        return "en"
+
+    return "en"
 
 
 def detect_language(assistant, text: str) -> str:
     normalized = normalize_text(assistant, text)
     if not normalized:
-        return assistant.last_language or "en"
+        return assistant.last_language if getattr(assistant, "last_language", None) in {"pl", "en"} else "en"
 
     context_lang = _current_confirmation_language(assistant)
     if context_lang is not None:
         if _looks_like_confirmation(assistant, normalized):
             return context_lang
-
         if _extract_minutes_from_normalized(normalized) is not None and len(normalized.split()) <= 3:
             return context_lang
 
@@ -517,12 +590,7 @@ def detect_language(assistant, text: str) -> str:
     if english_score >= polish_score + 2:
         return "en"
 
-    if len(normalized.split()) <= 2:
-        last_lang = assistant.last_language if assistant.last_language in {"pl", "en"} else None
-        if last_lang is not None:
-            return last_lang
-
-    return "en"
+    return _ambiguous_language_fallback(assistant, normalized, polish_score, english_score)
 
 
 def localized(lang: str, pl_text: str, en_text: str) -> str:

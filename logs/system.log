@@ -3866,3 +3866,433 @@
 [2026-04-02 23:41:58] Assistant said [pl]: Dobrze. Zamykam asystenta.
 [2026-04-02 23:42:01] Assistant said [pl]: Wyłączam Smart Assistant.
 [2026-04-02 23:42:03] Assistant shut down.
+[2026-04-03 01:02:55] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=off
+[2026-04-03 01:02:55] Startup sequence initiated.
+[2026-04-03 01:02:55] Startup check [OK] settings: found settings.json
+[2026-04-03 01:02:55] Startup check [OK] directories: data, logs, config ready
+[2026-04-03 01:02:55] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-03 01:02:55] Startup check [OK] voice output: piper models ready
+[2026-04-03 01:02:55] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-03 01:02:58] Assistant said [en]: Hello. I am NeXa. You can ask me at any time how I can help.
+[2026-04-03 01:03:07] Startup completed successfully.
+[2026-04-03 01:03:20] User said: How can you help me? | detected_lang=en | command_lang=en
+[2026-04-03 01:03:20] Parsed intent: action=help, data={}, text=how can you help me, lang=en
+[2026-04-03 01:03:20] Assistant said [en]: I can help you in a few main ways. I can remember information, set reminders, set timers, and start focus mode or break mode. These are my main features right now.
+[2026-04-03 01:03:52] User said: która jest godzina | detected_lang=pl | command_lang=pl
+[2026-04-03 01:03:52] Parsed intent: action=ask_time, data={}, text=ktora jest godzina, lang=pl
+[2026-04-03 01:03:52] Assistant said [pl]: Jest 01:03.
+[2026-04-03 01:04:07] User said: How can you help me? | detected_lang=en | command_lang=en
+[2026-04-03 01:04:07] Parsed intent: action=help, data={}, text=how can you help me, lang=en
+[2026-04-03 01:04:07] Assistant said [en]: I can help you in a few main ways. I can remember information, set reminders, set timers, and start focus mode or break mode. These are my main features right now.
+[2026-04-03 01:04:52] User said: [oklaski] | detected_lang=en | command_lang=en
+[2026-04-03 01:04:52] Parsed intent: action=unknown, data={}, text=oklaski, lang=en
+[2026-04-03 01:04:52] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:05:09] User said: What time is it? | detected_lang=en | command_lang=en
+[2026-04-03 01:05:09] Parsed intent: action=ask_time, data={}, text=what time is it, lang=en
+[2026-04-03 01:05:09] Assistant said [en]: It is 1:05 AM.
+[2026-04-03 01:05:31] User said: show me the clock | detected_lang=en | command_lang=en
+[2026-04-03 01:05:31] Parsed intent: action=unclear, data={}, text=show me the clock, lang=en
+[2026-04-03 01:05:31] Assistant said [en]: Did you mean show time or show date? Say yes or no.
+[2026-04-03 01:05:55] User said: Show time! | detected_lang=en | command_lang=en
+[2026-04-03 01:05:55] Parsed intent: action=show_time, data={}, text=Show time!, lang=en
+[2026-04-03 01:05:55] Assistant said [en]: It is 1:05 AM.
+[2026-04-03 01:06:18] User said: (speaking in foreign language) | detected_lang=en | command_lang=en
+[2026-04-03 01:06:18] Parsed intent: action=unknown, data={}, text=speaking in foreign language, lang=en
+[2026-04-03 01:06:18] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:06:43] User said: Pokaż mi godzinę. | detected_lang=pl | command_lang=pl
+[2026-04-03 01:06:43] Parsed intent: action=show_time, data={}, text=pokaz mi godzine, lang=pl
+[2026-04-03 01:06:43] Assistant said [pl]: Jest 01:06.
+[2026-04-03 01:07:05] User said: Remember that the keys are in the kitchen. | detected_lang=en | command_lang=en
+[2026-04-03 01:07:05] Parsed intent: action=memory_store, data={'key': 'keys', 'value': 'in the kitchen', 'memory_text': 'the keys are in the kitchen'}, text=remember that the keys are in the kitchen, lang=en
+[2026-04-03 01:07:05] Memory saved: keys -> in the kitchen
+[2026-04-03 01:07:05] Memory stored from structured input: keys -> in the kitchen
+[2026-04-03 01:07:05] Assistant said [en]: Okay. I remembered that keys is in the kitchen.
+[2026-04-03 01:07:34] User said: Where are the keys? | detected_lang=en | command_lang=en
+[2026-04-03 01:07:34] Parsed intent: action=memory_recall, data={'key': 'keys'}, text=where are the keys, lang=en
+[2026-04-03 01:07:34] Assistant said [en]: keys is in the kitchen.
+[2026-04-03 01:07:45] Ignored silent input: recognizer returned None.
+[2026-04-03 01:07:56] Ignored silent input: recognizer returned None.
+[2026-04-03 01:08:19] User said: [oklaski] | detected_lang=en | command_lang=en
+[2026-04-03 01:08:19] Parsed intent: action=unknown, data={}, text=oklaski, lang=en
+[2026-04-03 01:08:19] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:08:35] User said: I also include this in my memory. | detected_lang=en | command_lang=en
+[2026-04-03 01:08:35] Parsed intent: action=unknown, data={}, text=i also include this in my memory, lang=en
+[2026-04-03 01:08:35] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:08:57] User said: (speaking in foreign language) | detected_lang=en | command_lang=en
+[2026-04-03 01:08:57] Parsed intent: action=unknown, data={}, text=speaking in foreign language, lang=en
+[2026-04-03 01:08:57] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:09:22] User said: Remove keys from memory. | detected_lang=en | command_lang=en
+[2026-04-03 01:09:22] Parsed intent: action=memory_forget, data={'key': 'keys'}, text=remove keys from memory, lang=en
+[2026-04-03 01:09:22] Assistant said [en]: Are you sure I should remove keys from memory?
+[2026-04-03 01:09:38] User said: Yes. | detected_lang=en | command_lang=en
+[2026-04-03 01:09:38] Memory deleted: keys
+[2026-04-03 01:09:38] Assistant said [en]: Okay. I removed keys from memory.
+[2026-04-03 01:10:05] User said: He reminded me in 10 seconds that I have something to eat. | detected_lang=en | command_lang=en
+[2026-04-03 01:10:05] Parsed intent: action=unknown, data={}, text=he reminded me in 10 seconds that i have something to eat, lang=en
+[2026-04-03 01:10:05] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:10:23] User said: Remember that I have something to eat in 10 seconds. | detected_lang=en | command_lang=en
+[2026-04-03 01:10:23] Parsed intent: action=memory_store, data={'key': 'i have something to eat', 'value': '10 seconds', 'memory_text': 'i have something to eat in 10 seconds'}, text=remember that i have something to eat in 10 seconds, lang=en
+[2026-04-03 01:10:23] Memory saved: i have something to eat -> 10 seconds
+[2026-04-03 01:10:23] Memory stored from structured input: i have something to eat -> 10 seconds
+[2026-04-03 01:10:23] Assistant said [en]: Okay. I remembered that i have something to eat is 10 seconds.
+[2026-04-03 01:10:40] Ignored silent input: recognizer returned None.
+[2026-04-03 01:10:50] Ignored silent input: recognizer returned None.
+[2026-04-03 01:11:25] User said: [oklaski] | detected_lang=en | command_lang=en
+[2026-04-03 01:11:25] Parsed intent: action=unknown, data={}, text=oklaski, lang=en
+[2026-04-03 01:11:25] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:11:53] User said: [oklaski] | detected_lang=en | command_lang=en
+[2026-04-03 01:11:53] Parsed intent: action=unknown, data={}, text=oklaski, lang=en
+[2026-04-03 01:11:53] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:12:08] User said: What's your name? | detected_lang=en | command_lang=en
+[2026-04-03 01:12:08] Parsed intent: action=introduce_self, data={}, text=what s your name, lang=en
+[2026-04-03 01:12:08] Assistant said [en]: I am NeXa. Ask me how I can help.
+[2026-04-03 01:12:52] User said: (tuk tuk tuk tuk tuk tuk tuk tuk tuk tuk tuk tuk) | detected_lang=en | command_lang=en
+[2026-04-03 01:12:53] Parsed intent: action=unknown, data={}, text=tuk, lang=en
+[2026-04-03 01:12:53] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:13:20] User said: (keyboard clicking) | detected_lang=en | command_lang=en
+[2026-04-03 01:13:20] Parsed intent: action=unknown, data={}, text=keyboard clicking, lang=en
+[2026-04-03 01:13:20] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:13:45] User said: (keyboard clacking) | detected_lang=en | command_lang=en
+[2026-04-03 01:13:45] Parsed intent: action=unknown, data={}, text=keyboard clacking, lang=en
+[2026-04-03 01:13:45] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:14:15] User said: [oklaski] | detected_lang=en | command_lang=en
+[2026-04-03 01:14:15] Parsed intent: action=unknown, data={}, text=oklaski, lang=en
+[2026-04-03 01:14:15] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:14:29] Ignored silent input: recognizer returned None.
+[2026-04-03 01:14:39] Ignored silent input: recognizer returned None.
+[2026-04-03 01:14:49] Ignored silent input: recognizer returned None.
+[2026-04-03 01:14:59] Ignored silent input: recognizer returned None.
+[2026-04-03 01:15:35] User said: (keyboard clicking) | detected_lang=en | command_lang=en
+[2026-04-03 01:15:35] Parsed intent: action=unknown, data={}, text=keyboard clicking, lang=en
+[2026-04-03 01:15:35] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:15:56] User said: x-patch. | detected_lang=en | command_lang=en
+[2026-04-03 01:15:56] Parsed intent: action=unknown, data={}, text=x patch, lang=en
+[2026-04-03 01:15:56] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:16:17] User said: Goal sleep. | detected_lang=en | command_lang=en
+[2026-04-03 01:16:17] Parsed intent: action=unknown, data={}, text=goal sleep, lang=en
+[2026-04-03 01:16:17] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:16:30] User said: Go to sleep. | detected_lang=en | command_lang=en
+[2026-04-03 01:16:30] Parsed intent: action=exit, data={}, text=go to sleep, lang=en
+[2026-04-03 01:16:30] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-03 01:16:42] User said: Yes. | detected_lang=en | command_lang=en
+[2026-04-03 01:16:42] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-03 01:16:44] Assistant said [en]: Shutting down NeXa.
+[2026-04-03 01:16:49] Assistant shut down.
+[2026-04-03 01:25:34] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=off
+[2026-04-03 01:25:34] Startup sequence initiated.
+[2026-04-03 01:25:34] Startup check [OK] settings: found settings.json
+[2026-04-03 01:25:35] Startup check [OK] directories: data, logs, config ready
+[2026-04-03 01:25:35] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-03 01:25:35] Startup check [OK] voice output: piper models ready
+[2026-04-03 01:25:35] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-03 01:25:37] Assistant said [en]: Hello. I am NeXa. You can ask me at any time how I can help.
+[2026-04-03 01:25:42] Startup completed successfully.
+[2026-04-03 01:25:59] User said: Kimi estes? | detected_lang=en | command_lang=en
+[2026-04-03 01:25:59] Parsed intent: action=unclear, data={}, text=kimi estes, lang=en
+[2026-04-03 01:25:59] Assistant said [en]: Did you mean introduce yourself? Say yes or no.
+[2026-04-03 01:26:13] User said: Yes. | detected_lang=en | command_lang=en
+[2026-04-03 01:26:13] Parsed intent: action=introduce_self, data={}, text=Yes., lang=en
+[2026-04-03 01:26:13] Assistant said [en]: My name is NeXa and I am an AI assistant being developed on Raspberry Pi 5. I learn quickly, I am very curious about the world, and I really enjoy helping people.
+[2026-04-03 01:26:49] User said: Kim, yes, dish. | detected_lang=en | command_lang=en
+[2026-04-03 01:26:49] Parsed intent: action=unknown, data={}, text=kim yes dish, lang=en
+[2026-04-03 01:26:49] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:27:11] User said: What are you? | detected_lang=en | command_lang=en
+[2026-04-03 01:27:11] Parsed intent: action=introduce_self, data={}, text=what are you, lang=en
+[2026-04-03 01:27:11] Assistant said [en]: My name is NeXa and I am an AI assistant being developed on Raspberry Pi 5. I learn quickly, I am very curious about the world, and I really enjoy helping people.
+[2026-04-03 01:27:35] User said: How can I help you? | detected_lang=en | command_lang=en
+[2026-04-03 01:27:35] Parsed intent: action=unclear, data={}, text=how can i help you, lang=en
+[2026-04-03 01:27:35] Assistant said [en]: Did you mean help? Say yes or no.
+[2026-04-03 01:28:00] User said: Jak masz na imię? | detected_lang=pl | command_lang=pl
+[2026-04-03 01:28:00] Assistant said [en]: Please say yes or no.
+[2026-04-03 01:28:15] User said: No. | detected_lang=en | command_lang=en
+[2026-04-03 01:28:15] Assistant said [en]: Okay. Please say it again in a different way.
+[2026-04-03 01:28:40] User said: Jak możesz mi pomóc? | detected_lang=pl | command_lang=pl
+[2026-04-03 01:28:40] Parsed intent: action=help, data={}, text=jak mozesz mi pomoc, lang=pl
+[2026-04-03 01:28:40] Assistant said [pl]: Mogę pomagać ci na kilka głównych sposobów. Mogę zapamiętywać informacje, ustawiać przypomnienia, ustawiać timer, uruchamiać focus mode oraz break mode. To są teraz moje główne funkcje.
+[2026-04-03 01:29:17] User said: która jest godzina | detected_lang=pl | command_lang=pl
+[2026-04-03 01:29:17] Parsed intent: action=ask_time, data={}, text=ktora jest godzina, lang=pl
+[2026-04-03 01:29:17] Assistant said [pl]: Jest 01:29.
+[2026-04-03 01:29:42] User said: Jaka jest data? | detected_lang=pl | command_lang=pl
+[2026-04-03 01:29:42] Parsed intent: action=ask_date, data={}, text=jaka jest data, lang=pl
+[2026-04-03 01:29:42] Assistant said [pl]: Dzisiaj jest piątek, 3 kwietnia 2026.
+[2026-04-03 01:30:03] User said: What day is it today? | detected_lang=en | command_lang=en
+[2026-04-03 01:30:03] Parsed intent: action=ask_day, data={}, text=what day is it today, lang=en
+[2026-04-03 01:30:03] Assistant said [en]: Today is Friday.
+[2026-04-03 01:30:41] User said: [oklaski] | detected_lang=en | command_lang=en
+[2026-04-03 01:30:41] Parsed intent: action=unknown, data={}, text=oklaski, lang=en
+[2026-04-03 01:30:41] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:31:02] User said: Jakim mamy rok? | detected_lang=pl | command_lang=pl
+[2026-04-03 01:31:02] Parsed intent: action=unknown, data={}, text=jakim mamy rok, lang=pl
+[2026-04-03 01:31:02] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-03 01:31:26] User said: Jaki mamy rok? | detected_lang=pl | command_lang=pl
+[2026-04-03 01:31:26] Parsed intent: action=unknown, data={}, text=jaki mamy rok, lang=pl
+[2026-04-03 01:31:26] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-03 01:31:59] User said: [oklaski] | detected_lang=en | command_lang=en
+[2026-04-03 01:31:59] Parsed intent: action=unknown, data={}, text=oklaski, lang=en
+[2026-04-03 01:31:59] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:32:14] User said: What is your name? | detected_lang=en | command_lang=en
+[2026-04-03 01:32:14] Parsed intent: action=introduce_self, data={}, text=what is your name, lang=en
+[2026-04-03 01:32:14] Assistant said [en]: My name is NeXa and I am an AI assistant being developed on Raspberry Pi 5. I learn quickly, I am very curious about the world, and I really enjoy helping people.
+[2026-04-03 01:32:52] User said: (keyboard clacking) | detected_lang=en | command_lang=en
+[2026-04-03 01:32:52] Parsed intent: action=unknown, data={}, text=keyboard clacking, lang=en
+[2026-04-03 01:32:52] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:33:16] User said: What are you? | detected_lang=en | command_lang=en
+[2026-04-03 01:33:16] Parsed intent: action=introduce_self, data={}, text=what are you, lang=en
+[2026-04-03 01:33:16] Assistant said [en]: My name is NeXa and I am an AI assistant being developed on Raspberry Pi 5. I learn quickly, I am very curious about the world, and I really enjoy helping people.
+[2026-04-03 01:33:40] User said: How can you help me? | detected_lang=en | command_lang=en
+[2026-04-03 01:33:40] Parsed intent: action=help, data={}, text=how can you help me, lang=en
+[2026-04-03 01:33:40] Assistant said [en]: I can help you in a few main ways. I can remember information, set reminders, set timers, and start focus mode or break mode. These are my main features right now.
+[2026-04-03 01:34:03] User said: What time is it? | detected_lang=en | command_lang=en
+[2026-04-03 01:34:03] Parsed intent: action=ask_time, data={}, text=what time is it, lang=en
+[2026-04-03 01:34:03] Assistant said [en]: It is 1:34 AM.
+[2026-04-03 01:34:22] User said: What is the date? | detected_lang=en | command_lang=en
+[2026-04-03 01:34:22] Parsed intent: action=ask_date, data={}, text=what is the date, lang=en
+[2026-04-03 01:34:22] Assistant said [en]: Today is Friday, April 3, 2026.
+[2026-04-03 01:34:42] User said: What day is it today? | detected_lang=en | command_lang=en
+[2026-04-03 01:34:42] Parsed intent: action=ask_day, data={}, text=what day is it today, lang=en
+[2026-04-03 01:34:42] Assistant said [en]: Today is Friday.
+[2026-04-03 01:34:58] User said: What year is it? | detected_lang=en | command_lang=en
+[2026-04-03 01:34:58] Parsed intent: action=ask_year, data={}, text=what year is it, lang=en
+[2026-04-03 01:34:58] Assistant said [en]: The current year is 2026.
+[2026-04-03 01:35:16] User said: What is your name? | detected_lang=en | command_lang=en
+[2026-04-03 01:35:16] Parsed intent: action=introduce_self, data={}, text=what is your name, lang=en
+[2026-04-03 01:35:16] Assistant said [en]: My name is NeXa and I am an AI assistant being developed on Raspberry Pi 5. I learn quickly, I am very curious about the world, and I really enjoy helping people.
+[2026-04-03 01:35:38] User said: Who are you? | detected_lang=en | command_lang=en
+[2026-04-03 01:35:38] Parsed intent: action=introduce_self, data={}, text=who are you, lang=en
+[2026-04-03 01:35:38] Assistant said [en]: My name is NeXa and I am an AI assistant being developed on Raspberry Pi 5. I learn quickly, I am very curious about the world, and I really enjoy helping people.
+[2026-04-03 01:36:09] User said: What are you? | detected_lang=en | command_lang=en
+[2026-04-03 01:36:09] Parsed intent: action=introduce_self, data={}, text=what are you, lang=en
+[2026-04-03 01:36:09] Assistant said [en]: My name is NeXa and I am an AI assistant being developed on Raspberry Pi 5. I learn quickly, I am very curious about the world, and I really enjoy helping people.
+[2026-04-03 01:36:38] User said: Popcash me Godinom. | detected_lang=en | command_lang=en
+[2026-04-03 01:36:38] Parsed intent: action=unknown, data={}, text=popcash me godinom, lang=en
+[2026-04-03 01:36:38] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:36:53] User said: "Show me an hour." | detected_lang=en | command_lang=en
+[2026-04-03 01:36:53] Parsed intent: action=unknown, data={}, text=show me an hour, lang=en
+[2026-04-03 01:36:53] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:37:07] Ignored silent input: recognizer returned None.
+[2026-04-03 01:37:18] Ignored silent input: recognizer returned None.
+[2026-04-03 01:37:40] User said: Pokaż mi datę. | detected_lang=pl | command_lang=pl
+[2026-04-03 01:37:40] Parsed intent: action=show_date, data={}, text=pokaz mi date, lang=pl
+[2026-04-03 01:37:40] Assistant said [pl]: Dzisiaj jest piątek, 3 kwietnia 2026.
+[2026-04-03 01:38:04] User said: (keyboard clicking) | detected_lang=en | command_lang=en
+[2026-04-03 01:38:04] Parsed intent: action=unknown, data={}, text=keyboard clicking, lang=en
+[2026-04-03 01:38:04] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:38:26] User said: Pokaż mi dzień. | detected_lang=pl | command_lang=pl
+[2026-04-03 01:38:26] Parsed intent: action=show_day, data={}, text=pokaz mi dzien, lang=pl
+[2026-04-03 01:38:26] Assistant said [pl]: Dzisiaj jest piątek.
+[2026-04-03 01:38:50] User said: Popkaż mi rok. | detected_lang=pl | command_lang=pl
+[2026-04-03 01:38:50] Parsed intent: action=unclear, data={}, text=popkaz mi rok, lang=pl
+[2026-04-03 01:38:50] Assistant said [pl]: Czy chodziło ci o pokaż rok? Powiedz tak albo nie.
+[2026-04-03 01:39:07] User said: Yeah. | detected_lang=en | command_lang=en
+[2026-04-03 01:39:07] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-03 01:39:35] User said: (keyboard clacking) | detected_lang=en | command_lang=en
+[2026-04-03 01:39:35] Assistant said [pl]: Powiedz tak albo nie.
+[2026-04-03 01:40:11] User said: Tak. | detected_lang=pl | command_lang=pl
+[2026-04-03 01:40:11] Parsed intent: action=show_year, data={}, text=Tak., lang=pl
+[2026-04-03 01:40:11] Assistant said [pl]: Mamy rok 2026.
+[2026-04-03 01:40:42] User said: [MUSIC PLAYING] | detected_lang=en | command_lang=en
+[2026-04-03 01:40:42] Parsed intent: action=unknown, data={}, text=music playing, lang=en
+[2026-04-03 01:40:42] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:40:57] User said: Show me the time. | detected_lang=en | command_lang=en
+[2026-04-03 01:40:57] Parsed intent: action=show_time, data={}, text=show me the time, lang=en
+[2026-04-03 01:40:57] Assistant said [en]: It is 1:40 AM.
+[2026-04-03 01:41:13] User said: Show me the date. | detected_lang=en | command_lang=en
+[2026-04-03 01:41:13] Parsed intent: action=show_date, data={}, text=show me the date, lang=en
+[2026-04-03 01:41:13] Assistant said [en]: Today is Friday, April 3, 2026.
+[2026-04-03 01:41:26] User said: Show me the day. | detected_lang=en | command_lang=en
+[2026-04-03 01:41:26] Parsed intent: action=show_day, data={}, text=show me the day, lang=en
+[2026-04-03 01:41:26] Assistant said [en]: Today is Friday.
+[2026-04-03 01:41:39] User said: Show me the year. | detected_lang=en | command_lang=en
+[2026-04-03 01:41:39] Parsed intent: action=show_year, data={}, text=show me the year, lang=en
+[2026-04-03 01:41:39] Assistant said [en]: The current year is 2026.
+[2026-04-03 01:41:52] Ignored silent input: recognizer returned None.
+[2026-04-03 01:42:07] User said: Remember that the keys are in the kitchen. | detected_lang=en | command_lang=en
+[2026-04-03 01:42:07] Parsed intent: action=memory_store, data={'key': 'keys', 'value': 'in the kitchen', 'memory_text': 'the keys are in the kitchen'}, text=remember that the keys are in the kitchen, lang=en
+[2026-04-03 01:42:07] Memory saved: keys -> in the kitchen
+[2026-04-03 01:42:07] Memory stored from structured input: keys -> in the kitchen
+[2026-04-03 01:42:07] Assistant said [en]: Okay. I remembered that keys is in the kitchen.
+[2026-04-03 01:42:20] Ignored silent input: recognizer returned None.
+[2026-04-03 01:42:44] User said: Where are the keys? | detected_lang=en | command_lang=en
+[2026-04-03 01:42:44] Parsed intent: action=memory_recall, data={'key': 'keys'}, text=where are the keys, lang=en
+[2026-04-03 01:42:44] Assistant said [en]: keys is in the kitchen.
+[2026-04-03 01:43:12] User said: [MUSIC PLAYING] | detected_lang=en | command_lang=en
+[2026-04-03 01:43:12] Parsed intent: action=unknown, data={}, text=music playing, lang=en
+[2026-04-03 01:43:12] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:43:38] User said: [speaking in Polish] | detected_lang=en | command_lang=en
+[2026-04-03 01:43:38] Parsed intent: action=unknown, data={}, text=speaking in polish, lang=en
+[2026-04-03 01:43:38] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:44:02] User said: Remove the key from the memory. | detected_lang=en | command_lang=en
+[2026-04-03 01:44:02] Parsed intent: action=unknown, data={}, text=remove the key from the memory, lang=en
+[2026-04-03 01:44:02] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:44:38] User said: [typing sounds] | detected_lang=en | command_lang=en
+[2026-04-03 01:44:38] Parsed intent: action=unknown, data={}, text=typing sounds, lang=en
+[2026-04-03 01:44:38] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:45:08] User said: Remove keys from memory. | detected_lang=en | command_lang=en
+[2026-04-03 01:45:08] Parsed intent: action=memory_forget, data={'key': 'keys'}, text=remove keys from memory, lang=en
+[2026-04-03 01:45:08] Assistant said [en]: Are you sure I should remove keys from memory?
+[2026-04-03 01:45:20] User said: Yes. | detected_lang=en | command_lang=en
+[2026-04-03 01:45:20] Memory deleted: keys
+[2026-04-03 01:45:20] Assistant said [en]: Okay. I removed keys from memory.
+[2026-04-03 01:45:40] User said: Where is the key? | detected_lang=en | command_lang=en
+[2026-04-03 01:45:40] Parsed intent: action=memory_recall, data={'key': 'key'}, text=where is the key, lang=en
+[2026-04-03 01:45:40] Assistant said [en]: Shutting down NeXa.
+[2026-04-03 01:45:41] Assistant shut down.
+[2026-04-03 01:52:37] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=off
+[2026-04-03 01:52:37] Startup sequence initiated.
+[2026-04-03 01:52:37] Startup check [OK] settings: found settings.json
+[2026-04-03 01:52:37] Startup check [OK] directories: data, logs, config ready
+[2026-04-03 01:52:37] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-03 01:52:37] Startup check [OK] voice output: piper models ready
+[2026-04-03 01:52:37] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-03 01:52:40] Assistant said [en]: Hello. I am NeXa. You can ask me at any time how I can help.
+[2026-04-03 01:52:44] Startup completed successfully.
+[2026-04-03 01:53:02] User said: Jaki jest dzisiaj dzień? | detected_lang=pl | command_lang=pl
+[2026-04-03 01:53:02] Parsed intent: action=ask_day, data={}, text=jaki jest dzisiaj dzien, lang=pl
+[2026-04-03 01:53:02] Assistant said [pl]: Dzisiaj jest piątek.
+[2026-04-03 01:53:22] User said: What year are we in? | detected_lang=en | command_lang=en
+[2026-04-03 01:53:22] Parsed intent: action=unknown, data={}, text=what year are we in, lang=en
+[2026-04-03 01:53:22] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:53:49] User said: Jaki mamy rok? | detected_lang=pl | command_lang=pl
+[2026-04-03 01:53:49] Parsed intent: action=unknown, data={}, text=jaki mamy rok, lang=pl
+[2026-04-03 01:53:49] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-03 01:54:15] User said: Jakim mamy rok? | detected_lang=pl | command_lang=pl
+[2026-04-03 01:54:15] Parsed intent: action=unknown, data={}, text=jakim mamy rok, lang=pl
+[2026-04-03 01:54:15] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-03 01:54:30] Ignored silent input: recognizer returned None.
+[2026-04-03 01:54:49] User said: Jak się nazywasz? | detected_lang=pl | command_lang=pl
+[2026-04-03 01:54:49] Parsed intent: action=introduce_self, data={}, text=jak sie nazywasz, lang=pl
+[2026-04-03 01:54:49] Assistant said [pl]: Nazywam się NeXa i jestem asystentem AI rozwijanym na Raspberry Pi 5. Szybko się uczę, bardzo chętnie poznaję świat i lubię pomagać ludziom.
+[2026-04-03 01:55:40] User said: (keyboard clicking) | detected_lang=en | command_lang=en
+[2026-04-03 01:55:40] Parsed intent: action=unknown, data={}, text=keyboard clicking, lang=en
+[2026-04-03 01:55:40] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:56:10] User said: Kim jesteś? | detected_lang=pl | command_lang=pl
+[2026-04-03 01:56:10] Parsed intent: action=introduce_self, data={}, text=kim jestes, lang=pl
+[2026-04-03 01:56:10] Assistant said [pl]: Nazywam się NeXa i jestem asystentem AI rozwijanym na Raspberry Pi 5. Szybko się uczę, bardzo chętnie poznaję świat i lubię pomagać ludziom.
+[2026-04-03 01:56:38] User said: Czym jesteś? | detected_lang=pl | command_lang=pl
+[2026-04-03 01:56:38] Parsed intent: action=introduce_self, data={}, text=czym jestes, lang=pl
+[2026-04-03 01:56:38] Assistant said [pl]: Nazywam się NeXa i jestem asystentem AI rozwijanym na Raspberry Pi 5. Szybko się uczę, bardzo chętnie poznaję świat i lubię pomagać ludziom.
+[2026-04-03 01:57:08] User said: Pokaż mi godzinę. | detected_lang=pl | command_lang=pl
+[2026-04-03 01:57:08] Parsed intent: action=show_time, data={}, text=pokaz mi godzine, lang=pl
+[2026-04-03 01:57:08] Assistant said [pl]: Jest 01:57.
+[2026-04-03 01:57:28] User said: Remember that the keys are in the kitchen. | detected_lang=en | command_lang=en
+[2026-04-03 01:57:28] Parsed intent: action=memory_store, data={'key': 'keys', 'value': 'in the kitchen', 'memory_text': 'the keys are in the kitchen'}, text=remember that the keys are in the kitchen, lang=en
+[2026-04-03 01:57:28] Memory saved: keys -> in the kitchen
+[2026-04-03 01:57:28] Memory stored from structured input: keys -> in the kitchen
+[2026-04-03 01:57:28] Assistant said [en]: Okay. I remembered that keys is in the kitchen.
+[2026-04-03 01:57:53] User said: (keyboard clicking) | detected_lang=en | command_lang=en
+[2026-04-03 01:57:53] Parsed intent: action=unknown, data={}, text=keyboard clicking, lang=en
+[2026-04-03 01:57:53] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:58:15] User said: Gdzie są klucze? | detected_lang=pl | command_lang=pl
+[2026-04-03 01:58:15] Parsed intent: action=memory_recall, data={'key': 'klucze'}, text=gdzie sa klucze, lang=pl
+[2026-04-03 01:58:15] Assistant said [pl]: Nie mam zapisanej informacji dla klucze.
+[2026-04-03 01:58:48] User said: [oklaski] | detected_lang=en | command_lang=en
+[2026-04-03 01:58:48] Parsed intent: action=unknown, data={}, text=oklaski, lang=en
+[2026-04-03 01:58:48] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:59:10] User said: "Use the key from memory" | detected_lang=en | command_lang=en
+[2026-04-03 01:59:10] Parsed intent: action=unknown, data={}, text=use the key from memory, lang=en
+[2026-04-03 01:59:10] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 01:59:37] User said: Usuń klucze z pamięci. | detected_lang=pl | command_lang=pl
+[2026-04-03 01:59:37] Parsed intent: action=memory_forget, data={'key': 'klucze'}, text=usun klucze z pamieci, lang=pl
+[2026-04-03 01:59:37] Assistant said [pl]: Nie mam zapisanej informacji dla klucze.
+[2026-04-03 01:59:50] Ignored silent input: recognizer returned None.
+[2026-04-03 02:00:21] User said: [typ] | detected_lang=en | command_lang=en
+[2026-04-03 02:00:21] Parsed intent: action=unknown, data={}, text=typ, lang=en
+[2026-04-03 02:00:21] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 02:00:38] User said: Please remind me in 10 seconds that I have something to eat. | detected_lang=en | command_lang=en
+[2026-04-03 02:00:38] Parsed intent: action=unknown, data={}, text=please remind me in 10 seconds that i have something to eat, lang=en
+[2026-04-03 02:00:38] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 02:00:55] User said: "Remember me that in 10 minutes I have something to eat" | detected_lang=en | command_lang=en
+[2026-04-03 02:00:55] Parsed intent: action=memory_store, data={'key': 'me that', 'value': '10 minutes i have something to eat', 'memory_text': 'me that in 10 minutes i have something to eat'}, text=remember me that in 10 minutes i have something to eat, lang=en
+[2026-04-03 02:00:55] Memory saved: me that -> 10 minutes i have something to eat
+[2026-04-03 02:00:55] Memory stored from structured input: me that -> 10 minutes i have something to eat
+[2026-04-03 02:00:55] Assistant said [en]: Okay. I remembered that me that is 10 minutes i have something to eat.
+[2026-04-03 02:01:34] User said: [MUZYKA] | detected_lang=en | command_lang=en
+[2026-04-03 02:01:34] Parsed intent: action=unknown, data={}, text=muzyka, lang=en
+[2026-04-03 02:01:34] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 02:02:02] User said: (keyboard clicking) | detected_lang=en | command_lang=en
+[2026-04-03 02:02:02] Parsed intent: action=unknown, data={}, text=keyboard clicking, lang=en
+[2026-04-03 02:02:02] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 02:02:30] User said: Go sleep. | detected_lang=en | command_lang=en
+[2026-04-03 02:02:30] Parsed intent: action=unknown, data={}, text=go sleep, lang=en
+[2026-04-03 02:02:30] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 02:03:01] User said: Go to sleep. | detected_lang=en | command_lang=en
+[2026-04-03 02:03:01] Parsed intent: action=exit, data={}, text=go to sleep, lang=en
+[2026-04-03 02:03:01] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-03 02:03:18] User said: Yes. | detected_lang=en | command_lang=en
+[2026-04-03 02:03:18] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-03 02:03:21] Assistant said [en]: Shutting down NeXa.
+[2026-04-03 02:03:22] Assistant shut down.
+[2026-04-03 04:09:15] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=off
+[2026-04-03 04:09:16] Startup sequence initiated.
+[2026-04-03 04:09:16] Startup check [OK] settings: found settings.json
+[2026-04-03 04:09:16] Startup check [OK] directories: data, logs, config ready
+[2026-04-03 04:09:16] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-03 04:09:16] Startup check [OK] voice output: piper models ready
+[2026-04-03 04:09:16] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-03 04:09:19] Assistant said [en]: Hello. I am NeXa. You can ask me at any time how I can help.
+[2026-04-03 04:09:23] Startup completed successfully.
+[2026-04-03 04:09:41] User said: Jak się nazywasz? | normalized=jak sie nazywasz | detected_lang=pl | command_lang=pl
+[2026-04-03 04:09:41] Parsed intent: action=introduce_self, data={}, text=jak sie nazywasz, lang=pl
+[2026-04-03 04:09:41] Assistant said [pl]: Nazywam się NeXa.
+[2026-04-03 04:10:02] User said: Kim jesteś? | normalized=kim jestes | detected_lang=pl | command_lang=pl
+[2026-04-03 04:10:02] Parsed intent: action=introduce_self, data={}, text=kim jestes, lang=pl
+[2026-04-03 04:10:02] Assistant said [pl]: Nazywam się NeXa i jestem asystentem AI rozwijanym na Raspberry Pi 5. Szybko się uczę, bardzo chętnie poznaję świat i lubię pomagać ludziom.
+[2026-04-03 04:10:31] User said: What is your name? | normalized=what is your name | detected_lang=en | command_lang=en
+[2026-04-03 04:10:31] Parsed intent: action=introduce_self, data={}, text=what is your name, lang=en
+[2026-04-03 04:10:31] Assistant said [en]: My name is NeXa.
+[2026-04-03 04:10:54] User said: Czym jesteś? | normalized=czym jestes | detected_lang=pl | command_lang=pl
+[2026-04-03 04:10:54] Parsed intent: action=introduce_self, data={}, text=czym jestes, lang=pl
+[2026-04-03 04:10:54] Assistant said [pl]: Nazywam się NeXa i jestem asystentem AI rozwijanym na Raspberry Pi 5. Szybko się uczę, bardzo chętnie poznaję świat i lubię pomagać ludziom.
+[2026-04-03 04:15:32] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=off
+[2026-04-03 04:15:32] Startup sequence initiated.
+[2026-04-03 04:15:32] Startup check [OK] settings: found settings.json
+[2026-04-03 04:15:32] Startup check [OK] directories: data, logs, config ready
+[2026-04-03 04:15:32] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-03 04:15:32] Startup check [OK] voice output: piper models ready
+[2026-04-03 04:15:32] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-03 04:15:35] Assistant said [en]: Hello. I am NeXa. You can ask me at any time how I can help.
+[2026-04-03 04:15:40] Startup completed successfully.
+[2026-04-03 04:15:57] User said: What year are we in? | normalized=what year are we in | detected_lang=en | command_lang=en
+[2026-04-03 04:15:57] Parsed intent: action=unknown, data={}, text=what year are we in, lang=en
+[2026-04-03 04:15:57] Assistant said [en]: I did not fully understand that. Please say it again in a slightly different way.
+[2026-04-03 04:16:19] User said: Jaki mamy rok? | normalized=jaki mamy rok | detected_lang=pl | command_lang=pl
+[2026-04-03 04:16:19] Parsed intent: action=unknown, data={}, text=jaki mamy rok, lang=pl
+[2026-04-03 04:16:19] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-03 04:16:42] User said: Jaki mamy rok. | normalized=jaki mamy rok | detected_lang=pl | command_lang=pl
+[2026-04-03 04:16:42] Parsed intent: action=unknown, data={}, text=jaki mamy rok, lang=pl
+[2026-04-03 04:16:42] Assistant said [pl]: Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.
+[2026-04-03 04:17:08] User said: and go to sleep. | normalized=and go to sleep | detected_lang=en | command_lang=en
+[2026-04-03 04:17:08] Parsed intent: action=exit, data={}, text=and go to sleep, lang=en
+[2026-04-03 04:17:08] Assistant said [en]: Are you sure I should close the assistant?
+[2026-04-03 04:17:19] User said: Yes. | normalized=yes | detected_lang=en | command_lang=en
+[2026-04-03 04:17:19] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-03 04:17:21] Assistant said [en]: Shutting down NeXa.
+[2026-04-03 04:17:22] Assistant shut down.
+[2026-04-03 04:26:08] Whisper input ready: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=off
+[2026-04-03 04:26:08] Startup sequence initiated.
+[2026-04-03 04:26:08] Startup check [OK] settings: found settings.json
+[2026-04-03 04:26:08] Startup check [OK] directories: data, logs, config ready
+[2026-04-03 04:26:08] Startup check [OK] voice input: whisper-cli and model ready
+[2026-04-03 04:26:08] Startup check [OK] voice output: piper models ready
+[2026-04-03 04:26:08] Startup check [OK] display: configured 240x320, i2c port 1, address 60
+[2026-04-03 04:26:11] Assistant said [en]: Hello. I am NeXa. You can ask me at any time how I can help.
+[2026-04-03 04:26:20] Startup completed successfully.
+[2026-04-03 04:26:44] User said: Jak się nazywasz? | normalized=jak sie nazywasz | detected_lang=pl | command_lang=pl
+[2026-04-03 04:26:44] Parsed intent: action=introduce_self, data={}, text=jak sie nazywasz, lang=pl
+[2026-04-03 04:26:44] Assistant said [pl]: Nazywam się NeXa.
+[2026-04-03 04:27:13] User said: What is your name? | normalized=what is your name | detected_lang=en | command_lang=en
+[2026-04-03 04:27:13] Parsed intent: action=introduce_self, data={}, text=what is your name, lang=en
+[2026-04-03 04:27:13] Assistant said [en]: My name is NeXa.
+[2026-04-03 04:27:36] User said: What is your name? | normalized=what is your name | detected_lang=en | command_lang=en
+[2026-04-03 04:27:36] Parsed intent: action=introduce_self, data={}, text=what is your name, lang=en
+[2026-04-03 04:27:36] Assistant said [en]: My name is NeXa.
+[2026-04-03 04:28:03] User said: Shut down. | normalized=shut down | detected_lang=en | command_lang=en
+[2026-04-03 04:28:03] Parsed intent: action=shutdown, data={}, text=shut down, lang=en
+[2026-04-03 04:28:03] Assistant said [en]: Are you sure I should shut down the system?
+[2026-04-03 04:28:39] User said: Please. | normalized=please | detected_lang=en | command_lang=en
+[2026-04-03 04:28:39] Assistant said [en]: Please say yes or no.
+[2026-04-03 04:28:58] User said: Yes. | normalized=yes | detected_lang=en | command_lang=en
+[2026-04-03 04:28:58] Assistant said [en]: Okay. I am closing the assistant and shutting down the system.
+[2026-04-03 04:29:06] Assistant said [en]: Shutting down NeXa.
+[2026-04-03 04:29:12] Assistant shut down.
+[2026-04-03 04:29:14] Shutdown requested, but system shutdown commands are disabled in config.

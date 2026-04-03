@@ -14,21 +14,23 @@ from modules.system.utils import BASE_DIR, CACHE_DIR, append_log
 
 
 class VoiceOutput:
+    _CACHE_VERSION = "tts-v2-neksa-pronunciation"
+
     def __init__(
         self,
         enabled: bool = True,
         preferred_engine: str = "piper",
-        default_language: str = "pl",
+        default_language: str = "en",
         speed: int = 155,
         pitch: int = 58,
         voices: dict[str, str] | None = None,
         piper_models: dict[str, dict[str, str]] | None = None,
     ) -> None:
-        self.enabled = enabled
-        self.preferred_engine = preferred_engine.lower().strip()
-        self.default_language = default_language.lower().strip()
-        self.speed = speed
-        self.pitch = pitch
+        self.enabled = bool(enabled)
+        self.preferred_engine = str(preferred_engine or "piper").lower().strip()
+        self.default_language = self._normalize_language(default_language)
+        self.speed = int(speed)
+        self.pitch = int(pitch)
 
         self.voices = voices or {
             "pl": "pl+f3",
@@ -69,6 +71,8 @@ class VoiceOutput:
                 "Nie usłyszałam wyraźnie. Powiedz proszę jeszcze raz.",
                 "Jak mogę pomóc?",
                 "Nie mogę tego teraz zrobić.",
+                "Przypomnienie.",
+                "Nazywam się NeXa.",
             ],
             "en": [
                 "Okay.",
@@ -76,25 +80,53 @@ class VoiceOutput:
                 "I did not catch that clearly. Please say it again.",
                 "How can I help?",
                 "I cannot do that right now.",
+                "Reminder.",
+                "My name is NeXa.",
             ],
         }
 
         self._start_cache_warmup()
 
+    @staticmethod
+    def _normalize_language(language: str | None) -> str:
+        normalized = str(language or "").strip().lower()
+        if normalized in {"pl", "en"}:
+            return normalized
+        return "en"
+
     def _resolve_language(self, language: str | None) -> str:
-        lang = (language or self.default_language or "pl").lower().strip()
-        if lang not in {"pl", "en"}:
-            return self.default_language if self.default_language in {"pl", "en"} else "pl"
-        return lang
+        normalized = self._normalize_language(language)
+        if normalized in {"pl", "en"}:
+            return normalized
+        return self.default_language
 
     @staticmethod
     def _normalize_text_for_log(text: str) -> str:
-        cleaned = text.strip()
-        cleaned = re.sub(r"\s+", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", str(text or "").strip())
+        return cleaned
+
+    def _apply_brand_pronunciation(self, text: str, lang: str) -> str:
+        cleaned = str(text or "")
+
+        # Keep spelling in logs/UI as "NeXa", but force TTS pronunciation to "Neksa".
+        # This works more reliably across Piper and eSpeak than leaving mixed casing.
+        cleaned = re.sub(r"\bNeXa\b", "Neksa", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\bNexa\b", "Neksa", cleaned, flags=re.IGNORECASE)
+
+        # Optional extra stabilization for English TTS around self-introduction.
+        if lang == "en":
+            cleaned = re.sub(r"\bmy name is neksa\b", "My name is Neksa", cleaned, flags=re.IGNORECASE)
+        else:
+            cleaned = re.sub(r"\bnazywam sie neksa\b", "Nazywam się Neksa", cleaned, flags=re.IGNORECASE)
+
         return cleaned
 
     def _normalize_text_for_tts(self, text: str, lang: str) -> str:
-        cleaned = text.strip()
+        cleaned = str(text or "").strip()
+        if not cleaned:
+            return ""
+
+        cleaned = self._apply_brand_pronunciation(cleaned, lang)
 
         cleaned = cleaned.replace("OLED", "O led")
         cleaned = cleaned.replace("->", " ")
@@ -119,13 +151,14 @@ class VoiceOutput:
                 r"\bdont\b": "don't",
                 r"\bcant\b": "can't",
                 r"\bwont\b": "won't",
+                r"\bwhats\b": "what's",
             }
             lowered = cleaned.lower()
             for pattern, replacement in replacements.items():
                 lowered = re.sub(pattern, replacement.lower(), lowered)
             cleaned = lowered.strip()
             if cleaned:
-                cleaned = cleaned[0].upper() + cleaned[1:]
+                cleaned = cleaned[:1].upper() + cleaned[1:]
 
         if cleaned and cleaned[-1] not in ".!?":
             cleaned += "."
@@ -139,6 +172,8 @@ class VoiceOutput:
         return self._base_dir / candidate
 
     def _piper_model_ready(self, lang: str) -> bool:
+        lang = self._normalize_language(lang)
+
         cached = self._piper_ready_cache.get(lang)
         if cached is not None:
             return cached
@@ -150,12 +185,14 @@ class VoiceOutput:
 
         model_path = self._resolve_project_path(model_info["model"])
         config_path = self._resolve_project_path(model_info["config"])
+
         ready = model_path.exists() and config_path.exists()
         self._piper_ready_cache[lang] = ready
         return ready
 
-    def _cache_key(self, text: str, lang: str) -> str:
-        digest = hashlib.sha256(f"{lang}|{text}".encode("utf-8")).hexdigest()
+    @classmethod
+    def _cache_key(cls, text: str, lang: str) -> str:
+        digest = hashlib.sha256(f"{cls._CACHE_VERSION}|{lang}|{text}".encode("utf-8")).hexdigest()
         return digest[:24]
 
     def _cached_wav_path(self, text: str, lang: str) -> Path:
@@ -174,7 +211,8 @@ class VoiceOutput:
                     check=False,
                     timeout=self._playback_timeout_seconds,
                 )
-                return result.returncode == 0
+                if result.returncode == 0:
+                    return True
             except Exception as error:
                 append_log(f"aplay playback error: {error}")
 
@@ -187,14 +225,17 @@ class VoiceOutput:
                     check=False,
                     timeout=self._playback_timeout_seconds,
                 )
-                return result.returncode == 0
+                if result.returncode == 0:
+                    return True
             except Exception as error:
                 append_log(f"ffplay playback error: {error}")
 
         return False
 
     def _synthesize_piper_to_wav(self, text: str, lang: str, wav_path: Path) -> bool:
+        lang = self._normalize_language(lang)
         model_info = self.piper_models.get(lang)
+
         if not model_info:
             append_log(f"No Piper model config for language '{lang}'.")
             return False
@@ -236,7 +277,7 @@ class VoiceOutput:
             return wav_path.exists()
 
         except Exception as error:
-            append_log(f"Piper output error: {error}")
+            append_log(f"Piper synthesis error: {error}")
             return False
 
     def _prime_cache_entry(self, text: str, lang: str) -> None:
@@ -287,6 +328,8 @@ class VoiceOutput:
     def _speak_with_piper(self, text: str, lang: str) -> bool:
         if not self.enabled:
             return False
+        if not self._piper_model_ready(lang):
+            return False
 
         cache_path = self._cached_wav_path(text, lang)
 
@@ -294,15 +337,14 @@ class VoiceOutput:
             played = self._play_wav(cache_path)
             if played:
                 return True
-            append_log("Cached Piper audio exists but playback failed, retrying synthesis.")
+            append_log(f"Cached Piper audio exists but playback failed for language '{lang}', retrying synthesis.")
 
         synthesized_to_cache = self._synthesize_piper_to_wav(text, lang, cache_path)
         if synthesized_to_cache:
             played = self._play_wav(cache_path)
             if played:
                 return True
-
-            append_log("Cached Piper synthesis worked but playback failed, trying temporary WAV.")
+            append_log(f"Cached Piper synthesis worked but playback failed for language '{lang}', trying temporary WAV.")
 
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_wav:
             temp_wav_path = Path(temp_wav.name)
@@ -314,7 +356,7 @@ class VoiceOutput:
 
             played = self._play_wav(temp_wav_path)
             if not played:
-                append_log("No working WAV playback command available.")
+                append_log(f"No working WAV playback command available for language '{lang}'.")
             return played
 
         finally:
@@ -329,7 +371,10 @@ class VoiceOutput:
             append_log("eSpeak is not available.")
             return False
 
-        voice = self.voices.get(lang, self.voices.get(self.default_language, "pl+f3"))
+        voice = self.voices.get(lang)
+        if not voice:
+            append_log(f"No eSpeak voice configured for language '{lang}'.")
+            return False
 
         try:
             result = subprocess.run(
@@ -372,11 +417,13 @@ class VoiceOutput:
             return
 
         with self._lock:
-            if self.preferred_engine == "piper" and self._piper_model_ready(lang):
+            if self.preferred_engine == "piper":
                 used_piper = self._speak_with_piper(tts_text, lang)
                 if used_piper:
                     return
 
             used_espeak = self._speak_with_espeak(tts_text, lang)
-            if not used_espeak:
-                append_log("Voice output failed for all available engines.")
+            if used_espeak:
+                return
+
+            append_log(f"Voice output failed for language '{lang}' on all available engines.")

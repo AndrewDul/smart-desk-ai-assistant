@@ -1,31 +1,31 @@
 {
   "project": {
-    "name": "Smart Desk AI Assistant",
-    "version": "0.4.0-premium-core",
-    "stage": "stage-1-stationary-premium-core"
+    "name": "NeXa",
+    "version": "0.5.0-premium-conversation",
+    "stage": "stage-1-stationary-premium-conversation"
   },
   "user": {
     "name": "Andrzej"
   },
   "voice_input": {
-  "enabled": true,
-  "engine": "whisper",
-  "device_index": 1,
-  "device_name_contains": null,
-  "timeout_seconds": 10,
-  "debug": true,
-  "sample_rate": 16000,
-  "max_record_seconds": 6.0,
-  "silence_threshold": 80.0,
-  "end_silence_seconds": 0.45,
-  "pre_roll_seconds": 0.80,
-  "threads": 4,
-  "language": "auto",
-  "vad_enabled": false,
-  "whisper_cli_path": "whisper.cpp/build/bin/whisper-cli",
-  "model_path": "whisper.cpp/models/ggml-small.bin",
-  "vad_model_path": "models/ggml-silero-v6.2.0.bin"
-},
+    "enabled": true,
+    "engine": "whisper",
+    "device_index": 1,
+    "device_name_contains": null,
+    "timeout_seconds": 10,
+    "debug": true,
+    "sample_rate": 16000,
+    "max_record_seconds": 10.0,
+    "silence_threshold": 120.0,
+    "end_silence_seconds": 0.75,
+    "pre_roll_seconds": 0.80,
+    "threads": 4,
+    "language": "auto",
+    "vad_enabled": false,
+    "whisper_cli_path": "whisper.cpp/build/bin/whisper-cli",
+    "model_path": "whisper.cpp/models/ggml-small.bin",
+    "vad_model_path": "models/ggml-silero-v6.2.0.bin"
+  },
   "voice_output": {
     "enabled": true,
     "engine": "piper",
@@ -76,6 +76,9 @@
   },
   "system": {
     "allow_shutdown_commands": false,
-    "shutdown_command": ["systemctl", "poweroff"]
+    "shutdown_command": [
+      "systemctl",
+      "poweroff"
+    ]
   }
 }
