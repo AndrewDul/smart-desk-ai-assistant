@@ -91,7 +91,94 @@ _INTERRUPTABLE_ACTIONS = {
     "shutdown",
 }
 
+_TIMER_LIKE_ACTIONS = {"timer_start", "focus_start", "break_start"}
+
+_MIXED_REPEAT_MARKERS = {
+    "en": {
+        "what",
+        "what?",
+        "repeat",
+        "repeat that",
+        "say that again",
+        "again",
+        "options",
+        "what are the options",
+        "what can i choose",
+        "which options",
+        "what did you say",
+    },
+    "pl": {
+        "co",
+        "co?",
+        "powtorz",
+        "powtórz",
+        "jeszcze raz",
+        "opcje",
+        "jakie opcje",
+        "jakie mam opcje",
+        "co moge wybrac",
+        "co mogę wybrać",
+        "co powiedzialas",
+        "co powiedziałaś",
+    },
+}
+
 _SHUTDOWN_DELAY_SECONDS = 2.2
+
+
+def _current_followup_type(assistant) -> str:
+    follow_up = assistant.pending_follow_up or {}
+    return str(follow_up.get("type", "")).strip() or "follow_up"
+
+
+def _remember_followup_reply(
+    assistant,
+    *,
+    spoken: str,
+    lang: str,
+    follow_type: str,
+    extra_metadata: dict[str, Any] | None = None,
+) -> None:
+    if not hasattr(assistant, "_remember_assistant_turn"):
+        return
+
+    cleaned = " ".join(str(spoken or "").split()).strip()
+    if not cleaned:
+        return
+
+    metadata: dict[str, Any] = {
+        "source": "follow_up_handler",
+        "route_kind": "follow_up",
+        "follow_up_type": follow_type,
+    }
+    if extra_metadata:
+        metadata.update(extra_metadata)
+
+    assistant._remember_assistant_turn(
+        cleaned,
+        language=lang,
+        metadata=metadata,
+    )
+
+
+def _speak_and_remember_localized(
+    assistant,
+    lang: str,
+    pl_text: str,
+    en_text: str,
+    *,
+    follow_type: str | None = None,
+    extra_metadata: dict[str, Any] | None = None,
+) -> None:
+    assistant._speak_localized(lang, pl_text, en_text)
+    spoken = assistant._localized(lang, pl_text, en_text)
+    _remember_followup_reply(
+        assistant,
+        spoken=spoken,
+        lang=lang,
+        follow_type=follow_type or _current_followup_type(assistant),
+        extra_metadata=extra_metadata,
+    )
 
 
 def _normalize_name_token(token: str) -> str:
@@ -145,10 +232,13 @@ def extract_name(text: str) -> str | None:
 
 
 def _yes_no_retry(assistant, lang: str) -> None:
-    assistant._speak_localized(
+    _speak_and_remember_localized(
+        assistant,
         lang,
         "Powiedz tak albo nie.",
         "Please say yes or no.",
+        follow_type=_current_followup_type(assistant),
+        extra_metadata={"phase": "retry_yes_no"},
     )
 
 
@@ -225,6 +315,254 @@ def _parse_confirmation_choice(text: str) -> int | None:
     return None
 
 
+def _handle_display_offer_follow_up(assistant, follow_up: dict[str, Any], text: str, lang: str) -> bool:
+    title = str(follow_up.get("title", "")).strip()
+    lines = [str(line) for line in follow_up.get("lines", []) if str(line).strip()]
+    action = str(follow_up.get("action", "")).strip().lower()
+    temporal_kind = str(follow_up.get("temporal_kind", "")).strip().lower()
+
+    if assistant._is_yes(text):
+        assistant.pending_follow_up = None
+        assistant.display.show_block(
+            title,
+            lines,
+            duration=assistant.default_overlay_seconds,
+        )
+        _speak_and_remember_localized(
+            assistant,
+            lang,
+            "Dobrze. Pokazuję to na ekranie.",
+            "Okay. I am showing it on the screen.",
+            follow_type="display_offer",
+            extra_metadata={
+                "phase": "accepted",
+                "action": action,
+                "temporal_kind": temporal_kind,
+            },
+        )
+        return True
+
+    if assistant._is_no(text):
+        assistant.pending_follow_up = None
+        _speak_and_remember_localized(
+            assistant,
+            lang,
+            "Dobrze. Nie pokazuję tego na ekranie.",
+            "Okay. I will not show it on the screen.",
+            follow_type="display_offer",
+            extra_metadata={
+                "phase": "declined",
+                "action": action,
+                "temporal_kind": temporal_kind,
+            },
+        )
+        return True
+
+    interrupted = _try_interrupt_with_new_command(assistant, text, lang)
+    if interrupted is not None:
+        return interrupted
+
+    _yes_no_retry(assistant, lang)
+    return True
+
+
+def _default_minutes_for_action(assistant, action: str) -> float | None:
+    if action == "focus_start":
+        return float(getattr(assistant.parser, "default_focus_minutes", 25))
+    if action == "break_start":
+        return float(getattr(assistant.parser, "default_break_minutes", 5))
+    if action == "timer_start":
+        return 10.0
+    return None
+
+
+def _suggestion_prompt_texts(assistant, actions: list[str], lang: str) -> tuple[str, str]:
+    labels_pl = [assistant._action_label(action, "pl") for action in actions]
+    labels_en = [assistant._action_label(action, "en") for action in actions]
+
+    if not actions:
+        return (
+            "Powiedz proszę, co wybrać.",
+            "Please tell me what to choose.",
+        )
+
+    if len(actions) == 1:
+        return (
+            f"Powiedz tak, jeśli chcesz {labels_pl[0]}, albo nie, jeśli chcesz anulować.",
+            f"Say yes if you want {labels_en[0]}, or no if you want to cancel.",
+        )
+
+    joined_pl = ", ".join(labels_pl[:-1]) + " albo " + labels_pl[-1]
+    joined_en = ", ".join(labels_en[:-1]) + " or " + labels_en[-1]
+
+    return (
+        f"Powiedz, co wybierasz: {joined_pl}.",
+        f"Tell me what you choose: {joined_en}.",
+    )
+
+
+def _mixed_repeat_prompt_texts(assistant, actions: list[str]) -> tuple[str, str]:
+    labels_pl = [assistant._action_label(action, "pl") for action in actions]
+    labels_en = [assistant._action_label(action, "en") for action in actions]
+
+    if not actions:
+        return (
+            "Na razie nie mam żadnej gotowej opcji.",
+            "I do not have a ready option right now.",
+        )
+
+    if len(actions) == 1:
+        return (
+            f"Mogę teraz {labels_pl[0]}.",
+            f"I can {labels_en[0]} right now.",
+        )
+
+    if len(actions) == 2:
+        return (
+            f"Mogę teraz {labels_pl[0]} albo {labels_pl[1]}.",
+            f"I can {labels_en[0]} or {labels_en[1]} right now.",
+        )
+
+    joined_pl = ", ".join(labels_pl[:-1]) + " albo " + labels_pl[-1]
+    joined_en = ", ".join(labels_en[:-1]) + " or " + labels_en[-1]
+
+    return (
+        f"Mogę teraz {joined_pl}.",
+        f"I can {joined_en} right now.",
+    )
+
+
+def _is_repeat_request(assistant, text: str, lang: str) -> bool:
+    normalized = assistant._normalize_text(text)
+    if normalized in _MIXED_REPEAT_MARKERS.get(lang, set()):
+        return True
+
+    if lang == "en":
+        return any(
+            phrase in normalized
+            for phrase in [
+                "repeat",
+                "options",
+                "what are the options",
+                "what can i choose",
+                "say that again",
+                "what did you say",
+            ]
+        )
+
+    return any(
+        phrase in normalized
+        for phrase in [
+            "powtorz",
+            "powtórz",
+            "opcje",
+            "jakie mam opcje",
+            "co moge wybrac",
+            "co mogę wybrać",
+            "co powiedzialas",
+            "co powiedziałaś",
+        ]
+    )
+
+
+def _execute_suggested_action(
+    assistant,
+    action: str,
+    lang: str,
+    *,
+    duration_minutes: float | None = None,
+) -> bool:
+    assistant.pending_follow_up = None
+
+    if action in _TIMER_LIKE_ACTIONS:
+        minutes = duration_minutes if duration_minutes is not None and duration_minutes > 0 else _default_minutes_for_action(assistant, action)
+
+        mode = "timer"
+        if action == "focus_start":
+            mode = "focus"
+        elif action == "break_start":
+            mode = "break"
+
+        return assistant._start_timer_mode(float(minutes), mode, lang)
+
+    if action == "reminder_create":
+        _speak_and_remember_localized(
+            assistant,
+            lang,
+            "Jasne. Powiedz teraz pełne przypomnienie, na przykład: przypomnij mi za 10 minut, żeby napić się wody.",
+            "Sure. Now say the full reminder, for example: remind me in 10 minutes to drink water.",
+            follow_type="mixed_action_offer",
+            extra_metadata={"selected_action": action, "phase": "request_full_reminder"},
+        )
+        return True
+
+    return assistant._execute_intent(
+        IntentResult(
+            action=action,
+            data={},
+            normalized_text=action,
+        ),
+        lang,
+    )
+
+
+def _resolve_suggested_action_choice(
+    assistant,
+    text: str,
+    suggested_actions: list[str],
+) -> str | None:
+    if not suggested_actions:
+        return None
+
+    ordinal_choice = _parse_confirmation_choice(text)
+    if ordinal_choice is not None and ordinal_choice < len(suggested_actions):
+        return suggested_actions[ordinal_choice]
+
+    direct_choice = assistant.parser.find_action_in_text(text, allowed_actions=suggested_actions)
+    if direct_choice:
+        return direct_choice
+
+    normalized = assistant._normalize_text(text)
+
+    action_keyword_map = {
+        "focus_start": {
+            "focus",
+            "focus mode",
+            "focus session",
+            "short focus",
+            "skupienie",
+            "tryb skupienia",
+        },
+        "break_start": {
+            "break",
+            "break mode",
+            "short break",
+            "take a break",
+            "przerwa",
+            "krotka przerwa",
+            "krótka przerwa",
+            "tryb przerwy",
+        },
+        "timer_start": {
+            "timer",
+            "short timer",
+            "stoper",
+            "odliczanie",
+        },
+        "reminder_create": {
+            "reminder",
+            "set a reminder",
+            "przypomnienie",
+        },
+    }
+
+    for action in suggested_actions:
+        if normalized in action_keyword_map.get(action, set()):
+            return action
+
+    return None
+
+
 def ask_for_confirmation(assistant, suggestions: list[dict[str, Any]], lang: str) -> bool:
     assistant.pending_confirmation = {
         "suggestions": suggestions,
@@ -255,6 +593,13 @@ def ask_for_confirmation(assistant, suggestions: list[dict[str, Any]], lang: str
 
     assistant.display.show_block(title, lines, duration=assistant.default_overlay_seconds)
     assistant.voice_out.speak(voice_text, language=lang)
+    _remember_followup_reply(
+        assistant,
+        spoken=voice_text,
+        lang=lang,
+        follow_type="confirmation_prompt",
+        extra_metadata={"suggestions": [item["action"] for item in suggestions]},
+    )
     return True
 
 
@@ -272,10 +617,13 @@ def handle_pending_confirmation(assistant, text: str, current_lang: str) -> bool
 
     if assistant._is_no(text):
         assistant.pending_confirmation = None
-        assistant._speak_localized(
+        _speak_and_remember_localized(
+            assistant,
             lang,
             "Dobrze. Powiedz to jeszcze raz inaczej.",
             "Okay. Please say it again in a different way.",
+            follow_type="confirmation_prompt",
+            extra_metadata={"phase": "declined"},
         )
         return True
 
@@ -303,6 +651,105 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
     follow_type = follow_up.get("type")
     follow_lang = _follow_up_language(assistant, lang)
 
+    if follow_type == "display_offer":
+        return _handle_display_offer_follow_up(assistant, follow_up, text, follow_lang)
+
+    if follow_type == "mixed_action_offer":
+        suggested_actions = [str(item).strip() for item in follow_up.get("suggested_actions", []) if str(item).strip()]
+        default_action = str(follow_up.get("default_action", "")).strip() or None
+        if default_action not in suggested_actions:
+            default_action = None
+
+        direct_minutes = assistant._extract_minutes_from_text(text)
+
+        if _is_repeat_request(assistant, text, follow_lang):
+            prompt_pl, prompt_en = _mixed_repeat_prompt_texts(assistant, suggested_actions)
+            question_pl, question_en = _suggestion_prompt_texts(assistant, suggested_actions, follow_lang)
+
+            assistant._speak_localized(
+                follow_lang,
+                f"{prompt_pl} {question_pl}",
+                f"{prompt_en} {question_en}",
+            )
+            _remember_followup_reply(
+                assistant,
+                spoken=assistant._localized(follow_lang, f"{prompt_pl} {question_pl}", f"{prompt_en} {question_en}"),
+                lang=follow_lang,
+                follow_type="mixed_action_offer",
+                extra_metadata={"phase": "repeat_options", "suggested_actions": suggested_actions},
+            )
+            return True
+
+        if assistant._is_no(text):
+            assistant.pending_follow_up = None
+            _speak_and_remember_localized(
+                assistant,
+                follow_lang,
+                "Dobrze. Zostajemy przy rozmowie.",
+                "Okay. We can stay with the conversation.",
+                follow_type="mixed_action_offer",
+                extra_metadata={"phase": "declined", "suggested_actions": suggested_actions},
+            )
+            return True
+
+        chosen_action = _resolve_suggested_action_choice(assistant, text, suggested_actions)
+        if chosen_action:
+            return _execute_suggested_action(
+                assistant,
+                chosen_action,
+                follow_lang,
+                duration_minutes=direct_minutes,
+            )
+
+        if assistant._is_yes(text):
+            if default_action is not None:
+                return _execute_suggested_action(
+                    assistant,
+                    default_action,
+                    follow_lang,
+                    duration_minutes=direct_minutes,
+                )
+
+            if len(suggested_actions) == 1:
+                return _execute_suggested_action(
+                    assistant,
+                    suggested_actions[0],
+                    follow_lang,
+                    duration_minutes=direct_minutes,
+                )
+
+        if direct_minutes is not None and direct_minutes > 0:
+            timer_like_suggestions = [action for action in suggested_actions if action in _TIMER_LIKE_ACTIONS]
+            chosen_timer_action = None
+
+            if default_action in _TIMER_LIKE_ACTIONS:
+                chosen_timer_action = default_action
+            elif len(timer_like_suggestions) == 1:
+                chosen_timer_action = timer_like_suggestions[0]
+
+            if chosen_timer_action is not None:
+                return _execute_suggested_action(
+                    assistant,
+                    chosen_timer_action,
+                    follow_lang,
+                    duration_minutes=direct_minutes,
+                )
+
+        interrupted = _try_interrupt_with_new_command(assistant, text, follow_lang)
+        if interrupted is not None:
+            return interrupted
+
+        prompt_pl, prompt_en = _suggestion_prompt_texts(assistant, suggested_actions, follow_lang)
+        _speak_and_remember_localized(
+            assistant,
+            follow_lang,
+            prompt_pl,
+            prompt_en,
+            follow_type="mixed_action_offer",
+            extra_metadata={"phase": "reprompt", "suggested_actions": suggested_actions},
+        )
+        return True
+
     if follow_type == "capture_name":
         interrupted = _try_interrupt_with_new_command(assistant, text, follow_lang)
         if interrupted is not None:
@@ -310,10 +757,13 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
 
         name = extract_name(text)
         if not name:
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 "Nie usłyszałam wyraźnie imienia. Powiedz proszę jeszcze raz swoje imię.",
                 "I did not catch your name clearly. Please say your name again.",
+                follow_type="capture_name",
+                extra_metadata={"phase": "retry_capture_name"},
             )
             return True
 
@@ -336,6 +786,17 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
             f"Miło mi, {name}. Czy chcesz, żebym zapamiętała twoje imię?",
             f"Nice to meet you, {name}. Would you like me to remember your name?",
         )
+        _remember_followup_reply(
+            assistant,
+            spoken=assistant._localized(
+                follow_lang,
+                f"Miło mi, {name}. Czy chcesz, żebym zapamiętała twoje imię?",
+                f"Nice to meet you, {name}. Would you like me to remember your name?",
+            ),
+            lang=follow_lang,
+            follow_type="confirm_save_name",
+            extra_metadata={"phase": "offer_save_name", "name": name},
+        )
         return True
 
     if follow_type == "confirm_save_name":
@@ -353,19 +814,25 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
                 [name, "I remembered your name"],
                 duration=8.0,
             )
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 f"Dobrze. Zapamiętałam twoje imię, {name}.",
                 f"Okay. I will remember your name, {name}.",
+                follow_type="confirm_save_name",
+                extra_metadata={"phase": "saved_name", "name": name},
             )
             return True
 
         if assistant._is_no(text):
             assistant.pending_follow_up = None
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 "Dobrze. Nie zapisuję twojego imienia.",
                 "Okay. I will not save your name.",
+                follow_type="confirm_save_name",
+                extra_metadata={"phase": "declined_save_name", "name": name},
             )
             return True
 
@@ -384,10 +851,13 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
             deleted_key, _ = assistant.memory.forget(key)
 
             if deleted_key is None:
-                assistant._speak_localized(
+                _speak_and_remember_localized(
+                    assistant,
                     follow_lang,
                     "Nie mogę już znaleźć tej informacji w pamięci.",
                     "I cannot find that information in memory anymore.",
+                    follow_type="confirm_memory_forget",
+                    extra_metadata={"phase": "not_found", "key": key},
                 )
                 return True
 
@@ -396,19 +866,25 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
                 [_short_line(deleted_key)],
                 duration=6.0,
             )
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 f"Dobrze. Usunęłam z pamięci {deleted_key}.",
                 f"Okay. I removed {deleted_key} from memory.",
+                follow_type="confirm_memory_forget",
+                extra_metadata={"phase": "deleted", "key": deleted_key},
             )
             return True
 
         if assistant._is_no(text):
             assistant.pending_follow_up = None
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 "Dobrze. Nie usuwam tej informacji z pamięci.",
                 "Okay. I will not remove that information from memory.",
+                follow_type="confirm_memory_forget",
+                extra_metadata={"phase": "declined", "key": key},
             )
             return True
 
@@ -428,19 +904,25 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
                 [assistant._localized(follow_lang, f"usunięto: {removed}", f"removed: {removed}")],
                 duration=6.0,
             )
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 f"Dobrze. Wyczyściłam pamięć. Usunięto {removed} wpisów.",
                 f"Okay. I cleared memory. Removed {removed} items.",
+                follow_type="confirm_memory_clear",
+                extra_metadata={"phase": "cleared", "removed": removed},
             )
             return True
 
         if assistant._is_no(text):
             assistant.pending_follow_up = None
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 "Dobrze. Nie czyszczę pamięci.",
                 "Okay. I will not clear memory.",
+                follow_type="confirm_memory_clear",
+                extra_metadata={"phase": "declined"},
             )
             return True
 
@@ -460,10 +942,13 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
             deleted = assistant.reminders.delete(reminder_id)
 
             if not deleted:
-                assistant._speak_localized(
+                _speak_and_remember_localized(
+                    assistant,
                     follow_lang,
                     "Nie mogę już znaleźć tego przypomnienia.",
                     "I cannot find that reminder anymore.",
+                    follow_type="confirm_reminder_delete",
+                    extra_metadata={"phase": "not_found", "reminder_id": reminder_id},
                 )
                 return True
 
@@ -472,19 +957,29 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
                 [_short_line(reminder_message or reminder_id)],
                 duration=6.0,
             )
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 f"Dobrze. Usunęłam przypomnienie {_short_line(reminder_message or reminder_id, limit=40)}.",
                 f"Okay. I deleted the reminder {_short_line(reminder_message or reminder_id, limit=40)}.",
+                follow_type="confirm_reminder_delete",
+                extra_metadata={
+                    "phase": "deleted",
+                    "reminder_id": reminder_id,
+                    "message": reminder_message,
+                },
             )
             return True
 
         if assistant._is_no(text):
             assistant.pending_follow_up = None
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 "Dobrze. Nie usuwam przypomnienia.",
                 "Okay. I will not delete the reminder.",
+                follow_type="confirm_reminder_delete",
+                extra_metadata={"phase": "declined", "reminder_id": reminder_id},
             )
             return True
 
@@ -504,19 +999,25 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
                 [assistant._localized(follow_lang, f"usunięto: {removed}", f"removed: {removed}")],
                 duration=6.0,
             )
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 f"Dobrze. Usunęłam wszystkie przypomnienia. Usunięto {removed}.",
                 f"Okay. I deleted all reminders. Removed {removed}.",
+                follow_type="confirm_reminders_clear",
+                extra_metadata={"phase": "cleared", "removed": removed},
             )
             return True
 
         if assistant._is_no(text):
             assistant.pending_follow_up = None
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 "Dobrze. Nie usuwam przypomnień.",
                 "Okay. I will not delete reminders.",
+                follow_type="confirm_reminders_clear",
+                extra_metadata={"phase": "declined"},
             )
             return True
 
@@ -538,19 +1039,25 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
                 ["closing assistant"],
                 duration=4.0,
             )
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 "Dobrze. Zamykam asystenta.",
                 "Okay. Closing the assistant.",
+                follow_type="confirm_exit",
+                extra_metadata={"phase": "confirmed_exit"},
             )
             return False
 
         if assistant._is_no(text):
             assistant.pending_follow_up = None
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 "Dobrze. Zostaję włączona.",
                 "Okay. I will stay on.",
+                follow_type="confirm_exit",
+                extra_metadata={"phase": "declined_exit"},
             )
             return True
 
@@ -573,19 +1080,25 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
                 ["closing assistant", "and system"],
                 duration=_SHUTDOWN_DELAY_SECONDS,
             )
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 "Dobrze. Zamykam asystenta i wyłączam system.",
                 "Okay. I am closing the assistant and shutting down the system.",
+                follow_type="confirm_shutdown",
+                extra_metadata={"phase": "confirmed_shutdown"},
             )
             return False
 
         if assistant._is_no(text):
             assistant.pending_follow_up = None
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 "Dobrze. Nie wyłączam systemu.",
                 "Okay. I will not shut down the system.",
+                follow_type="confirm_shutdown",
+                extra_metadata={"phase": "declined_shutdown"},
             )
             return True
 
@@ -604,10 +1117,13 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
             if interrupted is not None:
                 return interrupted
 
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 "Podaj proszę czas w minutach albo sekundach.",
                 "Please tell me the duration in minutes or seconds.",
+                follow_type=follow_type,
+                extra_metadata={"phase": "retry_duration"},
             )
             return True
 
@@ -632,10 +1148,13 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
 
         if assistant._is_no(text):
             assistant.pending_follow_up = None
-            assistant._speak_localized(
+            _speak_and_remember_localized(
+                assistant,
                 follow_lang,
                 "Dobrze. Nie uruchamiam przerwy.",
                 "Okay. I will not start a break.",
+                follow_type="post_focus_break_offer",
+                extra_metadata={"phase": "declined_break_offer"},
             )
             return True
 
@@ -643,10 +1162,13 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
         if interrupted is not None:
             return interrupted
 
-        assistant._speak_localized(
+        _speak_and_remember_localized(
+            assistant,
             follow_lang,
             "Powiedz tak, nie albo od razu podaj długość przerwy.",
             "Say yes, no, or tell me the break duration right away.",
+            follow_type="post_focus_break_offer",
+            extra_metadata={"phase": "reprompt_break_offer"},
         )
         return True
 

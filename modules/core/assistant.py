@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import threading
 import time
 from typing import Any
@@ -47,14 +48,13 @@ from modules.core.responses import (
     show_capabilities,
     show_localized_block,
 )
-from modules.io.display import ConsoleDisplay
-from modules.io.text_input import TextInput
-from modules.io.voice_out import VoiceOutput
-from modules.io.whisper_input import WhisperVoiceInput
-from modules.parsing.intent_parser import IntentParser, IntentResult
-from modules.services.memory import SimpleMemory
-from modules.services.reminders import ReminderManager
-from modules.services.timer import SessionTimer
+from modules.nlu.router import CompanionRoute
+from modules.nlu.semantic_intent_matcher import SemanticIntentMatcher
+from modules.nlu.utterance_normalizer import UtteranceNormalizer
+from modules.parsing.intent_parser import IntentResult
+from modules.runtime_builder import RuntimeBuilder
+from modules.services.conversation_memory import ConversationMemory
+from modules.services.response_streamer import StreamingResponseService
 from modules.system.utils import (
     SESSION_STATE_PATH,
     USER_PROFILE_PATH,
@@ -75,18 +75,13 @@ class CoreAssistant:
         self.settings = load_settings()
 
         voice_input_cfg = self.settings.get("voice_input", {})
-        voice_output_cfg = self.settings.get("voice_output", {})
         display_cfg = self.settings.get("display", {})
+        streaming_cfg = self.settings.get("streaming", {})
 
         self.voice_listen_timeout = float(voice_input_cfg.get("timeout_seconds", 8))
         self.voice_debug = bool(voice_input_cfg.get("debug", False))
         self.default_overlay_seconds = float(display_cfg.get("default_overlay_seconds", 10))
         self.boot_overlay_seconds = float(display_cfg.get("boot_overlay_seconds", 2.8))
-
-        self.parser = IntentParser(
-            default_focus_minutes=float(self.settings.get("timers", {}).get("default_focus_minutes", 25)),
-            default_break_minutes=float(self.settings.get("timers", {}).get("default_break_minutes", 5)),
-        )
 
         self.pending_confirmation: dict[str, Any] | None = None
         self.pending_follow_up: dict[str, Any] | None = None
@@ -96,62 +91,38 @@ class CoreAssistant:
         self._last_raw_command_text = ""
         self._last_normalized_command_text = ""
 
-        if voice_input_cfg.get("enabled", True):
-            engine = str(voice_input_cfg.get("engine", "whisper")).lower().strip()
-
-            if engine == "whisper":
-                try:
-                    self.voice_in = WhisperVoiceInput(
-                        whisper_cli_path=voice_input_cfg.get("whisper_cli_path", "whisper.cpp/build/bin/whisper-cli"),
-                        model_path=voice_input_cfg.get("model_path", "models/ggml-base.bin"),
-                        vad_enabled=bool(voice_input_cfg.get("vad_enabled", False)),
-                        vad_model_path=voice_input_cfg.get("vad_model_path", "models/ggml-silero-v6.2.0.bin"),
-                        language=voice_input_cfg.get("language", "auto"),
-                        device_index=voice_input_cfg.get("device_index"),
-                        device_name_contains=voice_input_cfg.get("device_name_contains"),
-                        sample_rate=voice_input_cfg.get("sample_rate"),
-                        max_record_seconds=float(voice_input_cfg.get("max_record_seconds", 8.0)),
-                        silence_threshold=float(voice_input_cfg.get("silence_threshold", 350.0)),
-                        end_silence_seconds=float(voice_input_cfg.get("end_silence_seconds", 1.0)),
-                        pre_roll_seconds=float(voice_input_cfg.get("pre_roll_seconds", 0.4)),
-                        threads=int(voice_input_cfg.get("threads", 4)),
-                    )
-                except Exception as error:
-                    append_log(f"Whisper input init failed, falling back to text input: {error}")
-                    self.voice_in = TextInput()
-            else:
-                append_log(f"Unsupported voice input engine '{engine}', falling back to text input.")
-                self.voice_in = TextInput()
-        else:
-            self.voice_in = TextInput()
-
-        self.voice_out = VoiceOutput(
-            enabled=voice_output_cfg.get("enabled", True),
-            preferred_engine=voice_output_cfg.get("engine", "espeak-ng"),
-            default_language=voice_output_cfg.get("default_language", "pl"),
-            speed=int(voice_output_cfg.get("speed", 155)),
-            pitch=int(voice_output_cfg.get("pitch", 58)),
-            voices=voice_output_cfg.get("voices", {"pl": "pl+f3", "en": "en+f3"}),
-            piper_models=voice_output_cfg.get("piper_models"),
+        self.runtime = RuntimeBuilder(self.settings).build(
+            on_timer_started=self._on_timer_started,
+            on_timer_finished=self._on_timer_finished,
+            on_timer_stopped=self._on_timer_stopped,
         )
 
-        self.display = ConsoleDisplay(
-            driver=str(display_cfg.get("driver", "ssd1306")),
-            interface=str(display_cfg.get("interface", "i2c")),
-            port=int(display_cfg.get("port", 1)),
-            address=int(display_cfg.get("address", 60)),
-            rotate=int(display_cfg.get("rotate", 0)),
-            width=int(display_cfg.get("width", 128)),
-            height=int(display_cfg.get("height", 64)),
-            spi_port=int(display_cfg.get("spi_port", 0)),
-            spi_device=int(display_cfg.get("spi_device", 0)),
-            gpio_dc=int(display_cfg.get("gpio_dc", 25)),
-            gpio_rst=int(display_cfg.get("gpio_rst", 27)),
-            gpio_light=int(display_cfg.get("gpio_light", 18)),
+        self.parser = self.runtime.parser
+        self.router = self.runtime.router
+        self.dialogue = self.runtime.dialogue
+        self.voice_in = self.runtime.voice_input
+        self.voice_out = self.runtime.voice_output
+        self.display = self.runtime.display
+        self.memory = self.runtime.memory
+        self.reminders = self.runtime.reminders
+        self.timer = self.runtime.timer
+        self.backend_statuses = dict(self.runtime.backend_statuses)
+
+        self.response_streamer = StreamingResponseService(
+            voice_output=self.voice_out,
+            display=self.display,
+            default_display_seconds=self.default_overlay_seconds,
+            inter_chunk_pause_seconds=float(streaming_cfg.get("inter_chunk_pause_seconds", 0.05)),
+            max_display_lines=int(streaming_cfg.get("max_display_lines", 2)),
+            max_display_chars_per_line=int(streaming_cfg.get("max_display_chars_per_line", 20)),
         )
 
-        self.memory = SimpleMemory()
-        self.reminders = ReminderManager()
+        self.utterance_normalizer = UtteranceNormalizer()
+        self.semantic_matcher = SemanticIntentMatcher()
+        self.conversation_memory = ConversationMemory(
+            max_turns=int(self.settings.get("conversation", {}).get("max_turns", 8)),
+            max_total_chars=int(self.settings.get("conversation", {}).get("max_total_chars", 1800)),
+        )
 
         self.user_profile = load_json(
             USER_PROFILE_PATH,
@@ -171,11 +142,7 @@ class CoreAssistant:
             },
         )
 
-        self.timer = SessionTimer(
-            on_started=self._on_timer_started,
-            on_finished=self._on_timer_finished,
-            on_stopped=self._on_timer_stopped,
-        )
+        self._boot_report_ok = all(status.ok for status in self.backend_statuses.values())
 
         self._stop_background = threading.Event()
         self._reminder_thread = threading.Thread(target=self._reminder_loop, daemon=True)
@@ -193,6 +160,7 @@ class CoreAssistant:
         self.shutdown_requested = False
         self._last_raw_command_text = ""
         self._last_normalized_command_text = ""
+        self.conversation_memory.clear()
 
         self.display.show_block(
             self.ASSISTANT_NAME,
@@ -209,9 +177,16 @@ class CoreAssistant:
         self.display.clear_overlay()
         time.sleep(0.15)
 
-        self.voice_out.speak(
-            self._startup_greeting(report_ok=True),
+        startup_text = self._startup_greeting(report_ok=self._boot_report_ok)
+        self.voice_out.speak(startup_text, language="en")
+
+        self._remember_assistant_turn(
+            startup_text,
             language="en",
+            metadata={
+                "source": "system",
+                "route_kind": "system_boot",
+            },
         )
 
         append_log("Assistant booted.")
@@ -235,6 +210,21 @@ class CoreAssistant:
                 "see you later",
             ],
             duration=2.0,
+        )
+
+        shutdown_text = self._localized(
+            self.last_language,
+            f"Wyłączam {self.ASSISTANT_NAME}.",
+            f"Shutting down {self.ASSISTANT_NAME}.",
+        )
+
+        self._remember_assistant_turn(
+            shutdown_text,
+            language=self.last_language,
+            metadata={
+                "source": "system",
+                "route_kind": "system_shutdown",
+            },
         )
 
         self._speak_localized(
@@ -267,6 +257,68 @@ class CoreAssistant:
 
     def _context_language(self, text: str, detected_lang: str) -> str:
         return context_language(self, text, detected_lang)
+
+    def _prefer_command_language(
+        self,
+        routing_text: str,
+        detected_lang: str,
+        normalizer_language_hint: str,
+    ) -> str:
+        preferred_detected_lang = normalizer_language_hint or detected_lang
+        command_lang = self._context_language(routing_text, preferred_detected_lang)
+        return self._normalize_lang(command_lang)
+
+    @staticmethod
+    def _contains_any_phrase(text: str, phrases: tuple[str, ...]) -> bool:
+        normalized = str(text or "").strip()
+        if not normalized:
+            return False
+        return any(phrase in normalized for phrase in phrases)
+
+    def _looks_like_shutdown_command(self, normalized_text: str) -> bool:
+        shutdown_markers = (
+            "wylacz",
+            "zamknij",
+            "shutdown",
+            "shut down",
+            "turn off",
+            "close assistant",
+            "assistant off",
+        )
+        target_markers = (
+            "asystent",
+            "asystenta",
+            "assistant",
+            "system",
+            "raspberry pi",
+            "komputer",
+            "nexa",
+        )
+        return self._contains_any_phrase(normalized_text, shutdown_markers) and self._contains_any_phrase(
+            normalized_text,
+            target_markers,
+        )
+
+    def _looks_like_humour_request(self, normalized_text: str) -> bool:
+        humour_markers = (
+            "smiesz",
+            "zart",
+            "dowcip",
+            "funny",
+            "joke",
+            "humor",
+            "humour",
+        )
+        return self._contains_any_phrase(normalized_text, humour_markers)
+
+    def _looks_like_riddle_request(self, normalized_text: str) -> bool:
+        riddle_markers = (
+            "zagad",
+            "riddle",
+            "łamiglow",
+            "lamiglow",
+        )
+        return self._contains_any_phrase(normalized_text, riddle_markers)
 
     def _format_duration_text(self, total_seconds: int, lang: str) -> str:
         return format_duration_text(total_seconds, lang)
@@ -382,6 +434,65 @@ class CoreAssistant:
         stored = reminder.get("language") or reminder.get("lang")
         return self._normalize_lang(stored or self.last_language)
 
+    def _remember_user_turn(
+        self,
+        text: str,
+        *,
+        language: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self.conversation_memory.add_user_turn(
+            text,
+            language=language,
+            metadata=metadata,
+        )
+
+    def _remember_assistant_turn(
+        self,
+        text: str,
+        *,
+        language: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self.conversation_memory.add_assistant_turn(
+            text,
+            language=language,
+            metadata=metadata,
+        )
+
+    def _remember_dialogue_report(
+        self,
+        full_text: str,
+        *,
+        language: str,
+        route: CompanionRoute,
+        source: str,
+    ) -> None:
+        cleaned_text = " ".join(str(full_text or "").split()).strip()
+        if not cleaned_text:
+            return
+
+        self._remember_assistant_turn(
+            cleaned_text,
+            language=language,
+            metadata={
+                "source": source,
+                "route_kind": route.kind,
+                "topics": list(route.conversation_topics),
+                "suggested_actions": list(route.suggested_actions),
+            },
+        )
+
+    def _build_dialogue_user_profile(self, preferred_language: str | None = None) -> dict[str, Any]:
+        profile = dict(self.user_profile)
+        recent_context_block = self.conversation_memory.build_context_block(
+            limit=6,
+            preferred_language=self._normalize_lang(preferred_language or self.last_language),
+            include_timestamps=False,
+        )
+        profile["recent_conversation_context"] = recent_context_block
+        return profile
+
     def _reminder_loop(self) -> None:
         while not self._stop_background.is_set():
             due_reminders = self.reminders.check_due_reminders()
@@ -396,20 +507,158 @@ class CoreAssistant:
                     duration=max(self.default_overlay_seconds, 12.0),
                 )
 
-                self.voice_out.speak(
-                    self._localized(
-                        lang,
-                        f"Przypomnienie. {message}",
-                        f"Reminder. {message}",
-                    ),
-                    language=lang,
+                spoken_text = self._localized(
+                    lang,
+                    f"Przypomnienie. {message}",
+                    f"Reminder. {message}",
                 )
+
+                self._remember_assistant_turn(
+                    spoken_text,
+                    language=lang,
+                    metadata={
+                        "source": "reminder",
+                        "route_kind": "reminder",
+                    },
+                )
+
+                self.voice_out.speak(spoken_text, language=lang)
 
                 append_log(
                     f"Reminder triggered: id={reminder.get('id')}, lang={lang}, message={message}"
                 )
 
             time.sleep(1)
+
+    def _build_dialogue_display_lines(self, text: str, max_lines: int = 2, max_chars: int = 20) -> list[str]:
+        cleaned = str(text or "").strip()
+        if not cleaned:
+            return []
+
+        chunks = [
+            part.strip()
+            for part in re.split(r"[.!?,:;]", cleaned)
+            if part and part.strip()
+        ]
+
+        if not chunks:
+            chunks = [cleaned]
+
+        lines: list[str] = []
+        for chunk in chunks:
+            shortened = chunk[:max_chars].rstrip()
+            if len(chunk) > max_chars:
+                shortened = shortened.rstrip() + "..."
+            if shortened:
+                lines.append(shortened)
+            if len(lines) >= max_lines:
+                break
+
+        return lines
+
+    def _speak_dialogue_reply(self, reply) -> None:
+        if reply.display_title:
+            display_lines = reply.display_lines or self._build_dialogue_display_lines(reply.spoken_text)
+            if display_lines:
+                self.display.show_block(
+                    reply.display_title,
+                    display_lines,
+                    duration=self.default_overlay_seconds,
+                )
+
+        if reply.spoken_text:
+            self.voice_out.speak(reply.spoken_text, language=reply.language)
+
+        if reply.follow_up_text:
+            self.voice_out.speak(reply.follow_up_text, language=reply.language)
+
+    def _build_dialogue_plan(self, route: CompanionRoute, dialogue_user_profile: dict[str, Any]):
+        if hasattr(self.dialogue, "build_response_plan"):
+            return self.dialogue.build_response_plan(route, dialogue_user_profile)
+
+        reply = self.dialogue.build_reply(route, dialogue_user_profile)
+
+        if hasattr(self.dialogue, "reply_to_plan"):
+            return self.dialogue.reply_to_plan(reply, route_kind=route.kind)
+
+        raise RuntimeError("CompanionDialogueService cannot build a response plan.")
+
+    def _execute_dialogue_route(self, route: CompanionRoute, lang: str) -> bool:
+        dialogue_user_profile = self._build_dialogue_user_profile(preferred_language=lang)
+
+        try:
+            plan = self._build_dialogue_plan(route, dialogue_user_profile)
+            report = self.response_streamer.execute(plan)
+
+            self._remember_dialogue_report(
+                report.full_text,
+                language=lang,
+                route=route,
+                source="streaming_response_service",
+            )
+
+            append_log(
+                f"Dialogue streamed: route_kind={route.kind}, lang={lang}, "
+                f"chunks={report.chunks_spoken}, text={report.full_text}"
+            )
+        except Exception as error:
+            append_log(f"Dialogue streaming failed. Falling back to plain reply. Error: {error}")
+
+            reply = self.dialogue.build_reply(route, dialogue_user_profile)
+            self._speak_dialogue_reply(reply)
+
+            fallback_text = " ".join(
+                part.strip()
+                for part in [reply.spoken_text, reply.follow_up_text]
+                if str(part or "").strip()
+            ).strip()
+
+            self._remember_dialogue_report(
+                fallback_text,
+                language=reply.language,
+                route=route,
+                source="dialogue_reply_fallback",
+            )
+
+        self._commit_language(lang)
+        return True
+
+    def _choose_default_mixed_action(self, suggested_actions: list[str]) -> str | None:
+        if not suggested_actions:
+            return None
+
+        priority = [
+            "focus_start",
+            "break_start",
+            "reminder_create",
+            "timer_start",
+        ]
+
+        for action in priority:
+            if action in priority:
+                return action
+
+        return suggested_actions[0]
+
+    def _arm_mixed_follow_up(self, route: CompanionRoute, lang: str) -> None:
+        suggested_actions = [str(action).strip() for action in route.suggested_actions if str(action).strip()]
+        if not suggested_actions:
+            self.pending_follow_up = None
+            return
+
+        default_action = self._choose_default_mixed_action(suggested_actions)
+
+        self.pending_follow_up = {
+            "type": "mixed_action_offer",
+            "lang": self._normalize_lang(lang),
+            "suggested_actions": suggested_actions,
+            "default_action": default_action,
+        }
+
+        append_log(
+            f"Armed mixed follow-up: lang={lang}, suggested_actions={suggested_actions}, "
+            f"default_action={default_action}"
+        )
 
     def _execute_intent(self, result: IntentResult, lang: str) -> bool:
         command_lang = self._normalize_lang(lang)
@@ -418,13 +667,27 @@ class CoreAssistant:
             f"Parsed intent: action={result.action}, data={result.data}, text={result.normalized_text}, lang={command_lang}"
         )
 
+        self._commit_language(command_lang)
+
         handled = dispatch_intent(self, result, command_lang)
         if handled is not None:
-            self._commit_language(command_lang)
             return handled
 
         if result.action in {"confirm_yes", "confirm_no"}:
-            self._commit_language(command_lang)
+            fallback_text = self._localized(
+                command_lang,
+                "Nie ma teraz nic do potwierdzenia.",
+                "There is nothing to confirm right now.",
+            )
+            self._remember_assistant_turn(
+                fallback_text,
+                language=command_lang,
+                metadata={
+                    "source": "intent_fallback",
+                    "route_kind": "action",
+                    "action": result.action,
+                },
+            )
             self._speak_localized(
                 command_lang,
                 "Nie ma teraz nic do potwierdzenia.",
@@ -433,44 +696,259 @@ class CoreAssistant:
             return True
 
         if result.action == "unclear" and result.suggestions:
-            self._commit_language(command_lang)
             return self._ask_for_confirmation(result.suggestions, command_lang)
 
-        self._commit_language(command_lang)
+        fallback_text = self._localized(
+            command_lang,
+            "Nie mam jeszcze tej funkcji w obecnej wersji, ale nadal mogę Ci pomóc. Mogę ustawić timer, przypomnienie, tryb focus, przerwę albo coś zapamiętać.",
+            "I do not have that feature in this version yet, but I can still help you. I can set a timer, a reminder, start focus mode, begin a break, or remember something for you.",
+        )
+        self._remember_assistant_turn(
+            fallback_text,
+            language=command_lang,
+            metadata={
+                "source": "intent_fallback",
+                "route_kind": "action",
+                "action": result.action,
+            },
+        )
         self._speak_localized(
             command_lang,
-            "Nie zrozumiałam tego do końca. Powiedz to jeszcze raz trochę inaczej.",
-            "I did not fully understand that. Please say it again in a slightly different way.",
+            "Nie mam jeszcze tej funkcji w obecnej wersji, ale nadal mogę Ci pomóc. Mogę ustawić timer, przypomnienie, tryb focus, przerwę albo coś zapamiętać.",
+            "I do not have that feature in this version yet, but I can still help you. I can set a timer, a reminder, start focus mode, begin a break, or remember something for you.",
         )
         return True
+
+    def _handle_conversation_route(self, route: CompanionRoute, lang: str) -> bool:
+        self.pending_follow_up = None
+        return self._execute_dialogue_route(route, lang)
+
+    def _handle_mixed_route(self, route: CompanionRoute, lang: str) -> bool:
+        self.pending_follow_up = None
+        self._execute_dialogue_route(route, lang)
+
+        if route.has_action:
+            return self._execute_intent(route.action_result, lang)
+
+        self._arm_mixed_follow_up(route, lang)
+        self._commit_language(lang)
+        return True
+
+    def _handle_unclear_route(self, route: CompanionRoute, lang: str) -> bool:
+        self.pending_follow_up = None
+
+        if route.action_result.action == "unclear" and route.action_result.suggestions:
+            self._commit_language(lang)
+            return self._ask_for_confirmation(route.action_result.suggestions, lang)
+
+        normalized = route.normalized_text
+        looks_like_feature_request = any(
+            phrase in normalized
+            for phrase in [
+                "can you",
+                "could you",
+                "will you",
+                "czy mozesz",
+                "mozesz",
+                "potrafisz",
+                "zrob",
+                "zrobisz",
+                "uruchom",
+                "wlacz",
+                "wlaczysz",
+                "turn on",
+                "start",
+                "open",
+                "show",
+            ]
+        )
+
+        if looks_like_feature_request:
+            fallback_text = self._localized(
+                lang,
+                "Nie mam jeszcze tej funkcji w obecnej wersji, ale nadal jestem do dyspozycji. Mogę ustawić timer, przypomnienie, tryb focus, przerwę albo coś zapamiętać.",
+                "I do not have that feature in this version yet, but I am still here to help. I can set a timer, a reminder, start focus mode, begin a break, or remember something for you.",
+            )
+            self._remember_assistant_turn(
+                fallback_text,
+                language=lang,
+                metadata={
+                    "source": "unclear_feature_fallback",
+                    "route_kind": "unclear",
+                },
+            )
+            self._speak_localized(
+                lang,
+                "Nie mam jeszcze tej funkcji w obecnej wersji, ale nadal jestem do dyspozycji. Mogę ustawić timer, przypomnienie, tryb focus, przerwę albo coś zapamiętać.",
+                "I do not have that feature in this version yet, but I am still here to help. I can set a timer, a reminder, start focus mode, begin a break, or remember something for you.",
+            )
+            self._commit_language(lang)
+            return True
+
+        return self._execute_dialogue_route(route, lang)
+
+    def _semantic_override(self, routing_text: str, command_lang: str):
+        normalized_routing_text = self._normalize_text(routing_text)
+        match = self.semantic_matcher.match(routing_text)
+
+        if match is None:
+            return None
+
+        append_log(
+            f"Semantic match: intent={match.intent_name}, score={match.score:.2f}, "
+            f"route_hint={match.route_hint}, example='{match.example_text}', method={match.method}"
+        )
+
+        if match.intent_name == "support_tired" and match.score >= 0.68:
+            return {
+                "mode": "route_text",
+                "text": "i feel tired",
+                "lang": command_lang,
+            }
+
+        if match.intent_name == "talk_request" and match.score >= 0.68:
+            return {
+                "mode": "route_text",
+                "text": "can we talk for a minute",
+                "lang": command_lang,
+            }
+
+        if match.intent_name == "humour_request" and match.score >= 0.70:
+            if not self._looks_like_humour_request(normalized_routing_text):
+                return None
+            return {
+                "mode": "route_text",
+                "text": "powiedz cos smiesznego" if command_lang == "pl" else "tell me something funny",
+                "lang": command_lang,
+            }
+
+        if match.intent_name == "riddle_request" and match.score >= 0.70:
+            if not self._looks_like_riddle_request(normalized_routing_text):
+                return None
+            return {
+                "mode": "route_text",
+                "text": "zadaj mi zagadke" if command_lang == "pl" else "give me a riddle",
+                "lang": command_lang,
+            }
+
+        if match.intent_name == "shutdown_request" and match.score >= 0.72:
+            if not self._looks_like_shutdown_command(normalized_routing_text):
+                return None
+
+            looks_like_system_shutdown = (
+                "system" in normalized_routing_text
+                or {"raspberry", "pi"}.issubset(set(normalized_routing_text.split()))
+                or "komputer" in normalized_routing_text
+            )
+
+            if looks_like_system_shutdown:
+                return {
+                    "mode": "route_text",
+                    "text": "wylacz system" if command_lang == "pl" else "shutdown",
+                    "lang": command_lang,
+                }
+
+            return {
+                "mode": "route_text",
+                "text": "wylacz asystenta" if command_lang == "pl" else "turn off assistant",
+                "lang": command_lang,
+            }
+
+        if self.pending_follow_up:
+            if match.intent_name == "break_choice" and match.score >= 0.66:
+                return {
+                    "mode": "follow_up_text",
+                    "text": "przerwa" if command_lang == "pl" else "break mode",
+                    "lang": command_lang,
+                }
+
+            if match.intent_name == "focus_choice" and match.score >= 0.66:
+                return {
+                    "mode": "follow_up_text",
+                    "text": "focus" if command_lang == "pl" else "focus mode",
+                    "lang": command_lang,
+                }
+
+            if match.intent_name == "decline" and match.score >= 0.66:
+                return {
+                    "mode": "follow_up_text",
+                    "text": "nie" if command_lang == "pl" else "no",
+                    "lang": command_lang,
+                }
+
+        return None
 
     def handle_command(self, text: str) -> bool:
         cleaned = text.strip()
         if not cleaned:
             return True
 
-        self._last_raw_command_text = cleaned
-        self._last_normalized_command_text = self._normalize_text(cleaned)
+        normalized_utterance = self.utterance_normalizer.normalize(cleaned)
+        routing_text = normalized_utterance.canonical_text or cleaned
 
-        detected_lang = self._detect_language(cleaned)
-        command_lang = self._context_language(cleaned, detected_lang)
-        command_lang = self._normalize_lang(command_lang)
+        self._last_raw_command_text = cleaned
+        self._last_normalized_command_text = self._normalize_text(routing_text)
+
+        detected_lang = self._normalize_lang(self._detect_language(cleaned))
+        normalizer_language_hint = self._normalize_lang(normalized_utterance.detected_language_hint)
+
+        command_lang = self._prefer_command_language(
+            routing_text,
+            detected_lang,
+            normalizer_language_hint,
+        )
+
+        semantic_override = self._semantic_override(routing_text, command_lang)
+        if semantic_override is not None:
+            routing_text = semantic_override["text"]
+            command_lang = self._normalize_lang(semantic_override["lang"])
+            self._last_normalized_command_text = self._normalize_text(routing_text)
+
+        self._remember_user_turn(
+            cleaned,
+            language=command_lang,
+            metadata={
+                "routing_text": routing_text,
+                "normalized_text": self._last_normalized_command_text,
+                "detected_language": detected_lang,
+                "normalizer_language_hint": normalizer_language_hint,
+                "corrections": list(normalized_utterance.corrections_applied or []),
+            },
+        )
 
         append_log(
-            f"User said: {cleaned} | normalized={self._last_normalized_command_text} | "
-            f"detected_lang={detected_lang} | command_lang={command_lang}"
+            f"User said: {cleaned} | routing_text={routing_text} | normalized={self._last_normalized_command_text} | "
+            f"detected_lang={detected_lang} | normalizer_hint={normalizer_language_hint} | command_lang={command_lang} | "
+            f"corrections={normalized_utterance.corrections_applied or []}"
         )
 
         if self.pending_confirmation:
-            handled_confirmation = self._handle_pending_confirmation(cleaned, command_lang)
+            handled_confirmation = self._handle_pending_confirmation(routing_text, command_lang)
             self._commit_language(command_lang)
             return handled_confirmation
 
         if self.pending_follow_up:
-            handled_follow_up = self._handle_pending_follow_up(cleaned, command_lang)
+            handled_follow_up = self._handle_pending_follow_up(routing_text, command_lang)
             if handled_follow_up is not None:
                 self._commit_language(command_lang)
                 return handled_follow_up
 
-        result = self.parser.parse(cleaned)
-        return self._execute_intent(result, command_lang)
+        route = self.router.route(routing_text, preferred_language=command_lang)
+
+        append_log(
+            f"Route decision: kind={route.kind}, reply_mode={route.reply_mode}, "
+            f"topics={route.conversation_topics}, suggestions={route.suggested_actions}, "
+            f"action={route.action_result.action}, confidence={route.confidence:.2f}"
+        )
+
+        if route.kind == "action":
+            self.pending_follow_up = None
+            return self._execute_intent(route.action_result, command_lang)
+
+        if route.kind == "mixed":
+            return self._handle_mixed_route(route, command_lang)
+
+        if route.kind == "conversation":
+            return self._handle_conversation_route(route, command_lang)
+
+        return self._handle_unclear_route(route, command_lang)

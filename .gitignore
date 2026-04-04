@@ -26,4 +26,8 @@ __pycache__/
 *.tmp
 
 # Waveshare downloaded archive
-tests/hardware/display/lcd/vendor/waveshare/*.zip
+tests/hardware/display/lcd/vendor/waveshare/*.zipllama.cpp/
+
+models/*.gguf
+llama.cpp/
+tests/hardware/display/lcd/vendor/waveshare/LCD_Module_RPI_code.zip
