@@ -330,8 +330,8 @@ class CompanionDialogueService:
                 )
                 follow_up = self._text(
                     lang,
-                    "Jeśli chcesz, mogę też wyjaśnić to jeszcze prościej albo powiedzieć, czym różni się gwiazda neutronowa od czarnej dziury.",
-                    "If you want, I can explain that even more simply or tell you how a neutron star differs from a black hole.",
+                    "Mogę spróbować wyjaśnić to krótko, prosto albo krok po kroku.",
+                    "I can try to explain it briefly, simply, or step by step.",
                 )
                 return self._reply(
                     lang,
@@ -362,8 +362,8 @@ class CompanionDialogueService:
 
             spoken = self._text(
                 lang,
-                "Czarna dziura to obszar w kosmosie, gdzie grawitacja jest tak silna, że nawet światło nie może się stamtąd wydostać.",
-                "A black hole is a region in space where gravity is so strong that even light cannot escape from it.",
+                "Nie mam jeszcze pełnej pewności, o co chodzi, ale możemy to szybko doprecyzować.",
+                "I am not fully sure what you meant yet, but we can clarify it quickly.",
             )
             follow_up = self._text(
                 lang,
@@ -538,21 +538,21 @@ class CompanionDialogueService:
 
         intro = self._text(
             lang,
-            "Jasne. To brzmi jak pytanie wyjaśniające.",
-            "Of course. That sounds like an explanation question.",
+            "Jasne. Brzmi to jak prośba o wyjaśnienie.",
+            "Alright. It sounds like you want an explanation.",
         )
 
         if recent_context_block:
-            content = self._text(
+             content = self._text(
                 lang,
-                "Moja pełna warstwa odpowiedzi wiedzy lokalnej nie jest jeszcze gotowa, ale mogę nadal pomóc prostszą drogą i uwzględnić to, o czym przed chwilą mówiliśmy.",
-                "My full local knowledge answer layer is not ready yet, but I can still help in a simpler way and take into account what we were just talking about.",
+                "Moja pełna warstwa lokalnej wiedzy nie jest jeszcze gotowa, ale nadal mogę pomóc prościej i uwzględnić to, o czym przed chwilą mówiliśmy.",
+                "My full local knowledge layer is not ready yet, but I can still help in a simpler way and take into account what we were just talking about.",
             )
         else:
             content = self._text(
                 lang,
-                "Moja pełna warstwa odpowiedzi wiedzy lokalnej nie jest jeszcze gotowa, ale mogę nadal pomóc prostszą drogą.",
-                "My full local knowledge answer layer is not ready yet, but I can still help in a simpler way.",
+                "Moja pełna warstwa lokalnej wiedzy nie jest jeszcze gotowa, ale nadal mogę pomóc prostszą drogą.",
+                "My full local knowledge layer is not ready yet, but I can still help in a simpler way.",
             )
 
         follow_up = self._text(
@@ -585,8 +585,8 @@ class CompanionDialogueService:
 
         spoken = self._text(
             lang,
-            "Nie złapałam jeszcze dokładnie, o co chodzi, ale nadal mogę pomóc. Możesz powiedzieć to inaczej albo poprosić mnie o timer, przypomnienie, focus, przerwę lub pamięć.",
-            "I did not catch exactly what you meant yet, but I can still help. You can say it differently or ask for a timer, reminder, focus, break, or memory help.",
+            "Nie złapałam jeszcze dokładnie, o co chodzi, ale nadal jestem z tobą. Powiedz to jeszcze raz trochę inaczej, a postaram się lepiej to uchwycić.",
+            "I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.",
         )
         return self._reply(
             lang,

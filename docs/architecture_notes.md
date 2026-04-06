@@ -1278,3 +1278,151 @@ It has now evolved into a more serious modular assistant core with:
 - stronger embedded realism
 
 This creates a much better architectural base for the final project and for future premium extensions.
+
+
+## 25. Storage and system rebuild update
+
+I changed the main system storage from microSD to SSD.
+
+This was an important practical upgrade for the project because I wanted a more stable and more realistic runtime base for NeXa. I did not want to continue building a premium assistant on top of a weaker temporary setup.
+
+### What I changed
+I:
+- moved the main project workflow to SSD
+- installed the system again from scratch
+- updated the system packages
+- installed the required Python and runtime dependencies again
+- rebuilt the assistant environment on the new storage path
+
+### Why this matters
+This change improved the practical development foundation in several ways:
+- better storage reliability
+- cleaner rebuild of the runtime environment
+- less risk of old package drift
+- better long-session development stability
+- better base for a premium embedded assistant
+
+This was not only a hardware change. It also became a clean reset point for the software stack.
+
+---
+
+## 26. Wake-word architecture update
+
+The wake flow was moved closer to a real assistant architecture.
+
+Earlier, the project depended too much on speech transcription during standby. That approach worked only as a transition step, but it was not good enough for the premium target.
+
+### Earlier wake behaviour
+Earlier, the wake path still depended on a transcription-first approach:
+- capture short audio
+- transcribe it
+- decide whether it sounded like the wake word
+
+That was useful for testing, but it added too much delay and did not feel like a real wake-word product.
+
+### New wake direction
+I introduced a dedicated local wake-word path and separated standby wake detection from the full command transcription path.
+
+The intended flow is now:
+- standby
+- dedicated wake detection
+- wake acknowledgement
+- active listening window
+- full STT only after wake
+
+This is a much better product direction because it reduces unnecessary processing during standby and creates a cleaner interaction model.
+
+---
+
+## 27. Custom local wake-word model for "NeXa"
+
+I trained a custom local wake-word model for the project so that the assistant could react to "NeXa" through a dedicated wake gate instead of relying only on full transcription.
+
+### Tools and workflow I used
+I used:
+- `openWakeWord`
+- Google Colab for model training
+- a custom target phrase set to `nexa`
+- `piper-sample-generator` for sample generation
+- the exported ONNX wake model saved as:
+  - `models/wake/nexa.onnx`
+
+### Why I used this approach
+I wanted the wake system to stay:
+- local
+- lightweight
+- cheaper to run than full STT in standby
+- better aligned with a real premium voice assistant design
+
+### Practical result
+The project now has a real custom wake model that can be used by the dedicated wake gate.
+
+That means the assistant architecture is no longer only:
+- standby + short transcription guess
+
+It now moves toward:
+- standby + dedicated wake detector + full STT only after wake
+
+This is a major architectural improvement for the premium direction of the project.
+
+---
+
+## 28. Current voice interaction architecture state
+
+The current practical voice architecture is now split into two roles:
+
+### Wake layer
+The wake layer is responsible only for detecting the assistant wake word.
+
+In the current direction, this layer uses:
+- `openWakeWord`
+- the custom `nexa.onnx` wake model
+- a dedicated gate in:
+  - `modules/io/openwakeword_gate.py`
+
+### Command layer
+After wake, the normal assistant command path still uses:
+- `faster-whisper`
+- VAD-based speech capture
+- bilingual command handling
+- the main routing and assistant logic
+
+### Why this split matters
+This split is important because it is closer to how a real product should behave:
+- lighter standby
+- clearer wake flow
+- less wasted processing outside active interaction
+- better base for future premium tuning
+
+It is also a much better foundation for the next stages:
+- echo protection
+- better interruptibility
+- faster command lane
+- more polished conversation flow
+
+---
+
+## 29. Current architectural priority after wake-word integration
+
+After getting the dedicated wake path working, the next priority is no longer basic wake detection.
+
+The next priority is interaction quality.
+
+### Current top priorities
+The most important next architectural tasks are:
+- protect the assistant from hearing its own TTS output
+- return to standby correctly after asynchronous speech such as timer completion
+- improve fast command handling
+- improve the premium feeling of the interaction loop
+
+### Why this is now the right priority
+At this stage, the project already has:
+- a modular runtime
+- a wake path
+- a command path
+- bilingual speech handling
+- reminders, memory, timer, and display behaviour
+
+The biggest remaining difference between "working" and "premium" is now interaction polish rather than basic capability.
+
+That is the current direction of the project.

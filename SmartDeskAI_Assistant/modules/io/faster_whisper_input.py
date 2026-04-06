@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from pydoc import text
 import queue
+from difflib import SequenceMatcher
 import re
 import time
 from collections import deque
@@ -10,6 +12,7 @@ from typing import Any, Optional
 import numpy as np
 import sounddevice as sd
 
+from SmartDeskAI_Assistant.modules.core import language
 from modules.system.utils import BASE_DIR, append_log
 
 
@@ -28,6 +31,43 @@ class FasterWhisperVoiceInput:
 
     MODEL_SAMPLE_RATE = 16000
     SUPPORTED_LANGUAGES = {"pl", "en"}
+
+    POLISH_HINT_WORDS = {
+        "ktora", "jaka", "godzina", "godzine", "czas", "kim", "jestes", "jak", "sie",
+        "nazywasz", "pokaz", "wyswietl", "powiedz", "wyjasnij", "wytlumacz", "zrob",
+        "pomoz", "pomoc", "przypomnienie", "timer", "fokus", "focus", "przerwa",
+        "wylacz", "zamknij", "asystenta", "system", "dziekuje", "nie", "tak",
+    }
+
+    ENGLISH_HINT_WORDS = {
+        "what", "time", "who", "are", "you", "your", "name", "show", "tell",
+        "explain", "help", "timer", "reminder", "focus", "break", "turn", "off",
+        "close", "assistant", "system", "yes", "no",
+    }
+
+    SUSPICIOUS_ENGLISH_FALSE_POSITIVES = (
+    "thank you very much",
+    "they won t",
+    "they wont",
+    "kimi is",
+    "the two matchminton",
+    "matchminton",
+    )
+
+    WAKE_PHRASE_VARIANTS = (
+        "nexa",
+        "nexa?",
+        "hey nexa",
+        "okay nexa",
+        "ok nexa",
+        "nexta",
+        "next up",
+        "next app",
+        "niksa",
+        "niks a",
+        "neksa",
+        "necks a",
+    )
 
     def __init__(
         self,
@@ -93,9 +133,15 @@ class FasterWhisperVoiceInput:
         self.retry_min_seconds = max(0.80, self.min_transcription_seconds + 0.20)
         self.short_clip_rms_threshold = 0.018
 
-        # Bilingual rescue guards
-        self.language_rescue_probability_threshold = 0.72
-        self.min_words_for_low_confidence_accept = 3
+                # Bilingual rescue guards
+        self.language_rescue_probability_threshold = 0.88
+        self.min_words_for_low_confidence_accept = 5
+
+        # Standby wake-gate settings
+        self.wake_sample_window_seconds = 1.8
+        self.wake_end_silence_seconds = 0.35
+        self.wake_min_speech_seconds = 0.10
+        self.wake_phrase_similarity_threshold = 0.74
 
         append_log(
             "FasterWhisper input prepared: "
@@ -240,11 +286,23 @@ class FasterWhisperVoiceInput:
             except queue.Empty:
                 break
 
-    def _record_until_silence(self, timeout: float = 8.0, debug: bool = False) -> Optional[np.ndarray]:
+    def _record_until_silence(
+        self,
+        timeout: float = 8.0,
+        debug: bool = False,
+        *,
+        max_record_seconds: float | None = None,
+        end_silence_seconds: float | None = None,
+        min_speech_seconds: float | None = None,
+    ) -> Optional[np.ndarray]:
         self._ensure_dependencies()
         self._clear_audio_queue()
 
-        hard_timeout = max(float(timeout), self.max_record_seconds)
+        effective_max_record_seconds = max(float(max_record_seconds or self.max_record_seconds), 0.8)
+        effective_end_silence_seconds = max(float(end_silence_seconds or self.end_silence_seconds), 0.15)
+        effective_min_speech_seconds = max(float(min_speech_seconds or self.min_speech_seconds), 0.05)
+
+        hard_timeout = max(float(timeout), effective_max_record_seconds)
         start_time = self._now()
 
         pre_roll_max_chunks = max(1, int(round(self.pre_roll_seconds * self.sample_rate / self.blocksize)))
@@ -301,10 +359,10 @@ class FasterWhisperVoiceInput:
 
                     enough_speech = False
                     if speech_started_at is not None:
-                        enough_speech = (self._now() - speech_started_at) >= self.min_speech_seconds
+                        enough_speech = (self._now() - speech_started_at) >= effective_min_speech_seconds
 
                     if enough_speech and last_speech_at is not None:
-                        if (self._now() - last_speech_at) >= self.end_silence_seconds:
+                        if (self._now() - last_speech_at) >= effective_end_silence_seconds:
                             break
 
         if not speech_started or not recorded_chunks:
@@ -313,7 +371,7 @@ class FasterWhisperVoiceInput:
         audio = self._concat_audio(recorded_chunks)
         duration = len(audio) / float(self.sample_rate)
 
-        if duration < self.min_speech_seconds:
+        if duration < effective_min_speech_seconds:
             if debug:
                 print("Recorded utterance too short, dropping.")
             return None
@@ -327,7 +385,7 @@ class FasterWhisperVoiceInput:
                 f"trimmed duration: {trimmed_duration:.2f}s"
             )
 
-        if trimmed_audio.size >= int(self.sample_rate * self.min_speech_seconds):
+        if trimmed_audio.size >= int(self.sample_rate * effective_min_speech_seconds):
             return trimmed_audio
 
         return audio
@@ -336,9 +394,14 @@ class FasterWhisperVoiceInput:
         if audio.size == 0:
             return False
 
+        # First try Silero VAD when enabled
         if self.vad_enabled:
-            return self._silero_window_contains_speech(audio)
+            if self._silero_window_contains_speech(audio):
+                return True
 
+    # Fallback to simple energy detection for speech onset.
+    # This is important on real microphone setups where Silero
+    # can miss the very beginning of short commands.
         return self._energy_window_contains_speech(audio)
 
     def _silero_window_contains_speech(self, audio: np.ndarray) -> bool:
@@ -367,7 +430,7 @@ class FasterWhisperVoiceInput:
     @staticmethod
     def _energy_window_contains_speech(audio: np.ndarray) -> bool:
         rms = float(np.sqrt(np.mean(np.square(audio), dtype=np.float64)))
-        return rms >= 0.012
+        return rms >= 0.008
 
     def _transcribe_audio(self, audio: np.ndarray, debug: bool = False) -> Optional[str]:
         if audio.size == 0:
@@ -400,7 +463,11 @@ class FasterWhisperVoiceInput:
                 print(f"Accepted primary transcript: {primary_candidate['text']}")
             return primary_candidate["text"]
 
-        rescue_candidate = self._rescue_bilingual_candidate(prepared_primary, debug=debug)
+        rescue_candidate = self._rescue_bilingual_candidate(
+            prepared_primary,
+            primary_candidate=primary_candidate,
+            debug=debug,
+        )
         if rescue_candidate is not None:
             if debug:
                 print(
@@ -441,7 +508,12 @@ class FasterWhisperVoiceInput:
         if self._accept_candidate(retry_candidate):
             return retry_candidate["text"]
 
-        retry_rescue_candidate = self._rescue_bilingual_candidate(prepared_retry, debug=debug)
+        retry_rescue_candidate = self._rescue_bilingual_candidate(
+            prepared_retry,
+            primary_candidate=retry_candidate,
+            debug=debug,
+        )
+        
         if retry_rescue_candidate is not None:
             return retry_rescue_candidate["text"]
 
@@ -538,8 +610,19 @@ class FasterWhisperVoiceInput:
             append_log(f"FasterWhisper transcription error ({label}): {error}")
             return candidate
 
-    def _rescue_bilingual_candidate(self, audio: np.ndarray, debug: bool = False) -> dict[str, Any] | None:
+    
+    def _rescue_bilingual_candidate(
+        self,
+        audio: np.ndarray,
+        *,
+        primary_candidate: dict[str, Any] | None = None,
+        debug: bool = False,
+    )  -> dict[str, Any] | None:
         candidates: list[dict[str, Any]] = []
+
+        primary_language = str((primary_candidate or {}).get("language") or "").strip().lower()
+        if primary_language not in self.SUPPORTED_LANGUAGES:
+            primary_language = ""
 
         for forced_language in ("pl", "en"):
             candidate = self._transcribe_single_audio(
@@ -554,10 +637,16 @@ class FasterWhisperVoiceInput:
         if not candidates:
             return None
 
-        candidates.sort(key=self._candidate_score, reverse=True)
+        candidates.sort(
+            key=lambda candidate: self._candidate_score(
+                candidate,
+                primary_language=primary_language or None,
+            ),
+            reverse=True,
+        )
         best = candidates[0]
 
-        if self._candidate_score(best) <= 0.0:
+        if self._candidate_score(best, primary_language=primary_language or None) <= 0.0:
             return None
 
         return best
@@ -585,7 +674,12 @@ class FasterWhisperVoiceInput:
 
         return False
 
-    def _candidate_score(self, candidate: dict[str, Any]) -> float:
+    def _candidate_score(
+        self,
+        candidate: dict[str, Any],
+        *,
+        primary_language: str | None = None,
+    ) -> float:
         text = str(candidate.get("text") or "").strip()
         language = str(candidate.get("language") or "").strip().lower()
         probability = float(candidate.get("language_probability") or 0.0)
@@ -608,7 +702,161 @@ class FasterWhisperVoiceInput:
         if self._looks_like_blank_or_garbage(text):
             score -= 3.0
 
+        score += self._language_affinity_score(text, language)
+        score += self._question_shape_bonus(text, language)
+        score += self._command_phrase_bonus(text, language)
+        score += self._primary_language_bonus(language, primary_language)
+        score -= self._false_positive_penalty(text, language)
+
         return score
+    
+
+    def _command_phrase_bonus(self, text: str, language: str) -> float:
+        normalized = self._normalize_scoring_text(text)
+        if not normalized:
+            return 0.0
+
+        shared_commands = {
+            "yes",
+            "no",
+            "tak",
+            "nie",
+            "cancel",
+            "anuluj",
+            "timer",
+            "focus",
+            "break",
+            "exit",
+            "shutdown",
+            "shut down",
+        }
+
+        english_commands = {
+            "what time is it",
+            "what day is it",
+            "what month is it",
+            "what year is it",
+            "who are you",
+            "what is your name",
+            "show it",
+            "show that",
+            "close assistant",
+            "shutdown system",
+        }
+
+        polish_commands = {
+            "ktora godzina",
+            "jaki dzien",
+            "jaki miesiac",
+            "jaki rok",
+            "kim jestes",
+            "jak masz na imie",
+            "pokaz to",
+            "zamknij asystenta",
+            "wylacz system",
+        }
+
+        bonus = 0.0
+
+        if normalized in shared_commands:
+            bonus += 1.9
+
+        if language == "en" and normalized in english_commands:
+            bonus += 2.1
+
+        if language == "pl" and normalized in polish_commands:
+            bonus += 2.1
+
+        return bonus
+
+
+def _primary_language_bonus(self, language: str, primary_language: str | None) -> float:
+    if not primary_language or primary_language not in self.SUPPORTED_LANGUAGES:
+        return 0.0
+
+    if language == primary_language:
+        return 0.95
+
+    if language in self.SUPPORTED_LANGUAGES:
+        return -0.15
+
+    return 0.0
+
+    def _language_affinity_score(self, text: str, language: str) -> float:
+        normalized = self._normalize_scoring_text(text)
+        if not normalized:
+            return 0.0
+
+        words = set(normalized.split())
+        polish_hits = len(words & self.POLISH_HINT_WORDS)
+        english_hits = len(words & self.ENGLISH_HINT_WORDS)
+
+        if language == "pl":
+            return polish_hits * 0.32 - english_hits * 0.12
+        if language == "en":
+            return english_hits * 0.28 - polish_hits * 0.10
+        return 0.0
+
+    def _question_shape_bonus(self, text: str, language: str) -> float:
+        normalized = self._normalize_scoring_text(text)
+        if not normalized:
+            return 0.0
+
+        polish_starts = (
+            "ktora ",
+            "jaka ",
+            "kim ",
+            "jak ",
+            "czy ",
+            "pokaz ",
+            "wyswietl ",
+            "wytlumacz ",
+            "wyjasnij ",
+        )
+        english_starts = (
+            "what ",
+            "who ",
+            "how ",
+            "show ",
+            "tell ",
+            "explain ",
+            "turn ",
+            "close ",
+        )
+
+        if language == "pl" and normalized.startswith(polish_starts):
+            return 0.55
+        if language == "en" and normalized.startswith(english_starts):
+            return 0.45
+        return 0.0
+
+    def _false_positive_penalty(self, text: str, language: str) -> float:
+        normalized = self._normalize_scoring_text(text)
+        if not normalized:
+            return 0.0
+
+        penalty = 0.0
+
+        if language == "en":
+            for phrase in self.SUSPICIOUS_ENGLISH_FALSE_POSITIVES:
+                if phrase in normalized:
+                    penalty += 2.2
+
+            if normalized.startswith("thank ") and len(normalized.split()) <= 4:
+                penalty += 1.2
+
+        if language == "pl":
+            if normalized in {"tak", "nie"}:
+                penalty += 0.4
+
+        return penalty
+
+    @staticmethod
+    def _normalize_scoring_text(text: str) -> str:
+        cleaned = str(text or "").strip().lower()
+        cleaned = re.sub(r"[^\w\s]", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        return cleaned
 
     @staticmethod
     def _contains_unsupported_script(text: str) -> bool:
@@ -761,7 +1009,83 @@ class FasterWhisperVoiceInput:
             return trimmed
 
         return None
+    @classmethod
+    def _normalize_wake_text(cls, text: str) -> str:
+        cleaned = str(text or "").strip().lower()
+        cleaned = re.sub(r"[^a-z0-9\s]", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        return cleaned
 
+    @classmethod
+    def _wake_similarity(cls, left: str, right: str) -> float:
+        return SequenceMatcher(None, left, right).ratio()
+
+    @classmethod
+    def _looks_like_wake_phrase(cls, text: str, similarity_threshold: float = 0.74) -> bool:
+        normalized = cls._normalize_wake_text(text)
+        if not normalized:
+            return False
+
+        if len(normalized.split()) > 3:
+            return False
+
+        if normalized in cls.WAKE_PHRASE_VARIANTS:
+            return True
+
+        tokens = normalized.split()
+        if not tokens:
+            return False
+
+        for variant in cls.WAKE_PHRASE_VARIANTS:
+            if normalized == variant:
+                return True
+
+            if normalized in variant or variant in normalized:
+                return True
+
+            if cls._wake_similarity(normalized, variant) >= similarity_threshold:
+                return True
+
+        joined = "".join(tokens)
+        for variant in cls.WAKE_PHRASE_VARIANTS:
+            variant_joined = variant.replace(" ", "")
+            if joined == variant_joined:
+                return True
+            if cls._wake_similarity(joined, variant_joined) >= similarity_threshold:
+                return True
+
+        return False
+
+    def listen_for_wake_phrase(self, timeout: float = 2.4, debug: bool = False) -> Optional[str]:
+        try:
+            audio = self._record_until_silence(
+                timeout=timeout,
+                debug=debug,
+                max_record_seconds=self.wake_sample_window_seconds,
+                end_silence_seconds=self.wake_end_silence_seconds,
+                min_speech_seconds=self.wake_min_speech_seconds,
+            )
+            if audio is None or audio.size == 0:
+                return None
+        except Exception as error:
+            append_log(f"Wake gate audio capture failed: {error}")
+            return None
+
+        transcript = self._transcribe_audio(audio, debug=debug)
+        if not transcript:
+            return None
+
+        if not self._looks_like_wake_phrase(
+            transcript,
+            similarity_threshold=self.wake_phrase_similarity_threshold,
+        ):
+            return None
+
+        if debug:
+            print(f"Wake gate accepted transcript: {transcript}")
+
+        return "nexa"
+    
     def listen(self, timeout: float = 8.0, debug: bool = False) -> Optional[str]:
         try:
             audio = self._record_until_silence(timeout=timeout, debug=debug)
@@ -821,6 +1145,25 @@ class FasterWhisperVoiceInput:
 
         if not cleaned:
             return None
+
+        lowered_words = cleaned.lower().split()
+
+        # Reject obvious repetition loops
+        if len(lowered_words) >= 12:
+            for chunk_size in range(4, min(12, len(lowered_words) // 2) + 1):
+                phrase = lowered_words[:chunk_size]
+                repeats = 1
+                index = chunk_size
+
+                while index + chunk_size <= len(lowered_words):
+                    if lowered_words[index:index + chunk_size] == phrase:
+                        repeats += 1
+                        index += chunk_size
+                    else:
+                        break
+
+                if repeats >= 3:
+                    return None
 
         return cleaned
 

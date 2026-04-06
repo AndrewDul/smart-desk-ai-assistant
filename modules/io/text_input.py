@@ -14,3 +14,13 @@ class TextInput:
             raise
 
         return text or None
+
+    def listen_for_wake_phrase(self, timeout: float = 2.4, debug: bool = False) -> str | None:
+        try:
+            text = input("Wake> ").strip()
+        except EOFError:
+            return None
+        except KeyboardInterrupt:
+            raise
+
+        return text or None

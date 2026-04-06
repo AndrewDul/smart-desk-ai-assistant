@@ -7313,3 +7313,1652 @@
 [2026-04-04 00:05:48] Assistant said [en]: Shutting down NeXa.
 [2026-04-04 00:05:49] Assistant shut down.
 [2026-04-04 00:05:51] Shutdown requested, but system shutdown commands are disabled in config.
+[2026-04-06 13:58:18] Runtime backend degraded: component=voice_input, backend=text_input, fallback=True, detail=Missing voice input runtime dependencies for Faster-Whisper: faster-whisper, silero-vad, onnxruntime. Falling back to text input.
+[2026-04-06 13:58:18] Runtime backend degraded: component=voice_output, backend=piper, fallback=False, detail=Voice output is degraded because missing piper Python package and no eSpeak fallback was found.
+[2026-04-06 13:58:18] Runtime backend degraded: component=display, backend=null_display, fallback=True, detail=Display backend failed. Using null display. Error: No module named 'PIL'
+[2026-04-06 13:58:18] Startup sequence initiated.
+[2026-04-06 13:58:18] Startup check [OK] settings: found settings.json
+[2026-04-06 13:58:18] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 13:58:18] Startup check [WARN] voice input: missing Python packages for faster-whisper runtime: faster-whisper, numpy, onnxruntime, silero-vad, sounddevice, soundfile
+[2026-04-06 13:58:18] Startup check [WARN] voice output: missing piper Python package and no eSpeak fallback found
+[2026-04-06 13:58:18] Startup check [WARN] display: missing display runtime packages: spidev, gpiozero
+[2026-04-06 13:58:18] Startup check [OK] llm: disabled by config
+[2026-04-06 13:58:20] Piper synthesis failed for language 'pl'.
+[2026-04-06 13:58:20] Piper synthesis failed for language 'pl'.
+[2026-04-06 13:58:20] Piper synthesis failed for language 'pl'.
+[2026-04-06 13:58:20] Piper synthesis failed for language 'pl'.
+[2026-04-06 13:58:20] Piper synthesis failed for language 'pl'.
+[2026-04-06 13:58:20] Piper synthesis failed for language 'pl'.
+[2026-04-06 13:58:20] Piper synthesis failed for language 'pl'.
+[2026-04-06 13:58:20] Piper synthesis failed for language 'en'.
+[2026-04-06 13:58:20] Piper synthesis failed for language 'en'.
+[2026-04-06 13:58:20] Piper synthesis failed for language 'en'.
+[2026-04-06 13:58:20] Piper synthesis failed for language 'en'.
+[2026-04-06 13:58:20] Piper synthesis failed for language 'en'.
+[2026-04-06 13:58:21] Piper synthesis failed for language 'en'.
+[2026-04-06 13:58:21] Piper synthesis failed for language 'en'.
+[2026-04-06 13:58:21] Assistant said [en]: Hello. I am NeXa. I started with some limited components, but I am ready and listening.
+[2026-04-06 13:58:21] Piper synthesis failed for language 'en'.
+[2026-04-06 13:58:21] Piper synthesis failed for language 'en'.
+[2026-04-06 13:58:21] eSpeak is not available.
+[2026-04-06 13:58:21] Voice output failed for language 'en' on all available engines.
+[2026-04-06 13:58:21] Startup summary begins.
+[2026-04-06 13:58:21] Startup health report: one or more checks reported warnings.
+[2026-04-06 13:58:21] Startup health item [OK] settings: found settings.json
+[2026-04-06 13:58:21] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 13:58:21] Startup health item [WARN] voice input: missing Python packages for faster-whisper runtime: faster-whisper, numpy, onnxruntime, silero-vad, sounddevice, soundfile
+[2026-04-06 13:58:21] Startup health item [WARN] voice output: missing piper Python package and no eSpeak fallback found
+[2026-04-06 13:58:21] Startup health item [WARN] display: missing display runtime packages: spidev, gpiozero
+[2026-04-06 13:58:21] Startup health item [OK] llm: disabled by config
+[2026-04-06 13:58:21] Runtime backend item [WARN] voice_input: backend=text_input, fallback=True, detail=Missing voice input runtime dependencies for Faster-Whisper: faster-whisper, silero-vad, onnxruntime. Falling back to text input.
+[2026-04-06 13:58:21] Runtime backend item [WARN] voice_output: backend=piper, fallback=False, detail=Voice output is degraded because missing piper Python package and no eSpeak fallback was found.
+[2026-04-06 13:58:21] Runtime backend item [WARN] display: backend=null_display, fallback=True, detail=Display backend failed. Using null display. Error: No module named 'PIL'
+[2026-04-06 13:58:21] Runtime warning summary: voice input: degraded fallback | voice output: limited | display: degraded fallback
+[2026-04-06 13:58:21] Startup summary ends.
+[2026-04-06 13:58:21] Startup completed with warnings.
+[2026-04-06 13:58:30] User said: exit | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 13:58:30] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=exit, confidence=1.00
+[2026-04-06 13:58:30] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-06 13:58:30] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-06 13:58:30] Piper synthesis failed for language 'en'.
+[2026-04-06 13:58:30] Piper synthesis failed for language 'en'.
+[2026-04-06 13:58:30] eSpeak is not available.
+[2026-04-06 13:58:30] Voice output failed for language 'en' on all available engines.
+[2026-04-06 13:58:34] User said: exit | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 13:58:34] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-06 13:58:34] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-06 13:58:34] Piper synthesis failed for language 'en'.
+[2026-04-06 13:58:35] Piper synthesis failed for language 'en'.
+[2026-04-06 13:58:35] eSpeak is not available.
+[2026-04-06 13:58:35] Voice output failed for language 'en' on all available engines.
+[2026-04-06 14:09:49] Runtime backend degraded: component=voice_input, backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: PortAudio library not found
+[2026-04-06 14:09:49] Runtime backend degraded: component=voice_output, backend=piper, fallback=False, detail=Voice output is degraded because missing piper Python package and no eSpeak fallback was found.
+[2026-04-06 14:09:49] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 14:09:49] Startup sequence initiated.
+[2026-04-06 14:09:49] Startup check [OK] settings: found settings.json
+[2026-04-06 14:09:49] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 14:09:49] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 14:09:49] Startup check [WARN] voice output: missing piper Python package and no eSpeak fallback found
+[2026-04-06 14:09:49] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 14:09:49] Startup check [OK] llm: disabled by config
+[2026-04-06 14:09:51] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:09:51] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:09:51] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:09:51] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:09:51] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:09:51] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:09:51] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:09:51] Piper synthesis failed for language 'en'.
+[2026-04-06 14:09:52] Piper synthesis failed for language 'en'.
+[2026-04-06 14:09:52] Piper synthesis failed for language 'en'.
+[2026-04-06 14:09:52] Piper synthesis failed for language 'en'.
+[2026-04-06 14:09:52] Piper synthesis failed for language 'en'.
+[2026-04-06 14:09:52] Piper synthesis failed for language 'en'.
+[2026-04-06 14:09:52] Piper synthesis failed for language 'en'.
+[2026-04-06 14:09:52] Assistant said [en]: Hello. I am NeXa. I started with some limited components, but I am ready and listening.
+[2026-04-06 14:09:52] Piper synthesis failed for language 'en'.
+[2026-04-06 14:09:53] Piper synthesis failed for language 'en'.
+[2026-04-06 14:09:53] eSpeak is not available.
+[2026-04-06 14:09:53] Voice output failed for language 'en' on all available engines.
+[2026-04-06 14:09:53] Startup summary begins.
+[2026-04-06 14:09:53] Startup health report: one or more checks reported warnings.
+[2026-04-06 14:09:53] Startup health item [OK] settings: found settings.json
+[2026-04-06 14:09:53] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 14:09:53] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 14:09:53] Startup health item [WARN] voice output: missing piper Python package and no eSpeak fallback found
+[2026-04-06 14:09:53] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 14:09:53] Startup health item [OK] llm: disabled by config
+[2026-04-06 14:09:53] Runtime backend item [WARN] voice_input: backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: PortAudio library not found
+[2026-04-06 14:09:53] Runtime backend item [WARN] voice_output: backend=piper, fallback=False, detail=Voice output is degraded because missing piper Python package and no eSpeak fallback was found.
+[2026-04-06 14:09:53] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 14:09:53] Runtime warning summary: voice input: degraded fallback | voice output: limited
+[2026-04-06 14:09:53] Startup summary ends.
+[2026-04-06 14:09:53] Startup completed with warnings.
+[2026-04-06 14:10:44] User said: exit | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 14:10:44] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=exit, confidence=1.00
+[2026-04-06 14:10:44] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-06 14:10:44] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-06 14:10:44] Piper synthesis failed for language 'en'.
+[2026-04-06 14:10:44] Piper synthesis failed for language 'en'.
+[2026-04-06 14:10:44] eSpeak is not available.
+[2026-04-06 14:10:44] Voice output failed for language 'en' on all available engines.
+[2026-04-06 14:10:47] User said: yes | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 14:10:47] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-06 14:10:47] Piper synthesis failed for language 'en'.
+[2026-04-06 14:10:47] Piper synthesis failed for language 'en'.
+[2026-04-06 14:10:47] eSpeak is not available.
+[2026-04-06 14:10:47] Voice output failed for language 'en' on all available engines.
+[2026-04-06 14:10:47] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 14:10:47] Piper synthesis failed for language 'en'.
+[2026-04-06 14:10:47] Piper synthesis failed for language 'en'.
+[2026-04-06 14:10:47] eSpeak is not available.
+[2026-04-06 14:10:47] Voice output failed for language 'en' on all available engines.
+[2026-04-06 14:10:47] Assistant shut down.
+[2026-04-06 14:13:51] Runtime backend degraded: component=voice_input, backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: PortAudio library not found
+[2026-04-06 14:13:51] Runtime backend degraded: component=voice_output, backend=piper, fallback=False, detail=Voice output is degraded because missing piper Python package and no eSpeak fallback was found.
+[2026-04-06 14:13:51] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 14:13:51] Startup sequence initiated.
+[2026-04-06 14:13:51] Startup check [OK] settings: found settings.json
+[2026-04-06 14:13:51] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 14:13:51] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 14:13:51] Startup check [WARN] voice output: missing piper Python package and no eSpeak fallback found
+[2026-04-06 14:13:51] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 14:13:51] Startup check [OK] llm: disabled by config
+[2026-04-06 14:13:53] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:13:53] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:13:53] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:13:53] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:13:53] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:13:53] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:13:53] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:13:53] Piper synthesis failed for language 'en'.
+[2026-04-06 14:13:53] Piper synthesis failed for language 'en'.
+[2026-04-06 14:13:53] Piper synthesis failed for language 'en'.
+[2026-04-06 14:13:53] Piper synthesis failed for language 'en'.
+[2026-04-06 14:13:53] Piper synthesis failed for language 'en'.
+[2026-04-06 14:13:53] Piper synthesis failed for language 'en'.
+[2026-04-06 14:13:53] Piper synthesis failed for language 'en'.
+[2026-04-06 14:13:54] Assistant said [en]: Hello. I am NeXa. I started with some limited components, but I am ready and listening.
+[2026-04-06 14:13:54] Piper synthesis failed for language 'en'.
+[2026-04-06 14:13:54] Piper synthesis failed for language 'en'.
+[2026-04-06 14:13:54] eSpeak is not available.
+[2026-04-06 14:13:54] Voice output failed for language 'en' on all available engines.
+[2026-04-06 14:13:54] Startup summary begins.
+[2026-04-06 14:13:54] Startup health report: one or more checks reported warnings.
+[2026-04-06 14:13:54] Startup health item [OK] settings: found settings.json
+[2026-04-06 14:13:54] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 14:13:54] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 14:13:54] Startup health item [WARN] voice output: missing piper Python package and no eSpeak fallback found
+[2026-04-06 14:13:54] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 14:13:54] Startup health item [OK] llm: disabled by config
+[2026-04-06 14:13:54] Runtime backend item [WARN] voice_input: backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: PortAudio library not found
+[2026-04-06 14:13:54] Runtime backend item [WARN] voice_output: backend=piper, fallback=False, detail=Voice output is degraded because missing piper Python package and no eSpeak fallback was found.
+[2026-04-06 14:13:54] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 14:13:54] Runtime warning summary: voice input: degraded fallback | voice output: limited
+[2026-04-06 14:13:54] Startup summary ends.
+[2026-04-06 14:13:54] Startup completed with warnings.
+[2026-04-06 14:13:58] User said: exit | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 14:13:58] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=exit, confidence=1.00
+[2026-04-06 14:13:58] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-06 14:13:58] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-06 14:13:58] Piper synthesis failed for language 'en'.
+[2026-04-06 14:13:58] Piper synthesis failed for language 'en'.
+[2026-04-06 14:13:58] eSpeak is not available.
+[2026-04-06 14:13:58] Voice output failed for language 'en' on all available engines.
+[2026-04-06 14:14:00] User said: yes | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 14:14:00] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-06 14:14:00] Piper synthesis failed for language 'en'.
+[2026-04-06 14:14:00] Piper synthesis failed for language 'en'.
+[2026-04-06 14:14:00] eSpeak is not available.
+[2026-04-06 14:14:00] Voice output failed for language 'en' on all available engines.
+[2026-04-06 14:14:00] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 14:14:00] Piper synthesis failed for language 'en'.
+[2026-04-06 14:14:00] Piper synthesis failed for language 'en'.
+[2026-04-06 14:14:00] eSpeak is not available.
+[2026-04-06 14:14:00] Voice output failed for language 'en' on all available engines.
+[2026-04-06 14:14:00] Assistant shut down.
+[2026-04-06 14:30:17] Runtime backend degraded: component=voice_input, backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: PortAudio library not found
+[2026-04-06 14:30:17] Runtime backend degraded: component=voice_output, backend=piper, fallback=True, detail=Preferred Piper output is degraded because missing piper Python package. eSpeak fallback is available.
+[2026-04-06 14:30:17] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 14:30:17] Startup sequence initiated.
+[2026-04-06 14:30:17] Startup check [OK] settings: found settings.json
+[2026-04-06 14:30:17] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 14:30:17] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 14:30:17] Startup check [WARN] voice output: Piper is degraded (missing piper Python package), but eSpeak fallback is available
+[2026-04-06 14:30:17] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 14:30:17] Startup check [OK] llm: disabled by config
+[2026-04-06 14:30:19] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:30:19] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:30:19] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:30:19] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:30:20] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:30:20] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:30:20] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:30:20] Piper synthesis failed for language 'en'.
+[2026-04-06 14:30:20] Piper synthesis failed for language 'en'.
+[2026-04-06 14:30:20] Piper synthesis failed for language 'en'.
+[2026-04-06 14:30:20] Piper synthesis failed for language 'en'.
+[2026-04-06 14:30:20] Piper synthesis failed for language 'en'.
+[2026-04-06 14:30:20] Piper synthesis failed for language 'en'.
+[2026-04-06 14:30:20] Piper synthesis failed for language 'en'.
+[2026-04-06 14:30:20] Assistant said [en]: Hello. I am NeXa. I started with some limited components, but I am ready and listening.
+[2026-04-06 14:30:20] Piper synthesis failed for language 'en'.
+[2026-04-06 14:30:21] Piper synthesis failed for language 'en'.
+[2026-04-06 14:30:27] Startup summary begins.
+[2026-04-06 14:30:27] Startup health report: one or more checks reported warnings.
+[2026-04-06 14:30:27] Startup health item [OK] settings: found settings.json
+[2026-04-06 14:30:27] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 14:30:27] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 14:30:27] Startup health item [WARN] voice output: Piper is degraded (missing piper Python package), but eSpeak fallback is available
+[2026-04-06 14:30:27] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 14:30:27] Startup health item [OK] llm: disabled by config
+[2026-04-06 14:30:27] Runtime backend item [WARN] voice_input: backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: PortAudio library not found
+[2026-04-06 14:30:27] Runtime backend item [WARN] voice_output: backend=piper, fallback=True, detail=Preferred Piper output is degraded because missing piper Python package. eSpeak fallback is available.
+[2026-04-06 14:30:27] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 14:30:27] Runtime warning summary: voice input: degraded fallback | voice output: degraded fallback
+[2026-04-06 14:30:27] Startup summary ends.
+[2026-04-06 14:30:27] Startup completed with warnings.
+[2026-04-06 14:30:37] User said: exit | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 14:30:37] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=exit, confidence=1.00
+[2026-04-06 14:30:37] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-06 14:30:37] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-06 14:30:37] Piper synthesis failed for language 'en'.
+[2026-04-06 14:30:37] Piper synthesis failed for language 'en'.
+[2026-04-06 14:30:40] User said: yes | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 14:30:40] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-06 14:30:40] Piper synthesis failed for language 'en'.
+[2026-04-06 14:30:40] Piper synthesis failed for language 'en'.
+[2026-04-06 14:30:43] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 14:30:43] Piper synthesis failed for language 'en'.
+[2026-04-06 14:30:43] Piper synthesis failed for language 'en'.
+[2026-04-06 14:30:44] Assistant shut down.
+[2026-04-06 14:36:04] Runtime backend degraded: component=voice_input, backend=text_input, fallback=True, detail=Voice input backend 'whisper' failed. Falling back to text input. Error: PortAudio library not found
+[2026-04-06 14:36:04] Runtime backend degraded: component=voice_output, backend=piper, fallback=True, detail=Preferred Piper output is degraded because missing piper Python package. eSpeak fallback is available.
+[2026-04-06 14:36:04] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 14:36:04] Startup sequence initiated.
+[2026-04-06 14:36:04] Startup check [OK] settings: found settings.json
+[2026-04-06 14:36:04] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 14:36:04] Startup check [OK] voice input: whisper.cpp ready, model=ggml-base.bin, VAD=off
+[2026-04-06 14:36:04] Startup check [WARN] voice output: Piper is degraded (missing piper Python package), but eSpeak fallback is available
+[2026-04-06 14:36:04] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 14:36:04] Startup check [OK] llm: disabled by config
+[2026-04-06 14:36:06] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:36:06] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:36:06] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:36:06] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:36:06] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:36:06] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:36:06] Piper synthesis failed for language 'pl'.
+[2026-04-06 14:36:06] Piper synthesis failed for language 'en'.
+[2026-04-06 14:36:06] Piper synthesis failed for language 'en'.
+[2026-04-06 14:36:06] Piper synthesis failed for language 'en'.
+[2026-04-06 14:36:06] Piper synthesis failed for language 'en'.
+[2026-04-06 14:36:06] Piper synthesis failed for language 'en'.
+[2026-04-06 14:36:06] Piper synthesis failed for language 'en'.
+[2026-04-06 14:36:06] Piper synthesis failed for language 'en'.
+[2026-04-06 14:36:07] Assistant said [en]: Hello. I am NeXa. I started with some limited components, but I am ready and listening.
+[2026-04-06 14:36:07] Piper synthesis failed for language 'en'.
+[2026-04-06 14:36:07] Piper synthesis failed for language 'en'.
+[2026-04-06 14:36:13] Startup summary begins.
+[2026-04-06 14:36:13] Startup health report: one or more checks reported warnings.
+[2026-04-06 14:36:13] Startup health item [OK] settings: found settings.json
+[2026-04-06 14:36:13] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 14:36:13] Startup health item [OK] voice input: whisper.cpp ready, model=ggml-base.bin, VAD=off
+[2026-04-06 14:36:13] Startup health item [WARN] voice output: Piper is degraded (missing piper Python package), but eSpeak fallback is available
+[2026-04-06 14:36:13] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 14:36:13] Startup health item [OK] llm: disabled by config
+[2026-04-06 14:36:13] Runtime backend item [WARN] voice_input: backend=text_input, fallback=True, detail=Voice input backend 'whisper' failed. Falling back to text input. Error: PortAudio library not found
+[2026-04-06 14:36:13] Runtime backend item [WARN] voice_output: backend=piper, fallback=True, detail=Preferred Piper output is degraded because missing piper Python package. eSpeak fallback is available.
+[2026-04-06 14:36:13] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 14:36:13] Runtime warning summary: voice input: degraded fallback | voice output: degraded fallback
+[2026-04-06 14:36:13] Startup summary ends.
+[2026-04-06 14:36:13] Startup completed with warnings.
+[2026-04-06 14:36:23] User said: exit | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 14:36:23] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=exit, confidence=1.00
+[2026-04-06 14:36:23] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-06 14:36:23] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-06 14:36:23] Piper synthesis failed for language 'en'.
+[2026-04-06 14:36:24] Piper synthesis failed for language 'en'.
+[2026-04-06 14:36:26] User said: yes | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 14:36:26] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-06 14:36:26] Piper synthesis failed for language 'en'.
+[2026-04-06 14:36:26] Piper synthesis failed for language 'en'.
+[2026-04-06 14:36:29] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 14:36:29] Piper synthesis failed for language 'en'.
+[2026-04-06 14:36:29] Piper synthesis failed for language 'en'.
+[2026-04-06 14:36:31] Assistant shut down.
+[2026-04-06 14:47:03] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=off, model_ref='tiny'
+[2026-04-06 14:47:03] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 14:47:03] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 14:47:03] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 14:47:03] Startup sequence initiated.
+[2026-04-06 14:47:03] Startup check [OK] settings: found settings.json
+[2026-04-06 14:47:03] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 14:47:03] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=off
+[2026-04-06 14:47:03] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 14:47:03] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 14:47:03] Startup check [OK] llm: disabled by config
+[2026-04-06 14:47:06] Assistant said [en]: Hello. I am NeXa. Startup checks look good. You can ask me at any time how I can help.
+[2026-04-06 14:47:17] Startup summary begins.
+[2026-04-06 14:47:17] Startup health report: all configured checks passed.
+[2026-04-06 14:47:17] Startup health item [OK] settings: found settings.json
+[2026-04-06 14:47:17] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 14:47:17] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=off
+[2026-04-06 14:47:17] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 14:47:17] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 14:47:17] Startup health item [OK] llm: disabled by config
+[2026-04-06 14:47:17] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 14:47:17] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 14:47:17] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 14:47:17] Runtime warning summary: none
+[2026-04-06 14:47:17] Startup summary ends.
+[2026-04-06 14:47:17] Startup completed successfully.
+[2026-04-06 14:47:22] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-06 14:47:52] Semantic match: intent=decline, score=0.86, route_hint=follow_up, example='nie', method=lexical
+[2026-04-06 14:47:52] User said: Wydaje mi się, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, | routing_text=wydaje mi sie ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym | normalized=wydaje mi sie ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 14:47:53] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-06 14:47:53] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-06 14:48:02] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-06 14:48:11] Response plan executed: turn_id=reply_60fa7eb38154, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-06 14:48:11] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-06 14:48:25] Semantic match: intent=decline, score=0.86, route_hint=follow_up, example='nie', method=lexical
+[2026-04-06 14:48:25] User said: Wydaje mi się, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, | routing_text=wydaje mi sie ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym | normalized=wydaje mi sie ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 14:48:25] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-06 14:48:25] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-06 14:48:29] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-06 14:48:33] Response plan executed: turn_id=reply_bf390bc438bc, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-06 14:48:33] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-06 14:49:05] Semantic match: intent=decline, score=0.87, route_hint=follow_up, example='nie', method=lexical
+[2026-04-06 14:49:05] User said: Wydaje mi się, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to nie jest | routing_text=wydaje mi sie ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to nie jest | normalized=wydaje mi sie ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to nie jest | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 14:49:05] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-06 14:49:05] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-06 14:49:10] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-06 14:49:17] Runtime backend degraded: component=voice_input, backend=text_input, fallback=True, detail=Missing voice input runtime dependencies for Faster-Whisper: faster-whisper. Falling back to text input.
+[2026-04-06 14:49:17] Runtime backend degraded: component=voice_output, backend=piper, fallback=True, detail=Preferred Piper output is degraded because missing piper Python package. eSpeak fallback is available.
+[2026-04-06 14:49:17] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 14:49:17] Startup sequence initiated.
+[2026-04-06 14:49:17] Startup check [OK] settings: found settings.json
+[2026-04-06 14:49:17] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 14:49:17] Startup check [WARN] voice input: missing Python packages for faster-whisper runtime: faster-whisper, sounddevice, soundfile
+[2026-04-06 14:49:17] Startup check [WARN] voice output: Piper is degraded (missing piper Python package), but eSpeak fallback is available
+[2026-04-06 14:49:17] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 14:49:17] Startup check [OK] llm: disabled by config
+[2026-04-06 14:49:30] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=off, model_ref='tiny'
+[2026-04-06 14:49:30] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 14:49:30] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 14:49:30] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 14:49:30] Startup sequence initiated.
+[2026-04-06 14:49:30] Startup check [OK] settings: found settings.json
+[2026-04-06 14:49:30] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 14:49:30] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=off
+[2026-04-06 14:49:30] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 14:49:30] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 14:49:30] Startup check [OK] llm: disabled by config
+[2026-04-06 14:49:33] Assistant said [en]: Hello. I am NeXa. Startup checks look good. You can ask me at any time how I can help.
+[2026-04-06 14:49:39] Startup summary begins.
+[2026-04-06 14:49:39] Startup health report: all configured checks passed.
+[2026-04-06 14:49:39] Startup health item [OK] settings: found settings.json
+[2026-04-06 14:49:39] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 14:49:39] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=off
+[2026-04-06 14:49:39] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 14:49:39] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 14:49:39] Startup health item [OK] llm: disabled by config
+[2026-04-06 14:49:39] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 14:49:39] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 14:49:39] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 14:49:39] Runtime warning summary: none
+[2026-04-06 14:49:39] Startup summary ends.
+[2026-04-06 14:49:39] Startup completed successfully.
+[2026-04-06 14:49:40] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-06 14:49:55] Ignored silent input: recognizer returned None.
+[2026-04-06 14:50:15] Ignored silent input: recognizer returned None.
+[2026-04-06 14:50:23] Ignored silent input: recognizer returned None.
+[2026-04-06 15:04:14] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-06 15:04:14] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 15:04:14] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 15:04:14] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 15:04:14] Startup sequence initiated.
+[2026-04-06 15:04:14] Startup check [OK] settings: found settings.json
+[2026-04-06 15:04:14] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 15:04:14] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 15:04:14] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 15:04:14] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 15:04:14] Startup check [OK] llm: disabled by config
+[2026-04-06 15:04:17] Assistant said [en]: Hello. I am NeXa. Startup checks look good. You can ask me at any time how I can help.
+[2026-04-06 15:04:24] Startup summary begins.
+[2026-04-06 15:04:24] Startup health report: all configured checks passed.
+[2026-04-06 15:04:24] Startup health item [OK] settings: found settings.json
+[2026-04-06 15:04:24] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 15:04:24] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 15:04:24] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 15:04:24] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 15:04:24] Startup health item [OK] llm: disabled by config
+[2026-04-06 15:04:24] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 15:04:24] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 15:04:24] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 15:04:24] Runtime warning summary: none
+[2026-04-06 15:04:24] Startup summary ends.
+[2026-04-06 15:04:24] Startup completed successfully.
+[2026-04-06 15:04:24] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-06 15:04:25] Silero VAD loaded successfully for FasterWhisper input.
+[2026-04-06 15:04:33] Ignored silent input: recognizer returned None.
+[2026-04-06 15:04:41] Ignored silent input: recognizer returned None.
+[2026-04-06 15:04:49] Ignored silent input: recognizer returned None.
+[2026-04-06 15:04:57] Ignored silent input: recognizer returned None.
+[2026-04-06 15:05:05] Ignored silent input: recognizer returned None.
+[2026-04-06 15:05:13] Ignored silent input: recognizer returned None.
+[2026-04-06 15:07:16] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-06 15:07:16] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 15:07:16] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 15:07:16] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 15:07:16] Startup sequence initiated.
+[2026-04-06 15:07:16] Startup check [OK] settings: found settings.json
+[2026-04-06 15:07:16] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 15:07:16] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 15:07:16] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 15:07:16] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 15:07:16] Startup check [OK] llm: disabled by config
+[2026-04-06 15:07:19] Assistant said [en]: Hello. I am NeXa. Startup checks look good. You can ask me at any time how I can help.
+[2026-04-06 15:07:25] Startup summary begins.
+[2026-04-06 15:07:25] Startup health report: all configured checks passed.
+[2026-04-06 15:07:25] Startup health item [OK] settings: found settings.json
+[2026-04-06 15:07:25] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 15:07:25] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 15:07:25] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 15:07:25] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 15:07:25] Startup health item [OK] llm: disabled by config
+[2026-04-06 15:07:25] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 15:07:25] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 15:07:25] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 15:07:25] Runtime warning summary: none
+[2026-04-06 15:07:25] Startup summary ends.
+[2026-04-06 15:07:25] Startup completed successfully.
+[2026-04-06 15:07:26] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-06 15:07:26] Silero VAD loaded successfully for FasterWhisper input.
+[2026-04-06 15:07:34] Ignored silent input: recognizer returned None.
+[2026-04-06 15:11:50] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-06 15:11:51] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 15:11:51] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 15:11:51] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 15:11:51] Startup sequence initiated.
+[2026-04-06 15:11:51] Startup check [OK] settings: found settings.json
+[2026-04-06 15:11:51] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 15:11:51] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 15:11:51] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 15:11:51] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 15:11:51] Startup check [OK] llm: disabled by config
+[2026-04-06 15:11:54] Assistant said [en]: Hello. I am NeXa. Startup checks look good. You can ask me at any time how I can help.
+[2026-04-06 15:12:00] Startup summary begins.
+[2026-04-06 15:12:00] Startup health report: all configured checks passed.
+[2026-04-06 15:12:00] Startup health item [OK] settings: found settings.json
+[2026-04-06 15:12:00] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 15:12:00] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 15:12:00] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 15:12:00] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 15:12:00] Startup health item [OK] llm: disabled by config
+[2026-04-06 15:12:00] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 15:12:00] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 15:12:00] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 15:12:00] Runtime warning summary: none
+[2026-04-06 15:12:00] Startup summary ends.
+[2026-04-06 15:12:00] Startup completed successfully.
+[2026-04-06 15:12:01] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-06 15:12:01] Silero VAD loaded successfully for FasterWhisper input.
+[2026-04-06 15:12:12] Ignored silent input: recognizer returned None.
+[2026-04-06 15:12:20] Ignored silent input: recognizer returned None.
+[2026-04-06 15:12:28] Ignored silent input: recognizer returned None.
+[2026-04-06 15:12:37] Ignored silent input: recognizer returned None.
+[2026-04-06 15:12:49] User said: Wydaje się, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to | routing_text=wydaje sie ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to | normalized=wydaje sie ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 15:12:50] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-06 15:12:50] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-06 15:12:54] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-06 15:12:58] Response plan executed: turn_id=reply_d9cabb077539, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-06 15:12:58] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-06 15:13:06] Ignored silent input: recognizer returned None.
+[2026-04-06 15:13:27] Ignored silent input: recognizer returned None.
+[2026-04-06 15:13:55] Semantic match: intent=decline, score=0.87, route_hint=follow_up, example='nie', method=lexical
+[2026-04-06 15:13:55] User said: Wydaje mi się, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to, że to nie jest to nie jest to, że to nie jest to nie jest to nie jest to, że to nie jest | routing_text=wydaje mi sie ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to nie jest to ze to nie jest to nie jest to nie jest to ze to nie jest | normalized=wydaje mi sie ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to ze to nie jest to nie jest to ze to nie jest to nie jest to nie jest to ze to nie jest | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 15:13:55] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-06 15:13:55] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-06 15:14:00] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-06 15:14:04] Response plan executed: turn_id=reply_ff0529f78d17, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-06 15:14:04] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-06 15:14:24] Semantic match: intent=decline, score=0.86, route_hint=follow_up, example='nie', method=lexical
+[2026-04-06 15:14:24] User said: Wydaje mi się, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, że to nie jest w tym, | routing_text=wydaje mi sie ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym | normalized=wydaje mi sie ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym ze to nie jest w tym | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 15:14:24] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-06 15:14:24] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-06 15:14:29] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-06 15:14:33] Response plan executed: turn_id=reply_450e6bc08cde, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-06 15:14:33] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-06 15:14:48] User said: What is your name? | routing_text=what is your name | normalized=what is your name | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 15:14:48] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=introduce_self, confidence=1.00
+[2026-04-06 15:14:48] Parsed intent: action=introduce_self, data={}, text=what is your name, lang=en
+[2026-04-06 15:14:48] Assistant said [en]: My name is NeXa.
+[2026-04-06 15:14:51] Ignored silent input: recognizer returned None.
+[2026-04-06 15:15:17] User said: Wydaje się, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, | routing_text=wydaje sie ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to | normalized=wydaje sie ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 15:15:17] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-06 15:15:17] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-06 15:15:22] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-06 15:15:26] Response plan executed: turn_id=reply_302e5ed56655, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-06 15:15:26] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-06 15:15:41] User said: What you can do? | routing_text=what you can do | normalized=what you can do | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 15:15:41] Route decision: kind=conversation, reply_mode=reply, topics=['knowledge_query'], suggestions=[], action=unknown, confidence=0.66
+[2026-04-06 15:15:41] Assistant said [en]: Alright. It sounds like you want an explanation.
+[2026-04-06 15:15:48] Assistant said [en]: My full local knowledge layer is not ready yet, but I can still help in a simpler way and take into account what we were just talking about.
+[2026-04-06 15:16:02] Assistant said [en]: You can ask me for a shorter explanation, a simple definition, or a step by step example.
+[2026-04-06 15:16:12] Response plan executed: turn_id=reply_44579c0b034a, route_kind=conversation, stream_mode=sentence, spoken_chunks=3, chunk_kinds=['content', 'content', 'follow_up'], voice_lead_start=False
+[2026-04-06 15:16:12] Dialogue streamed: route_kind=conversation, lang=en, chunks=3, text=Alright. It sounds like you want an explanation. My full local knowledge layer is not ready yet, but I can still help in a simpler way and take into account what we were just talking about. You can ask me for a shorter explanation, a simple definition, or a step by step example.
+[2026-04-06 15:16:20] Ignored silent input: recognizer returned None.
+[2026-04-06 15:16:25] Ignored silent input: recognizer returned None.
+[2026-04-06 15:16:37] User said: What time is it? | routing_text=what time is it | normalized=what time is it | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 15:16:37] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=ask_time, confidence=1.00
+[2026-04-06 15:16:37] Parsed intent: action=ask_time, data={}, text=what time is it, lang=en
+[2026-04-06 15:16:37] Assistant said [en]: It is 3:16 PM. Would you like me to show that on the screen?
+[2026-04-06 15:16:59] User said: Yes. | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 15:16:59] Assistant said [en]: Okay. I am showing it on the screen.
+[2026-04-06 15:17:14] Semantic match: intent=decline, score=0.88, route_hint=follow_up, example='nie', method=lexical
+[2026-04-06 15:17:14] User said: Wydaje się, że to nie jest to. | routing_text=wydaje sie ze to nie jest to | normalized=wydaje sie ze to nie jest to | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 15:17:14] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-06 15:17:14] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-06 15:17:19] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-06 15:17:23] Response plan executed: turn_id=reply_74bee4cf1625, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-06 15:17:23] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-06 15:17:34] User said: Jak się nazywa? | routing_text=jak sie nazywasz | normalized=jak sie nazywasz | detected_lang=pl | normalizer_hint=pl | command_lang=pl | corrections=['multiword:\\bjak sie nazywa\\b->jak sie nazywasz']
+[2026-04-06 15:17:34] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=introduce_self, confidence=1.00
+[2026-04-06 15:17:34] Parsed intent: action=introduce_self, data={}, text=jak sie nazywasz, lang=pl
+[2026-04-06 15:17:34] Assistant said [pl]: Nazywam się NeXa.
+[2026-04-06 15:17:50] Ignored silent input: recognizer returned None.
+[2026-04-06 15:18:03] Ignored silent input: recognizer returned None.
+[2026-04-06 15:18:11] Ignored silent input: recognizer returned None.
+[2026-04-06 15:18:27] Ignored silent input: recognizer returned None.
+[2026-04-06 15:18:43] User said: What are you doing? | routing_text=what are you doing | normalized=what are you doing | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 15:18:43] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=introduce_self, confidence=1.00
+[2026-04-06 15:18:43] Parsed intent: action=introduce_self, data={}, text=what are you doing, lang=en
+[2026-04-06 15:18:43] Assistant said [en]: I am NeXa, a local desk companion running on Raspberry Pi 5. I can talk with you in Polish and English, help with simple tasks, and support you at your desk.
+[2026-04-06 15:19:05] Semantic match: intent=humour_request, score=1.97, route_hint=conversation, example='powiedz cos smiesznego', method=lexical
+[2026-04-06 15:19:05] User said: Powiedz, co śmiesznego. | routing_text=powiedz cos smiesznego | normalized=powiedz cos smiesznego | detected_lang=pl | normalizer_hint=pl | command_lang=pl | corrections=['fuzzy:powiedz co smiesznego->powiedz cos smiesznego:0.98']
+[2026-04-06 15:19:05] Route decision: kind=conversation, reply_mode=reply, topics=['humour'], suggestions=[], action=unknown, confidence=0.68
+[2026-04-06 15:19:05] Assistant said [pl]: Dlaczego komputer poszedł na przerwę?
+[2026-04-06 15:19:11] Assistant said [pl]: Bo miał za dużo okien otwartych.
+[2026-04-06 15:19:17] Response plan executed: turn_id=reply_9fcedb83cb73, route_kind=conversation, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['content', 'content'], voice_lead_start=False
+[2026-04-06 15:19:17] Dialogue streamed: route_kind=conversation, lang=pl, chunks=2, text=Dlaczego komputer poszedł na przerwę? Bo miał za dużo okien otwartych.
+[2026-04-06 15:19:18] Ignored silent input: recognizer returned None.
+[2026-04-06 15:19:31] User said: We won't just stand up. | routing_text=we won t just stand up | normalized=we won t just stand up | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 15:19:31] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-06 15:19:31] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-06 15:19:35] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-06 15:19:40] Response plan executed: turn_id=reply_4cfe12fe01de, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-06 15:19:40] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-06 15:19:49] User said: Exit. | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 15:19:49] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=exit, confidence=1.00
+[2026-04-06 15:19:49] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-06 15:19:49] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-06 15:20:03] User said: Yes. | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 15:20:03] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-06 15:20:09] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 15:20:14] Assistant shut down.
+[2026-04-06 16:30:40] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-06 16:30:40] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 16:30:40] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 16:30:40] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 16:30:40] Startup sequence initiated.
+[2026-04-06 16:30:40] Startup check [OK] settings: found settings.json
+[2026-04-06 16:30:40] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 16:30:40] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 16:30:40] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 16:30:40] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 16:30:40] Startup check [OK] llm: disabled by config
+[2026-04-06 16:30:43] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-06 16:30:51] Startup summary begins.
+[2026-04-06 16:30:51] Startup health report: all configured checks passed.
+[2026-04-06 16:30:51] Startup health item [OK] settings: found settings.json
+[2026-04-06 16:30:51] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 16:30:51] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 16:30:51] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 16:30:51] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 16:30:51] Startup health item [OK] llm: disabled by config
+[2026-04-06 16:30:51] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 16:30:51] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 16:30:51] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 16:30:51] Runtime warning summary: none
+[2026-04-06 16:30:51] Startup summary ends.
+[2026-04-06 16:30:51] Startup completed successfully.
+[2026-04-06 16:30:52] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-06 16:30:52] Silero VAD loaded successfully for FasterWhisper input.
+[2026-04-06 16:31:03] Ignored transcript outside wake window: Która� godzinam.
+[2026-04-06 16:31:16] Ignored transcript outside wake window: Good night.
+[2026-04-06 16:31:39] Ignored transcript outside wake window: I'm gonna use a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit of a little bit
+[2026-04-06 16:31:45] Ignored silent input: recognizer returned None.
+[2026-04-06 16:31:52] Ignored silent input: recognizer returned None.
+[2026-04-06 16:32:03] Ignored transcript outside wake window: Niks a?
+[2026-04-06 16:32:11] Ignored transcript outside wake window: next up
+[2026-04-06 16:32:21] Ignored transcript outside wake window: Na next up!
+[2026-04-06 16:32:40] Ignored silent input: recognizer returned None.
+[2026-04-06 16:32:48] Ignored silent input: recognizer returned None.
+[2026-04-06 16:33:07] Ignored transcript outside wake window: Wydaje się, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to, że to jest to, że to jest to, że to, że to jest to, że to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to, że to jest to, że
+[2026-04-06 17:05:06] Runtime backend degraded: component=voice_input, backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: No module named 'times'
+[2026-04-06 17:05:06] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 17:05:06] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 17:05:06] Startup sequence initiated.
+[2026-04-06 17:05:06] Startup check [OK] settings: found settings.json
+[2026-04-06 17:05:06] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 17:05:06] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 17:05:06] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 17:05:06] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 17:05:06] Startup check [OK] llm: disabled by config
+[2026-04-06 17:05:09] Assistant said [en]: Hello. I am NeXa. I started with some limited components, but I am ready. Say NeXa when you need me.
+[2026-04-06 17:05:21] Startup summary begins.
+[2026-04-06 17:05:21] Startup health report: all configured checks passed.
+[2026-04-06 17:05:21] Startup health item [OK] settings: found settings.json
+[2026-04-06 17:05:21] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 17:05:21] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 17:05:21] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 17:05:21] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 17:05:21] Startup health item [OK] llm: disabled by config
+[2026-04-06 17:05:21] Runtime backend item [WARN] voice_input: backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: No module named 'times'
+[2026-04-06 17:05:21] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 17:05:21] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 17:05:21] Runtime warning summary: voice input: degraded fallback
+[2026-04-06 17:05:21] Startup summary ends.
+[2026-04-06 17:05:21] Startup completed with warnings.
+[2026-04-06 17:05:21] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 17:05:22] Assistant shut down.
+[2026-04-06 17:23:08] Runtime backend degraded: component=voice_input, backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: No module named 'times'
+[2026-04-06 17:23:08] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 17:23:08] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 17:23:08] Startup sequence initiated.
+[2026-04-06 17:23:08] Startup check [OK] settings: found settings.json
+[2026-04-06 17:23:08] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 17:23:08] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 17:23:08] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 17:23:08] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 17:23:08] Startup check [OK] llm: disabled by config
+[2026-04-06 17:23:11] Assistant said [en]: Hello. I am NeXa. I started with some limited components, but I am ready. Say NeXa when you need me.
+[2026-04-06 17:23:17] Startup summary begins.
+[2026-04-06 17:23:17] Startup health report: all configured checks passed.
+[2026-04-06 17:23:17] Startup health item [OK] settings: found settings.json
+[2026-04-06 17:23:17] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 17:23:17] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 17:23:17] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 17:23:17] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 17:23:17] Startup health item [OK] llm: disabled by config
+[2026-04-06 17:23:17] Runtime backend item [WARN] voice_input: backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: No module named 'times'
+[2026-04-06 17:23:17] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 17:23:17] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 17:23:17] Runtime warning summary: voice input: degraded fallback
+[2026-04-06 17:23:17] Startup summary ends.
+[2026-04-06 17:23:17] Startup completed with warnings.
+[2026-04-06 17:23:17] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 17:23:18] Assistant shut down.
+[2026-04-06 17:32:38] Runtime backend degraded: component=voice_input, backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: No module named 'times'
+[2026-04-06 17:32:38] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 17:32:38] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 17:32:38] Startup sequence initiated.
+[2026-04-06 17:32:38] Startup check [OK] settings: found settings.json
+[2026-04-06 17:32:38] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 17:32:38] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 17:32:38] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 17:32:38] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 17:32:38] Startup check [OK] llm: disabled by config
+[2026-04-06 17:32:41] Assistant said [en]: Hello. I am NeXa. I started with some limited components, but I am ready. Say NeXa when you need me.
+[2026-04-06 17:32:48] Startup summary begins.
+[2026-04-06 17:32:48] Startup health report: all configured checks passed.
+[2026-04-06 17:32:48] Startup health item [OK] settings: found settings.json
+[2026-04-06 17:32:48] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 17:32:48] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 17:32:48] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 17:32:48] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 17:32:48] Startup health item [OK] llm: disabled by config
+[2026-04-06 17:32:48] Runtime backend item [WARN] voice_input: backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: No module named 'times'
+[2026-04-06 17:32:48] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 17:32:48] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 17:32:48] Runtime warning summary: voice input: degraded fallback
+[2026-04-06 17:32:48] Startup summary ends.
+[2026-04-06 17:32:48] Startup completed with warnings.
+[2026-04-06 17:32:48] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 17:32:49] Assistant shut down.
+[2026-04-06 17:39:50] Runtime backend degraded: component=voice_input, backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: No module named 'times'
+[2026-04-06 17:39:50] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 17:39:50] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 17:39:50] Startup sequence initiated.
+[2026-04-06 17:39:50] Startup check [OK] settings: found settings.json
+[2026-04-06 17:39:50] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 17:39:50] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 17:39:50] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 17:39:50] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 17:39:50] Startup check [OK] llm: disabled by config
+[2026-04-06 17:39:53] Assistant said [en]: Hello. I am NeXa. I started with some limited components, but I am ready. Say NeXa when you need me.
+[2026-04-06 17:39:59] Startup summary begins.
+[2026-04-06 17:39:59] Startup health report: all configured checks passed.
+[2026-04-06 17:39:59] Startup health item [OK] settings: found settings.json
+[2026-04-06 17:39:59] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 17:39:59] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 17:39:59] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 17:39:59] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 17:39:59] Startup health item [OK] llm: disabled by config
+[2026-04-06 17:39:59] Runtime backend item [WARN] voice_input: backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: No module named 'times'
+[2026-04-06 17:39:59] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 17:39:59] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 17:39:59] Runtime warning summary: voice input: degraded fallback
+[2026-04-06 17:39:59] Startup summary ends.
+[2026-04-06 17:39:59] Startup completed with warnings.
+[2026-04-06 17:40:20] Assistant said [en]: I'm here.
+[2026-04-06 17:40:24] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-06 17:40:42] Accepted transcript in active session: exit
+[2026-04-06 17:40:42] User said: exit | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 17:40:42] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=exit, confidence=1.00
+[2026-04-06 17:40:42] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-06 17:40:42] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-06 17:40:47] Accepted transcript in active session: yeyes
+[2026-04-06 17:40:47] User said: yeyes | routing_text=yeyes | normalized=yeyes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 17:40:47] Assistant said [en]: Please say yes or no.
+[2026-04-06 17:40:52] Accepted transcript in active session: yes
+[2026-04-06 17:40:52] User said: yes | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 17:40:52] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-06 17:40:55] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 17:40:56] Assistant shut down.
+[2026-04-06 17:41:03] Runtime backend degraded: component=voice_input, backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: No module named 'times'
+[2026-04-06 17:41:03] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 17:41:03] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 17:41:03] Startup sequence initiated.
+[2026-04-06 17:41:03] Startup check [OK] settings: found settings.json
+[2026-04-06 17:41:03] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 17:41:03] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 17:41:03] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 17:41:03] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 17:41:03] Startup check [OK] llm: disabled by config
+[2026-04-06 17:41:06] Assistant said [en]: Hello. I am NeXa. I started with some limited components, but I am ready. Say NeXa when you need me.
+[2026-04-06 17:41:12] Startup summary begins.
+[2026-04-06 17:41:12] Startup health report: all configured checks passed.
+[2026-04-06 17:41:12] Startup health item [OK] settings: found settings.json
+[2026-04-06 17:41:12] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 17:41:12] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 17:41:12] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 17:41:12] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 17:41:12] Startup health item [OK] llm: disabled by config
+[2026-04-06 17:41:12] Runtime backend item [WARN] voice_input: backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: No module named 'times'
+[2026-04-06 17:41:12] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 17:41:12] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 17:41:12] Runtime warning summary: voice input: degraded fallback
+[2026-04-06 17:41:12] Startup summary ends.
+[2026-04-06 17:41:12] Startup completed with warnings.
+[2026-04-06 17:41:20] Assistant said [en]: I'm here.
+[2026-04-06 17:41:21] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-06 17:41:24] Accepted transcript in active session: exit
+[2026-04-06 17:41:24] User said: exit | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 17:41:24] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=exit, confidence=1.00
+[2026-04-06 17:41:24] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-06 17:41:24] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-06 17:41:26] Accepted transcript in active session: yes
+[2026-04-06 17:41:26] User said: yes | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 17:41:26] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-06 17:41:29] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 17:41:30] Assistant shut down.
+[2026-04-06 17:44:01] Runtime backend degraded: component=voice_input, backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: No module named 'times'
+[2026-04-06 17:44:01] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 17:44:01] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 17:44:01] Startup sequence initiated.
+[2026-04-06 17:44:02] Startup check [OK] settings: found settings.json
+[2026-04-06 17:44:02] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 17:44:02] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 17:44:02] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 17:44:02] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 17:44:02] Startup check [OK] llm: disabled by config
+[2026-04-06 17:44:04] Assistant said [en]: Hello. I am NeXa. I started with some limited components, but I am ready. Say NeXa when you need me.
+[2026-04-06 17:44:11] Startup summary begins.
+[2026-04-06 17:44:11] Startup health report: all configured checks passed.
+[2026-04-06 17:44:11] Startup health item [OK] settings: found settings.json
+[2026-04-06 17:44:11] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 17:44:11] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 17:44:11] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 17:44:11] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 17:44:11] Startup health item [OK] llm: disabled by config
+[2026-04-06 17:44:11] Runtime backend item [WARN] voice_input: backend=text_input, fallback=True, detail=Voice input backend 'faster_whisper' failed. Falling back to text input. Error: No module named 'times'
+[2026-04-06 17:44:11] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 17:44:11] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 17:44:11] Runtime warning summary: voice input: degraded fallback
+[2026-04-06 17:44:11] Startup summary ends.
+[2026-04-06 17:44:11] Startup completed with warnings.
+[2026-04-06 17:44:49] Assistant said [en]: I'm listening.
+[2026-04-06 17:44:53] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-06 17:45:00] Accepted transcript in active session: exit
+[2026-04-06 17:45:00] User said: exit | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 17:45:00] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=exit, confidence=1.00
+[2026-04-06 17:45:00] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-06 17:45:00] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-06 17:45:05] Accepted transcript in active session: yes
+[2026-04-06 17:45:05] User said: yes | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 17:45:05] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-06 17:45:07] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 17:45:09] Assistant shut down.
+[2026-04-06 17:47:48] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-06 17:47:48] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 17:47:48] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 17:47:48] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 17:47:48] Startup sequence initiated.
+[2026-04-06 17:47:48] Startup check [OK] settings: found settings.json
+[2026-04-06 17:47:48] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 17:47:48] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 17:47:48] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 17:47:48] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 17:47:48] Startup check [OK] llm: disabled by config
+[2026-04-06 17:47:51] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-06 17:47:56] Startup summary begins.
+[2026-04-06 17:47:56] Startup health report: all configured checks passed.
+[2026-04-06 17:47:56] Startup health item [OK] settings: found settings.json
+[2026-04-06 17:47:56] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 17:47:56] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 17:47:56] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 17:47:56] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 17:47:56] Startup health item [OK] llm: disabled by config
+[2026-04-06 17:47:56] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 17:47:56] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 17:47:56] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 17:47:56] Runtime warning summary: none
+[2026-04-06 17:47:56] Startup summary ends.
+[2026-04-06 17:47:56] Startup completed successfully.
+[2026-04-06 17:47:57] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-06 17:47:57] Silero VAD loaded successfully for FasterWhisper input.
+[2026-04-06 17:48:12] Assistant said [en]: Yes?
+[2026-04-06 17:48:15] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-06 17:48:26] Accepted transcript in active session: What's the time is it?
+[2026-04-06 17:48:26] User said: What's the time is it? | routing_text=what s the time is it | normalized=what s the time is it | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 17:48:26] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=ask_time, confidence=1.00
+[2026-04-06 17:48:26] Parsed intent: action=ask_time, data={}, text=what s the time is it, lang=en
+[2026-04-06 17:48:26] Assistant said [en]: It is 5:48 PM. Would you like me to show that on the screen?
+[2026-04-06 17:48:41] Accepted transcript in active session: No.
+[2026-04-06 17:48:41] Semantic match: intent=decline, score=1.85, route_hint=follow_up, example='no', method=lexical
+[2026-04-06 17:48:41] User said: No. | routing_text=no | normalized=no | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 17:48:41] Assistant said [en]: Okay. I will not show it on the screen.
+[2026-04-06 17:49:52] Assistant said [en]: I'm listening.
+[2026-04-06 17:49:53] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-06 17:50:02] Accepted transcript in active session: Egzień.
+[2026-04-06 17:50:02] User said: Egzień. | routing_text=egzien | normalized=egzien | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 17:50:02] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-06 17:50:02] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-06 17:50:06] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-06 17:50:11] Response plan executed: turn_id=reply_678e03e13852, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-06 17:50:11] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-06 17:50:18] Accepted transcript in active session: Exid.
+[2026-04-06 17:50:18] User said: Exid. | routing_text=exid | normalized=exid | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 17:50:18] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-06 17:50:18] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-06 17:50:22] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-06 17:50:27] Response plan executed: turn_id=reply_fd580bcf6482, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-06 17:50:27] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-06 17:50:35] Accepted transcript in active session: Shut down.
+[2026-04-06 17:50:35] User said: Shut down. | routing_text=shut down | normalized=shut down | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=['multiword:\\bshut\\s+down\\b->shutdown', 'word:shutdown->shut down']
+[2026-04-06 17:50:35] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=shutdown, confidence=1.00
+[2026-04-06 17:50:35] Parsed intent: action=shutdown, data={}, text=shut down, lang=en
+[2026-04-06 17:50:35] Assistant said [en]: Do you want me to shut down the system?
+[2026-04-06 17:50:55] Accepted transcript in active session: Yes.
+[2026-04-06 17:50:55] User said: Yes. | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 17:50:55] Assistant said [en]: Okay. I am closing the assistant and shutting down the system.
+[2026-04-06 17:51:04] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 17:51:05] Assistant shut down.
+[2026-04-06 17:51:07] Shutdown requested, but system shutdown commands are disabled in config.
+[2026-04-06 18:14:07] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-06 18:14:07] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 18:14:07] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 18:14:07] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 18:14:07] Startup sequence initiated.
+[2026-04-06 18:14:07] Startup check [OK] settings: found settings.json
+[2026-04-06 18:14:07] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 18:14:07] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 18:14:07] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 18:14:07] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 18:14:07] Startup check [OK] llm: disabled by config
+[2026-04-06 18:14:10] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-06 18:14:15] Startup summary begins.
+[2026-04-06 18:14:15] Startup health report: all configured checks passed.
+[2026-04-06 18:14:15] Startup health item [OK] settings: found settings.json
+[2026-04-06 18:14:15] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 18:14:15] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 18:14:15] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 18:14:15] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 18:14:15] Startup health item [OK] llm: disabled by config
+[2026-04-06 18:14:15] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 18:14:15] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 18:14:15] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 18:14:15] Runtime warning summary: none
+[2026-04-06 18:14:15] Startup summary ends.
+[2026-04-06 18:14:15] Startup completed successfully.
+[2026-04-06 18:14:15] Voice input backend does not expose native wake gate. Falling back to compatibility wake mode.
+[2026-04-06 18:14:15] Fatal runtime error in main loop: 'FasterWhisperVoiceInput' object has no attribute 'listen'
+[2026-04-06 18:14:15] Traceback (most recent call last):
+  File "/home/devdul/Projects/smart-desk-ai-assistant/main.py", line 686, in main
+    _listen_for_wake(assistant, state_flags)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/devdul/Projects/smart-desk-ai-assistant/main.py", line 629, in _listen_for_wake
+    heard_text = assistant.voice_in.listen(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'FasterWhisperVoiceInput' object has no attribute 'listen'
+
+[2026-04-06 18:14:15] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 18:14:16] Assistant shut down.
+[2026-04-06 18:19:40] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-06 18:19:40] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 18:19:40] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 18:19:40] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 18:19:40] Startup sequence initiated.
+[2026-04-06 18:19:41] Startup check [OK] settings: found settings.json
+[2026-04-06 18:19:41] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 18:19:41] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 18:19:41] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 18:19:41] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 18:19:41] Startup check [OK] llm: disabled by config
+[2026-04-06 18:19:43] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-06 18:19:48] Startup summary begins.
+[2026-04-06 18:19:48] Startup health report: all configured checks passed.
+[2026-04-06 18:19:48] Startup health item [OK] settings: found settings.json
+[2026-04-06 18:19:48] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 18:19:48] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 18:19:48] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 18:19:48] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 18:19:48] Startup health item [OK] llm: disabled by config
+[2026-04-06 18:19:48] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 18:19:48] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 18:19:48] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 18:19:48] Runtime warning summary: none
+[2026-04-06 18:19:48] Startup summary ends.
+[2026-04-06 18:19:48] Startup completed successfully.
+[2026-04-06 18:19:48] Voice input backend does not expose native wake gate. Falling back to compatibility wake mode.
+[2026-04-06 18:19:48] Fatal runtime error in main loop: Voice input backend does not expose a supported listening method. Available methods: []
+[2026-04-06 18:19:48] Traceback (most recent call last):
+  File "/home/devdul/Projects/smart-desk-ai-assistant/main.py", line 749, in main
+    _listen_for_wake(assistant, state_flags)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/devdul/Projects/smart-desk-ai-assistant/main.py", line 680, in _listen_for_wake
+    heard_text = _invoke_voice_input(
+        assistant,
+    ...<2 lines>...
+        debug=False,
+    )
+  File "/home/devdul/Projects/smart-desk-ai-assistant/main.py", line 654, in _invoke_voice_input
+    raise AttributeError(
+    ...<2 lines>...
+    )
+AttributeError: Voice input backend does not expose a supported listening method. Available methods: []
+
+[2026-04-06 18:19:48] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 18:19:50] Assistant shut down.
+[2026-04-06 18:26:36] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-06 18:26:37] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 18:26:37] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 18:26:37] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 18:26:37] Startup sequence initiated.
+[2026-04-06 18:26:37] Startup check [OK] settings: found settings.json
+[2026-04-06 18:26:37] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 18:26:37] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 18:26:37] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 18:26:37] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 18:26:37] Startup check [OK] llm: disabled by config
+[2026-04-06 18:26:40] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-06 18:26:45] Startup summary begins.
+[2026-04-06 18:26:45] Startup health report: all configured checks passed.
+[2026-04-06 18:26:45] Startup health item [OK] settings: found settings.json
+[2026-04-06 18:26:45] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 18:26:45] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 18:26:45] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 18:26:45] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 18:26:45] Startup health item [OK] llm: disabled by config
+[2026-04-06 18:26:45] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 18:26:45] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 18:26:45] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 18:26:45] Runtime warning summary: none
+[2026-04-06 18:26:45] Startup summary ends.
+[2026-04-06 18:26:45] Startup completed successfully.
+[2026-04-06 18:26:45] Fatal runtime error in main loop: 'FasterWhisperVoiceInput' object has no attribute 'listen_for_wake_phrase'
+[2026-04-06 18:26:45] Traceback (most recent call last):
+  File "/home/devdul/Projects/smart-desk-ai-assistant/main.py", line 657, in main
+    _listen_for_wake(assistant, state_flags)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/devdul/Projects/smart-desk-ai-assistant/main.py", line 608, in _listen_for_wake
+    heard_wake = assistant.voice_in.listen_for_wake_phrase(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'FasterWhisperVoiceInput' object has no attribute 'listen_for_wake_phrase'
+
+[2026-04-06 18:26:45] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 18:26:46] Assistant shut down.
+[2026-04-06 18:30:31] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-06 18:30:32] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 18:30:32] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 18:30:32] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 18:30:32] Startup sequence initiated.
+[2026-04-06 18:30:32] Startup check [OK] settings: found settings.json
+[2026-04-06 18:30:32] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 18:30:32] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 18:30:32] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 18:30:32] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 18:30:32] Startup check [OK] llm: disabled by config
+[2026-04-06 18:30:35] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-06 18:30:40] Startup summary begins.
+[2026-04-06 18:30:40] Startup health report: all configured checks passed.
+[2026-04-06 18:30:40] Startup health item [OK] settings: found settings.json
+[2026-04-06 18:30:40] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 18:30:40] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 18:30:40] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 18:30:40] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 18:30:40] Startup health item [OK] llm: disabled by config
+[2026-04-06 18:30:40] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 18:30:40] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 18:30:40] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 18:30:40] Runtime warning summary: none
+[2026-04-06 18:30:40] Startup summary ends.
+[2026-04-06 18:30:40] Startup completed successfully.
+[2026-04-06 18:30:40] Voice input backend does not expose listen_for_wake_phrase(). Using compatibility wake flow through standard listen method.
+[2026-04-06 18:30:40] Fatal runtime error in main loop: Voice input backend does not expose listen(), listen_once(), or listen_for_command().
+[2026-04-06 18:30:40] Traceback (most recent call last):
+  File "/home/devdul/Projects/smart-desk-ai-assistant/main.py", line 718, in main
+    _listen_for_wake(assistant, state_flags)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/devdul/Projects/smart-desk-ai-assistant/main.py", line 660, in _listen_for_wake
+    heard_text = _listen_with_backend_fallback(
+        assistant,
+        timeout=WAKE_GATE_TIMEOUT_SECONDS,
+        debug=False,
+    )
+  File "/home/devdul/Projects/smart-desk-ai-assistant/main.py", line 622, in _listen_with_backend_fallback
+    raise AttributeError(
+    ...<2 lines>...
+    )
+AttributeError: Voice input backend does not expose listen(), listen_once(), or listen_for_command().
+
+[2026-04-06 18:30:40] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 18:30:41] Assistant shut down.
+[2026-04-06 18:46:45] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-06 18:46:46] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 18:46:46] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 18:46:46] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 18:46:46] Startup sequence initiated.
+[2026-04-06 18:46:46] Startup check [OK] settings: found settings.json
+[2026-04-06 18:46:46] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 18:46:46] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 18:46:46] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 18:46:46] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 18:46:46] Startup check [OK] llm: disabled by config
+[2026-04-06 18:46:49] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-06 18:46:53] Startup summary begins.
+[2026-04-06 18:46:53] Startup health report: all configured checks passed.
+[2026-04-06 18:46:53] Startup health item [OK] settings: found settings.json
+[2026-04-06 18:46:53] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 18:46:53] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 18:46:53] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 18:46:53] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 18:46:53] Startup health item [OK] llm: disabled by config
+[2026-04-06 18:46:53] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 18:46:53] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 18:46:53] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 18:46:53] Runtime warning summary: none
+[2026-04-06 18:46:53] Startup summary ends.
+[2026-04-06 18:46:53] Startup completed successfully.
+[2026-04-06 18:46:55] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-06 18:46:55] Silero VAD loaded successfully for FasterWhisper input.
+[2026-04-06 18:47:38] Assistant said [en]: I'm here.
+[2026-04-06 18:47:39] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-06 18:47:49] Accepted transcript in active session: What's time is it?
+[2026-04-06 18:47:49] User said: What's time is it? | routing_text=what time is it | normalized=what time is it | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=['fuzzy:what s time is it->what time is it:0.94']
+[2026-04-06 18:47:49] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=ask_time, confidence=1.00
+[2026-04-06 18:47:49] Parsed intent: action=ask_time, data={}, text=what time is it, lang=en
+[2026-04-06 18:47:49] Assistant said [en]: It is 6:47 PM. Would you like me to show that on the screen?
+[2026-04-06 18:48:04] Accepted transcript in active session: No.
+[2026-04-06 18:48:04] Semantic match: intent=decline, score=1.85, route_hint=follow_up, example='no', method=lexical
+[2026-04-06 18:48:04] User said: No. | routing_text=no | normalized=no | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 18:48:04] Assistant said [en]: Okay. I will not show it on the screen.
+[2026-04-06 18:48:15] Accepted transcript in active session: Oh, you're hot.
+[2026-04-06 18:48:15] User said: Oh, you're hot. | routing_text=oh you re hot | normalized=oh you re hot | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 18:48:16] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-06 18:48:16] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-06 18:48:20] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-06 18:48:24] Response plan executed: turn_id=reply_7877b0362143, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-06 18:48:24] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-06 18:48:32] Accepted transcript in active session: Who you are?
+[2026-04-06 18:48:32] User said: Who you are? | routing_text=who you are | normalized=who you are | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 18:48:32] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=introduce_self, confidence=1.00
+[2026-04-06 18:48:32] Parsed intent: action=introduce_self, data={}, text=who you are, lang=en
+[2026-04-06 18:48:32] Assistant said [en]: I am NeXa, a local desk companion running on Raspberry Pi 5. I can talk with you in Polish and English, help with simple tasks, and support you at your desk.
+[2026-04-06 18:49:00] Assistant said [en]: Yes?
+[2026-04-06 18:49:01] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-06 18:49:11] Accepted transcript in active session: Kangitka i T.
+[2026-04-06 18:49:11] User said: Kangitka i T. | routing_text=kangitka i t | normalized=kangitka i t | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 18:49:11] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-06 18:49:11] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-06 18:49:15] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-06 18:49:20] Response plan executed: turn_id=reply_74d93aefea65, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-06 18:49:20] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-06 18:49:29] Accepted transcript in active session: Set timer.
+[2026-04-06 18:49:29] User said: Set timer. | routing_text=set timer | normalized=set timer | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 18:49:29] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=timer_start, confidence=1.00
+[2026-04-06 18:49:29] Parsed intent: action=timer_start, data={}, text=set timer, lang=en
+[2026-04-06 18:49:29] Assistant said [en]: How long should I set the timer for?
+[2026-04-06 18:49:43] Accepted transcript in active session: 5 seconds.
+[2026-04-06 18:49:43] User said: 5 seconds. | routing_text=5 seconds | normalized=5 seconds | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 18:49:43] Timer started for 0.08 minute(s).
+[2026-04-06 18:49:43] Assistant said [en]: I set a timer for 5 seconds.
+[2026-04-06 18:49:48] Timer finished.
+[2026-04-06 18:49:48] Assistant said [en]: Your timer has finished.
+[2026-04-06 18:49:59] Accepted transcript in active session: Your timer has finished. Exit.
+[2026-04-06 18:49:59] User said: Your timer has finished. Exit. | routing_text=your timer has finished exit | normalized=your timer has finished exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 18:49:59] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=timer_start, confidence=1.00
+[2026-04-06 18:49:59] Parsed intent: action=timer_start, data={}, text=your timer has finished exit, lang=en
+[2026-04-06 18:49:59] Assistant said [en]: How long should I set the timer for?
+[2026-04-06 18:51:42] Assistant said [en]: I'm here.
+[2026-04-06 18:51:42] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-06 18:51:55] Accepted transcript in active session: Exit.
+[2026-04-06 18:51:55] User said: Exit. | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 18:51:55] Pending flow interrupted by a new command: action=exit, data={}
+[2026-04-06 18:51:55] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-06 18:51:55] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-06 18:52:05] Accepted transcript in active session: Yes.
+[2026-04-06 18:52:05] User said: Yes. | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 18:52:05] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-06 18:52:08] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 18:52:09] Assistant shut down.
+[2026-04-06 19:06:19] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-06 19:06:19] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 19:06:19] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 19:06:19] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 19:06:19] Startup sequence initiated.
+[2026-04-06 19:06:19] Startup check [OK] settings: found settings.json
+[2026-04-06 19:06:19] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 19:06:19] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 19:06:19] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 19:06:19] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 19:06:19] Startup check [OK] llm: disabled by config
+[2026-04-06 19:06:22] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-06 19:06:27] Startup summary begins.
+[2026-04-06 19:06:27] Startup health report: all configured checks passed.
+[2026-04-06 19:06:27] Startup health item [OK] settings: found settings.json
+[2026-04-06 19:06:27] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 19:06:27] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 19:06:27] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 19:06:27] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 19:06:27] Startup health item [OK] llm: disabled by config
+[2026-04-06 19:06:27] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 19:06:27] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 19:06:27] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 19:06:27] Runtime warning summary: none
+[2026-04-06 19:06:27] Startup summary ends.
+[2026-04-06 19:06:27] Startup completed successfully.
+[2026-04-06 19:06:28] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-06 19:06:28] Silero VAD loaded successfully for FasterWhisper input.
+[2026-04-06 19:06:34] Assistant said [en]: I'm here.
+[2026-04-06 19:06:35] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-06 19:07:05] Assistant said [en]: Yes?
+[2026-04-06 19:07:05] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-06 19:07:25] Assistant said [en]: I'm listening.
+[2026-04-06 19:07:26] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-06 19:07:39] Accepted transcript in active session: Wydaje się, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to jest to, że to jest to jest to
+[2026-04-06 19:07:39] User said: Wydaje się, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to, że to jest to jest to, że to jest to jest to | routing_text=wydaje sie ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to jest to ze to jest to jest to | normalized=wydaje sie ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to ze to jest to jest to ze to jest to jest to | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 19:07:39] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-06 19:07:39] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-06 19:07:43] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-06 19:07:48] Response plan executed: turn_id=reply_9893fe133288, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-06 19:07:48] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-06 19:08:15] Assistant said [en]: Yes?
+[2026-04-06 19:08:16] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-06 19:08:26] Accepted transcript in active session: Exit.
+[2026-04-06 19:08:26] User said: Exit. | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 19:08:26] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=exit, confidence=1.00
+[2026-04-06 19:08:26] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-06 19:08:26] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-06 19:08:39] Accepted transcript in active session: Wydaje się, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to
+[2026-04-06 19:08:39] User said: Wydaje się, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to jest w tym, że to | routing_text=wydaje sie ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to | normalized=wydaje sie ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to jest w tym ze to | detected_lang=pl | normalizer_hint=en | command_lang=pl | corrections=[]
+[2026-04-06 19:08:39] Assistant said [en]: Please say yes or no.
+[2026-04-06 19:08:48] Accepted transcript in active session: Yes.
+[2026-04-06 19:08:48] User said: Yes. | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 19:08:48] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-06 19:08:51] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 19:08:52] Assistant shut down.
+[2026-04-06 19:18:26] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-06 19:18:26] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 19:18:26] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 19:18:26] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 19:18:26] Startup sequence initiated.
+[2026-04-06 19:18:26] Startup check [OK] settings: found settings.json
+[2026-04-06 19:18:26] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 19:18:26] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 19:18:26] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 19:18:26] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 19:18:26] Startup check [OK] llm: disabled by config
+[2026-04-06 19:18:29] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-06 19:18:34] Startup summary begins.
+[2026-04-06 19:18:34] Startup health report: all configured checks passed.
+[2026-04-06 19:18:34] Startup health item [OK] settings: found settings.json
+[2026-04-06 19:18:34] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 19:18:34] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 19:18:34] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 19:18:34] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 19:18:34] Startup health item [OK] llm: disabled by config
+[2026-04-06 19:18:34] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 19:18:34] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 19:18:34] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 19:18:34] Runtime warning summary: none
+[2026-04-06 19:18:34] Startup summary ends.
+[2026-04-06 19:18:34] Startup completed successfully.
+[2026-04-06 19:18:35] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-06 19:18:35] Silero VAD loaded successfully for FasterWhisper input.
+[2026-04-06 19:18:40] Assistant said [en]: I'm here.
+[2026-04-06 19:18:41] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-06 19:18:54] Accepted transcript in active session: What's time is this?
+[2026-04-06 19:18:54] User said: What's time is this? | routing_text=what s time is this | normalized=what s time is this | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 19:18:54] Route decision: kind=conversation, reply_mode=reply, topics=['knowledge_query'], suggestions=[], action=unclear, confidence=0.66
+[2026-04-06 19:18:54] Assistant said [en]: Alright. It sounds like you want an explanation.
+[2026-04-06 19:18:57] Assistant said [en]: My full local knowledge layer is not ready yet, but I can still help in a simpler way and take into account what we were just talking about.
+[2026-04-06 19:19:05] Assistant said [en]: You can ask me for a shorter explanation, a simple definition, or a step by step example.
+[2026-04-06 19:19:12] Response plan executed: turn_id=reply_a99a355f3302, route_kind=conversation, stream_mode=sentence, spoken_chunks=3, chunk_kinds=['content', 'content', 'follow_up'], voice_lead_start=False
+[2026-04-06 19:19:12] Dialogue streamed: route_kind=conversation, lang=en, chunks=3, text=Alright. It sounds like you want an explanation. My full local knowledge layer is not ready yet, but I can still help in a simpler way and take into account what we were just talking about. You can ask me for a shorter explanation, a simple definition, or a step by step example.
+[2026-04-06 19:19:23] Accepted transcript in active session: What's time is it?
+[2026-04-06 19:19:23] User said: What's time is it? | routing_text=what time is it | normalized=what time is it | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=['fuzzy:what s time is it->what time is it:0.94']
+[2026-04-06 19:19:23] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=ask_time, confidence=1.00
+[2026-04-06 19:19:23] Parsed intent: action=ask_time, data={}, text=what time is it, lang=en
+[2026-04-06 19:19:23] Assistant said [en]: It is 7:19 PM. Would you like me to show that on the screen?
+[2026-04-06 19:19:39] Accepted transcript in active session: No.
+[2026-04-06 19:19:39] Semantic match: intent=decline, score=1.85, route_hint=follow_up, example='no', method=lexical
+[2026-04-06 19:19:39] User said: No. | routing_text=no | normalized=no | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 19:19:39] Assistant said [en]: Okay. I will not show it on the screen.
+[2026-04-06 19:20:38] Assistant said [en]: I'm listening.
+[2026-04-06 19:20:39] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-06 19:20:51] Accepted transcript in active session: Kim jest dać?
+[2026-04-06 19:20:51] User said: Kim jest dać? | routing_text=kim jestes | normalized=kim jestes | detected_lang=pl | normalizer_hint=pl | command_lang=pl | corrections=['multiword:\\bkim jest dac\\b->kim jestes']
+[2026-04-06 19:20:51] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=introduce_self, confidence=1.00
+[2026-04-06 19:20:51] Parsed intent: action=introduce_self, data={}, text=kim jestes, lang=pl
+[2026-04-06 19:20:51] Assistant said [pl]: Jestem NeXa, lokalnym desk companionem działającym na Raspberry Pi 5. Mogę rozmawiać z tobą po polsku i po angielsku, pomagać w prostych zadaniach i wspierać cię przy biurku.
+[2026-04-06 19:21:20] Accepted transcript in active session: Zapamiętajcie, że klucze są w kuchni.
+[2026-04-06 19:21:20] User said: Zapamiętajcie, że klucze są w kuchni. | routing_text=zapamietajcie ze klucze sa w kuchni | normalized=zapamietajcie ze klucze sa w kuchni | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 19:21:20] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-06 19:21:20] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-06 19:21:24] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-06 19:21:29] Response plan executed: turn_id=reply_492e600b9685, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-06 19:21:29] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-06 19:21:40] Accepted transcript in active session: Zapamiętaj, że klucze są wykuchni.
+[2026-04-06 19:21:40] User said: Zapamiętaj, że klucze są wykuchni. | routing_text=zapamietaj ze klucze sa wykuchni | normalized=zapamietaj ze klucze sa wykuchni | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 19:21:40] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=memory_store, confidence=1.00
+[2026-04-06 19:21:40] Parsed intent: action=memory_store, data={'key': 'klucze', 'value': 'wykuchni', 'memory_text': 'klucze sa wykuchni'}, text=zapamietaj ze klucze sa wykuchni, lang=en
+[2026-04-06 19:21:40] Memory saved: klucze -> wykuchni
+[2026-04-06 19:21:40] Memory stored from structured input: klucze -> wykuchni
+[2026-04-06 19:21:40] Assistant said [en]: Okay. I remembered that klucze is wykuchni.
+[2026-04-06 19:22:00] Accepted transcript in active session: That's why it's a good way to do it.
+[2026-04-06 19:22:00] User said: That's why it's a good way to do it. | routing_text=that s why it s a good way to do it | normalized=that s why it s a good way to do it | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 19:22:00] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-06 19:22:00] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-06 19:22:04] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-06 19:22:09] Response plan executed: turn_id=reply_4f490264ef13, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-06 19:22:09] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-06 19:22:22] Accepted transcript in active session: Where my case?
+[2026-04-06 19:22:22] User said: Where my case? | routing_text=where my case | normalized=where my case | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 19:22:22] Route decision: kind=conversation, reply_mode=reply, topics=['knowledge_query'], suggestions=[], action=unknown, confidence=0.66
+[2026-04-06 19:22:22] Assistant said [en]: Alright. It sounds like you want an explanation.
+[2026-04-06 19:22:25] Assistant said [en]: My full local knowledge layer is not ready yet, but I can still help in a simpler way and take into account what we were just talking about.
+[2026-04-06 19:22:33] Assistant said [en]: You can ask me for a shorter explanation, a simple definition, or a step by step example.
+[2026-04-06 19:22:39] Response plan executed: turn_id=reply_182d914f91c3, route_kind=conversation, stream_mode=sentence, spoken_chunks=3, chunk_kinds=['content', 'content', 'follow_up'], voice_lead_start=False
+[2026-04-06 19:22:39] Dialogue streamed: route_kind=conversation, lang=en, chunks=3, text=Alright. It sounds like you want an explanation. My full local knowledge layer is not ready yet, but I can still help in a simpler way and take into account what we were just talking about. You can ask me for a shorter explanation, a simple definition, or a step by step example.
+[2026-04-06 19:22:50] Accepted transcript in active session: exit.
+[2026-04-06 19:22:50] User said: exit. | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 19:22:50] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=exit, confidence=1.00
+[2026-04-06 19:22:50] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-06 19:22:50] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-06 19:23:02] Accepted transcript in active session: Yes.
+[2026-04-06 19:23:02] User said: Yes. | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 19:23:02] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-06 19:23:05] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 19:23:06] Assistant shut down.
+[2026-04-06 19:41:23] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-06 19:41:23] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 19:41:23] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 19:41:23] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 19:41:23] Startup sequence initiated.
+[2026-04-06 19:41:23] Startup check [OK] settings: found settings.json
+[2026-04-06 19:41:23] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 19:41:23] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 19:41:23] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 19:41:23] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 19:41:23] Startup check [OK] llm: disabled by config
+[2026-04-06 19:41:26] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-06 19:41:31] Startup summary begins.
+[2026-04-06 19:41:31] Startup health report: all configured checks passed.
+[2026-04-06 19:41:31] Startup health item [OK] settings: found settings.json
+[2026-04-06 19:41:31] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 19:41:31] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 19:41:31] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 19:41:31] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 19:41:31] Startup health item [OK] llm: disabled by config
+[2026-04-06 19:41:31] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 19:41:31] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 19:41:31] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 19:41:31] Runtime warning summary: none
+[2026-04-06 19:41:31] Startup summary ends.
+[2026-04-06 19:41:31] Startup completed successfully.
+[2026-04-06 19:41:31] OpenWakeWord wake gate unavailable. Falling back to FasterWhisper. Error: Wake model was not found: /home/devdul/Projects/smart-desk-ai-assistant/models/wake/nexa.onnx
+[2026-04-06 19:41:33] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-06 19:41:33] Silero VAD loaded successfully for FasterWhisper input.
+[2026-04-06 19:41:51] Assistant said [en]: I'm listening.
+[2026-04-06 19:41:52] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-06 19:42:11] Assistant said [en]: Yes?
+[2026-04-06 19:42:12] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-06 19:42:19] Accepted transcript in active session: What's the time is it?
+[2026-04-06 19:42:19] User said: What's the time is it? | routing_text=what s the time is it | normalized=what s the time is it | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 19:42:19] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=ask_time, confidence=1.00
+[2026-04-06 19:42:19] Parsed intent: action=ask_time, data={}, text=what s the time is it, lang=en
+[2026-04-06 19:42:19] Assistant said [en]: It is 7:42 PM. Would you like me to show that on the screen?
+[2026-04-06 19:42:37] Accepted transcript in active session: Yes.
+[2026-04-06 19:42:37] User said: Yes. | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 19:42:37] Assistant said [en]: Okay. I am showing it on the screen.
+[2026-04-06 19:43:05] Assistant said [en]: I'm listening.
+[2026-04-06 19:43:06] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-06 19:43:17] Accepted transcript in active session: Who are you?
+[2026-04-06 19:43:17] User said: Who are you? | routing_text=who are you | normalized=who are you | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 19:43:17] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=introduce_self, confidence=1.00
+[2026-04-06 19:43:17] Parsed intent: action=introduce_self, data={}, text=who are you, lang=en
+[2026-04-06 19:43:17] Assistant said [en]: I am NeXa, a local desk companion running on Raspberry Pi 5. I can talk with you in Polish and English, help with simple tasks, and support you at your desk.
+[2026-04-06 19:44:21] Assistant said [en]: I'm here.
+[2026-04-06 19:44:22] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-06 19:44:34] Accepted transcript in active session: Exit.
+[2026-04-06 19:44:34] User said: Exit. | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 19:44:34] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=exit, confidence=1.00
+[2026-04-06 19:44:34] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-06 19:44:34] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-06 19:44:47] Accepted transcript in active session: Yes.
+[2026-04-06 19:44:47] User said: Yes. | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-06 19:44:47] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-06 19:44:49] Assistant said [en]: Shutting down NeXa.
+[2026-04-06 19:44:51] Assistant shut down.
+[2026-04-06 23:59:08] OpenWakeWord modern API unavailable, trying legacy API. Error: AudioFeatures.__init__() got an unexpected keyword argument 'wakeword_models'
+[2026-04-06 23:59:09] OpenWakeWord gate using legacy 0.4.x model API.
+[2026-04-06 23:59:09] OpenWakeWord gate initialized: model='/home/devdul/Projects/smart-desk-ai-assistant/models/wake/nexa.onnx', device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', input_rate=16000, threshold=0.42, trigger_level=2, block_ms=80
+[2026-04-06 23:59:25] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-06 23:59:26] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 23:59:26] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 23:59:26] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 23:59:26] Startup sequence initiated.
+[2026-04-06 23:59:26] Startup check [OK] settings: found settings.json
+[2026-04-06 23:59:26] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 23:59:26] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 23:59:26] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-06 23:59:26] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 23:59:26] Startup check [OK] llm: disabled by config
+[2026-04-06 23:59:29] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-06 23:59:34] Startup summary begins.
+[2026-04-06 23:59:34] Startup health report: all configured checks passed.
+[2026-04-06 23:59:34] Startup health item [OK] settings: found settings.json
+[2026-04-06 23:59:34] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-06 23:59:34] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-06 23:59:34] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-06 23:59:34] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-06 23:59:34] Startup health item [OK] llm: disabled by config
+[2026-04-06 23:59:34] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-06 23:59:34] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-06 23:59:34] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-06 23:59:34] Runtime warning summary: none
+[2026-04-06 23:59:34] Startup summary ends.
+[2026-04-06 23:59:34] Startup completed successfully.
+[2026-04-06 23:59:36] OpenWakeWord modern API unavailable, trying legacy API. Error: AudioFeatures.__init__() got an unexpected keyword argument 'wakeword_models'
+[2026-04-06 23:59:36] OpenWakeWord gate using legacy 0.4.x model API.
+[2026-04-06 23:59:36] OpenWakeWord gate initialized: model='/home/devdul/Projects/smart-desk-ai-assistant/models/wake/nexa.onnx', device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', input_rate=16000, threshold=0.42, trigger_level=2, block_ms=80
+[2026-04-06 23:59:36] Dedicated wake gate active: openWakeWord
+[2026-04-07 00:00:57] Runtime backend degraded: component=voice_input, backend=text_input, fallback=True, detail=Missing voice input runtime dependencies for Faster-Whisper: faster-whisper, silero-vad, onnxruntime. Falling back to text input.
+[2026-04-07 00:00:57] Runtime backend degraded: component=voice_output, backend=piper, fallback=True, detail=Preferred Piper output is degraded because missing piper Python package. eSpeak fallback is available.
+[2026-04-07 00:00:57] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 00:00:57] Startup sequence initiated.
+[2026-04-07 00:00:57] Startup check [OK] settings: found settings.json
+[2026-04-07 00:00:57] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 00:00:57] Startup check [WARN] voice input: missing Python packages for faster-whisper runtime: faster-whisper, onnxruntime, silero-vad, sounddevice, soundfile
+[2026-04-07 00:00:57] Startup check [WARN] voice output: Piper is degraded (missing piper Python package), but eSpeak fallback is available
+[2026-04-07 00:00:57] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 00:00:57] Startup check [OK] llm: disabled by config
+[2026-04-07 00:01:10] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-07 00:01:10] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 00:01:10] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 00:01:10] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 00:01:10] Startup sequence initiated.
+[2026-04-07 00:01:10] Startup check [OK] settings: found settings.json
+[2026-04-07 00:01:10] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 00:01:10] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 00:01:10] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-07 00:01:10] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 00:01:10] Startup check [OK] llm: disabled by config
+[2026-04-07 00:01:13] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-07 00:01:18] Startup summary begins.
+[2026-04-07 00:01:18] Startup health report: all configured checks passed.
+[2026-04-07 00:01:18] Startup health item [OK] settings: found settings.json
+[2026-04-07 00:01:18] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 00:01:18] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 00:01:18] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-07 00:01:18] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 00:01:18] Startup health item [OK] llm: disabled by config
+[2026-04-07 00:01:18] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 00:01:18] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 00:01:18] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 00:01:18] Runtime warning summary: none
+[2026-04-07 00:01:18] Startup summary ends.
+[2026-04-07 00:01:18] Startup completed successfully.
+[2026-04-07 00:01:20] OpenWakeWord modern API unavailable, trying legacy API. Error: AudioFeatures.__init__() got an unexpected keyword argument 'wakeword_models'
+[2026-04-07 00:01:21] OpenWakeWord gate using legacy 0.4.x model API.
+[2026-04-07 00:01:21] OpenWakeWord gate initialized: model='/home/devdul/Projects/smart-desk-ai-assistant/models/wake/nexa.onnx', device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', input_rate=16000, threshold=0.42, trigger_level=2, block_ms=80
+[2026-04-07 00:01:21] Dedicated wake gate active: openWakeWord
+[2026-04-07 00:03:25] Runtime backend degraded: component=voice_input, backend=text_input, fallback=True, detail=Missing voice input runtime dependencies for Faster-Whisper: faster-whisper, silero-vad, onnxruntime. Falling back to text input.
+[2026-04-07 00:03:25] Runtime backend degraded: component=voice_output, backend=piper, fallback=True, detail=Preferred Piper output is degraded because missing piper Python package. eSpeak fallback is available.
+[2026-04-07 00:03:25] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 00:03:25] Startup sequence initiated.
+[2026-04-07 00:03:25] Startup check [OK] settings: found settings.json
+[2026-04-07 00:03:25] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 00:03:25] Startup check [WARN] voice input: missing Python packages for faster-whisper runtime: faster-whisper, onnxruntime, silero-vad, sounddevice, soundfile
+[2026-04-07 00:03:25] Startup check [WARN] voice output: Piper is degraded (missing piper Python package), but eSpeak fallback is available
+[2026-04-07 00:03:25] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 00:03:25] Startup check [OK] llm: disabled by config
+[2026-04-07 00:03:37] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-07 00:03:37] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 00:03:37] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 00:03:38] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 00:03:38] Startup sequence initiated.
+[2026-04-07 00:03:38] Startup check [OK] settings: found settings.json
+[2026-04-07 00:03:38] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 00:03:38] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 00:03:38] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-07 00:03:38] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 00:03:38] Startup check [OK] llm: disabled by config
+[2026-04-07 00:03:41] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-07 00:03:45] Startup summary begins.
+[2026-04-07 00:03:45] Startup health report: all configured checks passed.
+[2026-04-07 00:03:45] Startup health item [OK] settings: found settings.json
+[2026-04-07 00:03:45] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 00:03:45] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 00:03:45] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-07 00:03:45] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 00:03:45] Startup health item [OK] llm: disabled by config
+[2026-04-07 00:03:45] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 00:03:45] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 00:03:45] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 00:03:45] Runtime warning summary: none
+[2026-04-07 00:03:45] Startup summary ends.
+[2026-04-07 00:03:45] Startup completed successfully.
+[2026-04-07 00:03:52] OpenWakeWord modern API unavailable, trying legacy API. Error: AudioFeatures.__init__() got an unexpected keyword argument 'wakeword_models'
+[2026-04-07 00:03:52] OpenWakeWord gate using legacy 0.4.x model API.
+[2026-04-07 00:03:52] OpenWakeWord gate initialized: model='/home/devdul/Projects/smart-desk-ai-assistant/models/wake/nexa.onnx', device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', input_rate=16000, threshold=0.16, trigger_level=1, block_ms=80
+[2026-04-07 00:03:52] Dedicated wake gate active: openWakeWord
+[2026-04-07 00:04:16] Runtime backend degraded: component=voice_input, backend=text_input, fallback=True, detail=Missing voice input runtime dependencies for Faster-Whisper: faster-whisper, silero-vad, onnxruntime. Falling back to text input.
+[2026-04-07 00:04:16] Runtime backend degraded: component=voice_output, backend=piper, fallback=True, detail=Preferred Piper output is degraded because missing piper Python package. eSpeak fallback is available.
+[2026-04-07 00:04:16] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 00:04:16] Startup sequence initiated.
+[2026-04-07 00:04:16] Startup check [OK] settings: found settings.json
+[2026-04-07 00:04:16] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 00:04:16] Startup check [WARN] voice input: missing Python packages for faster-whisper runtime: faster-whisper, onnxruntime, silero-vad, sounddevice, soundfile
+[2026-04-07 00:04:16] Startup check [WARN] voice output: Piper is degraded (missing piper Python package), but eSpeak fallback is available
+[2026-04-07 00:04:16] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 00:04:16] Startup check [OK] llm: disabled by config
+[2026-04-07 00:04:34] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-07 00:04:35] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 00:04:35] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 00:04:35] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 00:04:35] Startup sequence initiated.
+[2026-04-07 00:04:35] Startup check [OK] settings: found settings.json
+[2026-04-07 00:04:35] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 00:04:35] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 00:04:35] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-07 00:04:35] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 00:04:35] Startup check [OK] llm: disabled by config
+[2026-04-07 00:04:38] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-07 00:04:43] Startup summary begins.
+[2026-04-07 00:04:43] Startup health report: all configured checks passed.
+[2026-04-07 00:04:43] Startup health item [OK] settings: found settings.json
+[2026-04-07 00:04:43] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 00:04:43] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 00:04:43] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-07 00:04:43] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 00:04:43] Startup health item [OK] llm: disabled by config
+[2026-04-07 00:04:43] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 00:04:43] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 00:04:43] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 00:04:43] Runtime warning summary: none
+[2026-04-07 00:04:43] Startup summary ends.
+[2026-04-07 00:04:43] Startup completed successfully.
+[2026-04-07 00:04:49] OpenWakeWord modern API unavailable, trying legacy API. Error: AudioFeatures.__init__() got an unexpected keyword argument 'wakeword_models'
+[2026-04-07 00:04:49] OpenWakeWord gate using legacy 0.4.x model API.
+[2026-04-07 00:04:49] OpenWakeWord gate initialized: model='/home/devdul/Projects/smart-desk-ai-assistant/models/wake/nexa.onnx', device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', input_rate=16000, threshold=0.16, trigger_level=1, block_ms=80
+[2026-04-07 00:04:49] Dedicated wake gate active: openWakeWord
+[2026-04-07 00:07:33] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-07 00:07:33] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 00:07:33] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 00:07:33] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 00:07:33] Startup sequence initiated.
+[2026-04-07 00:07:33] Startup check [OK] settings: found settings.json
+[2026-04-07 00:07:33] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 00:07:33] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 00:07:33] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-07 00:07:33] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 00:07:33] Startup check [OK] llm: disabled by config
+[2026-04-07 00:07:36] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-07 00:07:41] Startup summary begins.
+[2026-04-07 00:07:41] Startup health report: all configured checks passed.
+[2026-04-07 00:07:41] Startup health item [OK] settings: found settings.json
+[2026-04-07 00:07:41] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 00:07:41] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 00:07:41] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-07 00:07:41] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 00:07:41] Startup health item [OK] llm: disabled by config
+[2026-04-07 00:07:41] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 00:07:41] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 00:07:41] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 00:07:41] Runtime warning summary: none
+[2026-04-07 00:07:41] Startup summary ends.
+[2026-04-07 00:07:41] Startup completed successfully.
+[2026-04-07 00:07:43] OpenWakeWord modern API unavailable, trying legacy API. Error: AudioFeatures.__init__() got an unexpected keyword argument 'wakeword_models'
+[2026-04-07 00:07:44] OpenWakeWord gate using legacy 0.4.x model API.
+[2026-04-07 00:07:44] OpenWakeWord gate initialized: model='/home/devdul/Projects/smart-desk-ai-assistant/models/wake/nexa.onnx', device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', input_rate=16000, threshold=0.16, trigger_level=1, block_ms=80
+[2026-04-07 00:07:44] Dedicated wake gate active: openWakeWord
+[2026-04-07 00:10:23] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-07 00:10:24] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 00:10:24] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 00:10:24] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 00:10:24] Startup sequence initiated.
+[2026-04-07 00:10:24] Startup check [OK] settings: found settings.json
+[2026-04-07 00:10:24] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 00:10:24] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 00:10:24] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-07 00:10:24] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 00:10:24] Startup check [OK] llm: disabled by config
+[2026-04-07 00:10:27] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-07 00:10:32] Startup summary begins.
+[2026-04-07 00:10:32] Startup health report: all configured checks passed.
+[2026-04-07 00:10:32] Startup health item [OK] settings: found settings.json
+[2026-04-07 00:10:32] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 00:10:32] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 00:10:32] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-07 00:10:32] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 00:10:32] Startup health item [OK] llm: disabled by config
+[2026-04-07 00:10:32] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 00:10:32] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 00:10:32] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 00:10:32] Runtime warning summary: none
+[2026-04-07 00:10:32] Startup summary ends.
+[2026-04-07 00:10:32] Startup completed successfully.
+[2026-04-07 00:10:40] OpenWakeWord modern API unavailable, trying legacy API. Error: AudioFeatures.__init__() got an unexpected keyword argument 'wakeword_models'
+[2026-04-07 00:10:41] OpenWakeWord gate using legacy 0.4.x model API.
+[2026-04-07 00:10:41] OpenWakeWord gate initialized: model='/home/devdul/Projects/smart-desk-ai-assistant/models/wake/nexa.onnx', device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', input_rate=16000, threshold=0.16, trigger_level=1, block_ms=80
+[2026-04-07 00:10:41] Dedicated wake gate active: openWakeWord
+[2026-04-07 00:10:42] OpenWakeWord wake accepted: score=0.205, best_score=0.205
+[2026-04-07 00:10:43] Assistant said [en]: I'm here.
+[2026-04-07 00:10:43] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-07 00:10:46] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-07 00:10:46] Silero VAD loaded successfully for FasterWhisper input.
+[2026-04-07 00:10:56] Accepted transcript in active session: it.
+[2026-04-07 00:10:56] User said: it. | routing_text=it | normalized=it | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 00:10:56] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-07 00:10:56] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 00:11:00] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-07 00:11:05] Response plan executed: turn_id=reply_7f4308fdb560, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-07 00:11:05] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-07 00:11:18] Accepted transcript in active session: What's time is it?
+[2026-04-07 00:11:18] User said: What's time is it? | routing_text=what time is it | normalized=what time is it | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=['fuzzy:what s time is it->what time is it:0.94']
+[2026-04-07 00:11:18] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=ask_time, confidence=1.00
+[2026-04-07 00:11:18] Parsed intent: action=ask_time, data={}, text=what time is it, lang=en
+[2026-04-07 00:11:18] Assistant said [en]: It is 12:11 AM. Would you like me to show that on the screen?
+[2026-04-07 00:11:40] Accepted transcript in active session: No.
+[2026-04-07 00:11:40] Semantic match: intent=decline, score=1.85, route_hint=follow_up, example='no', method=lexical
+[2026-04-07 00:11:40] User said: No. | routing_text=no | normalized=no | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 00:11:40] Assistant said [en]: Okay. I will not show it on the screen.
+[2026-04-07 00:11:50] OpenWakeWord wake accepted: score=0.600, best_score=0.600
+[2026-04-07 00:11:50] Assistant said [en]: Yes?
+[2026-04-07 00:11:51] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-07 00:12:05] OpenWakeWord wake accepted: score=0.530, best_score=0.530
+[2026-04-07 00:12:05] Assistant said [en]: I'm here.
+[2026-04-07 00:12:06] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-07 00:12:23] Ignored active transcript [blank_or_silence]: .
+[2026-04-07 00:12:24] OpenWakeWord wake accepted: score=0.809, best_score=0.809
+[2026-04-07 00:12:24] Assistant said [en]: Yes?
+[2026-04-07 00:12:24] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-07 00:12:44] Accepted transcript in active session: I'm sorry.
+[2026-04-07 00:12:44] User said: I'm sorry. | routing_text=i m sorry | normalized=i m sorry | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 00:12:44] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-07 00:12:44] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 00:12:48] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-07 00:12:53] Response plan executed: turn_id=reply_ce2f94ae7c04, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-07 00:12:53] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-07 00:13:01] OpenWakeWord wake accepted: score=0.819, best_score=0.819
+[2026-04-07 00:13:01] Assistant said [en]: I'm listening.
+[2026-04-07 00:13:02] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-07 00:13:10] OpenWakeWord wake accepted: score=0.767, best_score=0.767
+[2026-04-07 00:13:10] Assistant said [en]: I'm here.
+[2026-04-07 00:13:11] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-07 00:13:39] OpenWakeWord wake accepted: score=0.210, best_score=0.210
+[2026-04-07 00:13:39] Assistant said [en]: Yes?
+[2026-04-07 00:13:40] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-07 00:14:42] OpenWakeWord wake accepted: score=0.463, best_score=0.463
+[2026-04-07 00:14:42] Assistant said [en]: I'm listening.
+[2026-04-07 00:14:43] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-07 00:14:50] Ignored active transcript [low_value_noise]: Thanks for watching!
+[2026-04-07 00:14:58] OpenWakeWord wake accepted: score=0.381, best_score=0.381
+[2026-04-07 00:14:58] Assistant said [en]: Yes?
+[2026-04-07 00:14:59] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-07 00:15:08] Accepted transcript in active session: Jak imam my dzisiaj dzień.
+[2026-04-07 00:15:08] User said: Jak imam my dzisiaj dzień. | routing_text=jak imam my dzisiaj dzien | normalized=jak imam my dzisiaj dzien | detected_lang=pl | normalizer_hint=pl | command_lang=pl | corrections=[]
+[2026-04-07 00:15:08] Route decision: kind=conversation, reply_mode=reply, topics=['knowledge_query'], suggestions=[], action=unclear, confidence=0.66
+[2026-04-07 00:15:08] Assistant said [pl]: Jasne. Brzmi to jak prośba o wyjaśnienie.
+[2026-04-07 00:15:14] Assistant said [pl]: Moja pełna warstwa lokalnej wiedzy nie jest jeszcze gotowa, ale nadal mogę pomóc prościej i uwzględnić to, o czym przed chwilą mówiliśmy.
+[2026-04-07 00:15:27] Assistant said [pl]: Możesz poprosić mnie o krótsze wyjaśnienie, prostą definicję albo przykład krok po kroku.
+[2026-04-07 00:15:37] Response plan executed: turn_id=reply_ddfe06ec2d9b, route_kind=conversation, stream_mode=sentence, spoken_chunks=3, chunk_kinds=['content', 'content', 'follow_up'], voice_lead_start=False
+[2026-04-07 00:15:37] Dialogue streamed: route_kind=conversation, lang=pl, chunks=3, text=Jasne. Brzmi to jak prośba o wyjaśnienie. Moja pełna warstwa lokalnej wiedzy nie jest jeszcze gotowa, ale nadal mogę pomóc prościej i uwzględnić to, o czym przed chwilą mówiliśmy. Możesz poprosić mnie o krótsze wyjaśnienie, prostą definicję albo przykład krok po kroku.
+[2026-04-07 00:15:46] Accepted transcript in active session: Ya ki mama ni di shai jeng
+[2026-04-07 00:15:46] User said: Ya ki mama ni di shai jeng | routing_text=ya ki mama ni di shai jeng | normalized=ya ki mama ni di shai jeng | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 00:15:46] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-07 00:15:46] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 00:15:50] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-07 00:15:55] Response plan executed: turn_id=reply_f76a5dadb4db, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-07 00:15:55] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-07 00:16:04] Accepted transcript in active session: Jakim mamy dzisiaj, ten.
+[2026-04-07 00:16:04] User said: Jakim mamy dzisiaj, ten. | routing_text=jakim mamy dzisiaj ten | normalized=jakim mamy dzisiaj ten | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 00:16:04] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unclear, confidence=0.89
+[2026-04-07 00:16:04] Assistant said [en]: Did you mean day? Say yes or no.
+[2026-04-07 00:16:16] Accepted transcript in active session: Yes.
+[2026-04-07 00:16:16] User said: Yes. | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 00:16:16] Parsed intent: action=ask_day, data={}, text=yes, lang=en
+[2026-04-07 00:16:16] Assistant said [en]: Today is Tuesday. Would you like me to show that on the screen?
+[2026-04-07 00:16:30] Accepted transcript in active session: No.
+[2026-04-07 00:16:30] Semantic match: intent=decline, score=1.85, route_hint=follow_up, example='no', method=lexical
+[2026-04-07 00:16:30] User said: No. | routing_text=no | normalized=no | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 00:16:30] Assistant said [en]: Okay. I will not show it on the screen.
+[2026-04-07 00:16:43] Accepted transcript in active session: Oh you are.
+[2026-04-07 00:16:43] User said: Oh you are. | routing_text=oh you are | normalized=oh you are | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 00:16:43] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-07 00:16:43] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 00:16:47] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-07 00:16:52] Response plan executed: turn_id=reply_e3a76c243e46, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-07 00:16:52] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-07 00:17:00] Accepted transcript in active session: Who you are?
+[2026-04-07 00:17:00] User said: Who you are? | routing_text=who you are | normalized=who you are | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 00:17:00] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=introduce_self, confidence=1.00
+[2026-04-07 00:17:00] Parsed intent: action=introduce_self, data={}, text=who you are, lang=en
+[2026-04-07 00:17:00] Assistant said [en]: I am NeXa, a local desk companion running on Raspberry Pi 5. I can talk with you in Polish and English, help with simple tasks, and support you at your desk.
+[2026-04-07 00:19:40] OpenWakeWord wake accepted: score=0.387, best_score=0.387
+[2026-04-07 00:19:40] Assistant said [en]: I'm here.
+[2026-04-07 00:19:41] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-07 00:19:55] Accepted transcript in active session: Exit
+[2026-04-07 00:19:55] User said: Exit | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 00:19:55] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=exit, confidence=1.00
+[2026-04-07 00:19:55] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-07 00:19:55] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-07 00:20:12] Accepted transcript in active session: Yes.
+[2026-04-07 00:20:12] User said: Yes. | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 00:20:12] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-07 00:20:14] Assistant said [en]: Shutting down NeXa.
+[2026-04-07 00:20:16] Assistant shut down.

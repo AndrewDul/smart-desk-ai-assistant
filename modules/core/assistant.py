@@ -30,6 +30,7 @@ from modules.core.handlers_timer import (
     on_timer_stopped,
     start_timer,
 )
+from modules.core.voice_session import VoiceSessionController
 from modules.core.language import (
     context_language,
     detect_language,
@@ -87,6 +88,17 @@ class CoreAssistant:
         self.pending_follow_up: dict[str, Any] | None = None
         self.last_language = "en"
         self.shutdown_requested = False
+
+        self.voice_session = VoiceSessionController(
+            wake_phrases=("nexa",),
+            wake_acknowledgements=(
+                "Yes?",
+                "I'm listening.",
+                "I'm here.",
+            ),
+            active_listen_window_seconds=float(voice_input_cfg.get("active_listen_window_seconds", 8.0)),
+            thinking_ack_seconds=float(voice_input_cfg.get("thinking_ack_seconds", 1.5)),
+        )
 
         self._last_raw_command_text = ""
         self._last_normalized_command_text = ""
@@ -161,6 +173,7 @@ class CoreAssistant:
         self._last_raw_command_text = ""
         self._last_normalized_command_text = ""
         self.conversation_memory.clear()
+        self.voice_session.close_active_window()
 
         self.display.show_block(
             self.ASSISTANT_NAME,
@@ -235,6 +248,7 @@ class CoreAssistant:
 
         append_log("Assistant shut down.")
         time.sleep(2.0)
+        self.voice_session.set_state("shutdown", detail="assistant_shutdown")
         self.display.close()
 
     def _save_state(self) -> None:
@@ -433,6 +447,53 @@ class CoreAssistant:
     def _reminder_language(self, reminder: dict[str, Any]) -> str:
         stored = reminder.get("language") or reminder.get("lang")
         return self._normalize_lang(stored or self.last_language)
+
+    def _looks_like_cancel_request(self, text: str) -> bool:
+        return self.voice_session.looks_like_cancel_request(text)
+
+    def _cancel_active_request(self, lang: str) -> bool:
+        had_pending = bool(self.pending_confirmation or self.pending_follow_up)
+        self.pending_confirmation = None
+        self.pending_follow_up = None
+
+        if had_pending:
+            spoken_text = self._localized(
+                lang,
+                "Dobrze. Anuluję to.",
+                "Okay. I will cancel that.",
+            )
+        else:
+            spoken_text = self._localized(
+                lang,
+                "Nie ma teraz nic do anulowania.",
+                "There is nothing to cancel right now.",
+            )
+
+        self._remember_assistant_turn(
+            spoken_text,
+            language=lang,
+            metadata={
+                "source": "system_cancel",
+                "route_kind": "cancel",
+                "had_pending": had_pending,
+            },
+        )
+        self.voice_out.speak(spoken_text, language=lang)
+        return True
+
+    def _extract_pending_override_intent(self, text: str) -> IntentResult | None:
+        result = self.parser.parse(text)
+        if result.action in {"unknown", "unclear", "confirm_yes", "confirm_no"}:
+            return None
+
+        return IntentResult(
+            action=result.action,
+            data=result.data,
+            confidence=result.confidence,
+            needs_confirmation=result.needs_confirmation,
+            suggestions=list(result.suggestions),
+            normalized_text=result.normalized_text,
+        )
 
     def _remember_user_turn(
         self,
@@ -635,7 +696,7 @@ class CoreAssistant:
         ]
 
         for action in priority:
-            if action in priority:
+            if action in suggested_actions:
                 return action
 
         return suggested_actions[0]
@@ -921,6 +982,22 @@ class CoreAssistant:
             f"detected_lang={detected_lang} | normalizer_hint={normalizer_language_hint} | command_lang={command_lang} | "
             f"corrections={normalized_utterance.corrections_applied or []}"
         )
+
+        if self.pending_confirmation or self.pending_follow_up:
+            if self._looks_like_cancel_request(routing_text):
+                self._commit_language(command_lang)
+                return self._cancel_active_request(command_lang)
+
+            override_intent = self._extract_pending_override_intent(routing_text)
+            if override_intent is not None:
+                append_log(
+                    "Pending flow interrupted by a new command: "
+                    f"action={override_intent.action}, data={override_intent.data}"
+                )
+                self.pending_confirmation = None
+                self.pending_follow_up = None
+                self._commit_language(command_lang)
+                return self._execute_intent(override_intent, command_lang)
 
         if self.pending_confirmation:
             handled_confirmation = self._handle_pending_confirmation(routing_text, command_lang)

@@ -28,6 +28,20 @@ class UtteranceNormalizer:
 
     def __init__(self) -> None:
         self._phrase_rules: list[tuple[str, str, str]] = [
+            # Polish temporal
+            ("ktora jest godzina", "ktora jest godzina", "pl"),
+            ("ktora godzina", "ktora jest godzina", "pl"),
+            ("jaka jest godzina", "jaka jest godzina", "pl"),
+            ("podaj godzine", "podaj godzine", "pl"),
+            ("jaki jest czas", "jaki jest czas", "pl"),
+            ("pokaz godzine", "pokaz godzine", "pl"),
+            ("wyswietl godzine", "wyswietl godzine", "pl"),
+
+            # Polish identity
+            ("kim jestes", "kim jestes", "pl"),
+            ("jak sie nazywasz", "jak sie nazywasz", "pl"),
+            ("przedstaw sie", "przedstaw sie", "pl"),
+
             # Polish humour / fun
             ("powiedz cos zabawnego", "powiedz cos smiesznego", "pl"),
             ("powiedz cos smiesznego", "powiedz cos smiesznego", "pl"),
@@ -51,12 +65,14 @@ class UtteranceNormalizer:
             ("nie czuje sie dobrze", "i feel tired", "pl"),
             ("zle sie czuje", "i feel tired", "pl"),
 
-            # Polish shutdown - keep assistant vs system separate
+            # Polish shutdown
             ("wylacz nexa", "wylacz nexa", "pl"),
             ("wylacz nexta", "wylacz nexa", "pl"),
             ("wylacz nexe", "wylacz nexa", "pl"),
             ("wylacz asystenta", "wylacz asystenta", "pl"),
+            ("zamknij asystenta", "wylacz asystenta", "pl"),
             ("wylacz system", "wylacz system", "pl"),
+            ("zamknij system", "wylacz system", "pl"),
             ("wylacz raspberry pi", "wylacz system", "pl"),
             ("wylacz komputer", "wylacz system", "pl"),
 
@@ -65,6 +81,21 @@ class UtteranceNormalizer:
             ("nie dzieki", "no", "pl"),
             ("nie chce", "no", "pl"),
             ("nie teraz", "no", "pl"),
+
+            # English temporal
+            ("what time is it", "what time is it", "en"),
+            ("what is the time", "what time is it", "en"),
+            ("tell me the time", "what time is it", "en"),
+            ("show the time", "show the time", "en"),
+            ("display the time", "show the time", "en"),
+
+            # English identity
+            ("who are you", "who are you", "en"),
+            ("what is your name", "what is your name", "en"),
+            ("what s your name", "what is your name", "en"),
+            ("tell me your name", "what is your name", "en"),
+            ("say your name", "what is your name", "en"),
+            ("introduce yourself", "introduce yourself", "en"),
 
             # English small talk / support
             ("can we talk for a minute", "can we talk for a minute", "en"),
@@ -81,11 +112,13 @@ class UtteranceNormalizer:
             ("i dont feel well", "i feel tired", "en"),
             ("i do not feel well", "i feel tired", "en"),
 
-            # English shutdown - keep assistant vs system separate
+            # English shutdown
             ("turn off nexa", "turn off nexa", "en"),
             ("turn off nexta", "turn off nexa", "en"),
             ("turn off assistant", "turn off assistant", "en"),
+            ("close assistant", "turn off assistant", "en"),
             ("turn off system", "turn off system", "en"),
+            ("close system", "turn off system", "en"),
             ("turn off raspberry pi", "turn off system", "en"),
             ("shut down system", "turn off system", "en"),
             ("shutdown system", "turn off system", "en"),
@@ -100,7 +133,14 @@ class UtteranceNormalizer:
 
         self._word_replacements = {
             "pl": {
-                # humour
+                # Temporal / identity
+                "godzinna": "godzina",
+                "goddzina": "godzina",
+                "godzinaa": "godzina",
+                "nazywa": "nazywasz",
+                "nazywaz": "nazywasz",
+
+                # Humour
                 "myznego": "smiesznego",
                 "mieznego": "smiesznego",
                 "mieszynego": "smiesznego",
@@ -118,14 +158,10 @@ class UtteranceNormalizer:
                 "smiesznego": "smiesznego",
                 "smieszna": "smiesznego",
 
-                # shutdown / assistant naming
+                # Shutdown / naming
                 "wylacza": "wylacz",
-                "wyłącza": "wylacz",
-                "wyłącz": "wylacz",
-                "wyłącza": "wylacz",
                 "wylancz": "wylacz",
                 "wylocz": "wylacz",
-                "wylacz": "wylacz",
                 "asystent": "asystenta",
                 "asystenta": "asystenta",
                 "nexa": "nexa",
@@ -134,7 +170,7 @@ class UtteranceNormalizer:
                 "neksa": "nexa",
                 "neksae": "nexa",
 
-                # wellbeing
+                # Wellbeing
                 "zmeczamy": "zmeczony",
                 "zmeczomy": "zmeczony",
                 "zmeczony": "zmeczony",
@@ -143,7 +179,7 @@ class UtteranceNormalizer:
                 "meczony": "zmeczony",
                 "meczona": "zmeczona",
 
-                # misc
+                # Misc
                 "dzieki": "dziekuje",
             },
             "en": {
@@ -157,6 +193,12 @@ class UtteranceNormalizer:
 
         self._canonical_targets_by_language = {
             "pl": [
+                "ktora jest godzina",
+                "jaka jest godzina",
+                "pokaz godzine",
+                "kim jestes",
+                "jak sie nazywasz",
+                "przedstaw sie",
                 "powiedz cos smiesznego",
                 "zadaj mi zagadke",
                 "mozemy porozmawiac chwile",
@@ -169,6 +211,11 @@ class UtteranceNormalizer:
                 "no",
             ],
             "en": [
+                "what time is it",
+                "show the time",
+                "who are you",
+                "what is your name",
+                "introduce yourself",
                 "tell me something funny",
                 "give me a riddle",
                 "can we talk for a minute",
@@ -181,12 +228,20 @@ class UtteranceNormalizer:
                 "no",
             ],
             "generic": [
+                "ktora jest godzina",
+                "kim jestes",
+                "jak sie nazywasz",
+                "przedstaw sie",
                 "powiedz cos smiesznego",
                 "zadaj mi zagadke",
                 "mozemy porozmawiac chwile",
                 "wylacz nexa",
                 "wylacz asystenta",
                 "wylacz system",
+                "what time is it",
+                "who are you",
+                "what is your name",
+                "introduce yourself",
                 "tell me something funny",
                 "give me a riddle",
                 "can we talk for a minute",
@@ -203,18 +258,31 @@ class UtteranceNormalizer:
         lowered = self._basic_normalize(original_text)
 
         corrections: list[str] = []
-        language_hint = self._guess_language(lowered)
+        initial_language_hint = self._guess_language(lowered)
 
         collapsed = self._collapse_multiword_variants(lowered, corrections)
-        repaired = self._replace_words(collapsed, language_hint, corrections)
-        canonical = self._apply_phrase_rules(repaired, language_hint, corrections)
-        canonical = self._fuzzy_map_canonical(canonical, language_hint, corrections)
+        repaired = self._replace_words(collapsed, initial_language_hint, corrections)
+        canonical = self._apply_phrase_rules(repaired, initial_language_hint, corrections)
+
+        final_language_hint = (
+            self._guess_language(canonical)
+            or self._guess_language(repaired)
+            or initial_language_hint
+        )
+
+        canonical = self._fuzzy_map_canonical(canonical, final_language_hint, corrections)
+
+        final_language_hint = (
+            self._guess_language(canonical)
+            or self._guess_language(repaired)
+            or initial_language_hint
+        )
 
         return NormalizedUtterance(
             original_text=original_text,
             normalized_text=repaired,
             canonical_text=canonical,
-            detected_language_hint=language_hint,
+            detected_language_hint=final_language_hint,
             corrections_applied=corrections,
         )
 
@@ -234,6 +302,26 @@ class UtteranceNormalizer:
             (r"\bz meczona\b", "zmeczona"),
             (r"\bnie dzieki\b", "nie dziekuje"),
             (r"\bshut\s+down\b", "shutdown"),
+
+            # Observed temporal distortions
+            (r"\bktora jest godzinna\b", "ktora jest godzina"),
+            (r"\bjaka jest godzinna\b", "jaka jest godzina"),
+
+            # Observed identity distortions
+            (r"\bjak sie nazywa\b", "jak sie nazywasz"),
+            (r"\bkim jest dac\b", "kim jestes"),
+            (r"\bkim jest tez\b", "kim jestes"),
+            (r"\bkim jest to\b", "kim jestes"),
+
+            # Observed Polish speech -> English STT distortions
+            (r"\bkimi is such a\b", "kim jestes"),
+            (r"\bthey won t assist enter\b", "wylacz asystenta"),
+            (r"\bthey won t assistant\b", "wylacz asystenta"),
+            (r"\bthey wont assistant\b", "wylacz asystenta"),
+            (r"\bthey won t just stand up\b", "wylacz asystenta"),
+            (r"\band they want system\b", "wylacz system"),
+            (r"\bthey won t system\b", "wylacz system"),
+            (r"\bthey wont system\b", "wylacz system"),
         ]
 
         for pattern, replacement in replacements:
@@ -265,6 +353,19 @@ class UtteranceNormalizer:
             "chwile",
             "asystenta",
             "system",
+            "ktora",
+            "godzina",
+            "godzine",
+            "czas",
+            "kim",
+            "jestes",
+            "nazywasz",
+            "przedstaw",
+            "pokaz",
+            "wyswietl",
+            "date",
+            "dzien",
+            "rok",
         }
         english_markers = {
             "tell",
@@ -283,6 +384,15 @@ class UtteranceNormalizer:
             "system",
             "shut",
             "down",
+            "who",
+            "name",
+            "time",
+            "date",
+            "day",
+            "year",
+            "show",
+            "display",
+            "introduce",
         }
 
         tokens = set(text.split())
@@ -320,14 +430,12 @@ class UtteranceNormalizer:
         return " ".join(replaced_tokens).strip()
 
     def _apply_phrase_rules(self, text: str, language_hint: str | None, corrections: list[str]) -> str:
-        # Exact match first, language-aware when possible.
         for source, target, rule_lang in self._phrase_rules:
             if source == text and self._language_rule_applies(rule_lang, language_hint):
                 if source != target:
                     corrections.append(f"phrase:{source}->{target}")
                 return target
 
-        # Prefix-style match next.
         for source, target, rule_lang in self._phrase_rules:
             if not self._language_rule_applies(rule_lang, language_hint):
                 continue
@@ -378,7 +486,6 @@ class UtteranceNormalizer:
         if score < 0.88:
             return False
 
-        # Never blur assistant shutdown and system shutdown into each other.
         shutdown_forms = {
             "wylacz nexa",
             "wylacz asystenta",
@@ -390,7 +497,6 @@ class UtteranceNormalizer:
         if text in shutdown_forms or target in shutdown_forms:
             return text == target
 
-        # Keep fuzzy mapping for short known phrases only.
         if len(text.split()) > 5 or len(target.split()) > 5:
             return False
 

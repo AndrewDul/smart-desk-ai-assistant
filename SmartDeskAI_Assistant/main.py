@@ -4,18 +4,34 @@ import re
 import shutil
 import subprocess
 import time
+import traceback
 import unicodedata
 
 from modules.core.assistant import CoreAssistant
+from modules.core.voice_session import (
+    VOICE_STATE_LISTENING,
+    VOICE_STATE_ROUTING,
+    VOICE_STATE_SHUTDOWN,
+    VOICE_STATE_SPEAKING,
+    VOICE_STATE_STANDBY,
+    VOICE_STATE_WAKE_DETECTED,
+)
 from modules.system.system_health import SystemHealthChecker
 from modules.system.utils import append_log
+
+
+WAKE_GATE_TIMEOUT_SECONDS = 2.4
+POST_COMMAND_WINDOW_SECONDS = 6.0
+FOLLOW_UP_WINDOW_SECONDS = 12.0
+DUPLICATE_TRANSCRIPT_COOLDOWN_SECONDS = 1.4
+ACTIVE_IGNORE_LOG_COOLDOWN_SECONDS = 5.0
 
 
 def _normalize_gate_text(text: str) -> str:
     lowered = text.lower().strip()
     lowered = unicodedata.normalize("NFKD", lowered)
-    lowered = "".join(ch for ch in lowered if not unicodedata.combining(ch))
     lowered = lowered.replace("ł", "l")
+    lowered = "".join(ch for ch in lowered if not unicodedata.combining(ch))
     lowered = re.sub(r"[^a-z0-9\s\[\]().,_-]", " ", lowered)
     lowered = re.sub(r"\s+", " ", lowered).strip()
     return lowered
@@ -238,9 +254,10 @@ def _is_low_value_noise(text: str, assistant: CoreAssistant) -> bool:
 def _should_ignore_duplicate_transcript(
     text: str,
     assistant: CoreAssistant,
+    *,
     last_transcript_normalized: str | None,
     last_transcript_time: float | None,
-    cooldown_seconds: float = 1.4,
+    cooldown_seconds: float = DUPLICATE_TRANSCRIPT_COOLDOWN_SECONDS,
 ) -> bool:
     if assistant.pending_follow_up or assistant.pending_confirmation:
         return False
@@ -259,7 +276,7 @@ def _should_ignore_duplicate_transcript(
 def _should_log_gate_event(
     gate_event: str,
     gate_log_times: dict[str, float],
-    cooldown_seconds: float = 5.0,
+    cooldown_seconds: float = ACTIVE_IGNORE_LOG_COOLDOWN_SECONDS,
 ) -> bool:
     now = time.monotonic()
     last_time = gate_log_times.get(gate_event)
@@ -320,7 +337,7 @@ def _startup_overlay_lines(report, runtime_warnings: list[str]) -> list[str]:
     if report.ok and not runtime_warnings:
         return [
             "startup checks ok",
-            "voice loop ready",
+            "wake loop ready",
         ]
 
     if runtime_warnings:
@@ -346,17 +363,17 @@ def _startup_overlay_lines(report, runtime_warnings: list[str]) -> list[str]:
 
 def _startup_greeting(report_ok: bool, runtime_warnings: list[str]) -> str:
     if report_ok and not runtime_warnings:
-        return "Hello. I am NeXa. Startup checks look good. You can ask me at any time how I can help."
+        return "Hello. I am NeXa. Startup checks look good. Say NeXa when you need me."
 
     if runtime_warnings:
         return (
             "Hello. I am NeXa. I started with some limited components, "
-            "but I am ready and listening."
+            "but I am ready. Say NeXa when you need me."
         )
 
     return (
         "Hello. I am NeXa. Startup finished with warnings, "
-        "but I am ready and listening."
+        "but I am ready. Say NeXa when you need me."
     )
 
 
@@ -403,6 +420,7 @@ def _run_startup_sequence(assistant: CoreAssistant) -> None:
     assistant.pending_follow_up = None
     assistant.pending_confirmation = None
     assistant.shutdown_requested = False
+    assistant.voice_session.close_active_window()
 
     assistant.state["assistant_running"] = True
     assistant.state["focus_mode"] = False
@@ -442,6 +460,7 @@ def _run_startup_sequence(assistant: CoreAssistant) -> None:
             },
         )
 
+    assistant.voice_session.set_state(VOICE_STATE_STANDBY, detail="startup_complete")
     _log_startup_summary(report, assistant, runtime_warnings)
 
     if report.ok and not runtime_warnings:
@@ -480,6 +499,206 @@ def _perform_system_shutdown(assistant: CoreAssistant) -> None:
         print(f"System shutdown command failed: {error}")
 
 
+def _log_ignored_active_transcript(
+    event_key: str,
+    heard_text: str,
+    gate_log_times: dict[str, float],
+    message: str,
+) -> None:
+    if _should_log_gate_event(event_key, gate_log_times):
+        append_log(f"Ignored active transcript [{event_key}]: {heard_text}")
+    print(message)
+
+
+def _should_ignore_active_transcript(
+    assistant: CoreAssistant,
+    heard_text: str,
+    gate_log_times: dict[str, float],
+    *,
+    last_transcript_normalized: str | None,
+    last_transcript_time: float | None,
+) -> bool:
+    if _is_blank_or_silence(heard_text):
+        _log_ignored_active_transcript(
+            "blank_or_silence",
+            heard_text,
+            gate_log_times,
+            "Ignored blank audio marker.",
+        )
+        return True
+
+    normalized_heard = _normalize_gate_text(heard_text)
+    if not normalized_heard:
+        _log_ignored_active_transcript(
+            "empty_normalized",
+            heard_text,
+            gate_log_times,
+            "Ignored empty normalized transcript.",
+        )
+        return True
+
+    if _is_bracketed_non_speech(heard_text):
+        _log_ignored_active_transcript(
+            "bracketed_non_speech",
+            heard_text,
+            gate_log_times,
+            f"Ignored non-speech transcript: {heard_text}",
+        )
+        return True
+
+    if _is_low_value_noise(heard_text, assistant):
+        _log_ignored_active_transcript(
+            "low_value_noise",
+            heard_text,
+            gate_log_times,
+            f"Ignored low-value noise: {heard_text}",
+        )
+        return True
+
+    if _should_ignore_duplicate_transcript(
+        heard_text,
+        assistant,
+        last_transcript_normalized=last_transcript_normalized,
+        last_transcript_time=last_transcript_time,
+    ):
+        _log_ignored_active_transcript(
+            "duplicate_transcript",
+            heard_text,
+            gate_log_times,
+            f"Ignored duplicate transcript: {heard_text}",
+        )
+        return True
+
+    return False
+
+
+def _acknowledge_wake(assistant: CoreAssistant) -> None:
+    assistant.voice_session.set_state(VOICE_STATE_WAKE_DETECTED, detail="wake_phrase_detected")
+
+    wake_ack = assistant.voice_session.build_wake_acknowledgement()
+    assistant.voice_session.set_state(VOICE_STATE_SPEAKING, detail="wake_acknowledgement")
+    assistant.voice_out.speak(wake_ack, language="en")
+
+    if hasattr(assistant, "_remember_assistant_turn"):
+        assistant._remember_assistant_turn(
+            wake_ack,
+            language="en",
+            metadata={
+                "source": "wake_word",
+                "route_kind": "wake_ack",
+            },
+        )
+
+    append_log(f"Wake phrase detected. Acknowledgement spoken: {wake_ack}")
+    assistant.voice_session.open_active_window()
+    assistant.voice_session.set_state(VOICE_STATE_LISTENING, detail="awaiting_command")
+    print("Wake phrase detected. Waiting for command...")
+
+
+def _listen_with_backend_fallback(
+    assistant: CoreAssistant,
+    *,
+    timeout: float,
+    debug: bool,
+) -> str | None:
+    """
+    Read one utterance using the first supported method exposed by the
+    current voice backend.
+    """
+    voice_in = assistant.voice_in
+
+    listen_method = getattr(voice_in, "listen", None)
+    if callable(listen_method):
+        return listen_method(timeout=timeout, debug=debug)
+
+    listen_once_method = getattr(voice_in, "listen_once", None)
+    if callable(listen_once_method):
+        return listen_once_method(timeout=timeout, debug=debug)
+
+    listen_for_command_method = getattr(voice_in, "listen_for_command", None)
+    if callable(listen_for_command_method):
+        return listen_for_command_method(timeout=timeout, debug=debug)
+
+    raise AttributeError(
+        "Voice input backend does not expose listen(), listen_once(), "
+        "or listen_for_command()."
+    )
+
+
+def _listen_for_wake(assistant: CoreAssistant, state_flags: dict[str, bool]) -> bool:
+    if assistant.voice_session.state != VOICE_STATE_STANDBY:
+        assistant.voice_session.close_active_window()
+
+    assistant.voice_session.set_state(VOICE_STATE_STANDBY, detail="wake_gate")
+
+    if not state_flags.get("standby_banner_shown", False):
+        print("\nStandby. Waiting for wake phrase...")
+        state_flags["standby_banner_shown"] = True
+
+    wake_method = getattr(assistant.voice_in, "listen_for_wake_phrase", None)
+
+    if callable(wake_method):
+        heard_wake = wake_method(
+            timeout=WAKE_GATE_TIMEOUT_SECONDS,
+            debug=False,
+        )
+        if heard_wake is None:
+            return False
+
+        state_flags["standby_banner_shown"] = False
+        _acknowledge_wake(assistant)
+        return True
+
+    if not state_flags.get("compatibility_wake_mode_logged", False):
+        append_log(
+            "Voice input backend does not expose listen_for_wake_phrase(). "
+            "Using compatibility wake flow through standard listen method."
+        )
+        print("Compatibility wake mode active for current voice backend.")
+        state_flags["compatibility_wake_mode_logged"] = True
+
+    heard_text = _listen_with_backend_fallback(
+        assistant,
+        timeout=WAKE_GATE_TIMEOUT_SECONDS,
+        debug=False,
+    )
+    if heard_text is None:
+        return False
+
+    heard_text = heard_text.strip()
+    if not heard_text:
+        return False
+
+    if not assistant.voice_session.heard_wake_phrase(heard_text):
+        append_log(f"Ignored transcript while waiting for wake phrase: {heard_text}")
+        return False
+
+    state_flags["standby_banner_shown"] = False
+    _acknowledge_wake(assistant)
+    return True
+
+
+def _listen_for_active_command(assistant: CoreAssistant) -> str | None:
+    assistant.voice_session.set_state(VOICE_STATE_LISTENING, detail="active_window")
+    print("\nListening for your request...")
+
+    heard_text = _listen_with_backend_fallback(
+        assistant,
+        timeout=assistant.voice_listen_timeout,
+        debug=assistant.voice_debug,
+    )
+    if heard_text is None:
+        return None
+
+    return heard_text.strip()
+
+def _rearm_active_window(assistant: CoreAssistant) -> None:
+    if assistant.pending_confirmation or assistant.pending_follow_up:
+        assistant.voice_session.open_active_window(seconds=FOLLOW_UP_WINDOW_SECONDS)
+    else:
+        assistant.voice_session.open_active_window(seconds=POST_COMMAND_WINDOW_SECONDS)
+
+
 def main() -> None:
     assistant = CoreAssistant()
     _run_startup_sequence(assistant)
@@ -487,79 +706,82 @@ def main() -> None:
     gate_log_times: dict[str, float] = {}
     last_transcript_normalized: str | None = None
     last_transcript_time: float | None = None
+    state_flags = {
+        "standby_banner_shown": False,
+    }
+
+    fatal_error: Exception | None = None
 
     try:
         while True:
-            print("\nListening for speech...")
-            heard_text = assistant.voice_in.listen(
-                timeout=assistant.voice_listen_timeout,
-                debug=assistant.voice_debug,
-            )
+            if not assistant.voice_session.active_window_open():
+                _listen_for_wake(assistant, state_flags)
+                continue
 
+            heard_text = _listen_for_active_command(assistant)
             if heard_text is None:
-                if _should_log_gate_event("silent_none", gate_log_times):
-                    append_log("Ignored silent input: recognizer returned None.")
-                print("No speech recognized.")
                 continue
 
-            heard_text = heard_text.strip()
-
-            if _is_blank_or_silence(heard_text):
-                if _should_log_gate_event("blank_or_silence", gate_log_times):
-                    append_log(f"Ignored blank audio marker: {heard_text}")
-                print("Ignored blank audio marker.")
+            if assistant.voice_session.heard_wake_phrase(heard_text):
+                assistant.voice_session.extend_active_window(
+                    seconds=assistant.voice_session.active_listen_window_seconds,
+                )
+                print("Wake phrase heard again. Still listening...")
                 continue
 
-            normalized_heard = _normalize_gate_text(heard_text)
-
-            if not normalized_heard:
-                if _should_log_gate_event("empty_normalized", gate_log_times):
-                    append_log("Ignored empty normalized transcript.")
-                print("Ignored empty normalized transcript.")
-                continue
-
-            if _is_bracketed_non_speech(heard_text):
-                if _should_log_gate_event("bracketed_non_speech", gate_log_times):
-                    append_log(f"Ignored bracketed non-speech transcript: {heard_text}")
-                print(f"Ignored non-speech transcript: {heard_text}")
-                continue
-
-            if _is_low_value_noise(heard_text, assistant):
-                if _should_log_gate_event("low_value_noise", gate_log_times):
-                    append_log(f"Ignored low-value noise: {heard_text}")
-                print(f"Ignored low-value noise: {heard_text}")
-                continue
-
-            if _should_ignore_duplicate_transcript(
-                heard_text,
+            if _should_ignore_active_transcript(
                 assistant,
+                heard_text,
+                gate_log_times,
                 last_transcript_normalized=last_transcript_normalized,
                 last_transcript_time=last_transcript_time,
             ):
-                if _should_log_gate_event("duplicate_transcript", gate_log_times):
-                    append_log(f"Ignored duplicate transcript: {heard_text}")
-                print(f"Ignored duplicate transcript: {heard_text}")
+                continue
+
+            normalized_command = _normalize_gate_text(heard_text)
+            if not normalized_command:
                 continue
 
             print(f"Heard: {heard_text}")
+            append_log(f"Accepted transcript in active session: {heard_text}")
 
-            last_transcript_normalized = normalized_heard
+            last_transcript_normalized = normalized_command
             last_transcript_time = time.monotonic()
 
+            assistant.voice_session.set_state(VOICE_STATE_ROUTING, detail="dispatching_command")
             should_continue = assistant.handle_command(heard_text)
+
             if not should_continue:
+                assistant.voice_session.set_state(VOICE_STATE_SHUTDOWN, detail="main_loop_exit")
                 break
+
+            _rearm_active_window(assistant)
 
     except KeyboardInterrupt:
         print("\nStopping assistant with keyboard interrupt.")
         append_log("Assistant stopped with keyboard interrupt.")
-
+    except Exception as error:
+        fatal_error = error
+        append_log(f"Fatal runtime error in main loop: {error}")
+        append_log(traceback.format_exc())
+        print("\nFatal runtime error in main loop:")
+        traceback.print_exc()
     finally:
         shutdown_requested = assistant.shutdown_requested
-        assistant.shutdown()
+
+        try:
+            assistant.shutdown()
+        except Exception as shutdown_error:
+            append_log(f"Error during assistant shutdown: {shutdown_error}")
+            append_log(traceback.format_exc())
+            print("\nError during assistant shutdown:")
+            traceback.print_exc()
 
         if shutdown_requested:
             _perform_system_shutdown(assistant)
+
+        if fatal_error is not None:
+            print("Assistant exited after handling a runtime error.")
 
 
 if __name__ == "__main__":

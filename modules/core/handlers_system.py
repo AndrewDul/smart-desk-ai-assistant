@@ -272,9 +272,36 @@ def handle_exit(assistant, lang: str) -> bool:
     )
     return True
 
-
 def handle_shutdown(assistant, lang: str) -> bool:
     assistant.pending_confirmation = None
+    assistant.pending_follow_up = None
+
+    system_cfg = assistant.settings.get("system", {})
+    allow_shutdown = bool(system_cfg.get("allow_shutdown_commands", False))
+
+    if not allow_shutdown:
+        spoken = assistant._localized(
+            lang,
+            "Wyłączanie systemu jest teraz wyłączone w ustawieniach.",
+            "System shutdown is currently disabled in settings.",
+        )
+
+        assistant.display.show_block(
+            "SHUTDOWN DISABLED",
+            [assistant._localized(lang, "sprawdź ustawienia systemu", "check system settings")],
+            duration=6.0,
+        )
+        assistant.voice_out.speak(spoken, language=lang)
+
+        _remember_system_reply(
+            assistant,
+            spoken=spoken,
+            lang=lang,
+            action="shutdown",
+            extra_metadata={"phase": "blocked_by_config"},
+        )
+        return True
+
     assistant.pending_follow_up = {
         "type": "confirm_shutdown",
         "lang": lang,

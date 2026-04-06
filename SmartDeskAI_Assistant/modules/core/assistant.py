@@ -30,6 +30,7 @@ from modules.core.handlers_timer import (
     on_timer_stopped,
     start_timer,
 )
+from modules.core.voice_session import VoiceSessionController
 from modules.core.language import (
     context_language,
     detect_language,
@@ -87,6 +88,17 @@ class CoreAssistant:
         self.pending_follow_up: dict[str, Any] | None = None
         self.last_language = "en"
         self.shutdown_requested = False
+
+        self.voice_session = VoiceSessionController(
+            wake_phrases=("nexa",),
+            wake_acknowledgements=(
+                "Yes?",
+                "I'm listening.",
+                "I'm here.",
+            ),
+            active_listen_window_seconds=float(voice_input_cfg.get("active_listen_window_seconds", 8.0)),
+            thinking_ack_seconds=float(voice_input_cfg.get("thinking_ack_seconds", 1.5)),
+        )
 
         self._last_raw_command_text = ""
         self._last_normalized_command_text = ""
@@ -161,6 +173,7 @@ class CoreAssistant:
         self._last_raw_command_text = ""
         self._last_normalized_command_text = ""
         self.conversation_memory.clear()
+        self.voice_session.close_active_window()
 
         self.display.show_block(
             self.ASSISTANT_NAME,
@@ -235,6 +248,7 @@ class CoreAssistant:
 
         append_log("Assistant shut down.")
         time.sleep(2.0)
+        self.voice_session.set_state("shutdown", detail="assistant_shutdown")
         self.display.close()
 
     def _save_state(self) -> None:
@@ -257,6 +271,68 @@ class CoreAssistant:
 
     def _context_language(self, text: str, detected_lang: str) -> str:
         return context_language(self, text, detected_lang)
+
+    def _prefer_command_language(
+        self,
+        routing_text: str,
+        detected_lang: str,
+        normalizer_language_hint: str,
+    ) -> str:
+        preferred_detected_lang = normalizer_language_hint or detected_lang
+        command_lang = self._context_language(routing_text, preferred_detected_lang)
+        return self._normalize_lang(command_lang)
+
+    @staticmethod
+    def _contains_any_phrase(text: str, phrases: tuple[str, ...]) -> bool:
+        normalized = str(text or "").strip()
+        if not normalized:
+            return False
+        return any(phrase in normalized for phrase in phrases)
+
+    def _looks_like_shutdown_command(self, normalized_text: str) -> bool:
+        shutdown_markers = (
+            "wylacz",
+            "zamknij",
+            "shutdown",
+            "shut down",
+            "turn off",
+            "close assistant",
+            "assistant off",
+        )
+        target_markers = (
+            "asystent",
+            "asystenta",
+            "assistant",
+            "system",
+            "raspberry pi",
+            "komputer",
+            "nexa",
+        )
+        return self._contains_any_phrase(normalized_text, shutdown_markers) and self._contains_any_phrase(
+            normalized_text,
+            target_markers,
+        )
+
+    def _looks_like_humour_request(self, normalized_text: str) -> bool:
+        humour_markers = (
+            "smiesz",
+            "zart",
+            "dowcip",
+            "funny",
+            "joke",
+            "humor",
+            "humour",
+        )
+        return self._contains_any_phrase(normalized_text, humour_markers)
+
+    def _looks_like_riddle_request(self, normalized_text: str) -> bool:
+        riddle_markers = (
+            "zagad",
+            "riddle",
+            "łamiglow",
+            "lamiglow",
+        )
+        return self._contains_any_phrase(normalized_text, riddle_markers)
 
     def _format_duration_text(self, total_seconds: int, lang: str) -> str:
         return format_duration_text(total_seconds, lang)
@@ -371,6 +447,53 @@ class CoreAssistant:
     def _reminder_language(self, reminder: dict[str, Any]) -> str:
         stored = reminder.get("language") or reminder.get("lang")
         return self._normalize_lang(stored or self.last_language)
+
+    def _looks_like_cancel_request(self, text: str) -> bool:
+        return self.voice_session.looks_like_cancel_request(text)
+
+    def _cancel_active_request(self, lang: str) -> bool:
+        had_pending = bool(self.pending_confirmation or self.pending_follow_up)
+        self.pending_confirmation = None
+        self.pending_follow_up = None
+
+        if had_pending:
+            spoken_text = self._localized(
+                lang,
+                "Dobrze. Anuluję to.",
+                "Okay. I will cancel that.",
+            )
+        else:
+            spoken_text = self._localized(
+                lang,
+                "Nie ma teraz nic do anulowania.",
+                "There is nothing to cancel right now.",
+            )
+
+        self._remember_assistant_turn(
+            spoken_text,
+            language=lang,
+            metadata={
+                "source": "system_cancel",
+                "route_kind": "cancel",
+                "had_pending": had_pending,
+            },
+        )
+        self.voice_out.speak(spoken_text, language=lang)
+        return True
+
+    def _extract_pending_override_intent(self, text: str) -> IntentResult | None:
+        result = self.parser.parse(text)
+        if result.action in {"unknown", "unclear", "confirm_yes", "confirm_no"}:
+            return None
+
+        return IntentResult(
+            action=result.action,
+            data=result.data,
+            confidence=result.confidence,
+            needs_confirmation=result.needs_confirmation,
+            suggestions=list(result.suggestions),
+            normalized_text=result.normalized_text,
+        )
 
     def _remember_user_turn(
         self,
@@ -638,8 +761,8 @@ class CoreAssistant:
 
         fallback_text = self._localized(
             command_lang,
-            "Nie mam jeszcze tej funkcji, ale mogę pomóc w prostszy sposób. Mogę ustawić timer, przypomnienie, tryb focus albo coś zapamiętać.",
-            "I do not have that feature yet, but I can still help in a simpler way. I can set a timer, a reminder, start focus mode, or remember something for you.",
+            "Nie mam jeszcze tej funkcji w obecnej wersji, ale nadal mogę Ci pomóc. Mogę ustawić timer, przypomnienie, tryb focus, przerwę albo coś zapamiętać.",
+            "I do not have that feature in this version yet, but I can still help you. I can set a timer, a reminder, start focus mode, begin a break, or remember something for you.",
         )
         self._remember_assistant_turn(
             fallback_text,
@@ -652,8 +775,8 @@ class CoreAssistant:
         )
         self._speak_localized(
             command_lang,
-            "Nie mam jeszcze tej funkcji, ale mogę pomóc w prostszy sposób. Mogę ustawić timer, przypomnienie, tryb focus albo coś zapamiętać.",
-            "I do not have that feature yet, but I can still help in a simpler way. I can set a timer, a reminder, start focus mode, or remember something for you.",
+            "Nie mam jeszcze tej funkcji w obecnej wersji, ale nadal mogę Ci pomóc. Mogę ustawić timer, przypomnienie, tryb focus, przerwę albo coś zapamiętać.",
+            "I do not have that feature in this version yet, but I can still help you. I can set a timer, a reminder, start focus mode, begin a break, or remember something for you.",
         )
         return True
 
@@ -704,8 +827,8 @@ class CoreAssistant:
         if looks_like_feature_request:
             fallback_text = self._localized(
                 lang,
-                "Nie mam jeszcze tej funkcji, ale nadal mogę pomóc w prostszy sposób. Mogę ustawić timer, przypomnienie, focus, przerwę albo coś zapamiętać.",
-                "I do not have that feature yet, but I can still help in a simpler way. I can set a timer, reminder, focus session, break, or remember something for you.",
+                "Nie mam jeszcze tej funkcji w obecnej wersji, ale nadal jestem do dyspozycji. Mogę ustawić timer, przypomnienie, tryb focus, przerwę albo coś zapamiętać.",
+                "I do not have that feature in this version yet, but I am still here to help. I can set a timer, a reminder, start focus mode, begin a break, or remember something for you.",
             )
             self._remember_assistant_turn(
                 fallback_text,
@@ -717,8 +840,8 @@ class CoreAssistant:
             )
             self._speak_localized(
                 lang,
-                "Nie mam jeszcze tej funkcji, ale nadal mogę pomóc w prostszy sposób. Mogę ustawić timer, przypomnienie, focus, przerwę albo coś zapamiętać.",
-                "I do not have that feature yet, but I can still help in a simpler way. I can set a timer, reminder, focus session, break, or remember something for you.",
+                "Nie mam jeszcze tej funkcji w obecnej wersji, ale nadal jestem do dyspozycji. Mogę ustawić timer, przypomnienie, tryb focus, przerwę albo coś zapamiętać.",
+                "I do not have that feature in this version yet, but I am still here to help. I can set a timer, a reminder, start focus mode, begin a break, or remember something for you.",
             )
             self._commit_language(lang)
             return True
@@ -752,6 +875,8 @@ class CoreAssistant:
             }
 
         if match.intent_name == "humour_request" and match.score >= 0.70:
+            if not self._looks_like_humour_request(normalized_routing_text):
+                return None
             return {
                 "mode": "route_text",
                 "text": "powiedz cos smiesznego" if command_lang == "pl" else "tell me something funny",
@@ -759,6 +884,8 @@ class CoreAssistant:
             }
 
         if match.intent_name == "riddle_request" and match.score >= 0.70:
+            if not self._looks_like_riddle_request(normalized_routing_text):
+                return None
             return {
                 "mode": "route_text",
                 "text": "zadaj mi zagadke" if command_lang == "pl" else "give me a riddle",
@@ -766,9 +893,13 @@ class CoreAssistant:
             }
 
         if match.intent_name == "shutdown_request" and match.score >= 0.72:
+            if not self._looks_like_shutdown_command(normalized_routing_text):
+                return None
+
             looks_like_system_shutdown = (
                 "system" in normalized_routing_text
                 or {"raspberry", "pi"}.issubset(set(normalized_routing_text.split()))
+                or "komputer" in normalized_routing_text
             )
 
             if looks_like_system_shutdown:
@@ -822,8 +953,11 @@ class CoreAssistant:
         detected_lang = self._normalize_lang(self._detect_language(cleaned))
         normalizer_language_hint = self._normalize_lang(normalized_utterance.detected_language_hint)
 
-        command_lang = self._context_language(routing_text, detected_lang)
-        command_lang = self._normalize_lang(command_lang)
+        command_lang = self._prefer_command_language(
+            routing_text,
+            detected_lang,
+            normalizer_language_hint,
+        )
 
         semantic_override = self._semantic_override(routing_text, command_lang)
         if semantic_override is not None:
@@ -848,6 +982,22 @@ class CoreAssistant:
             f"detected_lang={detected_lang} | normalizer_hint={normalizer_language_hint} | command_lang={command_lang} | "
             f"corrections={normalized_utterance.corrections_applied or []}"
         )
+
+        if self.pending_confirmation or self.pending_follow_up:
+            if self._looks_like_cancel_request(routing_text):
+                self._commit_language(command_lang)
+                return self._cancel_active_request(command_lang)
+
+            override_intent = self._extract_pending_override_intent(routing_text)
+            if override_intent is not None:
+                append_log(
+                    "Pending flow interrupted by a new command: "
+                    f"action={override_intent.action}, data={override_intent.data}"
+                )
+                self.pending_confirmation = None
+                self.pending_follow_up = None
+                self._commit_language(command_lang)
+                return self._execute_intent(override_intent, command_lang)
 
         if self.pending_confirmation:
             handled_confirmation = self._handle_pending_confirmation(routing_text, command_lang)

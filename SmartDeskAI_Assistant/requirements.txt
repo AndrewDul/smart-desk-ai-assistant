@@ -18,7 +18,7 @@ silero-vad
 onnxruntime
 
 # Offline speech output
-piper
+piper-tts
 
 # Test runner
 pytest

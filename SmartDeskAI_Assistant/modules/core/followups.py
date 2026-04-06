@@ -315,6 +315,57 @@ def _parse_confirmation_choice(text: str) -> int | None:
     return None
 
 
+def _handle_display_offer_follow_up(assistant, follow_up: dict[str, Any], text: str, lang: str) -> bool:
+    title = str(follow_up.get("title", "")).strip()
+    lines = [str(line) for line in follow_up.get("lines", []) if str(line).strip()]
+    action = str(follow_up.get("action", "")).strip().lower()
+    temporal_kind = str(follow_up.get("temporal_kind", "")).strip().lower()
+
+    if assistant._is_yes(text):
+        assistant.pending_follow_up = None
+        assistant.display.show_block(
+            title,
+            lines,
+            duration=assistant.default_overlay_seconds,
+        )
+        _speak_and_remember_localized(
+            assistant,
+            lang,
+            "Dobrze. Pokazuję to na ekranie.",
+            "Okay. I am showing it on the screen.",
+            follow_type="display_offer",
+            extra_metadata={
+                "phase": "accepted",
+                "action": action,
+                "temporal_kind": temporal_kind,
+            },
+        )
+        return True
+
+    if assistant._is_no(text):
+        assistant.pending_follow_up = None
+        _speak_and_remember_localized(
+            assistant,
+            lang,
+            "Dobrze. Nie pokazuję tego na ekranie.",
+            "Okay. I will not show it on the screen.",
+            follow_type="display_offer",
+            extra_metadata={
+                "phase": "declined",
+                "action": action,
+                "temporal_kind": temporal_kind,
+            },
+        )
+        return True
+
+    interrupted = _try_interrupt_with_new_command(assistant, text, lang)
+    if interrupted is not None:
+        return interrupted
+
+    _yes_no_retry(assistant, lang)
+    return True
+
+
 def _default_minutes_for_action(assistant, action: str) -> float | None:
     if action == "focus_start":
         return float(getattr(assistant.parser, "default_focus_minutes", 25))
@@ -599,6 +650,9 @@ def handle_pending_follow_up(assistant, text: str, lang: str) -> bool | None:
     follow_up = assistant.pending_follow_up or {}
     follow_type = follow_up.get("type")
     follow_lang = _follow_up_language(assistant, lang)
+
+    if follow_type == "display_offer":
+        return _handle_display_offer_follow_up(assistant, follow_up, text, follow_lang)
 
     if follow_type == "mixed_action_offer":
         suggested_actions = [str(item).strip() for item in follow_up.get("suggested_actions", []) if str(item).strip()]

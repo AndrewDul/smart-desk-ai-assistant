@@ -20,15 +20,11 @@ class StreamingResponseService:
     """
     Executes a ResponsePlan in a premium-friendly way.
 
-    Current phase:
-    - sentence or paragraph chunks are spoken sequentially
-    - OLED/display gets a short summarized block
-    - no token-level streaming yet
-
-    Upgraded behaviour:
-    - preserve short ACK chunks as separate quick first responses
-    - avoid awkward OLED summaries built only from tiny acknowledgements
-    - use lightweight chunk-aware pauses for better perceived responsiveness
+    Current goals:
+    - keep short ACK chunks as quick first reactions
+    - reduce the feeling of waiting between chunks
+    - avoid unnecessary extra TTS calls for tiny tail follow-ups
+    - keep OLED/display summaries focused on content, not filler
     """
 
     def __init__(
@@ -48,42 +44,71 @@ class StreamingResponseService:
         self.max_display_lines = max(1, int(max_display_lines))
         self.max_display_chars_per_line = max(8, int(max_display_chars_per_line))
 
+        self.fast_ack_max_chars = 28
+        self.short_tail_follow_up_max_chars = 42
+
     def execute(self, plan: ResponsePlan) -> StreamExecutionReport:
         prepared_chunks = self._prepare_chunks(plan)
         display_title, display_lines = self._resolve_display_content(plan, prepared_chunks)
 
-        if display_title and display_lines:
-            self.display.show_block(
-                display_title,
-                display_lines,
-                duration=self.default_display_seconds,
-            )
-
         spoken_count = 0
         full_text_parts: list[str] = []
+
+        display_shown = False
+        voice_lead_start = self._should_use_voice_lead_start(prepared_chunks)
 
         for index, chunk in enumerate(prepared_chunks):
             text = clean_response_text(chunk.text)
             if not text:
                 continue
 
+            if not display_shown:
+                if voice_lead_start and index == 0:
+                    # Let a short ACK reach the user immediately before touching the display.
+                    pass
+                elif display_title and display_lines:
+                    self.display.show_block(
+                        display_title,
+                        display_lines,
+                        duration=self.default_display_seconds,
+                    )
+                    display_shown = True
+
             self.voice_output.speak(text, language=chunk.language)
             full_text_parts.append(text)
             spoken_count += 1
 
+            if voice_lead_start and index == 0 and not display_shown:
+                if display_title and display_lines:
+                    self.display.show_block(
+                        display_title,
+                        display_lines,
+                        duration=self.default_display_seconds,
+                    )
+                display_shown = True
+
             pause_seconds = self._pause_after_chunk(
-                chunk=chunk,
+                previous_chunk=chunk,
+                next_chunk=prepared_chunks[index + 1] if index + 1 < len(prepared_chunks) else None,
                 is_last=index == len(prepared_chunks) - 1,
             )
             if pause_seconds > 0:
                 time.sleep(pause_seconds)
+
+        if not display_shown and display_title and display_lines:
+            self.display.show_block(
+                display_title,
+                display_lines,
+                duration=self.default_display_seconds,
+            )
 
         full_text = " ".join(full_text_parts).strip()
 
         append_log(
             f"Response plan executed: turn_id={plan.turn_id}, route_kind={plan.route_kind.value}, "
             f"stream_mode={plan.stream_mode.value}, spoken_chunks={spoken_count}, "
-            f"chunk_kinds={[chunk.kind.value for chunk in prepared_chunks]}"
+            f"chunk_kinds={[chunk.kind.value for chunk in prepared_chunks]}, "
+            f"voice_lead_start={voice_lead_start}"
         )
 
         return StreamExecutionReport(
@@ -121,7 +146,9 @@ class StreamingResponseService:
             ]
 
         normalized_chunks = self._normalize_sequence_indexes(chunks)
-        return self._merge_tiny_leading_chunks(normalized_chunks)
+        normalized_chunks = self._merge_tiny_leading_chunks(normalized_chunks)
+        normalized_chunks = self._merge_short_tail_follow_up(normalized_chunks)
+        return normalized_chunks
 
     def _normalize_sequence_indexes(self, chunks: list[AssistantChunk]) -> list[AssistantChunk]:
         normalized: list[AssistantChunk] = []
@@ -217,20 +244,132 @@ class StreamingResponseService:
 
         return True
 
-    def _pause_after_chunk(self, *, chunk: AssistantChunk, is_last: bool) -> float:
+    def _merge_short_tail_follow_up(self, chunks: list[AssistantChunk]) -> list[AssistantChunk]:
+        """
+        Reduce extra TTS round-trips when a very short follow-up is attached
+        after the main content and clearly belongs to the same reply.
+        """
+
+        if len(chunks) < 2:
+            return chunks
+
+        merged: list[AssistantChunk] = []
+        index = 0
+
+        while index < len(chunks):
+            current = chunks[index]
+
+            if index < len(chunks) - 1:
+                nxt = chunks[index + 1]
+                current_text = clean_response_text(current.text)
+                next_text = clean_response_text(nxt.text)
+
+                if self._should_merge_tail_follow_up(current, nxt, current_text, next_text):
+                    merged.append(
+                        AssistantChunk(
+                            text=f"{current_text} {next_text}".strip(),
+                            language=current.language,
+                            kind=current.kind,
+                            speak_now=True,
+                            flush=True,
+                            sequence_index=len(merged),
+                            metadata={
+                                "merged_tail_follow_up": True,
+                                "original_current_kind": current.kind.value,
+                                "original_next_kind": nxt.kind.value,
+                            },
+                        )
+                    )
+                    index += 2
+                    continue
+
+            merged.append(
+                AssistantChunk(
+                    text=current.text,
+                    language=current.language,
+                    kind=current.kind,
+                    speak_now=current.speak_now,
+                    flush=current.flush,
+                    sequence_index=len(merged),
+                    metadata=dict(current.metadata),
+                )
+            )
+            index += 1
+
+        return merged
+
+    def _should_merge_tail_follow_up(
+        self,
+        current: AssistantChunk,
+        nxt: AssistantChunk,
+        current_text: str,
+        next_text: str,
+    ) -> bool:
+        if not current_text or not next_text:
+            return False
+
+        if current.language != nxt.language:
+            return False
+
+        if current.kind not in {ChunkKind.CONTENT, ChunkKind.TOOL_STATUS}:
+            return False
+
+        if nxt.kind != ChunkKind.FOLLOW_UP:
+            return False
+
+        if len(next_text) > self.short_tail_follow_up_max_chars:
+            return False
+
+        if len(current_text) < 18:
+            return False
+
+        return True
+
+    def _should_use_voice_lead_start(self, chunks: list[AssistantChunk]) -> bool:
+        """
+        Start with voice before display only for short ACK-first replies.
+        This improves perceived responsiveness on Raspberry Pi without changing content.
+        """
+
+        if len(chunks) < 2:
+            return False
+
+        first = chunks[0]
+        first_text = clean_response_text(first.text)
+
+        if first.kind != ChunkKind.ACK:
+            return False
+
+        if len(first_text) > self.fast_ack_max_chars:
+            return False
+
+        return True
+
+    def _pause_after_chunk(
+        self,
+        *,
+        previous_chunk: AssistantChunk,
+        next_chunk: AssistantChunk | None,
+        is_last: bool,
+    ) -> float:
         if is_last:
             return 0.0
 
-        base_pause = self.inter_chunk_pause_seconds
+        base_pause = min(self.inter_chunk_pause_seconds, 0.04)
 
-        if chunk.kind == ChunkKind.ACK:
-            return max(0.10, min(0.18, base_pause + 0.07))
+        if previous_chunk.kind == ChunkKind.ACK:
+            if next_chunk and next_chunk.kind in {ChunkKind.CONTENT, ChunkKind.TOOL_STATUS, ChunkKind.FOLLOW_UP}:
+                return 0.02
+            return 0.05
 
-        if chunk.kind == ChunkKind.ERROR:
-            return max(0.06, base_pause)
+        if previous_chunk.kind == ChunkKind.FOLLOW_UP:
+            return 0.01
 
-        if chunk.kind == ChunkKind.FOLLOW_UP:
-            return max(0.03, base_pause)
+        if previous_chunk.kind == ChunkKind.ERROR:
+            return 0.03
+
+        if previous_chunk.kind == ChunkKind.TOOL_STATUS:
+            return 0.02
 
         return base_pause
 
