@@ -41,7 +41,6 @@ class OpenWakeWordGate:
         self.debug = bool(debug)
 
         self.audio_queue: queue.Queue[np.ndarray] = queue.Queue()
-        self.audio_coordinator = None
         self.device = self._resolve_input_device(device_index, device_name_contains)
 
         input_info = sd.query_devices(self.device, "input")
@@ -77,17 +76,6 @@ class OpenWakeWordGate:
         if candidate.is_absolute():
             return candidate
         return BASE_DIR / candidate
-
-    def set_audio_coordinator(self, audio_coordinator) -> None:
-        self.audio_coordinator = audio_coordinator
-
-    def _input_blocked_by_assistant_output(self) -> bool:
-        if self.audio_coordinator is None:
-            return False
-        try:
-            return bool(self.audio_coordinator.input_blocked())
-        except Exception:
-            return False
 
     def _resolve_input_device(
         self,
@@ -271,15 +259,7 @@ class OpenWakeWordGate:
         resampled = np.clip(resampled * 32768.0, -32768, 32767).astype(np.int16)
         return resampled
 
-    def listen_for_wake_phrase(
-        self,
-        timeout: float = 2.0,
-        debug: bool = False,
-        ignore_audio_block: bool = False,
-    ) -> str | None:
-        if not ignore_audio_block and self._input_blocked_by_assistant_output():
-            return None
-
+    def listen_for_wake_phrase(self, timeout: float = 2.0, debug: bool = False) -> str | None:
         self._clear_audio_queue()
         self._resampled_buffer = np.array([], dtype=np.int16)
 
@@ -296,11 +276,6 @@ class OpenWakeWordGate:
             callback=self._audio_callback,
         ):
             while time.monotonic() - started_at <= float(timeout):
-                if not ignore_audio_block and self._input_blocked_by_assistant_output():
-                    self._clear_audio_queue()
-                    self._resampled_buffer = np.array([], dtype=np.int16)
-                    return None
-
                 try:
                     chunk = self.audio_queue.get(timeout=0.12)
                 except queue.Empty:

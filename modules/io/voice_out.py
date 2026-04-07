@@ -54,6 +54,11 @@ class VoiceOutput:
         self.espeak_path = shutil.which("espeak-ng") or shutil.which("espeak")
 
         self._lock = threading.Lock()
+        self._speak_lock = threading.Lock()
+        self._process_lock = threading.Lock()
+        self._stop_requested = threading.Event()
+        self._current_process: subprocess.Popen | None = None
+
         self._base_dir = BASE_DIR
         self._tts_cache_dir = CACHE_DIR / "tts"
         self._tts_cache_dir.mkdir(parents=True, exist_ok=True)
@@ -63,6 +68,8 @@ class VoiceOutput:
 
         self._piper_ready_cache: dict[str, bool] = {}
         self._cache_warmup_thread: threading.Thread | None = None
+
+        self.audio_coordinator = None
 
         self._common_cache_phrases: dict[str, list[str]] = {
             "pl": [
@@ -99,6 +106,114 @@ class VoiceOutput:
         if normalized in {"pl", "en"}:
             return normalized
         return self.default_language
+
+    def clear_stop_request(self) -> None:
+        self._stop_requested.clear()
+
+    def stop_playback(self) -> None:
+        self._stop_requested.set()
+
+        with self._process_lock:
+            process = self._current_process
+
+        if process is None:
+            return
+
+        try:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=0.25)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=0.25)
+        except Exception as error:
+            append_log(f"Voice output stop warning: {error}")
+
+    def _register_process(self, process: subprocess.Popen) -> None:
+        with self._process_lock:
+            self._current_process = process
+
+    def _unregister_process(self, process: subprocess.Popen) -> None:
+        with self._process_lock:
+            if self._current_process is process:
+                self._current_process = None
+
+    def _run_process_interruptibly(
+        self,
+        args: list[str],
+        *,
+        input_text: str | None = None,
+        timeout_seconds: float | None = None,
+        source: str = "tts",
+    ) -> bool:
+        timeout_value = self._playback_timeout_seconds if timeout_seconds is None else max(0.1, float(timeout_seconds))
+        started_at = time.monotonic()
+
+        process: subprocess.Popen | None = None
+
+        try:
+            process = subprocess.Popen(
+                args,
+                stdin=subprocess.PIPE if input_text is not None else subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+            self._register_process(process)
+
+            if input_text is not None and process.stdin is not None:
+                try:
+                    process.stdin.write(input_text)
+                    process.stdin.close()
+                except BrokenPipeError:
+                    pass
+                except Exception as error:
+                    append_log(f"{source} stdin warning: {error}")
+
+            while True:
+                if self._stop_requested.is_set():
+                    try:
+                        if process.poll() is None:
+                            process.terminate()
+                            try:
+                                process.wait(timeout=0.25)
+                            except subprocess.TimeoutExpired:
+                                process.kill()
+                                process.wait(timeout=0.25)
+                    except Exception as error:
+                        append_log(f"{source} interrupt stop warning: {error}")
+                    return False
+
+                return_code = process.poll()
+                if return_code is not None:
+                    return return_code == 0
+
+                if time.monotonic() - started_at >= timeout_value:
+                    try:
+                        process.terminate()
+                        try:
+                            process.wait(timeout=0.25)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                            process.wait(timeout=0.25)
+                    except Exception as error:
+                        append_log(f"{source} timeout stop warning: {error}")
+
+                    append_log(f"{source} process timed out after {timeout_value:.2f}s.")
+                    return False
+
+                time.sleep(0.02)
+
+        except Exception as error:
+            append_log(f"{source} process error: {error}")
+            return False
+        finally:
+            if process is not None:
+                self._unregister_process(process)
+
+    def set_audio_coordinator(self, audio_coordinator) -> None:
+        self.audio_coordinator = audio_coordinator
 
     @staticmethod
     def _normalize_text_for_log(text: str) -> str:
@@ -199,6 +314,34 @@ class VoiceOutput:
         return self._tts_cache_dir / f"{lang}_{self._cache_key(text, lang)}.wav"
 
     def _play_wav(self, wav_path: Path) -> bool:
+        if not wav_path.exists():
+            return False
+
+        if self.aplay_path:
+            try:
+                played = self._run_process_interruptibly(
+                    [self.aplay_path, str(wav_path)],
+                    timeout_seconds=self._playback_timeout_seconds,
+                    source="aplay_playback",
+                )
+                if played:
+                    return True
+            except Exception as error:
+                append_log(f"aplay playback error: {error}")
+
+        if self.ffplay_path:
+            try:
+                played = self._run_process_interruptibly(
+                    [self.ffplay_path, "-autoexit", "-nodisp", str(wav_path)],
+                    timeout_seconds=self._playback_timeout_seconds,
+                    source="ffplay_playback",
+                )
+                if played:
+                    return True
+            except Exception as error:
+                append_log(f"ffplay playback error: {error}")
+
+        return False
         if not wav_path.exists():
             return False
 
@@ -400,30 +543,53 @@ class VoiceOutput:
             append_log(f"eSpeak output error: {error}")
             return False
 
-    def speak(self, text: str, language: str | None = None) -> None:
+    def speak(self, text: str, language: str | None = None) -> bool:
         cleaned_text = self._normalize_text_for_log(text)
         if not cleaned_text:
-            return
+            return False
 
         lang = self._resolve_language(language)
         tts_text = self._normalize_text_for_tts(cleaned_text, lang)
         if not tts_text:
-            return
+            return False
 
         print(f"Assistant> {cleaned_text}")
         append_log(f"Assistant said [{lang}]: {cleaned_text}")
 
         if not self.enabled:
-            return
+            return False
 
-        with self._lock:
-            if self.preferred_engine == "piper":
-                used_piper = self._speak_with_piper(tts_text, lang)
-                if used_piper:
-                    return
+        self.clear_stop_request()
 
-            used_espeak = self._speak_with_espeak(tts_text, lang)
-            if used_espeak:
-                return
+        audio_coordinator = getattr(self, "audio_coordinator", None)
+        coordinator_token = None
+        if audio_coordinator is not None:
+            coordinator_token = audio_coordinator.begin_assistant_output(
+                source="tts",
+                text_preview=cleaned_text,
+            )
 
-            append_log(f"Voice output failed for language '{lang}' on all available engines.")
+        try:
+            with self._speak_lock:
+                if self._stop_requested.is_set():
+                    return False
+
+                if self.preferred_engine == "piper":
+                    used_piper = self._speak_with_piper(tts_text, lang)
+                    if used_piper:
+                        return True
+                    if self._stop_requested.is_set():
+                        return False
+
+                used_espeak = self._speak_with_espeak(tts_text, lang)
+                if used_espeak:
+                    return True
+
+                if self._stop_requested.is_set():
+                    return False
+
+                append_log(f"Voice output failed for language '{lang}' on all available engines.")
+                return False
+        finally:
+            if audio_coordinator is not None:
+                audio_coordinator.end_assistant_output(coordinator_token)

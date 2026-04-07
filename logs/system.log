@@ -8962,3 +8962,893 @@ AttributeError: Voice input backend does not expose listen(), listen_once(), or 
 [2026-04-07 00:20:12] Assistant said [en]: Okay. Closing the assistant.
 [2026-04-07 00:20:14] Assistant said [en]: Shutting down NeXa.
 [2026-04-07 00:20:16] Assistant shut down.
+[2026-04-07 01:15:45] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-07 01:15:45] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 01:15:45] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 01:15:45] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 01:15:45] Startup sequence initiated.
+[2026-04-07 01:15:45] Startup check [OK] settings: found settings.json
+[2026-04-07 01:15:45] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 01:15:45] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 01:15:45] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-07 01:15:45] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 01:15:45] Startup check [OK] llm: disabled by config
+[2026-04-07 01:15:48] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-07 01:15:48] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-07 01:15:53] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:15:53] Startup summary begins.
+[2026-04-07 01:15:53] Startup health report: all configured checks passed.
+[2026-04-07 01:15:53] Startup health item [OK] settings: found settings.json
+[2026-04-07 01:15:53] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 01:15:53] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 01:15:53] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-07 01:15:53] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 01:15:53] Startup health item [OK] llm: disabled by config
+[2026-04-07 01:15:53] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 01:15:53] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 01:15:53] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 01:15:53] Runtime warning summary: none
+[2026-04-07 01:15:53] Startup summary ends.
+[2026-04-07 01:15:53] Startup completed successfully.
+[2026-04-07 01:15:55] OpenWakeWord modern API unavailable, trying legacy API. Error: AudioFeatures.__init__() got an unexpected keyword argument 'wakeword_models'
+[2026-04-07 01:15:56] OpenWakeWord gate using legacy 0.4.x model API.
+[2026-04-07 01:15:56] OpenWakeWord gate initialized: model='/home/devdul/Projects/smart-desk-ai-assistant/models/wake/nexa.onnx', device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', input_rate=16000, threshold=0.16, trigger_level=1, block_ms=80
+[2026-04-07 01:15:56] Dedicated wake gate active: openWakeWord
+[2026-04-07 01:16:03] OpenWakeWord wake accepted: score=0.580, best_score=0.580
+[2026-04-07 01:16:03] Assistant said [en]: I'm listening.
+[2026-04-07 01:16:03] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm listening.
+[2026-04-07 01:16:04] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:16:04] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-07 01:16:06] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-07 01:16:06] Silero VAD loaded successfully for FasterWhisper input.
+[2026-04-07 01:16:21] OpenWakeWord wake accepted: score=0.819, best_score=0.819
+[2026-04-07 01:16:21] Assistant said [en]: Yes?
+[2026-04-07 01:16:21] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Yes?
+[2026-04-07 01:16:21] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:16:21] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-07 01:16:30] Accepted transcript in active session: What's time is it?
+[2026-04-07 01:16:30] User said: What's time is it? | routing_text=what time is it | normalized=what time is it | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=['fuzzy:what s time is it->what time is it:0.94']
+[2026-04-07 01:16:30] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=ask_time, confidence=1.00
+[2026-04-07 01:16:30] Parsed intent: action=ask_time, data={}, text=what time is it, lang=en
+[2026-04-07 01:16:30] Assistant said [en]: It is 1:16 AM. Would you like me to show that on the screen?
+[2026-04-07 01:16:30] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=It is 1:16 AM. Would you like me to show that on the screen?
+[2026-04-07 01:16:37] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:16:50] OpenWakeWord wake accepted: score=0.793, best_score=0.793
+[2026-04-07 01:16:50] Assistant said [en]: I'm here.
+[2026-04-07 01:16:50] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm here.
+[2026-04-07 01:16:51] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:16:51] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-07 01:17:00] Accepted transcript in active session: Set timer
+[2026-04-07 01:17:00] User said: Set timer | routing_text=set timer | normalized=set timer | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:17:00] Pending flow interrupted by a new command: action=timer_start, data={}
+[2026-04-07 01:17:00] Parsed intent: action=timer_start, data={}, text=set timer, lang=en
+[2026-04-07 01:17:00] Assistant said [en]: How long should I set the timer for?
+[2026-04-07 01:17:00] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=How long should I set the timer for?
+[2026-04-07 01:17:02] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:17:09] Accepted transcript in active session: seconds.
+[2026-04-07 01:17:09] User said: seconds. | routing_text=seconds | normalized=seconds | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:17:09] Assistant said [en]: Please tell me the duration in minutes or seconds.
+[2026-04-07 01:17:09] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Please tell me the duration in minutes or seconds.
+[2026-04-07 01:17:15] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:17:22] Accepted transcript in active session: 5 seconds.
+[2026-04-07 01:17:22] User said: 5 seconds. | routing_text=5 seconds | normalized=5 seconds | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:17:22] Timer started for 0.08 minute(s).
+[2026-04-07 01:17:22] Assistant said [en]: I set a timer for 5 seconds.
+[2026-04-07 01:17:22] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I set a timer for 5 seconds.
+[2026-04-07 01:17:24] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:17:27] Timer finished.
+[2026-04-07 01:17:27] Assistant said [en]: Your timer has finished.
+[2026-04-07 01:17:27] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Your timer has finished.
+[2026-04-07 01:17:28] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:17:34] OpenWakeWord wake accepted: score=0.644, best_score=0.644
+[2026-04-07 01:17:34] Assistant said [en]: Yes?
+[2026-04-07 01:17:34] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Yes?
+[2026-04-07 01:17:35] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:17:35] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-07 01:17:43] Accepted transcript in active session: a meter date.
+[2026-04-07 01:17:43] User said: a meter date. | routing_text=a meter date | normalized=a meter date | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:17:43] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-07 01:17:43] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 01:17:43] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 01:17:47] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:17:47] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-07 01:17:47] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Say it again a little differently, and I will try to catch it better.
+[2026-04-07 01:17:52] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:17:52] Response plan executed: turn_id=reply_cbe93b312a4e, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-07 01:17:52] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-07 01:18:01] Accepted transcript in active session: Tell me the date.
+[2026-04-07 01:18:01] Semantic match: intent=humour_request, score=0.56, route_hint=conversation, example='tell me something funny', method=lexical
+[2026-04-07 01:18:01] User said: Tell me the date. | routing_text=tell me the date | normalized=tell me the date | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:18:01] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=ask_date, confidence=1.00
+[2026-04-07 01:18:01] Parsed intent: action=ask_date, data={}, text=tell me the date, lang=en
+[2026-04-07 01:18:01] Assistant said [en]: Today is Tuesday, April 7, 2026. Would you like me to show that on the screen?
+[2026-04-07 01:18:01] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Today is Tuesday, April 7, 2026. Would you like me to show that on the screen?
+[2026-04-07 01:18:11] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:18:18] Accepted transcript in active session: No.
+[2026-04-07 01:18:18] Semantic match: intent=decline, score=1.85, route_hint=follow_up, example='no', method=lexical
+[2026-04-07 01:18:18] User said: No. | routing_text=no | normalized=no | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:18:18] Assistant said [en]: Okay. I will not show it on the screen.
+[2026-04-07 01:18:18] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Okay. I will not show it on the screen.
+[2026-04-07 01:18:21] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:18:28] Accepted transcript in active session: Pove its beat at them.
+[2026-04-07 01:18:28] User said: Pove its beat at them. | routing_text=pove its beat at them | normalized=pove its beat at them | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:18:28] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-07 01:18:28] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 01:18:28] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 01:18:32] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:18:32] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-07 01:18:32] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Say it again a little differently, and I will try to catch it better.
+[2026-04-07 01:18:37] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:18:37] Response plan executed: turn_id=reply_8927982ab6ca, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-07 01:18:37] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-07 01:18:46] Accepted transcript in active session: Jak imam my dzień?
+[2026-04-07 01:18:46] User said: Jak imam my dzień? | routing_text=jak imam my dzien | normalized=jak imam my dzien | detected_lang=pl | normalizer_hint=pl | command_lang=pl | corrections=[]
+[2026-04-07 01:18:46] Route decision: kind=conversation, reply_mode=reply, topics=['knowledge_query'], suggestions=[], action=unknown, confidence=0.66
+[2026-04-07 01:18:46] Assistant said [pl]: Jasne. Brzmi to jak prośba o wyjaśnienie.
+[2026-04-07 01:18:46] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Jasne. Brzmi to jak prośba o wyjaśnienie.
+[2026-04-07 01:18:50] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:18:50] Assistant said [pl]: Moja pełna warstwa lokalnej wiedzy nie jest jeszcze gotowa, ale nadal mogę pomóc prościej i uwzględnić to, o czym przed chwilą mówiliśmy.
+[2026-04-07 01:18:50] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Moja pełna warstwa lokalnej wiedzy nie jest jeszcze gotowa, ale nadal mogę po...
+[2026-04-07 01:18:59] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:18:59] Assistant said [pl]: Możesz poprosić mnie o krótsze wyjaśnienie, prostą definicję albo przykład krok po kroku.
+[2026-04-07 01:18:59] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Możesz poprosić mnie o krótsze wyjaśnienie, prostą definicję albo przykład kr...
+[2026-04-07 01:19:05] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:19:05] Response plan executed: turn_id=reply_eb4a7864cc0f, route_kind=conversation, stream_mode=sentence, spoken_chunks=3, chunk_kinds=['content', 'content', 'follow_up'], voice_lead_start=False
+[2026-04-07 01:19:05] Dialogue streamed: route_kind=conversation, lang=pl, chunks=3, text=Jasne. Brzmi to jak prośba o wyjaśnienie. Moja pełna warstwa lokalnej wiedzy nie jest jeszcze gotowa, ale nadal mogę pomóc prościej i uwzględnić to, o czym przed chwilą mówiliśmy. Możesz poprosić mnie o krótsze wyjaśnienie, prostą definicję albo przykład krok po kroku.
+[2026-04-07 01:19:14] Accepted transcript in active session: Yaki is the chain.
+[2026-04-07 01:19:14] User said: Yaki is the chain. | routing_text=yaki is the chain | normalized=yaki is the chain | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:19:14] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-07 01:19:14] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 01:19:14] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 01:19:18] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:19:18] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-07 01:19:18] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Say it again a little differently, and I will try to catch it better.
+[2026-04-07 01:19:23] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:19:23] Response plan executed: turn_id=reply_5d2779b65c51, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-07 01:19:23] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-07 01:19:58] OpenWakeWord wake accepted: score=0.538, best_score=0.538
+[2026-04-07 01:19:58] Assistant said [en]: I'm listening.
+[2026-04-07 01:19:58] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm listening.
+[2026-04-07 01:19:59] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:19:59] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-07 01:20:14] Accepted transcript in active session: Tell me the time.
+[2026-04-07 01:20:14] User said: Tell me the time. | routing_text=what time is it | normalized=what time is it | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=['phrase:tell me the time->what time is it']
+[2026-04-07 01:20:14] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=ask_time, confidence=1.00
+[2026-04-07 01:20:14] Parsed intent: action=ask_time, data={}, text=what time is it, lang=en
+[2026-04-07 01:20:14] Assistant said [en]: It is 1:20 AM. Would you like me to show that on the screen?
+[2026-04-07 01:20:14] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=It is 1:20 AM. Would you like me to show that on the screen?
+[2026-04-07 01:20:22] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:20:37] Accepted transcript in active session: No! No!
+[2026-04-07 01:20:37] Semantic match: intent=decline, score=1.30, route_hint=follow_up, example='no', method=lexical
+[2026-04-07 01:20:37] User said: No! No! | routing_text=no | normalized=no | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:20:37] Assistant said [en]: Okay. I will not show it on the screen.
+[2026-04-07 01:20:37] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Okay. I will not show it on the screen.
+[2026-04-07 01:20:39] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:20:53] OpenWakeWord wake accepted: score=0.397, best_score=0.397
+[2026-04-07 01:20:54] Assistant said [en]: I'm here.
+[2026-04-07 01:20:54] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm here.
+[2026-04-07 01:20:54] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:20:54] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-07 01:21:02] Accepted transcript in active session: Sigh.
+[2026-04-07 01:21:02] User said: Sigh. | routing_text=sigh | normalized=sigh | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:21:02] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-07 01:21:02] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 01:21:02] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 01:21:06] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:21:06] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-07 01:21:06] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Say it again a little differently, and I will try to catch it better.
+[2026-04-07 01:21:11] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:21:11] Response plan executed: turn_id=reply_0b89b04071f9, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-07 01:21:11] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-07 01:23:22] OpenWakeWord wake accepted: score=0.515, best_score=0.515
+[2026-04-07 01:23:22] Assistant said [en]: I'm listening.
+[2026-04-07 01:23:22] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm listening.
+[2026-04-07 01:23:23] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:23:23] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-07 01:23:38] Accepted transcript in active session: Cię to.
+[2026-04-07 01:23:38] User said: Cię to. | routing_text=cie to | normalized=cie to | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:23:38] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-07 01:23:38] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 01:23:38] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 01:23:42] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:23:42] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-07 01:23:42] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Say it again a little differently, and I will try to catch it better.
+[2026-04-07 01:23:46] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:23:46] Response plan executed: turn_id=reply_835fab43b579, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-07 01:23:46] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-07 01:23:55] Accepted transcript in active session: Exit.
+[2026-04-07 01:23:55] User said: Exit. | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:23:55] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=exit, confidence=1.00
+[2026-04-07 01:23:55] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-07 01:23:55] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-07 01:23:55] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Do you want me to close the assistant?
+[2026-04-07 01:23:57] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:24:13] OpenWakeWord wake accepted: score=0.618, best_score=0.618
+[2026-04-07 01:24:13] Assistant said [en]: Yes?
+[2026-04-07 01:24:13] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Yes?
+[2026-04-07 01:24:13] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:24:13] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-07 01:24:24] OpenWakeWord wake accepted: score=0.329, best_score=0.329
+[2026-04-07 01:24:24] Assistant said [en]: I'm listening.
+[2026-04-07 01:24:24] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm listening.
+[2026-04-07 01:24:25] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:24:25] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-07 01:24:35] Accepted transcript in active session: Tak, siedz.
+[2026-04-07 01:24:35] User said: Tak, siedz. | routing_text=tak siedz | normalized=tak siedz | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:24:35] Assistant said [en]: Please say yes or no.
+[2026-04-07 01:24:35] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Please say yes or no.
+[2026-04-07 01:24:37] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:24:48] Accepted transcript in active session: Yes.
+[2026-04-07 01:24:48] User said: Yes. | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:24:48] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-07 01:24:48] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Okay. Closing the assistant.
+[2026-04-07 01:24:50] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:24:50] Assistant said [en]: Shutting down NeXa.
+[2026-04-07 01:24:50] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Shutting down NeXa.
+[2026-04-07 01:24:51] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:24:51] Assistant shut down.
+[2026-04-07 01:36:24] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-07 01:36:24] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 01:36:24] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 01:36:24] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 01:36:24] Startup sequence initiated.
+[2026-04-07 01:36:24] Startup check [OK] settings: found settings.json
+[2026-04-07 01:36:24] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 01:36:24] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 01:36:24] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-07 01:36:24] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 01:36:24] Startup check [OK] llm: disabled by config
+[2026-04-07 01:36:27] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-07 01:36:27] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-07 01:36:32] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:36:32] Startup summary begins.
+[2026-04-07 01:36:32] Startup health report: all configured checks passed.
+[2026-04-07 01:36:32] Startup health item [OK] settings: found settings.json
+[2026-04-07 01:36:32] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 01:36:32] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 01:36:32] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-07 01:36:32] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 01:36:32] Startup health item [OK] llm: disabled by config
+[2026-04-07 01:36:32] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 01:36:32] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 01:36:32] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 01:36:32] Runtime warning summary: none
+[2026-04-07 01:36:32] Startup summary ends.
+[2026-04-07 01:36:32] Startup completed successfully.
+[2026-04-07 01:36:34] OpenWakeWord modern API unavailable, trying legacy API. Error: AudioFeatures.__init__() got an unexpected keyword argument 'wakeword_models'
+[2026-04-07 01:36:34] OpenWakeWord gate using legacy 0.4.x model API.
+[2026-04-07 01:36:34] OpenWakeWord gate initialized: model='/home/devdul/Projects/smart-desk-ai-assistant/models/wake/nexa.onnx', device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', input_rate=16000, threshold=0.16, trigger_level=1, block_ms=80
+[2026-04-07 01:36:34] Dedicated wake gate active: openWakeWord
+[2026-04-07 01:36:48] OpenWakeWord wake accepted: score=0.519, best_score=0.519
+[2026-04-07 01:36:48] Assistant said [en]: I'm listening.
+[2026-04-07 01:36:48] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm listening.
+[2026-04-07 01:36:49] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:36:49] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-07 01:36:50] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-07 01:36:50] Silero VAD loaded successfully for FasterWhisper input.
+[2026-04-07 01:37:00] Accepted transcript in active session: That timer.
+[2026-04-07 01:37:00] User said: That timer. | routing_text=that timer | normalized=that timer | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:37:00] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=timer_start, confidence=1.00
+[2026-04-07 01:37:00] Parsed intent: action=timer_start, data={}, text=that timer, lang=en
+[2026-04-07 01:37:00] Assistant said [en]: How long should I set the timer for?
+[2026-04-07 01:37:00] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=How long should I set the timer for?
+[2026-04-07 01:37:02] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:37:10] Accepted transcript in active session: One minute.
+[2026-04-07 01:37:10] User said: One minute. | routing_text=one minute | normalized=one minute | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:37:10] Assistant said [en]: Please tell me the duration in minutes or seconds.
+[2026-04-07 01:37:10] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Please tell me the duration in minutes or seconds.
+[2026-04-07 01:37:13] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:37:25] Accepted transcript in active session: On będziecie.
+[2026-04-07 01:37:25] User said: On będziecie. | routing_text=on bedziecie | normalized=on bedziecie | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:37:25] Assistant said [en]: Please tell me the duration in minutes or seconds.
+[2026-04-07 01:37:25] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Please tell me the duration in minutes or seconds.
+[2026-04-07 01:37:27] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:37:36] Accepted transcript in active session: Two minutes.
+[2026-04-07 01:37:36] User said: Two minutes. | routing_text=two minutes | normalized=two minutes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:37:36] Assistant said [en]: Please tell me the duration in minutes or seconds.
+[2026-04-07 01:37:36] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Please tell me the duration in minutes or seconds.
+[2026-04-07 01:37:39] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:37:49] Accepted transcript in active session: Two minutes.
+[2026-04-07 01:37:49] User said: Two minutes. | routing_text=two minutes | normalized=two minutes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:37:49] Assistant said [en]: Please tell me the duration in minutes or seconds.
+[2026-04-07 01:37:49] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Please tell me the duration in minutes or seconds.
+[2026-04-07 01:37:52] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:38:01] Accepted transcript in active session: 50 seconds.
+[2026-04-07 01:38:01] User said: 50 seconds. | routing_text=50 seconds | normalized=50 seconds | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:38:01] Timer started for 0.83 minute(s).
+[2026-04-07 01:38:01] Assistant said [en]: I set a timer for 50 seconds.
+[2026-04-07 01:38:01] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I set a timer for 50 seconds.
+[2026-04-07 01:38:06] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:38:15] OpenWakeWord wake accepted: score=0.747, best_score=0.747
+[2026-04-07 01:38:15] Assistant said [en]: Yes?
+[2026-04-07 01:38:15] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Yes?
+[2026-04-07 01:38:16] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:38:16] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-07 01:38:24] OpenWakeWord wake accepted: score=0.819, best_score=0.819
+[2026-04-07 01:38:25] Assistant said [en]: I'm here.
+[2026-04-07 01:38:25] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm here.
+[2026-04-07 01:38:25] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:38:25] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-07 01:38:34] OpenWakeWord wake accepted: score=0.814, best_score=0.814
+[2026-04-07 01:38:34] Assistant said [en]: Yes?
+[2026-04-07 01:38:34] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Yes?
+[2026-04-07 01:38:35] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:38:35] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-07 01:38:44] OpenWakeWord wake accepted: score=0.246, best_score=0.246
+[2026-04-07 01:38:44] Assistant said [en]: I'm here.
+[2026-04-07 01:38:44] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm here.
+[2026-04-07 01:38:45] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:38:45] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-07 01:38:50] Timer finished.
+[2026-04-07 01:38:50] Assistant said [en]: Your timer has finished.
+[2026-04-07 01:38:50] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Your timer has finished.
+[2026-04-07 01:38:52] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:38:52] Async notification delivered: source=timer, lang=en, action=timer_finished, text=Your timer has finished.
+[2026-04-07 01:39:08] OpenWakeWord wake accepted: score=0.364, best_score=0.364
+[2026-04-07 01:39:08] Assistant said [en]: Yes?
+[2026-04-07 01:39:08] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Yes?
+[2026-04-07 01:39:09] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:39:09] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-07 01:39:17] Accepted transcript in active session: Set timer for 15 minutes.
+[2026-04-07 01:39:17] User said: Set timer for 15 minutes. | routing_text=set timer for 15 minutes | normalized=set timer for 15 minutes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:39:17] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=timer_start, confidence=1.00
+[2026-04-07 01:39:17] Parsed intent: action=timer_start, data={'minutes': 15.0}, text=set timer for 15 minutes, lang=en
+[2026-04-07 01:39:17] Timer started for 15 minute(s).
+[2026-04-07 01:39:17] Assistant said [en]: I set a timer for 15 minutes.
+[2026-04-07 01:39:17] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I set a timer for 15 minutes.
+[2026-04-07 01:39:22] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:39:31] OpenWakeWord wake accepted: score=0.715, best_score=0.715
+[2026-04-07 01:39:31] Assistant said [en]: I'm here.
+[2026-04-07 01:39:31] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm here.
+[2026-04-07 01:39:32] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:39:32] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-07 01:54:16] Timer finished.
+[2026-04-07 01:54:16] Assistant said [en]: Your timer has finished.
+[2026-04-07 01:54:16] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Your timer has finished.
+[2026-04-07 01:54:18] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:54:18] Async notification delivered: source=timer, lang=en, action=timer_finished, text=Your timer has finished.
+[2026-04-07 01:56:29] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-07 01:56:29] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 01:56:29] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 01:56:29] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 01:56:29] Startup sequence initiated.
+[2026-04-07 01:56:29] Startup check [OK] settings: found settings.json
+[2026-04-07 01:56:29] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 01:56:29] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 01:56:29] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-07 01:56:29] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 01:56:29] Startup check [OK] llm: disabled by config
+[2026-04-07 01:56:32] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-07 01:56:32] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-07 01:56:37] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:56:37] Startup summary begins.
+[2026-04-07 01:56:37] Startup health report: all configured checks passed.
+[2026-04-07 01:56:37] Startup health item [OK] settings: found settings.json
+[2026-04-07 01:56:37] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 01:56:37] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 01:56:37] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-07 01:56:37] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 01:56:37] Startup health item [OK] llm: disabled by config
+[2026-04-07 01:56:37] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 01:56:37] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 01:56:37] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 01:56:37] Runtime warning summary: none
+[2026-04-07 01:56:37] Startup summary ends.
+[2026-04-07 01:56:37] Startup completed successfully.
+[2026-04-07 01:56:39] OpenWakeWord modern API unavailable, trying legacy API. Error: AudioFeatures.__init__() got an unexpected keyword argument 'wakeword_models'
+[2026-04-07 01:56:39] OpenWakeWord gate using legacy 0.4.x model API.
+[2026-04-07 01:56:39] OpenWakeWord gate initialized: model='/home/devdul/Projects/smart-desk-ai-assistant/models/wake/nexa.onnx', device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', input_rate=16000, threshold=0.16, trigger_level=1, block_ms=80
+[2026-04-07 01:56:39] Dedicated wake gate active: openWakeWord
+[2026-04-07 01:57:13] OpenWakeWord wake accepted: score=0.162, best_score=0.162
+[2026-04-07 01:57:13] Assistant said [en]: I'm listening.
+[2026-04-07 01:57:13] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm listening.
+[2026-04-07 01:57:14] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:57:14] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-07 01:57:16] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-07 01:57:16] Silero VAD loaded successfully for FasterWhisper input.
+[2026-04-07 01:57:22] Accepted transcript in active session: Tak.
+[2026-04-07 01:57:22] User said: Tak. | routing_text=tak | normalized=tak | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:57:22] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=confirm_yes, confidence=1.00
+[2026-04-07 01:57:22] Parsed intent: action=confirm_yes, data={'answer': 'yes'}, text=tak, lang=en
+[2026-04-07 01:57:22] Assistant said [en]: There is nothing to confirm right now.
+[2026-04-07 01:57:22] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=There is nothing to confirm right now.
+[2026-04-07 01:57:27] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:57:38] Accepted transcript in active session: What time is it?
+[2026-04-07 01:57:38] User said: What time is it? | routing_text=what time is it | normalized=what time is it | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:57:38] Fast command lane executing: action=ask_time, interrupts_pending=False
+[2026-04-07 01:57:38] Assistant said [en]: It is 1:57 AM.
+[2026-04-07 01:57:38] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=It is 1:57 AM.
+[2026-04-07 01:57:42] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:57:52] Accepted transcript in active session: Show more.
+[2026-04-07 01:57:52] User said: Show more. | routing_text=show more | normalized=show more | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:57:52] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unclear, confidence=0.80
+[2026-04-07 01:57:52] Assistant said [en]: Did you mean memory? Say yes or no.
+[2026-04-07 01:57:52] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Did you mean memory? Say yes or no.
+[2026-04-07 01:57:57] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:58:15] OpenWakeWord wake accepted: score=0.727, best_score=0.727
+[2026-04-07 01:58:15] Assistant said [en]: I'm here.
+[2026-04-07 01:58:15] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm here.
+[2026-04-07 01:58:15] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:58:15] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-07 01:58:22] Accepted transcript in active session: Pokaż mi się od...
+[2026-04-07 01:58:22] User said: Pokaż mi się od... | routing_text=pokaz mi sie od | normalized=pokaz mi sie od | detected_lang=pl | normalizer_hint=pl | command_lang=pl | corrections=[]
+[2026-04-07 01:58:22] Assistant said [en]: Please say yes or no.
+[2026-04-07 01:58:22] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Please say yes or no.
+[2026-04-07 01:58:24] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:58:33] Accepted transcript in active session: No.
+[2026-04-07 01:58:33] Semantic match: intent=decline, score=1.85, route_hint=follow_up, example='no', method=lexical
+[2026-04-07 01:58:33] User said: No. | routing_text=no | normalized=no | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:58:33] Assistant said [en]: Okay. Please say it again in a different way.
+[2026-04-07 01:58:33] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Okay. Please say it again in a different way.
+[2026-04-07 01:58:39] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:58:49] Accepted transcript in active session: Pokaż miesiąc.
+[2026-04-07 01:58:49] User said: Pokaż miesiąc. | routing_text=pokaz miesiac | normalized=pokaz miesiac | detected_lang=pl | normalizer_hint=pl | command_lang=pl | corrections=[]
+[2026-04-07 01:58:49] Fast command lane executing: action=show_month, interrupts_pending=False
+[2026-04-07 01:58:49] Assistant said [pl]: Mamy miesiąc kwiecień.
+[2026-04-07 01:58:49] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Mamy miesiąc kwiecień.
+[2026-04-07 01:58:54] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:59:00] OpenWakeWord wake accepted: score=0.823, best_score=0.823
+[2026-04-07 01:59:01] Assistant said [en]: I'm listening.
+[2026-04-07 01:59:01] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm listening.
+[2026-04-07 01:59:02] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:59:02] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-07 01:59:11] Accepted transcript in active session: Mamy miesiąc.
+[2026-04-07 01:59:11] User said: Mamy miesiąc. | routing_text=mamy miesiac | normalized=mamy miesiac | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:59:11] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unclear, confidence=0.83
+[2026-04-07 01:59:11] Assistant said [en]: Did you mean ask_month? Say yes or no.
+[2026-04-07 01:59:11] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Did you mean ask_month? Say yes or no.
+[2026-04-07 01:59:17] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:59:28] Accepted transcript in active session: Yes.
+[2026-04-07 01:59:28] User said: Yes. | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:59:28] Parsed intent: action=ask_month, data={}, text=yes, lang=en
+[2026-04-07 01:59:28] Assistant said [en]: The current month is April. Would you like me to show that on the screen?
+[2026-04-07 01:59:28] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=The current month is April. Would you like me to show that on the screen?
+[2026-04-07 01:59:37] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 01:59:51] Accepted transcript in active session: No.
+[2026-04-07 01:59:51] Semantic match: intent=decline, score=1.85, route_hint=follow_up, example='no', method=lexical
+[2026-04-07 01:59:51] User said: No. | routing_text=no | normalized=no | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 01:59:51] Assistant said [en]: Okay. I will not show it on the screen.
+[2026-04-07 01:59:51] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Okay. I will not show it on the screen.
+[2026-04-07 01:59:53] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:00:02] OpenWakeWord wake accepted: score=0.813, best_score=0.813
+[2026-04-07 02:00:02] Assistant said [en]: Yes?
+[2026-04-07 02:00:02] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Yes?
+[2026-04-07 02:00:03] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:00:03] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-07 02:00:13] Accepted transcript in active session: Wtedy nie jest to, że to nie jest to.
+[2026-04-07 02:00:13] Semantic match: intent=decline, score=0.90, route_hint=follow_up, example='nie', method=lexical
+[2026-04-07 02:00:13] User said: Wtedy nie jest to, że to nie jest to. | routing_text=wtedy nie jest to ze to nie jest to | normalized=wtedy nie jest to ze to nie jest to | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:00:13] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-07 02:00:13] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 02:00:13] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 02:00:17] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:00:17] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-07 02:00:17] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Say it again a little differently, and I will try to catch it better.
+[2026-04-07 02:00:21] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:00:21] Response plan executed: turn_id=reply_2a13f9cdc668, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-07 02:00:21] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-07 02:08:25] OpenWakeWord wake accepted: score=0.220, best_score=0.220
+[2026-04-07 02:08:25] Assistant said [en]: I'm listening.
+[2026-04-07 02:08:25] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm listening.
+[2026-04-07 02:08:26] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:08:26] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-07 02:08:36] Accepted transcript in active session: Oh, you're so close.
+[2026-04-07 02:08:36] User said: Oh, you're so close. | routing_text=oh you re so close | normalized=oh you re so close | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:08:36] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-07 02:08:36] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 02:08:36] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 02:08:41] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:08:41] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-07 02:08:41] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Say it again a little differently, and I will try to catch it better.
+[2026-04-07 02:08:45] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:08:45] Response plan executed: turn_id=reply_c9aecd4eb6b5, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-07 02:08:45] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-07 02:08:54] Accepted transcript in active session: Exit.
+[2026-04-07 02:08:54] User said: Exit. | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:08:54] Fast command lane executing: action=exit, interrupts_pending=False
+[2026-04-07 02:08:54] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-07 02:08:54] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-07 02:08:54] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Do you want me to close the assistant?
+[2026-04-07 02:08:56] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:09:16] OpenWakeWord wake accepted: score=0.719, best_score=0.719
+[2026-04-07 02:09:16] Assistant said [en]: Yes?
+[2026-04-07 02:09:16] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Yes?
+[2026-04-07 02:09:16] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:09:16] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-07 02:09:27] Accepted transcript in active session: Exit.
+[2026-04-07 02:09:27] User said: Exit. | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:09:27] Interaction context cleared: reason=fast_lane_override:exit, had_pending_confirmation=False, had_pending_follow_up=True
+[2026-04-07 02:09:27] Fast command lane executing: action=exit, interrupts_pending=True
+[2026-04-07 02:09:27] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-07 02:09:27] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-07 02:09:27] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Do you want me to close the assistant?
+[2026-04-07 02:09:30] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:09:50] OpenWakeWord wake accepted: score=0.806, best_score=0.806
+[2026-04-07 02:09:50] Assistant said [en]: I'm here.
+[2026-04-07 02:09:50] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm here.
+[2026-04-07 02:09:51] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:09:51] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-07 02:10:03] Accepted transcript in active session: close the system.
+[2026-04-07 02:10:03] Semantic match: intent=shutdown_request, score=0.65, route_hint=action, example='shutdown system', method=lexical
+[2026-04-07 02:10:03] User said: close the system. | routing_text=close the system | normalized=close the system | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:10:03] Assistant said [en]: Please say yes or no.
+[2026-04-07 02:10:03] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Please say yes or no.
+[2026-04-07 02:10:04] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:10:12] Accepted transcript in active session: Thanks.
+[2026-04-07 02:10:12] Semantic match: intent=decline, score=0.84, route_hint=follow_up, example='no thanks', method=lexical
+[2026-04-07 02:10:12] User said: Thanks. | routing_text=no | normalized=no | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:10:12] Assistant said [en]: Okay. I will stay on.
+[2026-04-07 02:10:12] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Okay. I will stay on.
+[2026-04-07 02:10:16] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:10:26] Accepted transcript in active session: Yes.
+[2026-04-07 02:10:26] User said: Yes. | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:10:26] Route decision: kind=action, reply_mode=execute, topics=[], suggestions=[], action=confirm_yes, confidence=1.00
+[2026-04-07 02:10:26] Parsed intent: action=confirm_yes, data={'answer': 'yes'}, text=yes, lang=en
+[2026-04-07 02:10:26] Assistant said [en]: There is nothing to confirm right now.
+[2026-04-07 02:10:26] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=There is nothing to confirm right now.
+[2026-04-07 02:10:29] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:10:38] Accepted transcript in active session: close the system.
+[2026-04-07 02:10:38] Semantic match: intent=shutdown_request, score=0.65, route_hint=action, example='shutdown system', method=lexical
+[2026-04-07 02:10:38] User said: close the system. | routing_text=close the system | normalized=close the system | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:10:38] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-07 02:10:38] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 02:10:38] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 02:10:42] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:10:42] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-07 02:10:42] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Say it again a little differently, and I will try to catch it better.
+[2026-04-07 02:10:47] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:10:47] Response plan executed: turn_id=reply_5c073c544398, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-07 02:10:47] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-07 02:10:56] Accepted transcript in active session: Exit.
+[2026-04-07 02:10:56] User said: Exit. | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:10:56] Fast command lane executing: action=exit, interrupts_pending=False
+[2026-04-07 02:10:56] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-07 02:10:56] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-07 02:10:56] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Do you want me to close the assistant?
+[2026-04-07 02:10:58] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:11:06] Accepted transcript in active session: Yes.
+[2026-04-07 02:11:06] User said: Yes. | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:11:06] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-07 02:11:06] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Okay. Closing the assistant.
+[2026-04-07 02:11:08] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:11:08] Assistant said [en]: Shutting down NeXa.
+[2026-04-07 02:11:08] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Shutting down NeXa.
+[2026-04-07 02:11:10] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:11:10] Assistant shut down.
+[2026-04-07 02:15:49] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-07 02:15:49] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 02:15:49] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 02:15:50] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 02:15:50] Startup sequence initiated.
+[2026-04-07 02:15:50] Startup check [OK] settings: found settings.json
+[2026-04-07 02:15:50] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 02:15:50] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 02:15:50] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-07 02:15:50] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 02:15:50] Startup check [OK] llm: disabled by config
+[2026-04-07 02:15:53] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-07 02:15:53] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-07 02:15:57] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:15:57] Startup summary begins.
+[2026-04-07 02:15:57] Startup health report: all configured checks passed.
+[2026-04-07 02:15:57] Startup health item [OK] settings: found settings.json
+[2026-04-07 02:15:57] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 02:15:57] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 02:15:57] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-07 02:15:57] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 02:15:57] Startup health item [OK] llm: disabled by config
+[2026-04-07 02:15:57] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 02:15:57] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 02:15:57] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 02:15:57] Runtime warning summary: none
+[2026-04-07 02:15:57] Startup summary ends.
+[2026-04-07 02:15:57] Startup completed successfully.
+[2026-04-07 02:15:59] OpenWakeWord modern API unavailable, trying legacy API. Error: AudioFeatures.__init__() got an unexpected keyword argument 'wakeword_models'
+[2026-04-07 02:16:00] OpenWakeWord gate using legacy 0.4.x model API.
+[2026-04-07 02:16:00] OpenWakeWord gate initialized: model='/home/devdul/Projects/smart-desk-ai-assistant/models/wake/nexa.onnx', device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', input_rate=16000, threshold=0.16, trigger_level=1, block_ms=80
+[2026-04-07 02:16:00] Dedicated wake gate active: openWakeWord
+[2026-04-07 02:16:02] OpenWakeWord wake accepted: score=0.493, best_score=0.493
+[2026-04-07 02:16:02] Assistant said [en]: Yes?
+[2026-04-07 02:16:02] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Yes?
+[2026-04-07 02:16:03] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:16:03] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-07 02:16:04] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-07 02:16:04] Silero VAD loaded successfully for FasterWhisper input.
+[2026-04-07 02:16:12] OpenWakeWord wake accepted: score=0.792, best_score=0.792
+[2026-04-07 02:16:13] Assistant said [en]: I'm here.
+[2026-04-07 02:16:13] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm here.
+[2026-04-07 02:16:13] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:16:13] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-07 02:16:23] Accepted transcript in active session: What's time is it?
+[2026-04-07 02:16:23] User said: What's time is it? | routing_text=what time is it | normalized=what time is it | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=['fuzzy:what s time is it->what time is it:0.94']
+[2026-04-07 02:16:23] Fast command lane executing: action=ask_time, interrupts_pending=False
+[2026-04-07 02:16:23] Assistant said [en]: It is 2:16 AM.
+[2026-04-07 02:16:23] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=It is 2:16 AM.
+[2026-04-07 02:16:28] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:16:38] Accepted transcript in active session: Can we talk a minute?
+[2026-04-07 02:16:38] Semantic match: intent=talk_request, score=1.95, route_hint=conversation, example='can we talk for a minute', method=lexical
+[2026-04-07 02:16:38] User said: Can we talk a minute? | routing_text=can we talk for a minute | normalized=can we talk for a minute | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=['phrase_prefix:can we talk->can we talk for a minute']
+[2026-04-07 02:16:38] Route decision: kind=conversation, reply_mode=reply, topics=['small_talk'], suggestions=[], action=unknown, confidence=0.68
+[2026-04-07 02:16:38] Assistant said [en]: Of course. I am here, and we can continue calmly.
+[2026-04-07 02:16:38] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Of course. I am here, and we can continue calmly.
+[2026-04-07 02:16:45] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:16:45] Assistant said [en]: We do not have to start from zero.
+[2026-04-07 02:16:45] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=We do not have to start from zero.
+[2026-04-07 02:16:51] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:16:51] Assistant said [en]: We can simply keep going calmly, without rushing.
+[2026-04-07 02:16:51] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=We can simply keep going calmly, without rushing.
+[2026-04-07 02:16:57] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:16:57] Response plan executed: turn_id=reply_5ff84bb89670, route_kind=conversation, stream_mode=sentence, spoken_chunks=3, chunk_kinds=['content', 'content', 'content'], voice_lead_start=False
+[2026-04-07 02:16:57] Dialogue streamed: route_kind=conversation, lang=en, chunks=3, text=Of course. I am here, and we can continue calmly. We do not have to start from zero. We can simply keep going calmly, without rushing.
+[2026-04-07 02:17:10] Accepted transcript in active session: I feel tired.
+[2026-04-07 02:17:10] Semantic match: intent=support_tired, score=1.93, route_hint=conversation, example='i feel tired', method=lexical
+[2026-04-07 02:17:10] User said: I feel tired. | routing_text=i feel tired | normalized=i feel tired | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:17:10] Route decision: kind=mixed, reply_mode=reply_then_offer, topics=['low_energy'], suggestions=['break_start', 'focus_start'], action=unknown, confidence=0.74
+[2026-04-07 02:17:10] Assistant said [en]: That sounds like one of those moments when you need a gentler start.
+[2026-04-07 02:17:10] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=That sounds like one of those moments when you need a gentler start.
+[2026-04-07 02:17:18] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:17:18] Assistant said [en]: I can help practically. I can start a short focus session or a short break.
+[2026-04-07 02:17:18] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I can help practically. I can start a short focus session or a short break.
+[2026-04-07 02:17:26] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:17:26] Assistant said [en]: What would be better right now: a short focus session or a short break?
+[2026-04-07 02:17:26] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=What would be better right now: a short focus session or a short break?
+[2026-04-07 02:17:33] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:17:33] Response plan executed: turn_id=reply_94882be94a51, route_kind=mixed, stream_mode=sentence, spoken_chunks=3, chunk_kinds=['ack', 'ack', 'follow_up'], voice_lead_start=False
+[2026-04-07 02:17:33] Dialogue streamed: route_kind=mixed, lang=en, chunks=3, text=That sounds like one of those moments when you need a gentler start. I can help practically. I can start a short focus session or a short break. What would be better right now: a short focus session or a short break?
+[2026-04-07 02:17:33] Armed mixed follow-up: lang=en, suggested_actions=['break_start', 'focus_start'], default_action=focus_start
+[2026-04-07 02:17:42] Accepted transcript in active session: short break.
+[2026-04-07 02:17:42] Semantic match: intent=break_choice, score=1.90, route_hint=follow_up, example='short break', method=lexical
+[2026-04-07 02:17:42] User said: short break. | routing_text=break mode | normalized=break mode | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:17:42] Interaction context cleared: reason=fast_lane_override:break_start, had_pending_confirmation=False, had_pending_follow_up=True
+[2026-04-07 02:17:42] Fast command lane executing: action=break_start, interrupts_pending=True
+[2026-04-07 02:17:42] Parsed intent: action=break_start, data={}, text=break mode, lang=en
+[2026-04-07 02:17:42] Assistant said [en]: How long should the break be?
+[2026-04-07 02:17:42] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=How long should the break be?
+[2026-04-07 02:17:47] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:17:59] Accepted transcript in active session: Two minutes.
+[2026-04-07 02:17:59] User said: Two minutes. | routing_text=two minutes | normalized=two minutes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:17:59] Assistant said [en]: Please tell me the duration in minutes or seconds.
+[2026-04-07 02:17:59] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Please tell me the duration in minutes or seconds.
+[2026-04-07 02:18:01] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:18:15] Accepted transcript in active session: Two minutes.
+[2026-04-07 02:18:15] User said: Two minutes. | routing_text=two minutes | normalized=two minutes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:18:15] Assistant said [en]: Please tell me the duration in minutes or seconds.
+[2026-04-07 02:18:15] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Please tell me the duration in minutes or seconds.
+[2026-04-07 02:18:18] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:18:31] Accepted transcript in active session: 3 minutes.
+[2026-04-07 02:18:31] User said: 3 minutes. | routing_text=3 minutes | normalized=3 minutes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:18:31] Break mode started for 3 minute(s).
+[2026-04-07 02:18:31] Assistant said [en]: I started break mode for 3 minutes.
+[2026-04-07 02:18:31] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I started break mode for 3 minutes.
+[2026-04-07 02:18:37] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:18:48] OpenWakeWord wake accepted: score=0.828, best_score=0.828
+[2026-04-07 02:18:48] Assistant said [en]: Yes?
+[2026-04-07 02:18:48] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Yes?
+[2026-04-07 02:18:49] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:18:49] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-07 02:18:58] OpenWakeWord wake accepted: score=0.842, best_score=0.842
+[2026-04-07 02:18:58] Assistant said [en]: I'm here.
+[2026-04-07 02:18:58] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm here.
+[2026-04-07 02:18:59] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:18:59] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-07 02:19:20] OpenWakeWord wake accepted: score=0.259, best_score=0.259
+[2026-04-07 02:19:20] Assistant said [en]: I'm listening.
+[2026-04-07 02:19:20] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm listening.
+[2026-04-07 02:19:22] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:19:22] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-07 02:21:31] Break mode finished.
+[2026-04-07 02:21:31] Assistant said [en]: Your break is finished. You can go back to work or studying whenever you are ready.
+[2026-04-07 02:21:31] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Your break is finished. You can go back to work or studying whenever you are...
+[2026-04-07 02:21:39] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:21:39] Async notification delivered: source=break, lang=en, action=break_finished, text=Your break is finished. You can go back to work or studying whenever you are ready.
+[2026-04-07 02:21:39] Break mode finished.
+[2026-04-07 02:21:39] Assistant said [en]: Your break is finished. You can go back to work or studying whenever you are ready.
+[2026-04-07 02:21:39] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Your break is finished. You can go back to work or studying whenever you are...
+[2026-04-07 02:21:44] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:21:48] OpenWakeWord wake accepted: score=0.620, best_score=0.620
+[2026-04-07 02:21:48] Assistant said [en]: I'm here.
+[2026-04-07 02:21:48] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm here.
+[2026-04-07 02:21:49] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:21:49] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-07 02:22:00] Accepted transcript in active session: Exit.
+[2026-04-07 02:22:00] User said: Exit. | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:22:00] Fast command lane executing: action=exit, interrupts_pending=False
+[2026-04-07 02:22:00] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-07 02:22:00] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-07 02:22:00] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Do you want me to close the assistant?
+[2026-04-07 02:22:02] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:22:12] Accepted transcript in active session: Yes.
+[2026-04-07 02:22:12] User said: Yes. | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:22:12] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-07 02:22:12] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Okay. Closing the assistant.
+[2026-04-07 02:22:14] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:22:14] Assistant said [en]: Shutting down NeXa.
+[2026-04-07 02:22:14] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Shutting down NeXa.
+[2026-04-07 02:22:15] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:22:15] Assistant shut down.
+[2026-04-07 02:58:10] FasterWhisper input prepared: device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', sample_rate=16000, language_mode=auto, vad=on, model_ref='tiny'
+[2026-04-07 02:58:10] Runtime backend ready: component=voice_input, backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 02:58:10] Runtime backend ready: component=voice_output, backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 02:58:10] Runtime backend ready: component=display, backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 02:58:10] Startup sequence initiated.
+[2026-04-07 02:58:10] Startup check [OK] settings: found settings.json
+[2026-04-07 02:58:10] Startup check [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 02:58:10] Startup check [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 02:58:10] Startup check [OK] voice output: piper runtime and voices ready
+[2026-04-07 02:58:10] Startup check [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 02:58:10] Startup check [OK] llm: disabled by config
+[2026-04-07 02:58:13] Assistant said [en]: Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-07 02:58:13] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Hello. I am NeXa. Startup checks look good. Say NeXa when you need me.
+[2026-04-07 02:58:18] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:58:18] Startup summary begins.
+[2026-04-07 02:58:18] Startup health report: all configured checks passed.
+[2026-04-07 02:58:18] Startup health item [OK] settings: found settings.json
+[2026-04-07 02:58:18] Startup health item [OK] directories: data, logs, config ready; cache ready
+[2026-04-07 02:58:18] Startup health item [OK] voice input: faster-whisper runtime ready, preset model alias: tiny, VAD=on
+[2026-04-07 02:58:18] Startup health item [OK] voice output: piper runtime and voices ready
+[2026-04-07 02:58:18] Startup health item [OK] display: configured waveshare_2inch 240x320, spi 0.0, dc=25, rst=27, light=18
+[2026-04-07 02:58:18] Startup health item [OK] llm: disabled by config
+[2026-04-07 02:58:18] Runtime backend item [OK] voice_input: backend=faster_whisper, fallback=False, detail=Faster-Whisper input backend loaded successfully.
+[2026-04-07 02:58:18] Runtime backend item [OK] voice_output: backend=piper, fallback=False, detail=Voice output backend loaded successfully.
+[2026-04-07 02:58:18] Runtime backend item [OK] display: backend=waveshare_2inch, fallback=False, detail=Display backend loaded successfully.
+[2026-04-07 02:58:18] Runtime warning summary: none
+[2026-04-07 02:58:18] Startup summary ends.
+[2026-04-07 02:58:18] Startup completed successfully.
+[2026-04-07 02:58:20] OpenWakeWord modern API unavailable, trying legacy API. Error: AudioFeatures.__init__() got an unexpected keyword argument 'wakeword_models'
+[2026-04-07 02:58:20] OpenWakeWord gate using legacy 0.4.x model API.
+[2026-04-07 02:58:20] OpenWakeWord gate initialized: model='/home/devdul/Projects/smart-desk-ai-assistant/models/wake/nexa.onnx', device='reSpeaker XVF3800 4-Mic Array: USB Audio (hw:2,0)', input_rate=16000, threshold=0.16, trigger_level=1, block_ms=80
+[2026-04-07 02:58:20] Dedicated wake gate active: openWakeWord
+[2026-04-07 02:58:30] OpenWakeWord wake accepted: score=0.601, best_score=0.601
+[2026-04-07 02:58:30] Assistant said [en]: I'm here.
+[2026-04-07 02:58:30] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm here.
+[2026-04-07 02:58:30] OpenWakeWord wake accepted: score=0.832, best_score=0.832
+[2026-04-07 02:58:30] Wake barge-in detected during speaking/thinking.
+[2026-04-07 02:58:30] Interrupt requested: reason=wake_barge_in, source=wake_interrupt_monitor, open_active_window=True
+[2026-04-07 02:58:30] Cached Piper audio exists but playback failed for language 'en', retrying synthesis.
+[2026-04-07 02:58:32] Cached Piper synthesis worked but playback failed for language 'en', trying temporary WAV.
+[2026-04-07 02:58:35] No working WAV playback command available for language 'en'.
+[2026-04-07 02:58:35] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:58:35] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-07 02:58:35] OpenWakeWord wake accepted: score=0.827, best_score=0.827
+[2026-04-07 02:58:35] Wake barge-in detected during speaking/thinking.
+[2026-04-07 02:58:35] Interrupt requested: reason=wake_barge_in, source=wake_interrupt_monitor, open_active_window=True
+[2026-04-07 02:58:37] FasterWhisper model loaded successfully: model_ref='tiny', compute_type='int8', threads=4
+[2026-04-07 02:58:37] Silero VAD loaded successfully for FasterWhisper input.
+[2026-04-07 02:58:56] OpenWakeWord wake accepted: score=0.261, best_score=0.261
+[2026-04-07 02:58:56] Assistant said [en]: I'm listening.
+[2026-04-07 02:58:56] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm listening.
+[2026-04-07 02:58:57] OpenWakeWord wake accepted: score=0.762, best_score=0.762
+[2026-04-07 02:58:57] Wake barge-in detected during speaking/thinking.
+[2026-04-07 02:58:57] Cached Piper audio exists but playback failed for language 'en', retrying synthesis.
+[2026-04-07 02:58:57] Interrupt requested: reason=wake_barge_in, source=wake_interrupt_monitor, open_active_window=True
+[2026-04-07 02:59:00] Cached Piper synthesis worked but playback failed for language 'en', trying temporary WAV.
+[2026-04-07 02:59:02] No working WAV playback command available for language 'en'.
+[2026-04-07 02:59:02] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:59:02] Wake phrase detected. Acknowledgement spoken: I'm listening.
+[2026-04-07 02:59:02] OpenWakeWord wake accepted: score=0.837, best_score=0.837
+[2026-04-07 02:59:02] Wake barge-in detected during speaking/thinking.
+[2026-04-07 02:59:02] Interrupt requested: reason=wake_barge_in, source=wake_interrupt_monitor, open_active_window=True
+[2026-04-07 02:59:03] OpenWakeWord wake accepted: score=0.800, best_score=0.800
+[2026-04-07 02:59:03] Wake barge-in detected during speaking/thinking.
+[2026-04-07 02:59:03] Interrupt requested: reason=wake_barge_in, source=wake_interrupt_monitor, open_active_window=True
+[2026-04-07 02:59:11] Accepted transcript in active session: Can we talk about a minute?
+[2026-04-07 02:59:11] Semantic match: intent=talk_request, score=1.95, route_hint=conversation, example='can we talk for a minute', method=lexical
+[2026-04-07 02:59:11] User said: Can we talk about a minute? | routing_text=can we talk for a minute | normalized=can we talk for a minute | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=['phrase_prefix:can we talk->can we talk for a minute']
+[2026-04-07 02:59:11] Route decision: kind=conversation, reply_mode=reply, topics=['small_talk'], suggestions=[], action=unknown, confidence=0.68
+[2026-04-07 02:59:11] Assistant said [en]: Of course. I am here, and we can continue calmly.
+[2026-04-07 02:59:11] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Of course. I am here, and we can continue calmly.
+[2026-04-07 02:59:15] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:59:15] Assistant said [en]: We do not have to start from zero.
+[2026-04-07 02:59:15] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=We do not have to start from zero.
+[2026-04-07 02:59:17] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:59:17] Assistant said [en]: We can simply keep going calmly, without rushing.
+[2026-04-07 02:59:17] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=We can simply keep going calmly, without rushing.
+[2026-04-07 02:59:20] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:59:20] Response plan executed: turn_id=reply_a29382f7aba1, route_kind=conversation, stream_mode=sentence, spoken_chunks=3, chunk_kinds=['content', 'content', 'content'], voice_lead_start=False
+[2026-04-07 02:59:20] Dialogue streamed: route_kind=conversation, lang=en, chunks=3, text=Of course. I am here, and we can continue calmly. We do not have to start from zero. We can simply keep going calmly, without rushing.
+[2026-04-07 02:59:30] Accepted transcript in active session: Can we talk for a minute?
+[2026-04-07 02:59:30] Semantic match: intent=talk_request, score=1.95, route_hint=conversation, example='can we talk for a minute', method=lexical
+[2026-04-07 02:59:30] User said: Can we talk for a minute? | routing_text=can we talk for a minute | normalized=can we talk for a minute | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 02:59:30] Route decision: kind=conversation, reply_mode=reply, topics=['small_talk'], suggestions=[], action=unknown, confidence=0.68
+[2026-04-07 02:59:30] Assistant said [en]: Of course. I am here, and we can continue calmly.
+[2026-04-07 02:59:30] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Of course. I am here, and we can continue calmly.
+[2026-04-07 02:59:33] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:59:33] Assistant said [en]: We do not have to start from zero.
+[2026-04-07 02:59:33] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=We do not have to start from zero.
+[2026-04-07 02:59:35] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:59:35] Assistant said [en]: We can simply keep going calmly, without rushing.
+[2026-04-07 02:59:35] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=We can simply keep going calmly, without rushing.
+[2026-04-07 02:59:39] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 02:59:39] Response plan executed: turn_id=reply_492b50049916, route_kind=conversation, stream_mode=sentence, spoken_chunks=3, chunk_kinds=['content', 'content', 'content'], voice_lead_start=False
+[2026-04-07 02:59:39] Dialogue streamed: route_kind=conversation, lang=en, chunks=3, text=Of course. I am here, and we can continue calmly. We do not have to start from zero. We can simply keep going calmly, without rushing.
+[2026-04-07 02:59:58] OpenWakeWord wake accepted: score=0.466, best_score=0.466
+[2026-04-07 02:59:58] Assistant said [en]: I'm here.
+[2026-04-07 02:59:58] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I'm here.
+[2026-04-07 02:59:58] OpenWakeWord wake accepted: score=0.805, best_score=0.805
+[2026-04-07 02:59:59] Wake barge-in detected during speaking/thinking.
+[2026-04-07 02:59:59] Interrupt requested: reason=wake_barge_in, source=wake_interrupt_monitor, open_active_window=True
+[2026-04-07 02:59:59] Cached Piper audio exists but playback failed for language 'en', retrying synthesis.
+[2026-04-07 03:00:01] Cached Piper synthesis worked but playback failed for language 'en', trying temporary WAV.
+[2026-04-07 03:00:04] No working WAV playback command available for language 'en'.
+[2026-04-07 03:00:04] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 03:00:04] Wake phrase detected. Acknowledgement spoken: I'm here.
+[2026-04-07 03:00:04] OpenWakeWord wake accepted: score=0.681, best_score=0.681
+[2026-04-07 03:00:04] Wake barge-in detected during speaking/thinking.
+[2026-04-07 03:00:04] Interrupt requested: reason=wake_barge_in, source=wake_interrupt_monitor, open_active_window=True
+[2026-04-07 03:00:15] Accepted transcript in active session: Can we talk for a minute?
+[2026-04-07 03:00:15] Semantic match: intent=talk_request, score=1.95, route_hint=conversation, example='can we talk for a minute', method=lexical
+[2026-04-07 03:00:15] User said: Can we talk for a minute? | routing_text=can we talk for a minute | normalized=can we talk for a minute | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 03:00:15] Route decision: kind=conversation, reply_mode=reply, topics=['small_talk'], suggestions=[], action=unknown, confidence=0.68
+[2026-04-07 03:00:15] Assistant said [en]: Of course. I am here, and we can continue calmly.
+[2026-04-07 03:00:15] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Of course. I am here, and we can continue calmly.
+[2026-04-07 03:00:18] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 03:00:18] Assistant said [en]: We do not have to start from zero.
+[2026-04-07 03:00:18] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=We do not have to start from zero.
+[2026-04-07 03:00:20] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 03:00:20] Assistant said [en]: We can simply keep going calmly, without rushing.
+[2026-04-07 03:00:20] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=We can simply keep going calmly, without rushing.
+[2026-04-07 03:00:23] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 03:00:23] Response plan executed: turn_id=reply_212429539019, route_kind=conversation, stream_mode=sentence, spoken_chunks=3, chunk_kinds=['content', 'content', 'content'], voice_lead_start=False
+[2026-04-07 03:00:23] Dialogue streamed: route_kind=conversation, lang=en, chunks=3, text=Of course. I am here, and we can continue calmly. We do not have to start from zero. We can simply keep going calmly, without rushing.
+[2026-04-07 03:00:36] Accepted transcript in active session: Next up.
+[2026-04-07 03:00:36] User said: Next up. | routing_text=next up | normalized=next up | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 03:00:36] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-07 03:00:36] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 03:00:36] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 03:00:40] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 03:00:40] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-07 03:00:40] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Say it again a little differently, and I will try to catch it better.
+[2026-04-07 03:00:44] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 03:00:44] Response plan executed: turn_id=reply_c9b842d8936b, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-07 03:00:44] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-07 03:00:53] Accepted transcript in active session: What's time is it?
+[2026-04-07 03:00:53] User said: What's time is it? | routing_text=what time is it | normalized=what time is it | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=['fuzzy:what s time is it->what time is it:0.94']
+[2026-04-07 03:00:53] Fast command lane executing: action=ask_time, interrupts_pending=False
+[2026-04-07 03:00:53] Assistant said [en]: It is 3:00 AM.
+[2026-04-07 03:00:53] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=It is 3:00 AM.
+[2026-04-07 03:00:58] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 03:01:12] Accepted transcript in active session: Wydaje mi się, że to nie jest to.
+[2026-04-07 03:01:12] Semantic match: intent=decline, score=0.87, route_hint=follow_up, example='nie', method=lexical
+[2026-04-07 03:01:12] User said: Wydaje mi się, że to nie jest to. | routing_text=wydaje mi sie ze to nie jest to | normalized=wydaje mi sie ze to nie jest to | detected_lang=pl | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 03:01:12] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-07 03:01:12] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 03:01:12] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 03:01:16] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 03:01:16] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-07 03:01:16] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Say it again a little differently, and I will try to catch it better.
+[2026-04-07 03:01:21] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 03:01:21] Response plan executed: turn_id=reply_8a1d26160ceb, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-07 03:01:21] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-07 03:03:42] OpenWakeWord wake accepted: score=0.323, best_score=0.323
+[2026-04-07 03:03:42] Assistant said [en]: Yes?
+[2026-04-07 03:03:42] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Yes?
+[2026-04-07 03:03:43] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 03:03:43] Wake phrase detected. Acknowledgement spoken: Yes?
+[2026-04-07 03:03:59] Accepted transcript in active session: Thanks, it.
+[2026-04-07 03:03:59] Semantic match: intent=decline, score=0.56, route_hint=follow_up, example='no thanks', method=lexical
+[2026-04-07 03:03:59] User said: Thanks, it. | routing_text=thanks it | normalized=thanks it | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 03:03:59] Route decision: kind=unclear, reply_mode=clarify, topics=[], suggestions=[], action=unknown, confidence=0.20
+[2026-04-07 03:03:59] Assistant said [en]: I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 03:03:59] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=I did not catch exactly what you meant yet, but I am still with you.
+[2026-04-07 03:04:03] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 03:04:03] Assistant said [en]: Say it again a little differently, and I will try to catch it better.
+[2026-04-07 03:04:03] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Say it again a little differently, and I will try to catch it better.
+[2026-04-07 03:04:08] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 03:04:08] Response plan executed: turn_id=reply_39b2b00674d1, route_kind=unclear, stream_mode=sentence, spoken_chunks=2, chunk_kinds=['error', 'error'], voice_lead_start=False
+[2026-04-07 03:04:08] Dialogue streamed: route_kind=unclear, lang=en, chunks=2, text=I did not catch exactly what you meant yet, but I am still with you. Say it again a little differently, and I will try to catch it better.
+[2026-04-07 03:04:21] Accepted transcript in active session: Exit.
+[2026-04-07 03:04:21] User said: Exit. | routing_text=exit | normalized=exit | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 03:04:21] Fast command lane executing: action=exit, interrupts_pending=False
+[2026-04-07 03:04:21] Parsed intent: action=exit, data={}, text=exit, lang=en
+[2026-04-07 03:04:21] Assistant said [en]: Do you want me to close the assistant?
+[2026-04-07 03:04:21] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Do you want me to close the assistant?
+[2026-04-07 03:04:23] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 03:04:34] Accepted transcript in active session: Yes.
+[2026-04-07 03:04:34] User said: Yes. | routing_text=yes | normalized=yes | detected_lang=en | normalizer_hint=en | command_lang=en | corrections=[]
+[2026-04-07 03:04:34] Assistant said [en]: Okay. Closing the assistant.
+[2026-04-07 03:04:34] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Okay. Closing the assistant.
+[2026-04-07 03:04:37] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 03:04:37] Assistant said [en]: Shutting down NeXa.
+[2026-04-07 03:04:37] Audio coordinator: assistant output started source=tts, active_outputs=1, preview=Shutting down NeXa.
+[2026-04-07 03:04:38] Audio coordinator: assistant output finished source=tts, active_outputs=0, hold_seconds=0.72
+[2026-04-07 03:04:38] Assistant shut down.

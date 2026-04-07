@@ -1617,3 +1617,338 @@ The voice input settings were tuned by:
 
 ### Result
 After these settings were updated, the assistant started hearing speech correctly again and the voice loop became usable in practice.
+
+
+## 063. I moved the project from microSD to SSD and rebuilt the runtime from scratch
+
+
+### Problem
+I did not want to continue building the assistant on top of the earlier microSD-based setup because I wanted a cleaner and more stable base.
+
+### Symptom
+The project had already gone through many runtime changes, package changes, and audio-stack changes, so I wanted a cleaner rebuild point before pushing the assistant further toward a premium state.
+
+### Root cause
+The earlier setup was no longer the best base for the current stage of the project.
+
+### Fix applied
+I:
+- moved the working setup to SSD
+- installed the system again
+- updated the system packages
+- installed the required project dependencies again
+- rebuilt the assistant environment on the new setup
+
+### Result
+The project now runs from a cleaner and stronger base, which is better for further premium runtime work.
+
+---
+
+## 064. FasterWhisper input failed because of a bad import change
+ 
+
+### Problem
+The FasterWhisper voice input backend stopped working after an edit in the input module.
+
+### Symptom
+The assistant fell back to text input and no longer used the real microphone path.
+
+### Root cause
+A wrong import was present in the file:
+- `import times`
+
+instead of:
+- `import time`
+
+That stopped the voice input backend from loading correctly.
+
+### Fix applied
+I corrected the import and restarted the runtime.
+
+### Result
+The real voice input path started working again instead of falling back to text mode.
+
+---
+
+## 065. The main loop became inconsistent with different voice input backend interfaces
+ 
+
+### Problem
+The main runtime loop expected methods that were not always exposed consistently by the active voice backend.
+
+### Symptom
+The assistant could fail with attribute errors during wake handling or command listening.
+
+### Root cause
+The voice loop and the voice input backend were temporarily out of sync while the wake architecture was being changed.
+
+### Fix applied
+I rebuilt the public listening methods more carefully and made the runtime use a cleaner and more stable interface again.
+
+### Result
+The main loop stopped failing because of missing listening methods.
+
+---
+
+## 066. Standby wake flow still depended too much on transcription-first behaviour
+ 
+
+### Problem
+The assistant still relied too much on short speech transcription during standby.
+
+### Symptom
+Wake detection worked only as a partial step and still carried too much delay for a premium assistant feel.
+
+### Root cause
+The standby layer was still too close to a full STT path instead of a dedicated wake detector.
+
+### Fix applied
+I used that approach only as a temporary bridge and then moved the project toward a dedicated wake-word architecture.
+
+### Result
+The project was able to move away from transcription-first standby toward a real wake-gate design.
+
+---
+
+## 067. Training the custom wake-word model in Colab became messy because of dependency drift
+
+
+### Problem
+The custom wake-word model training workflow did not run cleanly in Colab.
+
+### Symptom
+I ran into multiple environment and dependency errors, including:
+- CUDA-related mismatch problems
+- missing training modules
+- broken imports
+- notebook steps that no longer matched the current package layout
+
+### Root cause
+The notebook and supporting packages had dependency drift and parts of the example workflow no longer matched the current environment exactly.
+
+### Fix applied
+I rebuilt the Colab workflow step by step:
+- fixed the PyTorch CPU setup
+- re-cloned the required repos
+- repaired generator imports
+- added compatibility wrappers
+- installed missing training dependencies one by one
+
+### Result
+The custom wake-word training workflow finally ran far enough to generate clips, compute features, train the model, and export the ONNX file.
+
+---
+
+## 068. The wake-word training pipeline failed because required training data was missing
+
+
+### Problem
+The training pipeline could not continue because required training assets were missing.
+
+### Symptom
+The workflow failed on missing resources such as:
+- `mit_rirs`
+- background audio folders
+- validation feature files
+
+### Root cause
+The full training pipeline expected more data than the simple audio test stage.
+
+### Fix applied
+I downloaded and prepared the required assets:
+- room impulse response data
+- background audio data
+- feature data files used by the training config
+
+### Result
+The pipeline could continue beyond the setup stage and start generating real training features.
+
+---
+
+## 069. Augmentation failed because the generated clips did not have the correct sample rate
+
+
+### Problem
+The augmentation stage failed because the generated positive clips were not all in the sample rate expected by the training pipeline.
+
+### Symptom
+The training step failed with:
+- `Error! Clip does not have the correct sample rate!`
+
+### Root cause
+The generated clips were not all consistently stored at 16 kHz.
+
+### Fix applied
+I checked the generated `.wav` files, found the incorrect sample rates, and resampled the clips to 16 kHz before rerunning augmentation.
+
+### Result
+The feature generation stage completed successfully.
+
+---
+
+## 070. The training cache became incomplete and blocked the next stage
+ 
+
+### Problem
+The training process could sometimes see partial output and assume the feature stage was already complete.
+
+### Symptom
+One stage reported that features already existed, but the next stage still failed because expected files were missing.
+
+### Root cause
+The output cache for the custom model was incomplete.
+
+### Fix applied
+I cleared the broken output directory and rebuilt the training stages in the correct order:
+- generate clips
+- augment clips
+- train model
+
+### Result
+The training flow became consistent again.
+
+---
+
+## 071. ONNX export failed because the ONNX package was missing
+
+
+### Problem
+The wake-word model trained successfully, but export failed at the final ONNX stage.
+
+### Symptom
+The training ended with an export error instead of producing the final model file.
+
+### Root cause
+The `onnx` package was not installed in the Colab environment.
+
+### Fix applied
+I installed the missing ONNX package and reran the final training/export stage.
+
+### Result
+The ONNX wake-word model was produced successfully.
+
+---
+
+## 072. TFLite export failed, but the ONNX wake model was already enough for the project
+
+
+### Problem
+After the ONNX model was saved, the workflow still failed during TFLite export.
+
+### Symptom
+The training run ended with a conversion error after saving:
+- `nexa.onnx`
+
+### Root cause
+The TFLite conversion path depended on extra tooling that was not required for my current Raspberry Pi use case.
+
+### Fix applied
+I stopped treating the TFLite failure as a blocker because the ONNX model I needed had already been created successfully.
+
+### Result
+I kept the generated `nexa.onnx` model and used that as the real wake-word model for the project.
+
+---
+
+## 073. The dedicated wake gate did not start because the custom model file was missing on the Raspberry Pi
+
+
+### Problem
+The dedicated wake gate could not start on the Raspberry Pi.
+
+### Symptom
+The assistant started with:
+- `Wake gate fallback active: FasterWhisper`
+
+instead of using the dedicated wake detector.
+
+### Root cause
+The trained model file:
+- `models/wake/nexa.onnx`
+
+was not yet present in the project on the Raspberry Pi.
+
+### Fix applied
+I copied the trained ONNX model into:
+- `models/wake/nexa.onnx`
+
+and tested the wake gate again.
+
+### Result
+The project was able to load the dedicated wake model locally.
+
+---
+
+## 074. Newer openWakeWord install failed on Raspberry Pi because of Linux dependency issues
+ 
+
+### Problem
+I tried to move to a newer `openwakeword` version on the Raspberry Pi, but installation failed.
+
+### Symptom
+The install failed because of missing Linux dependency packages during pip resolution.
+
+### Root cause
+The newer package line pulled Linux-specific dependencies that were not available cleanly in the current Raspberry Pi environment.
+
+### Fix applied
+I stopped pushing the upgrade and pinned the project back to:
+- `openwakeword==0.4.0`
+
+so I could get a stable local wake gate running first.
+
+### Result
+This gave me a practical and stable base for the dedicated wake-word gate.
+
+---
+
+## 075. The dedicated wake gate loaded but did not react because of API and score parsing mismatch
+ 
+
+### Problem
+The dedicated wake gate loaded successfully, but it still did not react to the wake word.
+
+### Symptom
+The assistant started with:
+- `Dedicated wake gate active: openWakeWord`
+
+but the debug output stayed around:
+- `OpenWakeWord score=0.000`
+
+### Root cause
+The older `openwakeword` runtime API did not match the newer assumptions used in the wake gate code, so the model output was not being read correctly.
+
+### Fix applied
+I:
+- adapted the wake gate to the older `openwakeword` API
+- added compatibility handling for model construction
+- adjusted result parsing so the score could be read properly
+- tuned threshold and trigger settings for testing
+
+### Result
+The dedicated local wake gate finally started reacting to the custom `NeXa` wake-word model in real runtime use.
+
+---
+
+## 076. The project reached the first real dedicated local wake-word milestone
+ 
+
+### Problem
+The project still needed to prove that the assistant could wake locally through a dedicated model instead of only through transcription-based fallback logic.
+
+### Symptom
+Earlier wake behaviour was still too dependent on the heavier fallback path.
+
+### Root cause
+The dedicated wake-word pipeline was not fully trained, exported, deployed, and integrated yet.
+
+### Fix applied
+I completed the full chain:
+- trained a custom wake-word model for `NeXa`
+- exported `nexa.onnx`
+- copied it into the Raspberry Pi project
+- integrated it into the dedicated wake gate
+- verified that the assistant could react through the local wake path
+
+### Result
+This became the first real milestone where NeXa used a dedicated local wake-word path instead of depending only on the earlier transcription-based wake fallback.

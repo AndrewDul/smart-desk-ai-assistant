@@ -1952,3 +1952,201 @@ I completed the full chain:
 
 ### Result
 This became the first real milestone where NeXa used a dedicated local wake-word path instead of depending only on the earlier transcription-based wake fallback.
+
+
+---
+
+## 077. The assistant could hear its own voice after speaking
+
+
+### Problem
+After some spoken outputs, the assistant could still react to its own voice.
+
+### Symptom
+This could happen after:
+- timer finished
+- reminder speech
+- normal spoken replies
+- follow-up prompts
+
+In practice, this created the risk of self-triggered behaviour or strange extra listening after NeXa had just spoken.
+
+### Root cause
+Playback, wake detection, and full STT were working, but they were not coordinated strongly enough as one audio lifecycle.
+
+The system needed a shared rule for when user input should be blocked because the assistant was still speaking or had just finished speaking.
+
+### Fix applied
+I added a dedicated audio coordination layer.
+
+This layer now:
+- tracks when assistant playback starts
+- tracks when assistant playback ends
+- keeps a short post-speech shield
+- lets wake detection and STT check whether input should stay blocked
+
+I connected this coordination layer to:
+- voice output
+- FasterWhisper input
+- the dedicated wake gate
+- the main runtime loop
+
+### Result
+The assistant became much more stable after speaking and was less likely to react to her own TTS.
+
+---
+
+## 078. Async speech could leave the assistant in the wrong conversational state
+
+
+### Problem
+Background events could leave the assistant behaving as if a live conversation was still open.
+
+### Symptom
+This affected cases such as:
+- timer finished
+- reminder due
+- break finished
+- focus finished
+
+After speaking one of these messages, the assistant could still behave too much like it was waiting for a follow-up.
+
+### Root cause
+Async notifications were not being treated differently enough from normal user-led conversation turns.
+
+### Fix applied
+I introduced a dedicated async notification delivery path.
+
+This path now:
+- clears old pending conversation context
+- delivers the spoken notification
+- closes the active window
+- returns the assistant to standby
+
+I also removed the old post-focus break offer behaviour from the async finish path because it kept the assistant too sticky.
+
+### Result
+Async speech now behaves more like a clean notification and less like an unfinished conversation.
+
+---
+
+## 079. Fast commands were still travelling through heavier conversation flow
+
+
+### Problem
+Simple direct commands were still relying too much on the heavier routing path.
+
+### Symptom
+This affected commands such as:
+- time
+- day
+- month
+- year
+- timer
+- focus
+- break
+- memory actions
+- reminders
+- assistant identity
+- exit and shutdown
+
+Even when the command was simple, the path was heavier than I wanted for a premium feel.
+
+### Root cause
+The system still depended too much on one general route instead of splitting direct commands away from dialogue-style behaviour.
+
+### Fix applied
+I added a separate fast command lane.
+
+This lane now handles clear direct actions with a lighter deterministic path.
+
+I also used it to make sure that:
+- a new clear command can override an older follow-up
+- temporal replies behave directly
+- simple actions feel faster and cleaner
+
+I also added missing month support to the temporal command set.
+
+### Result
+Simple commands became faster, cleaner, and more predictable.
+
+---
+
+## 080. `responses.py` failed after the month update because of a copy-paste indentation mistake
+
+
+
+### Problem
+The assistant failed to start after I added month support.
+
+### Symptom
+Python raised:
+- `IndentationError: expected an indented block`
+
+### Root cause
+While updating `responses.py`, part of the new month payload function was pasted with the wrong indentation.
+
+### Fix applied
+I replaced the broken part with a clean full-file version of `responses.py` so the temporal response helpers were correctly structured again.
+
+### Result
+The assistant started normally again and month-related responses worked.
+
+---
+
+## 081. Slower dialogue replies needed a natural acknowledgement instead of dead silence
+
+
+### Problem
+When a slower reply path needed more time, the assistant could stay silent for too long.
+
+### Symptom
+This made some conversation-style replies feel uncertain or less polished, even when the final answer was correct.
+
+### Root cause
+The system did not yet have a delayed acknowledgement layer for slower dialogue work.
+
+### Fix applied
+I added a thinking acknowledgement service.
+
+This service can now wait briefly and then speak a short natural phrase such as:
+- `Just a moment.`
+- `Give me a second.`
+- `I’m checking.`
+- `Let me think.`
+
+I only connected this to slower dialogue paths, not to the fast command lane.
+
+### Result
+The assistant now feels more responsive during slower reply generation without making simple commands feel artificially delayed.
+
+---
+
+## 082. Wake-word interruption support needed a safer first version
+
+**Date:** 2026-04-07  
+**Area:** interruptibility / voice control  
+**Status:** partial  
+
+### Problem
+I wanted the assistant to be easier to interrupt while speaking or thinking.
+
+### Symptom
+Without a safer interrupt layer, the old flow could feel too rigid once speech output had already started.
+
+### Root cause
+Full open interruption is harder in a local speaker-and-microphone setup because I also need to protect the system from self-hearing.
+
+### Fix applied
+I started with a safer interrupt model based on the wake path.
+
+This version allows me to:
+- use the wake path again while the assistant is speaking or thinking
+- interrupt the current output
+- reopen the listening window
+- then give a cancel request or a new command
+
+I also added the first interrupt control layer and connected it to playback handling.
+
+### Result
+Interruption is now possible in a safer and more controlled way, but this part still needs more refinement before I treat it as final premium barge-in behaviour.

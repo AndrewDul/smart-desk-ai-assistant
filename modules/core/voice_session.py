@@ -22,6 +22,20 @@ _DEFAULT_WAKE_ACKS = (
     "I'm here.",
 )
 
+_DEFAULT_THINKING_ACKS_EN = (
+    "Just a moment.",
+    "Give me a second.",
+    "I'm checking.",
+    "Let me think.",
+)
+
+_DEFAULT_THINKING_ACKS_PL = (
+    "Chwila moment.",
+    "Daj mi sekundę.",
+    "Już sprawdzam.",
+    "Daj mi pomyśleć.",
+)
+
 _DEFAULT_CANCEL_PHRASES = (
     "cancel",
     "nevermind",
@@ -68,6 +82,7 @@ class VoiceSessionController:
     Goals:
     - keep NeXa in passive standby until wake phrase is heard
     - provide non-repeating wake acknowledgements
+    - provide non-repeating thinking acknowledgements
     - expose a short active listening window after wake-up
     - expose explicit interaction states for UI / logging
     - centralize generic "cancel this task" phrase detection
@@ -94,11 +109,18 @@ class VoiceSessionController:
             if str(item).strip()
         ) or _DEFAULT_WAKE_ACKS
 
+        self.thinking_acknowledgements_en = _DEFAULT_THINKING_ACKS_EN
+        self.thinking_acknowledgements_pl = _DEFAULT_THINKING_ACKS_PL
+
         self.active_listen_window_seconds = max(float(active_listen_window_seconds), 2.0)
         self.thinking_ack_seconds = max(float(thinking_ack_seconds), 0.8)
 
         self._rng = random.Random()
         self._last_wake_acknowledgement: str | None = None
+        self._last_thinking_acknowledgement_by_language: dict[str, str | None] = {
+            "en": None,
+            "pl": None,
+        }
         self._snapshot = VoiceSessionSnapshot(state=VOICE_STATE_STANDBY)
 
     @property
@@ -180,6 +202,24 @@ class VoiceSessionController:
 
         chosen = self._rng.choice(pool)
         self._last_wake_acknowledgement = chosen
+        return chosen
+
+    def build_thinking_acknowledgement(self, language: str) -> str:
+        normalized_language = str(language or "en").strip().lower()
+        if normalized_language not in {"pl", "en"}:
+            normalized_language = "en"
+
+        base_pool = (
+            self.thinking_acknowledgements_pl
+            if normalized_language == "pl"
+            else self.thinking_acknowledgements_en
+        )
+
+        previous = self._last_thinking_acknowledgement_by_language.get(normalized_language)
+        pool = [phrase for phrase in base_pool if phrase != previous] or list(base_pool)
+
+        chosen = self._rng.choice(pool)
+        self._last_thinking_acknowledgement_by_language[normalized_language] = chosen
         return chosen
 
     def looks_like_cancel_request(self, text: str) -> bool:

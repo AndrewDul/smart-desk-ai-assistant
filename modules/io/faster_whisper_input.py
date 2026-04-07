@@ -177,6 +177,7 @@ class FasterWhisperVoiceInput:
         self.vad_speech_pad_ms = int(vad_speech_pad_ms)
 
         self.audio_queue: queue.Queue[np.ndarray] = queue.Queue()
+        self.audio_coordinator = None
 
         self.device = self._resolve_input_device(device_index, device_name_contains)
         input_info = sd.query_devices(self.device, "input")
@@ -289,6 +290,17 @@ class FasterWhisperVoiceInput:
             f"Tried: {unique_candidates}"
         )
 
+    def set_audio_coordinator(self, audio_coordinator) -> None:
+        self.audio_coordinator = audio_coordinator
+
+    def _input_blocked_by_assistant_output(self) -> bool:
+        if self.audio_coordinator is None:
+            return False
+        try:
+            return bool(self.audio_coordinator.input_blocked())
+        except Exception:
+            return False
+
     def _audio_callback(self, indata, frames, time_info, status) -> None:
         if status:
             append_log(f"FasterWhisper audio callback status: {status}")
@@ -359,6 +371,11 @@ class FasterWhisperVoiceInput:
         end_silence_seconds: float | None = None,
         min_speech_seconds: float | None = None,
     ) -> Optional[np.ndarray]:
+        if self._input_blocked_by_assistant_output():
+            if debug:
+                print("Capture skipped because assistant output shield is active.")
+            return None
+
         self._ensure_dependencies()
         self._clear_audio_queue()
 
@@ -386,6 +403,12 @@ class FasterWhisperVoiceInput:
             callback=self._audio_callback,
         ):
             while self._now() - start_time <= hard_timeout:
+                if self._input_blocked_by_assistant_output():
+                    if debug:
+                        print("Capture aborted because assistant output shield became active.")
+                    self._clear_audio_queue()
+                    return None
+
                 try:
                     chunk = self.audio_queue.get(timeout=0.15)
                 except queue.Empty:

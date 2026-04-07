@@ -54,8 +54,12 @@ from modules.nlu.semantic_intent_matcher import SemanticIntentMatcher
 from modules.nlu.utterance_normalizer import UtteranceNormalizer
 from modules.parsing.intent_parser import IntentResult
 from modules.runtime_builder import RuntimeBuilder
+from modules.services.audio_coordinator import AssistantAudioCoordinator
+from modules.services.fast_command_lane import FastCommandLane
 from modules.services.conversation_memory import ConversationMemory
+from modules.services.interrupt_controller import InteractionInterruptController
 from modules.services.response_streamer import StreamingResponseService
+from modules.services.thinking_ack import ThinkingAckService
 from modules.system.utils import (
     SESSION_STATE_PATH,
     USER_PROFILE_PATH,
@@ -88,6 +92,13 @@ class CoreAssistant:
         self.pending_follow_up: dict[str, Any] | None = None
         self.last_language = "en"
         self.shutdown_requested = False
+        self.interrupt_controller = InteractionInterruptController()
+
+        audio_cfg = self.settings.get("audio_coordination", {})
+        self.audio_coordinator = AssistantAudioCoordinator(
+            post_speech_hold_seconds=float(audio_cfg.get("self_hearing_hold_seconds", 0.72)),
+            input_poll_interval_seconds=float(audio_cfg.get("listen_resume_poll_seconds", 0.05)),
+        )
 
         self.voice_session = VoiceSessionController(
             wake_phrases=("nexa",),
@@ -115,10 +126,16 @@ class CoreAssistant:
         self.voice_in = self.runtime.voice_input
         self.voice_out = self.runtime.voice_output
         self.display = self.runtime.display
+        self._attach_audio_coordinator(self.voice_in)
+        self._attach_audio_coordinator(self.voice_out)
         self.memory = self.runtime.memory
         self.reminders = self.runtime.reminders
         self.timer = self.runtime.timer
         self.backend_statuses = dict(self.runtime.backend_statuses)
+
+        self.fast_command_lane = FastCommandLane(
+            enabled=bool(self.settings.get("fast_command_lane", {}).get("enabled", True)),
+        )
 
         self.response_streamer = StreamingResponseService(
             voice_output=self.voice_out,
@@ -127,6 +144,13 @@ class CoreAssistant:
             inter_chunk_pause_seconds=float(streaming_cfg.get("inter_chunk_pause_seconds", 0.05)),
             max_display_lines=int(streaming_cfg.get("max_display_lines", 2)),
             max_display_chars_per_line=int(streaming_cfg.get("max_display_chars_per_line", 20)),
+            interrupt_requested=self._interrupt_requested,
+        )
+
+        self.thinking_ack_service = ThinkingAckService(
+            voice_output=self.voice_out,
+            voice_session=self.voice_session,
+            delay_seconds=self.voice_session.thinking_ack_seconds,
         )
 
         self.utterance_normalizer = UtteranceNormalizer()
@@ -444,6 +468,127 @@ class CoreAssistant:
         normalized = self._normalize_lang(lang)
         self.last_language = normalized
 
+    def _interrupt_requested(self) -> bool:
+        return self.interrupt_controller.is_requested()
+
+    def request_interrupt(
+        self,
+        *,
+        reason: str,
+        source: str,
+        open_active_window: bool = True,
+    ) -> None:
+        self.interrupt_controller.request(
+            reason=reason,
+            source=source,
+        )
+
+        self.pending_confirmation = None
+        self.pending_follow_up = None
+
+        stop_playback = getattr(self.voice_out, "stop_playback", None)
+        if callable(stop_playback):
+            stop_playback()
+
+        if open_active_window:
+            self.voice_session.open_active_window(
+                seconds=self.voice_session.active_listen_window_seconds,
+            )
+            self.voice_session.set_state("listening", detail=f"interrupted:{reason}")
+
+        append_log(
+            f"Interrupt requested: reason={reason}, source={source}, open_active_window={open_active_window}"
+        )
+
+    def _attach_audio_coordinator(self, backend: Any) -> None:
+        if backend is None:
+            return
+
+        setter = getattr(backend, "set_audio_coordinator", None)
+        if callable(setter):
+            setter(self.audio_coordinator)
+            return
+
+        try:
+            setattr(backend, "audio_coordinator", self.audio_coordinator)
+        except Exception:
+            return
+        
+    def _clear_interaction_context(self, *, reason: str, close_active_window: bool = True) -> None:
+        had_pending_confirmation = self.pending_confirmation is not None
+        had_pending_follow_up = self.pending_follow_up is not None
+
+        self.pending_confirmation = None
+        self.pending_follow_up = None
+
+        if close_active_window:
+            self.voice_session.close_active_window()
+            self.voice_session.set_state("standby", detail=reason)
+
+        if had_pending_confirmation or had_pending_follow_up:
+            append_log(
+                "Interaction context cleared: "
+                f"reason={reason}, had_pending_confirmation={had_pending_confirmation}, "
+                f"had_pending_follow_up={had_pending_follow_up}"
+            )
+
+    def _deliver_async_notification(
+        self,
+        *,
+        lang: str,
+        spoken_text: str,
+        display_title: str,
+        display_lines: list[str],
+        source: str,
+        route_kind: str,
+        action: str | None = None,
+        display_duration: float | None = None,
+        extra_metadata: dict[str, Any] | None = None,
+    ) -> None:
+        normalized_lang = self._normalize_lang(lang)
+        cleaned_spoken_text = " ".join(str(spoken_text or "").split()).strip()
+        if not cleaned_spoken_text:
+            return
+
+        self._clear_interaction_context(
+            reason=f"async_notification_{source}",
+            close_active_window=True,
+        )
+
+        shown_lines = [str(line).strip() for line in display_lines if str(line).strip()]
+        if display_title and shown_lines:
+            self.display.show_block(
+                display_title,
+                shown_lines,
+                duration=(display_duration if display_duration is not None else self.default_overlay_seconds),
+            )
+
+        metadata = {
+            "source": source,
+            "route_kind": route_kind,
+            "delivery_mode": "async_notification",
+        }
+        if action:
+            metadata["action"] = action
+        if extra_metadata:
+            metadata.update(extra_metadata)
+
+        self._remember_assistant_turn(
+            cleaned_spoken_text,
+            language=normalized_lang,
+            metadata=metadata,
+        )
+
+        self.voice_session.set_state("speaking", detail=f"async_notification:{source}")
+        self.voice_out.speak(cleaned_spoken_text, language=normalized_lang)
+        self.voice_session.close_active_window()
+        self.voice_session.set_state("standby", detail=f"async_notification_complete:{source}")
+
+        append_log(
+            "Async notification delivered: "
+            f"source={source}, lang={normalized_lang}, action={action or ''}, text={cleaned_spoken_text}"
+        )
+
     def _reminder_language(self, reminder: dict[str, Any]) -> str:
         stored = reminder.get("language") or reminder.get("lang")
         return self._normalize_lang(stored or self.last_language)
@@ -562,28 +707,25 @@ class CoreAssistant:
                 message = str(reminder.get("message", "Reminder triggered.")).strip() or "Reminder triggered."
                 lang = self._reminder_language(reminder)
 
-                self.display.show_block(
-                    self._localized(lang, "PRZYPOMNIENIE", "REMINDER"),
-                    [message],
-                    duration=max(self.default_overlay_seconds, 12.0),
-                )
-
                 spoken_text = self._localized(
                     lang,
                     f"Przypomnienie. {message}",
                     f"Reminder. {message}",
                 )
 
-                self._remember_assistant_turn(
-                    spoken_text,
-                    language=lang,
-                    metadata={
-                        "source": "reminder",
-                        "route_kind": "reminder",
+                self._deliver_async_notification(
+                    lang=lang,
+                    spoken_text=spoken_text,
+                    display_title=self._localized(lang, "PRZYPOMNIENIE", "REMINDER"),
+                    display_lines=[message],
+                    source="reminder",
+                    route_kind="reminder",
+                    action="reminder_due",
+                    display_duration=max(self.default_overlay_seconds, 12.0),
+                    extra_metadata={
+                        "reminder_id": reminder.get("id"),
                     },
                 )
-
-                self.voice_out.speak(spoken_text, language=lang)
 
                 append_log(
                     f"Reminder triggered: id={reminder.get('id')}, lang={lang}, message={message}"
@@ -628,10 +770,27 @@ class CoreAssistant:
                 )
 
         if reply.spoken_text:
-            self.voice_out.speak(reply.spoken_text, language=reply.language)
+            spoken_ok = self.voice_out.speak(reply.spoken_text, language=reply.language)
+            if not spoken_ok or self._interrupt_requested():
+                return
 
         if reply.follow_up_text:
-            self.voice_out.speak(reply.follow_up_text, language=reply.language)
+            follow_up_ok = self.voice_out.speak(reply.follow_up_text, language=reply.language)
+            if not follow_up_ok or self._interrupt_requested():
+                return
+   
+    def _run_with_thinking_ack(self, *, language: str, detail: str, operation):
+        normalized_language = self._normalize_lang(language)
+
+        ack_handle = self.thinking_ack_service.arm(
+            language=normalized_language,
+            detail=detail,
+        )
+
+        try:
+            return operation()
+        finally:
+            ack_handle.cancel()
 
     def _build_dialogue_plan(self, route: CompanionRoute, dialogue_user_profile: dict[str, Any]):
         if hasattr(self.dialogue, "build_response_plan"):
@@ -648,7 +807,14 @@ class CoreAssistant:
         dialogue_user_profile = self._build_dialogue_user_profile(preferred_language=lang)
 
         try:
-            plan = self._build_dialogue_plan(route, dialogue_user_profile)
+            self.voice_session.set_state("routing", detail=f"dialogue_plan:{route.kind}")
+            plan = self._run_with_thinking_ack(
+                language=lang,
+                detail=f"thinking_dialogue_plan:{route.kind}",
+                operation=lambda: self._build_dialogue_plan(route, dialogue_user_profile),
+            )
+
+            self.voice_session.set_state("speaking", detail=f"dialogue_stream:{route.kind}")
             report = self.response_streamer.execute(plan)
 
             self._remember_dialogue_report(
@@ -665,7 +831,14 @@ class CoreAssistant:
         except Exception as error:
             append_log(f"Dialogue streaming failed. Falling back to plain reply. Error: {error}")
 
-            reply = self.dialogue.build_reply(route, dialogue_user_profile)
+            self.voice_session.set_state("routing", detail=f"dialogue_reply_fallback:{route.kind}")
+            reply = self._run_with_thinking_ack(
+                language=lang,
+                detail=f"thinking_dialogue_reply_fallback:{route.kind}",
+                operation=lambda: self.dialogue.build_reply(route, dialogue_user_profile),
+            )
+
+            self.voice_session.set_state("speaking", detail=f"dialogue_reply_fallback_speaking:{route.kind}")
             self._speak_dialogue_reply(reply)
 
             fallback_text = " ".join(
@@ -940,6 +1113,8 @@ class CoreAssistant:
         return None
 
     def handle_command(self, text: str) -> bool:
+        self.interrupt_controller.clear()
+
         cleaned = text.strip()
         if not cleaned:
             return True
@@ -965,6 +1140,8 @@ class CoreAssistant:
             command_lang = self._normalize_lang(semantic_override["lang"])
             self._last_normalized_command_text = self._normalize_text(routing_text)
 
+        parser_result = self.parser.parse(routing_text)
+
         self._remember_user_turn(
             cleaned,
             language=command_lang,
@@ -988,6 +1165,16 @@ class CoreAssistant:
                 self._commit_language(command_lang)
                 return self._cancel_active_request(command_lang)
 
+        fast_decision = self.fast_command_lane.classify(
+            routing_text,
+            parser_result=parser_result,
+            pending_confirmation=bool(self.pending_confirmation),
+            pending_follow_up=bool(self.pending_follow_up),
+        )
+        if fast_decision is not None:
+            return self.fast_command_lane.execute(self, fast_decision, command_lang)
+
+        if self.pending_confirmation or self.pending_follow_up:
             override_intent = self._extract_pending_override_intent(routing_text)
             if override_intent is not None:
                 append_log(

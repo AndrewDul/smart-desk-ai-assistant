@@ -167,6 +167,34 @@ def on_focus_finished(assistant) -> None:
     append_log("Focus mode finished.")
 
     lang = assistant.last_language
+    spoken = assistant._localized(
+        lang,
+        "Sesja focus dobiegła końca. Kiedy będziesz gotowy, powiedz NeXa i mogę uruchomić przerwę.",
+        "Your focus session is finished. When you are ready, say NeXa and I can start a break.",
+    )
+
+    assistant._deliver_async_notification(
+        lang=lang,
+        spoken_text=spoken,
+        display_title=assistant._localized(lang, "FOCUS DONE", "FOCUS DONE"),
+        display_lines=[
+            assistant._localized(lang, "sesja zakonczona", "session finished"),
+            assistant._localized(lang, "powiedz nexa po przerwe", "say NeXa for a break"),
+        ],
+        source="focus",
+        route_kind="focus",
+        action="focus_finished",
+        display_duration=8.0,
+        extra_metadata={"phase": "finished_return_to_standby"},
+    )
+    assistant.state["current_timer"] = None
+    assistant.state["focus_mode"] = False
+    assistant.state["break_mode"] = False
+    assistant._save_state()
+
+    append_log("Focus mode finished.")
+
+    lang = assistant.last_language
 
     assistant.display.show_block(
         assistant._localized(lang, "FOCUS DONE", "FOCUS DONE"),

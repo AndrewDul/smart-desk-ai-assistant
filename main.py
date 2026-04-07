@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import threading
 import time
 import traceback
 import unicodedata
@@ -597,6 +598,22 @@ def _acknowledge_wake(assistant: CoreAssistant) -> None:
     print("Wake phrase detected. Waiting for command...")
 
 
+def _assistant_output_blocks_input(assistant: CoreAssistant) -> bool:
+    coordinator = getattr(assistant, "audio_coordinator", None)
+    if coordinator is None:
+        return False
+
+    try:
+        blocked = bool(coordinator.input_blocked())
+    except Exception:
+        return False
+
+    if blocked:
+        assistant.voice_session.set_state(VOICE_STATE_SPEAKING, detail="assistant_output_shield")
+
+    return blocked
+
+
 def _listen_with_backend_fallback(
     assistant: CoreAssistant,
     *,
@@ -651,6 +668,10 @@ def _build_dedicated_wake_gate(assistant: CoreAssistant):
             ),
             debug=bool(voice_cfg.get("wake_debug", False)),
         )
+
+        set_audio_coordinator = getattr(gate, "set_audio_coordinator", None)
+        if callable(set_audio_coordinator):
+            set_audio_coordinator(getattr(assistant, "audio_coordinator", None))
 
         print("Dedicated wake gate active: openWakeWord")
         append_log("Dedicated wake gate active: openWakeWord")
@@ -751,11 +772,81 @@ def _rearm_active_window(assistant: CoreAssistant) -> None:
     else:
         assistant.voice_session.open_active_window(seconds=POST_COMMAND_WINDOW_SECONDS)
 
+class WakeInterruptMonitor:
+    def __init__(
+        self,
+        *,
+        assistant: CoreAssistant,
+        wake_gate,
+        timeout_seconds: float = 0.35,
+        idle_sleep_seconds: float = 0.05,
+    ) -> None:
+        self.assistant = assistant
+        self.wake_gate = wake_gate
+        self.timeout_seconds = max(0.1, float(timeout_seconds))
+        self.idle_sleep_seconds = max(0.02, float(idle_sleep_seconds))
+        self._stop_event = threading.Event()
+        self._thread = threading.Thread(
+            target=self._run,
+            name="wake-interrupt-monitor",
+            daemon=True,
+        )
+
+    def start(self) -> None:
+        if self.wake_gate is None:
+            return
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        if self._thread.is_alive():
+            self._thread.join(timeout=0.5)
+
+    def _assistant_interruptible_now(self) -> bool:
+        state = self.assistant.voice_session.state
+        return state in {VOICE_STATE_SPEAKING, "thinking"}
+
+    def _run(self) -> None:
+        if self.wake_gate is None:
+            return
+
+        while not self._stop_event.is_set():
+            if not self._assistant_interruptible_now():
+                time.sleep(self.idle_sleep_seconds)
+                continue
+
+            try:
+                heard_wake = self.wake_gate.listen_for_wake_phrase(
+                    timeout=self.timeout_seconds,
+                    debug=False,
+                    ignore_audio_block=True,
+                )
+            except Exception as error:
+                append_log(f"Wake interrupt monitor warning: {error}")
+                time.sleep(0.15)
+                continue
+
+            if heard_wake is None:
+                continue
+
+            append_log("Wake barge-in detected during speaking/thinking.")
+            self.assistant.request_interrupt(
+                reason="wake_barge_in",
+                source="wake_interrupt_monitor",
+                open_active_window=True,
+            )
+            time.sleep(0.25)
 
 def main() -> None:
     assistant = CoreAssistant()
     _run_startup_sequence(assistant)
     wake_gate = _build_dedicated_wake_gate(assistant)
+    
+    wake_interrupt_monitor = WakeInterruptMonitor(
+        assistant=assistant,
+        wake_gate=wake_gate,
+    )
+    wake_interrupt_monitor.start()
 
     gate_log_times: dict[str, float] = {}
     last_transcript_normalized: str | None = None
@@ -769,6 +860,15 @@ def main() -> None:
 
     try:
         while True:
+            if _assistant_output_blocks_input(assistant):
+                poll_seconds = getattr(
+                    getattr(assistant, "audio_coordinator", None),
+                    "input_poll_interval_seconds",
+                    0.05,
+                )
+                time.sleep(max(0.01, float(poll_seconds)))
+                continue
+
             if not assistant.voice_session.active_window_open():
                 _listen_for_wake(assistant, state_flags, wake_gate=wake_gate)
                 continue
@@ -823,6 +923,10 @@ def main() -> None:
         traceback.print_exc()
     finally:
         shutdown_requested = assistant.shutdown_requested
+        try:
+            wake_interrupt_monitor.stop()
+        except Exception as error:
+            append_log(f"Wake interrupt monitor stop warning: {error}")
 
         if wake_gate is not None:
             try:

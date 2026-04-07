@@ -127,6 +127,24 @@ class IntentParser:
             r"\bwyswietl(?: mi)? dzien\b",
         ]
 
+        self.month_query_patterns = [
+            r"\bwhat month is it\b",
+            r"\bwhat month is today\b",
+            r"\btell me the month\b",
+            r"\bjaki jest miesiac\b",
+            r"\bjaki mamy miesiac\b",
+            r"\bktory mamy miesiac\b",
+            r"\bpodaj miesiac\b",
+        ]
+        self.month_show_patterns = [
+            r"\bshow(?: me)? the month\b",
+            r"\bdisplay(?: me)? the month\b",
+            r"\bshow month\b",
+            r"\bdisplay month\b",
+            r"\bpokaz(?: mi)? miesiac\b",
+            r"\bwyswietl(?: mi)? miesiac\b",
+        ]
+
         self.year_query_patterns = [
             r"\bwhat year is it\b",
             r"\btell me the year\b",
@@ -324,6 +342,8 @@ class IntentParser:
             "show_date": "show date / pokaż datę",
             "ask_day": "day / dzień",
             "show_day": "show day / pokaż dzień",
+            "ask_month": "month / miesiąc",
+            "show_month": "show month / pokaż miesiąc",
             "ask_year": "year / rok",
             "show_year": "show year / pokaż rok",
             "timer_start": "start timer / ustaw timer",
@@ -460,6 +480,8 @@ class IntentParser:
             "show_date": self.date_show_patterns,
             "ask_day": self.day_query_patterns,
             "show_day": self.day_show_patterns,
+            "ask_month": self.month_query_patterns,
+            "show_month": self.month_show_patterns,
             "ask_year": self.year_query_patterns,
             "show_year": self.year_show_patterns,
         }.items():
@@ -606,6 +628,8 @@ class IntentParser:
             ("ask_date", self.date_query_patterns),
             ("show_day", self.day_show_patterns),
             ("ask_day", self.day_query_patterns),
+            ("show_month", self.month_show_patterns),
+            ("ask_month", self.month_query_patterns),
             ("show_year", self.year_show_patterns),
             ("ask_year", self.year_query_patterns),
         ):

@@ -127,5 +127,8 @@
       "systemctl",
       "poweroff"
     ]
-  }
+  },
+  "fast_command_lane": {
+  "enabled": true
+}
 }

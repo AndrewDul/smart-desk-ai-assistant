@@ -167,6 +167,35 @@ def on_break_finished(assistant) -> None:
     append_log("Break mode finished.")
 
     lang = assistant.last_language
+    spoken = assistant._localized(
+        lang,
+        "Przerwa dobiegła końca. Możesz wrócić do pracy albo nauki, kiedy będziesz gotowy.",
+        "Your break is finished. You can go back to work or studying whenever you are ready.",
+    )
+
+    assistant._deliver_async_notification(
+        lang=lang,
+        spoken_text=spoken,
+        display_title=assistant._localized(lang, "BREAK DONE", "BREAK DONE"),
+        display_lines=[
+            assistant._localized(lang, "przerwa zakonczona", "break finished"),
+            assistant._localized(lang, "wracaj kiedy chcesz", "come back when ready"),
+        ],
+        source="break",
+        route_kind="break",
+        action="break_finished",
+        display_duration=8.0,
+        extra_metadata={"phase": "finished"},
+    )
+    
+    assistant.state["current_timer"] = None
+    assistant.state["focus_mode"] = False
+    assistant.state["break_mode"] = False
+    assistant._save_state()
+
+    append_log("Break mode finished.")
+
+    lang = assistant.last_language
 
     assistant.display.show_block(
         assistant._localized(lang, "BREAK DONE", "BREAK DONE"),

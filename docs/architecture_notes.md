@@ -1426,3 +1426,204 @@ At this stage, the project already has:
 The biggest remaining difference between "working" and "premium" is now interaction polish rather than basic capability.
 
 That is the current direction of the project.
+
+
+---
+
+## 9. Current premium voice architecture direction
+
+At this stage I moved the project away from a simple command prototype and much closer to a premium voice product structure.
+
+The main goal of the current architecture is not only to make NeXa work, but to make it feel stable, predictable, fast, and ready for future expansion.
+
+### 9.1 State-based voice session model
+
+I now treat the assistant as a state-driven voice system.
+
+The main voice states are:
+
+- `standby`
+- `wake_detected`
+- `listening`
+- `transcribing`
+- `routing`
+- `thinking`
+- `speaking`
+- `shutdown`
+
+This makes the flow easier to reason about and reduces hidden behaviour.
+
+Instead of treating the assistant like one long loose loop, I now treat each stage as a different part of the interaction lifecycle.
+
+This is important because I want NeXa to behave like a real product, not like a collection of separate scripts.
+
+### 9.2 Dedicated wake path
+
+The standby path is now separated from the full speech-to-text path.
+
+I use:
+
+- `openWakeWord`
+- custom local wake model: `models/wake/nexa.onnx`
+
+This means standby no longer depends only on full transcription-first behaviour.
+
+The dedicated wake gate is lighter and more product-like.
+
+The intended flow is now:
+
+1. standby
+2. dedicated wake detection
+3. short wake acknowledgement
+4. active listening window
+5. full STT and command handling
+
+This is a much better base for premium interaction than keeping full STT active all the time.
+
+### 9.3 Full STT only after wake
+
+After wake, the assistant uses the normal transcription path for real commands.
+
+This keeps the system more efficient and makes the interaction model cleaner:
+
+- wake detection is lightweight
+- real command understanding starts only after wake
+- normal conversation still supports Polish and English
+
+This separation is important for both performance and predictability.
+
+### 9.4 Audio coordination and self-hearing protection
+
+One of the most important improvements was adding an audio coordination layer.
+
+The problem was that TTS, wake detection, and full STT were working, but they were not coordinated strongly enough at runtime.
+
+Because of that, NeXa could sometimes react to her own voice, especially after:
+- timer finished
+- reminders
+- system replies
+- follow-up speech
+
+To improve this, I introduced a dedicated audio coordination service.
+
+This layer now:
+- knows when assistant playback starts
+- knows when assistant playback ends
+- keeps a short post-speech shield
+- tells wake and STT input layers when input should stay blocked
+
+This gave me a much cleaner separation between:
+- assistant output
+- user input
+
+It also reduced self-hearing and made the whole voice loop more stable.
+
+### 9.5 Async notification behaviour
+
+I also separated normal conversation turns from async notification turns.
+
+This matters for things like:
+- timer finished
+- reminder due
+- break finished
+- focus finished
+
+These events are not the same as a live user-led conversation turn.
+
+So I added a dedicated async notification delivery rule.
+
+When NeXa speaks an async notification, I now treat it as:
+- notification output
+- not as an open follow-up conversation
+
+This means the assistant:
+- clears old pending interaction context
+- speaks the message
+- returns to standby after the message
+
+This is important because I do not want background notifications to leave the assistant in a half-open conversational state.
+
+### 9.6 Fast command lane
+
+I added a lightweight fast command lane for direct system-style commands.
+
+This lane is meant for actions such as:
+- time
+- date
+- day
+- month
+- year
+- timer
+- focus
+- break
+- memory actions
+- reminder actions
+- assistant identity
+- exit and shutdown
+
+The point of this lane is simple:
+I do not want every command to travel through the heavier dialogue path.
+
+The fast lane gives me:
+- quicker response
+- cleaner routing
+- better override behaviour
+- less unnecessary conversational overhead
+
+It also helps with another important rule:
+a clear new command should beat an older follow-up.
+
+### 9.7 Thinking acknowledgements
+
+For slower dialogue paths, I added delayed thinking acknowledgements.
+
+If the assistant needs more time before replying, NeXa can now say a short natural phrase such as:
+- `Just a moment.`
+- `Give me a second.`
+- `I’m checking.`
+- `Let me think.`
+
+I only use this for slower dialogue-style routes.
+
+I do not use it for fast direct commands because I do not want to add fake delay to actions that should feel instant.
+
+This improves perceived responsiveness and removes dead silence during slower reply generation.
+
+### 9.8 Interrupt foundation
+
+I also started building a cleaner interrupt model.
+
+At the current stage, the safest working version is wake-based interruption.
+
+That means:
+- when NeXa is speaking or thinking
+- I can use the wake path again
+- the old output can be interrupted
+- a new command can take priority
+
+This is safer than trying to let the assistant listen freely during her own TTS in the same local audio setup.
+
+It is not the final interrupt model yet, but it is a strong and practical step toward more premium barge-in behaviour.
+
+### 9.9 Why this architecture matters
+
+These changes matter because I want NeXa to become:
+
+- predictable
+- easy to interrupt
+- clear about what state she is in
+- less likely to react to the wrong sound
+- faster on simple actions
+- calmer during background events
+- easier to extend later
+
+This architecture also prepares the project for later additions such as:
+- AI HAT+ 2
+- camera and vision
+- stronger local conversation models
+- better streaming
+- richer face and eye behaviour
+
+At this point the project is no longer just a basic assistant loop.
+It is becoming a structured voice runtime that I can keep improving in a controlled way.
+

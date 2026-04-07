@@ -8,6 +8,8 @@ _TEMPORAL_KIND_BY_ACTION = {
     "show_date": "date",
     "ask_day": "day",
     "show_day": "day",
+    "ask_month": "month",
+    "show_month": "month",
     "ask_year": "year",
     "show_year": "year",
 }

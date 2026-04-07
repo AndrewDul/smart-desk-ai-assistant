@@ -237,6 +237,55 @@ def _year_payload(lang: str) -> tuple[str, str, list[str]]:
         ]
         return spoken, title, lines
 
+def _month_payload(lang: str) -> tuple[str, str, list[str]]:
+    now = datetime.now()
+    month_name_en = now.strftime("%B")
+    month_name_pl = {
+        1: "styczeń",
+        2: "luty",
+        3: "marzec",
+        4: "kwiecień",
+        5: "maj",
+        6: "czerwiec",
+        7: "lipiec",
+        8: "sierpień",
+        9: "wrzesień",
+        10: "październik",
+        11: "listopad",
+        12: "grudzień",
+    }[now.month]
+
+    if lang == "pl":
+        spoken = f"Mamy miesiąc {month_name_pl}."
+        title = "MIESIĄC"
+        lines = [
+            month_name_pl,
+            now.strftime("%m-%Y"),
+        ]
+        return spoken, title, lines
+
+    spoken = f"The current month is {month_name_en}."
+    title = "MONTH"
+    lines = [
+        month_name_en,
+        now.strftime("%m-%Y"),
+    ]
+    return spoken, title, lines
+
+
+def _year_payload(lang: str) -> tuple[str, str, list[str]]:
+    now = datetime.now()
+    year_text = str(now.year)
+
+    if lang == "pl":
+        spoken = f"Mamy rok {year_text}."
+        title = "ROK"
+        lines = [
+            year_text,
+            "aktualny rok",
+        ]
+        return spoken, title, lines
+
     spoken = f"The current year is {year_text}."
     title = "YEAR"
     lines = [
@@ -253,4 +302,6 @@ def format_temporal_text(kind: str, lang: str) -> tuple[str, str, list[str]]:
         return _date_payload(lang)
     if kind == "day":
         return _day_payload(lang)
+    if kind == "month":
+        return _month_payload(lang)
     return _year_payload(lang)

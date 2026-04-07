@@ -33,6 +33,8 @@ TEMPORAL_ACTIONS = {
     "show_date",
     "ask_day",
     "show_day",
+    "ask_month",
+    "show_month",
     "ask_year",
     "show_year",
 }

@@ -36,6 +36,7 @@ class StreamingResponseService:
         inter_chunk_pause_seconds: float = 0.05,
         max_display_lines: int = 2,
         max_display_chars_per_line: int = 20,
+        interrupt_requested: Any | None = None,
     ) -> None:
         self.voice_output = voice_output
         self.display = display
@@ -43,6 +44,7 @@ class StreamingResponseService:
         self.inter_chunk_pause_seconds = max(0.0, float(inter_chunk_pause_seconds))
         self.max_display_lines = max(1, int(max_display_lines))
         self.max_display_chars_per_line = max(8, int(max_display_chars_per_line))
+        self.interrupt_requested = interrupt_requested
 
         self.fast_ack_max_chars = 28
         self.short_tail_follow_up_max_chars = 42
@@ -58,13 +60,16 @@ class StreamingResponseService:
         voice_lead_start = self._should_use_voice_lead_start(prepared_chunks)
 
         for index, chunk in enumerate(prepared_chunks):
+            if self._interrupted():
+                append_log(f"Response plan interrupted before chunk index={index}.")
+                break
+
             text = clean_response_text(chunk.text)
             if not text:
                 continue
 
             if not display_shown:
                 if voice_lead_start and index == 0:
-                    # Let a short ACK reach the user immediately before touching the display.
                     pass
                 elif display_title and display_lines:
                     self.display.show_block(
@@ -74,9 +79,14 @@ class StreamingResponseService:
                     )
                     display_shown = True
 
-            self.voice_output.speak(text, language=chunk.language)
-            full_text_parts.append(text)
-            spoken_count += 1
+            spoken_ok = self.voice_output.speak(text, language=chunk.language)
+            if spoken_ok:
+                full_text_parts.append(text)
+                spoken_count += 1
+            else:
+                if self._interrupted():
+                    append_log(f"Response plan interrupted during chunk index={index}.")
+                    break
 
             if voice_lead_start and index == 0 and not display_shown:
                 if display_title and display_lines:
@@ -93,7 +103,9 @@ class StreamingResponseService:
                 is_last=index == len(prepared_chunks) - 1,
             )
             if pause_seconds > 0:
-                time.sleep(pause_seconds)
+                if not self._sleep_interruptibly(pause_seconds):
+                    append_log(f"Response plan interrupted during inter-chunk pause after index={index}.")
+                    break
 
         if not display_shown and display_title and display_lines:
             self.display.show_block(
@@ -121,6 +133,28 @@ class StreamingResponseService:
     def preview_display(self, plan: ResponsePlan) -> tuple[str, list[str]]:
         prepared_chunks = self._prepare_chunks(plan)
         return self._resolve_display_content(plan, prepared_chunks)
+
+    def _interrupted(self) -> bool:
+        if not callable(self.interrupt_requested):
+            return False
+
+        try:
+            return bool(self.interrupt_requested())
+        except Exception:
+            return False
+
+    def _sleep_interruptibly(self, seconds: float) -> bool:
+        remaining = max(0.0, float(seconds))
+        step = 0.02
+
+        while remaining > 0:
+            if self._interrupted():
+                return False
+            interval = min(step, remaining)
+            time.sleep(interval)
+            remaining -= interval
+
+        return True
 
     def _prepare_chunks(self, plan: ResponsePlan) -> list[AssistantChunk]:
         chunks = [chunk for chunk in plan.speakable_chunks() if clean_response_text(chunk.text)]

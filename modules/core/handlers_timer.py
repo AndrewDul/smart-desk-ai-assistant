@@ -192,29 +192,25 @@ def on_timer_finished(assistant) -> None:
     append_log("Timer finished.")
 
     lang = assistant.last_language
-
-    assistant.display.show_block(
-        assistant._localized(lang, "TIME IS UP", "TIME IS UP"),
-        [
-            assistant._localized(lang, "timer zakonczony", "timer finished"),
-        ],
-        duration=6.0,
-    )
-
     spoken = assistant._localized(
         lang,
         "Minął ustawiony czas.",
         "Your timer has finished.",
     )
-    assistant.voice_out.speak(spoken, language=lang)
-    _remember_timer_reply(
-        assistant,
-        spoken=spoken,
+
+    assistant._deliver_async_notification(
         lang=lang,
+        spoken_text=spoken,
+        display_title=assistant._localized(lang, "TIME IS UP", "TIME IS UP"),
+        display_lines=[
+            assistant._localized(lang, "timer zakonczony", "timer finished"),
+        ],
+        source="timer",
+        route_kind="timer",
         action="timer_finished",
+        display_duration=6.0,
         extra_metadata={"phase": "finished"},
     )
-
 
 def on_timer_stopped(assistant) -> None:
     assistant.state["current_timer"] = None

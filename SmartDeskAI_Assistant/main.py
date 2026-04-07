@@ -6,6 +6,7 @@ import subprocess
 import time
 import traceback
 import unicodedata
+from importlib import import_module
 
 from modules.core.assistant import CoreAssistant
 from modules.core.voice_session import (
@@ -21,6 +22,7 @@ from modules.system.utils import append_log
 
 
 WAKE_GATE_TIMEOUT_SECONDS = 2.4
+DEDICATED_WAKE_TIMEOUT_SECONDS = 1.8
 POST_COMMAND_WINDOW_SECONDS = 6.0
 FOLLOW_UP_WINDOW_SECONDS = 12.0
 DUPLICATE_TRANSCRIPT_COOLDOWN_SECONDS = 1.4
@@ -625,7 +627,45 @@ def _listen_with_backend_fallback(
     )
 
 
-def _listen_for_wake(assistant: CoreAssistant, state_flags: dict[str, bool]) -> bool:
+def _build_dedicated_wake_gate(assistant: CoreAssistant):
+    voice_cfg = assistant.settings.get("voice_input", {})
+    wake_engine = str(voice_cfg.get("wake_engine", "faster_whisper")).strip().lower()
+
+    if wake_engine not in {"openwakeword", "open_wakeword"}:
+        return None
+
+    try:
+        gate_module = import_module("modules.io.openwakeword_gate")
+        gate_class = getattr(gate_module, "OpenWakeWordGate")
+
+        gate = gate_class(
+            model_path=str(voice_cfg.get("wake_model_path", "models/wake/nexa.onnx")),
+            device_index=voice_cfg.get("device_index"),
+            device_name_contains=voice_cfg.get("device_name_contains"),
+            threshold=float(voice_cfg.get("wake_threshold", 0.42)),
+            trigger_level=int(voice_cfg.get("wake_trigger_level", 2)),
+            block_ms=int(voice_cfg.get("wake_block_ms", 80)),
+            vad_threshold=float(voice_cfg.get("wake_vad_threshold", 0.25)),
+            enable_speex_noise_suppression=bool(
+                voice_cfg.get("wake_enable_speex_noise_suppression", False)
+            ),
+            debug=bool(voice_cfg.get("wake_debug", False)),
+        )
+
+        print("Dedicated wake gate active: openWakeWord")
+        append_log("Dedicated wake gate active: openWakeWord")
+        return gate
+
+    except Exception as error:
+        print("Wake gate fallback active: FasterWhisper.")
+        append_log(
+            "OpenWakeWord wake gate unavailable. "
+            f"Falling back to FasterWhisper. Error: {error}"
+        )
+        return None
+
+
+def _listen_for_wake(assistant: CoreAssistant, state_flags: dict[str, bool], wake_gate=None) -> bool:
     if assistant.voice_session.state != VOICE_STATE_STANDBY:
         assistant.voice_session.close_active_window()
 
@@ -634,6 +674,18 @@ def _listen_for_wake(assistant: CoreAssistant, state_flags: dict[str, bool]) -> 
     if not state_flags.get("standby_banner_shown", False):
         print("\nStandby. Waiting for wake phrase...")
         state_flags["standby_banner_shown"] = True
+
+    if wake_gate is not None:
+        heard_wake = wake_gate.listen_for_wake_phrase(
+            timeout=DEDICATED_WAKE_TIMEOUT_SECONDS,
+            debug=False,
+        )
+        if heard_wake is None:
+            return False
+
+        state_flags["standby_banner_shown"] = False
+        _acknowledge_wake(assistant)
+        return True
 
     wake_method = getattr(assistant.voice_in, "listen_for_wake_phrase", None)
 
@@ -692,6 +744,7 @@ def _listen_for_active_command(assistant: CoreAssistant) -> str | None:
 
     return heard_text.strip()
 
+
 def _rearm_active_window(assistant: CoreAssistant) -> None:
     if assistant.pending_confirmation or assistant.pending_follow_up:
         assistant.voice_session.open_active_window(seconds=FOLLOW_UP_WINDOW_SECONDS)
@@ -702,12 +755,14 @@ def _rearm_active_window(assistant: CoreAssistant) -> None:
 def main() -> None:
     assistant = CoreAssistant()
     _run_startup_sequence(assistant)
+    wake_gate = _build_dedicated_wake_gate(assistant)
 
     gate_log_times: dict[str, float] = {}
     last_transcript_normalized: str | None = None
     last_transcript_time: float | None = None
     state_flags = {
         "standby_banner_shown": False,
+        "compatibility_wake_mode_logged": False,
     }
 
     fatal_error: Exception | None = None
@@ -715,7 +770,7 @@ def main() -> None:
     try:
         while True:
             if not assistant.voice_session.active_window_open():
-                _listen_for_wake(assistant, state_flags)
+                _listen_for_wake(assistant, state_flags, wake_gate=wake_gate)
                 continue
 
             heard_text = _listen_for_active_command(assistant)
@@ -768,6 +823,12 @@ def main() -> None:
         traceback.print_exc()
     finally:
         shutdown_requested = assistant.shutdown_requested
+
+        if wake_gate is not None:
+            try:
+                wake_gate.close()
+            except Exception as error:
+                append_log(f"Wake gate close warning: {error}")
 
         try:
             assistant.shutdown()
