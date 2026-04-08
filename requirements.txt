@@ -1,29 +1,44 @@
-# Core audio and data processing
+# -------------------------------------------------------------------
+# NeXa runtime dependencies
+# Keep this file focused on Python packages only.
+# Native binaries like whisper.cpp and llama.cpp are installed separately.
+# -------------------------------------------------------------------
+
+# Core runtime
 numpy
 sounddevice
 soundfile
 
-# Display and imaging
+# Display
 Pillow
 luma.oled
 
-# Raspberry Pi hardware access
+# Raspberry Pi GPIO / SPI
 spidev
-rpi-lgpio
 gpiozero
+rpi-lgpio
 
-# Offline speech input
+# Speech input
 faster-whisper
 silero-vad
 onnxruntime
 
-# Offline speech output
+# Wake word
+openwakeword
+
+# Speech output
 piper-tts
 
-# Test runner
+# Tests
 pytest
 
-# Optional semantic intent upgrade
-# Install this only if you want embedding-based semantic matching on the Pi.
-# The assistant can still run without it because the matcher degrades gracefully.
+# -------------------------------------------------------------------
+# Optional packages
+# Install only when the related feature is enabled in config.
+# -------------------------------------------------------------------
+
+# Optional semantic routing / embeddings
 # sentence-transformers
+
+# Optional vision stack
+# opencv-python-headless

@@ -1,33 +1,93 @@
-.venv/
-.venv~/
-__pycache__/
-*.pyc
-*.wav
-logs/
-data/
-models/*.zip
-.git/
-models/ggml-base.bin
-models/ggml-silero-v6.2.0.bin
-
-whisper.cpp/
-# Python cache
+# --------------------------------------------------
+# Python
+# --------------------------------------------------
 __pycache__/
 *.py[cod]
+*$py.class
 
-# Virtual environment
+# --------------------------------------------------
+# Virtual environments
+# --------------------------------------------------
 .venv/
+venv/
+env/
+ENV/
 
-# Audio test files
+# --------------------------------------------------
+# Test / tooling caches
+# --------------------------------------------------
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --------------------------------------------------
+# IDE / editor
+# --------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --------------------------------------------------
+# OS files
+# --------------------------------------------------
+.DS_Store
+Thumbs.db
+
+# --------------------------------------------------
+# Runtime state (canonical)
+# --------------------------------------------------
+var/data/
+var/logs/
+var/cache/
+
+# --------------------------------------------------
+# Legacy runtime state (should be removed from repo)
+# --------------------------------------------------
+data/
+logs/
+cache/
+
+# --------------------------------------------------
+# Local temp / audio artifacts
+# --------------------------------------------------
+tmp/
+temp/
 *.wav
+*.pcm
 
-# Local logs / temp files
-*.log
-*.tmp
+# --------------------------------------------------
+# Build / packaging
+# --------------------------------------------------
+build/
+dist/
+*.egg-info/
 
-# Waveshare downloaded archive
-tests/hardware/display/lcd/vendor/waveshare/*.zipllama.cpp/
+# --------------------------------------------------
+# Environment / secrets
+# --------------------------------------------------
+.env
+.env.*
+!.env.example
 
-models/*.gguf
-llama.cpp/
-tests/hardware/display/lcd/vendor/waveshare/LCD_Module_RPI_code.zip
+# --------------------------------------------------
+# Local native build artifacts
+# Keep source trees, ignore compiled outputs.
+# --------------------------------------------------
+third_party/llama.cpp/build/
+third_party/whisper.cpp/build/
+llama.cpp/build/
+whisper.cpp/build/
+
+# --------------------------------------------------
+# Optional local model artifacts
+# Keep committed product assets manually if needed.
+# Uncomment only if you decide to keep models outside git.
+# --------------------------------------------------
+models/**/*.gguf
+models/**/*.bin
+voices/piper/**/*.onnx
+voices/piper/**/*.json

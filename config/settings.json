@@ -1,8 +1,8 @@
 {
   "project": {
     "name": "NeXa",
-    "version": "0.6.1-low-latency-core",
-    "stage": "stage-1-stationary-premium-conversation"
+    "version": "0.7.0",
+    "stage": "premium-product-foundation"
   },
   "user": {
     "name": "Andrzej"
@@ -12,30 +12,44 @@
     "engine": "faster_whisper",
     "wake_engine": "openwakeword",
     "wake_model_path": "models/wake/nexa.onnx",
-    "wake_threshold": 0.16,
-    "wake_trigger_level": 1,
+
+    "wake_threshold": 0.28,
+    "wake_trigger_level": 2,
     "wake_block_ms": 80,
-    "wake_vad_threshold": 0.0,
-    "wake_enable_speex_noise_suppression": false,
-    "wake_debug": true,
-    "device_index": 1,
-    "device_name_contains": null,
+    "wake_vad_threshold": 0.18,
+    "wake_enable_speex_noise_suppression": true,
+    "wake_debug": false,
+    "wake_activation_cooldown_seconds": 1.25,
+    "wake_block_release_settle_seconds": 0.18,
+    "wake_energy_rms_threshold": 0.0060,
+    "wake_score_smoothing_window": 4,
+
+    "device_index": null,
+    "device_name_contains": "reSpeaker",
+
     "timeout_seconds": 8,
-    "debug": true,
+    "active_listen_window_seconds": 10.0,
+    "initial_command_window_seconds": 5.8,
+    "follow_up_window_seconds": 9.0,
+    "post_response_listen_window_seconds": 7.0,
+    "thinking_ack_seconds": 1.2,
+
+    "debug": false,
     "sample_rate": 16000,
-    "max_record_seconds": 6.0,
-    "end_silence_seconds": 0.75,
-    "pre_roll_seconds": 0.6,
+    "max_record_seconds": 7.2,
+    "end_silence_seconds": 0.60,
+    "pre_roll_seconds": 0.50,
     "blocksize": 512,
     "min_speech_seconds": 0.18,
     "transcription_timeout_seconds": 12.0,
     "threads": 4,
     "language": "auto",
     "vad_enabled": true,
-    "vad_threshold": 0.3,
-    "vad_min_speech_ms": 120,
-    "vad_min_silence_ms": 250,
-    "vad_speech_pad_ms": 180,
+    "vad_threshold": 0.24,
+    "vad_min_speech_ms": 140,
+    "vad_min_silence_ms": 320,
+    "vad_speech_pad_ms": 220,
+
     "compute_type": "int8",
     "beam_size": 1,
     "best_of": 1,
@@ -79,8 +93,8 @@
     "gpio_light": 18,
     "spi_port": 0,
     "spi_device": 0,
-    "default_overlay_seconds": 10,
-    "boot_overlay_seconds": 2.8
+    "default_overlay_seconds": 8,
+    "boot_overlay_seconds": 2.4
   },
   "timers": {
     "default_focus_minutes": 25,
@@ -91,6 +105,14 @@
     "inter_chunk_pause_seconds": 0.0,
     "max_display_lines": 2,
     "max_display_chars_per_line": 20
+  },
+  "audio_coordination": {
+    "self_hearing_hold_seconds": 0.90,
+    "listen_resume_poll_seconds": 0.04
+  },
+  "conversation": {
+    "max_turns": 8,
+    "max_total_chars": 1800
   },
   "llm": {
     "enabled": false,
@@ -117,7 +139,8 @@
   },
   "logging": {
     "enabled": true,
-    "log_file": "logs/system.log",
+    "console_enabled": false,
+    "log_file": "var/logs/system.log",
     "max_bytes": 1000000,
     "backup_count": 2
   },
@@ -129,6 +152,24 @@
     ]
   },
   "fast_command_lane": {
-  "enabled": true
-}
+    "enabled": true
+  },
+  "vision": {
+    "enabled": false,
+    "camera_index": 0,
+    "frame_width": 1280,
+    "frame_height": 720,
+    "face_detection_enabled": false,
+    "object_detection_enabled": false,
+    "scene_understanding_enabled": false,
+    "gesture_recognition_enabled": false,
+    "behavior_interpretation_enabled": false
+  },
+  "mobility": {
+    "enabled": false,
+    "base_type": "differential",
+    "safety_stop_enabled": true,
+    "max_linear_speed": 0.3,
+    "max_turn_speed": 0.5
+  }
 }

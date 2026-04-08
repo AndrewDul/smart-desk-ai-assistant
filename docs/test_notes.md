@@ -570,3 +570,138 @@ The biggest improvements were:
 - stronger structure for future expansion
 
 Some Polish voice paths may still need more tuning, but the conversation layer is now much stronger than before.
+
+# Test Notes
+
+## Date
+2026-04-08
+
+## Area
+Wake flow, runtime stabilisation, single-capture voice loop, and interaction speed
+
+---
+
+## Main purpose of this test stage
+
+In this test stage I focused on making the voice loop behave more like a real product.
+
+The main goal was not only to make NeXa work again, but to make wake handling faster, more stable, and more natural during real use.
+
+The key targets were:
+- stable wake behaviour
+- cleaner standby flow
+- one shared microphone ownership path
+- better wake speed
+- safer startup fallback behaviour
+- cleaner active listening after wake
+
+---
+
+## Main changes tested
+
+I tested changes in:
+- runtime builder wake fallback
+- main loop wake handling
+- single-capture microphone flow
+- FasterWhisper wake phrase handling
+- wake speed improvements
+- standby stability
+- active command flow after wake
+- exit confirmation flow
+
+---
+
+## Current testing approach
+
+At this stage I mainly tested the assistant directly in the terminal and checked behaviour through live runtime logs.
+
+I used:
+- `python main.py`
+- terminal output
+- repeated wake attempts
+- repeated spoken command attempts
+- startup observation
+- shutdown observation
+
+So for now this test stage is mostly based on:
+- real manual runtime use
+- terminal logs
+- behaviour checks during live interaction
+
+I have not started the new unit test batch for this part yet.
+
+### Reason
+Right now some of the biggest files still need to be split into smaller parts.
+
+I want to clean that structure first, because it will make the next test stage much easier and much safer.
+
+After I split the larger files further, I plan to add:
+- unit tests for the new wake-related logic
+- unit tests for active window behaviour
+- unit tests for follow-up and confirmation flow
+- more stable tests for routing and runtime transitions
+
+---
+
+## Successful results confirmed
+
+The following behaviour was confirmed working during this stage:
+
+- the assistant starts correctly
+- the assistant enters standby correctly
+- wake starts working again
+- the assistant reacts to `NeXa`
+- the assistant moves from wake into active listening
+- `What time is it?` works
+- `What is your name?` works
+- `Tell me the date.` works
+- `Exit.` works
+- confirmation flow works
+- shutdown flow works
+
+---
+
+## Problems found during testing
+
+I also found several problems during this stage:
+
+- wake gate could start in a degraded state
+- fallback wake could become useless in the wrong runtime state
+- wake and STT ownership of the microphone were too fragile
+- wake could be far too slow
+- short wake phrases were sometimes rejected by the STT path
+- shared input could be closed at the wrong time in single-capture mode
+- follow-up and grace windows can still catch weak or unwanted speech after a reply
+
+---
+
+## Fixes applied after testing
+
+After these tests I applied the following fixes:
+
+- stronger wake fallback handling in the runtime builder
+- compatibility wake through the main voice input backend
+- safer single-capture runtime direction
+- wake-specific listening path in the FasterWhisper backend
+- faster wake capture settings
+- lighter wake processing
+- safer handling of shared voice input in the main loop
+- calmer runtime config for wake behaviour
+
+---
+
+## Current conclusion
+
+This stage was a big practical improvement.
+
+The most important result is that NeXa now wakes and responds much more reliably than before.
+
+The voice loop feels much closer to a real assistant now because:
+- wake works
+- active listening works
+- normal commands work
+- shutdown flow works
+- the runtime is much more stable
+
+The next testing step should happen after I split the largest files further.  
+That is the point where I want to start writing the next proper unit test batch for the new wake and session logic.

@@ -2150,3 +2150,223 @@ I also added the first interrupt control layer and connected it to playback hand
 
 ### Result
 Interruption is now possible in a safer and more controlled way, but this part still needs more refinement before I treat it as final premium barge-in behaviour.
+
+
+## 083. Wake gate looked healthy in code but still degraded at startup
+
+**Date:** 2026-04-08  
+**Area:** wake runtime / startup status  
+**Status:** resolved  
+
+### Problem
+The assistant started, but the runtime still reported that the wake gate was degraded.
+
+### Symptom
+Startup looked mostly correct, but the assistant reported that the wake module was not fully healthy.
+
+### Root cause
+The wake path could fail during runtime construction and fall back in a way that did not behave like a real working standby wake layer.
+
+### Fix applied
+I rebuilt the wake fallback path so the runtime no longer depended on a dead standby fallback.  
+Instead of leaving wake handling in a no-op state, I connected a compatibility wake path through the real voice input backend.
+
+### Result
+The runtime could still start honestly, but wake handling no longer got stuck in a useless fallback state.
+
+---
+
+## 084. Two different input owners were fighting for the microphone
+
+**Date:** 2026-04-08  
+**Area:** audio architecture / microphone ownership  
+**Status:** improved  
+
+### Problem
+The wake gate and the speech input backend were both trying to own microphone capture.
+
+### Symptom
+This created unstable behaviour during standby and wake transitions.  
+In the broken state it could also lead to audio device errors and unreliable wake behaviour.
+
+### Root cause
+The project still had two separate input owners:
+- wake capture
+- full STT capture
+
+That architecture was too fragile for the current Raspberry Pi runtime.
+
+### Fix applied
+I changed the runtime direction toward a single-capture flow.
+
+The important changes were:
+- standby wake fallback through the same voice input backend
+- cleaner handoff rules between standby and active listening
+- removal of the old behaviour where separate parts competed for the same microphone path
+
+### Result
+The voice loop became much more stable and much easier to control.
+
+---
+
+## 085. Wake settings were too aggressive and made the standby loop unstable
+
+**Date:** 2026-04-08  
+**Area:** wake config / standby stability  
+**Status:** resolved  
+
+### Problem
+The wake configuration was too aggressive for real runtime use.
+
+### Symptom
+The assistant could become unstable in standby and the logs showed that several wake settings had to be corrected upward at runtime.
+
+### Root cause
+The wake thresholds, trigger level, cooldown values, and related settings were too optimistic for the real microphone and room conditions.
+
+### Fix applied
+I cleaned the runtime settings and replaced the earlier aggressive wake values with calmer and safer ones.
+
+I also turned off wake debug spam and reduced overly noisy runtime behaviour.
+
+### Result
+The standby loop became calmer and more realistic.
+
+---
+
+## 086. Debug-heavy wake behaviour increased noise in the runtime loop
+
+**Date:** 2026-04-08  
+**Area:** wake diagnostics / runtime stability  
+**Status:** resolved  
+
+### Problem
+The wake loop was producing too much debug output during normal runtime.
+
+### Symptom
+The terminal was filled with repeated wake score logs and this made troubleshooting noisy and the runtime less clean.
+
+### Root cause
+Wake debugging was still enabled in a configuration that should already have been treated as normal runtime, not heavy diagnosis mode.
+
+### Fix applied
+I disabled the noisy wake debug path and kept the runtime closer to a clean user-facing behaviour.
+
+### Result
+The wake loop became much quieter and easier to evaluate.
+
+---
+
+## 087. Compatibility wake did not react because short wake phrases were rejected like weak commands
+
+**Date:** 2026-04-08  
+**Area:** wake logic / STT compatibility mode  
+**Status:** resolved  
+
+### Problem
+After moving toward single-capture mode, the assistant still did not react to `NeXa`.
+
+### Symptom
+The assistant looked healthy and entered standby, but it ignored repeated attempts to wake it.
+
+### Root cause
+The compatibility wake path reused the normal STT backend, but that backend was still judging short wake phrases too strictly.  
+A short wake phrase such as `NeXa` was being filtered like a weak or incomplete command instead of being treated as a valid wake event.
+
+### Fix applied
+I added a dedicated `listen_for_wake_phrase()` path to the FasterWhisper input backend.
+
+This wake-specific path:
+- accepts short wake-style speech more easily
+- uses a lighter wake-oriented capture flow
+- avoids treating the wake word like a normal full command
+
+### Result
+The assistant finally started reacting to the wake word through the shared input path.
+
+---
+
+## 088. Single-capture mode still broke standby because the shared voice input was being closed too often
+
+**Date:** 2026-04-08  
+**Area:** main loop / single-capture flow  
+**Status:** resolved  
+
+### Problem
+Even after moving toward one shared input owner, standby still behaved incorrectly.
+
+### Symptom
+The assistant could enter standby but fail to react properly because the shared voice input path was being closed and reopened in the wrong places.
+
+### Root cause
+The main loop still treated the wake path and the command path as if they were fully separate, even when both were using the same voice input backend.
+
+### Fix applied
+I adjusted the main loop so it no longer closes the shared voice input path during standby when compatibility wake is active.
+
+### Result
+The single-capture path became stable enough to work in practice.
+
+---
+
+## 089. Wake response was working, but it was still far too slow for a premium experience
+
+**Date:** 2026-04-08  
+**Area:** wake performance / response speed  
+**Status:** resolved  
+
+### Problem
+The assistant could wake, but sometimes only after a very long delay.
+
+### Symptom
+I could say `NeXa` many times and the assistant would react much later than expected.
+
+### Root cause
+The wake compatibility path was still too heavy.  
+It was doing too much work for a very short wake phrase and the wake-specific speech path still behaved too much like a normal command transcription path.
+
+### Fix applied
+I reduced the wake path cost by:
+- warming up the speech runtime earlier
+- shortening the wake capture window
+- shortening wake silence handling
+- avoiding unnecessary multi-pass wake processing
+- making the wake path much lighter than the full command path
+
+### Result
+Wake response became much faster and much closer to the behaviour I wanted.
+
+---
+
+## 090. The assistant started catching wake correctly, but post-reply listening still needs more polish
+
+**Date:** 2026-04-08  
+**Area:** active listening / post-reply interaction  
+**Status:** open  
+
+### Problem
+After wake and successful command handling, the assistant could still catch weak or unwanted phrases during the follow-up or grace window.
+
+### Symptom
+The runtime worked much better overall, but some unclear transcriptions could still appear after valid replies.
+
+### Root cause
+The wake path is now much better, but the post-reply interaction window still needs more tuning so that it feels cleaner and more premium.
+
+### Fix applied
+No final fix yet.
+
+### Current result
+The core voice loop is much better now:
+- wake works
+- command handling works
+- shutdown flow works
+- speed is much better
+
+But the grace and follow-up listening windows still need more polishing.
+
+### Follow-up
+Next improvement area:
+- tighten grace window behaviour
+- reduce weak post-reply transcriptions
+- improve confirmation handling even more

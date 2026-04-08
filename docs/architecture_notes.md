@@ -1627,3 +1627,95 @@ This architecture also prepares the project for later additions such as:
 At this point the project is no longer just a basic assistant loop.
 It is becoming a structured voice runtime that I can keep improving in a controlled way.
 
+
+## 30. Runtime structure cleanup and folder organisation update
+
+During this stage I cleaned the project structure further so the runtime became easier to follow.
+
+The main goal was not to redesign everything again, but to make the project more readable, more organised, and safer to extend. I wanted the codebase to feel less mixed and more deliberate.
+
+### What I improved
+
+I continued separating the project into clearer areas with more explicit responsibility.
+
+The runtime is now easier to read because the main parts are grouped by role instead of being left in a flatter mixed structure.
+
+The practical direction now looks more like this:
+
+- `modules/core/`
+  - main assistant coordination
+  - session state
+  - high-level runtime flow
+
+- `modules/runtime/`
+  - runtime builder
+  - backend composition
+  - startup health and backend status
+
+- `modules/devices/`
+  - audio input
+  - audio output
+  - wake handling
+  - display handling
+
+- `modules/features/`
+  - timers
+  - reminders
+  - memory
+  - conversation support services
+
+- `modules/understanding/`
+  - parsing
+  - routing
+  - dialogue and intent interpretation
+
+- `modules/shared/`
+  - config
+  - logging
+  - lower-level shared helpers
+
+This made the project easier to reason about because hardware paths, assistant logic, feature logic, and runtime composition are now more clearly separated.
+
+### Why this helped
+
+This cleanup improved the architecture in a practical way:
+
+- the runtime is easier to trace
+- backend ownership is easier to understand
+- it is easier to see where wake, STT, TTS, and display logic belong
+- the project is easier to explain during development and documentation work
+- future refactors are safer because responsibilities are less mixed
+
+Another useful improvement is that the runtime now follows a more deliberate composition flow instead of letting too much setup happen inside one assistant file.
+
+That gives me a cleaner mental model of the system:
+- builder creates runtime parts
+- core assistant coordinates them
+- device modules talk to hardware
+- feature modules handle assistant tools
+- understanding modules decide what the user meant
+
+### Current limitation
+
+Even after this cleanup, I still have some files that are too large.
+
+The structure is better now, but some important files still carry too much logic in one place. This means the architecture is cleaner than before, but not fully finished yet.
+
+The biggest remaining structural problem is not folder layout anymore.  
+The biggest remaining structural problem is oversized files.
+
+I still need to split some of the larger files further so that:
+- each file has one clearer job
+- debugging becomes easier
+- testing becomes easier
+- future changes do not create new mixed logic again
+
+### Current conclusion
+
+This was a useful architecture step.
+
+I made the project more organised, more readable, and more professional internally.  
+The folder structure is now better aligned with the real runtime roles.
+
+At the same time, I can already see the next cleanup task clearly:
+I still need to break down the biggest files into smaller units so the internal structure becomes as strong as the outer folder structure.
