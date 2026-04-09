@@ -1,0 +1,64 @@
+from __future__ import annotations
+
+from modules.runtime.contracts import RuntimeBackendStatus, SpeechOutputBackend
+
+from .fallbacks import SilentVoiceOutput
+
+
+class RuntimeBuilderVoiceOutputMixin:
+    """
+    Build the voice output backend with explicit fallback handling.
+    """
+
+    def _build_voice_output(
+        self,
+        config: dict[str, object],
+    ) -> tuple[SpeechOutputBackend, RuntimeBackendStatus]:
+        if not bool(config.get("enabled", True)):
+            return (
+                SilentVoiceOutput(),
+                RuntimeBackendStatus(
+                    component="voice_output",
+                    ok=True,
+                    selected_backend="silent_voice_output",
+                    detail="Voice output disabled in config. Using silent backend.",
+                ),
+            )
+
+        try:
+            backend_class = self._import_symbol(
+                "modules.devices.audio.output.tts_pipeline",
+                "TTSPipeline",
+            )
+            backend = backend_class(
+                enabled=bool(config.get("enabled", True)),
+                preferred_engine=str(config.get("engine", "piper")),
+                default_language=str(config.get("default_language", "en")),
+                speed=int(config.get("speed", 155)),
+                pitch=int(config.get("pitch", 58)),
+                voices=config.get("voices"),
+                piper_models=config.get("piper_models"),
+            )
+            return (
+                backend,
+                RuntimeBackendStatus(
+                    component="voice_output",
+                    ok=True,
+                    selected_backend=str(config.get("engine", "piper")),
+                    detail="Voice output backend loaded successfully.",
+                ),
+            )
+        except Exception as error:
+            return (
+                SilentVoiceOutput(),
+                RuntimeBackendStatus(
+                    component="voice_output",
+                    ok=False,
+                    selected_backend="silent_voice_output",
+                    detail=f"Voice output backend failed. Using silent backend. Error: {error}",
+                    fallback_used=True,
+                ),
+            )
+
+
+__all__ = ["RuntimeBuilderVoiceOutputMixin"]

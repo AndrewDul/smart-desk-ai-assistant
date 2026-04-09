@@ -1,0 +1,271 @@
+from __future__ import annotations
+
+from typing import Any
+
+from modules.runtime.contracts import (
+    EntityValue,
+    IntentMatch,
+    RouteDecision,
+    RouteKind,
+    create_turn_id,
+)
+from modules.shared.logging.logger import get_logger
+
+from .memory_actions_mixin import ActionMemoryActionsMixin
+from .models import ResolvedAction
+from .reminder_actions_mixin import ActionReminderActionsMixin
+from .resolver_mixin import ActionResolverMixin
+from .response_helpers_mixin import ActionResponseHelpersMixin
+from .system_actions_mixin import ActionSystemActionsMixin
+from .timer_actions_mixin import ActionTimerActionsMixin
+
+LOGGER = get_logger(__name__)
+
+
+class ActionFlowOrchestrator(
+    ActionResolverMixin,
+    ActionResponseHelpersMixin,
+    ActionSystemActionsMixin,
+    ActionMemoryActionsMixin,
+    ActionReminderActionsMixin,
+    ActionTimerActionsMixin,
+):
+    """
+    Final action execution flow for NeXa.
+
+    Responsibilities:
+    - resolve an executable action from the routed decision
+    - execute feature/service operations directly
+    - prepare premium spoken/display response plans
+    - arm confirmation follow-ups for sensitive actions
+    - bridge pending-flow and dialogue-flow into the same action contract
+    """
+
+    LOGGER = LOGGER
+
+    TOOL_TO_ACTION: dict[str, str] = {
+        "system.help": "help",
+        "system.status": "status",
+        "assistant.introduce": "introduce_self",
+        "clock.time": "ask_time",
+        "clock.date": "ask_date",
+        "clock.day": "ask_day",
+        "clock.month": "ask_month",
+        "clock.year": "ask_year",
+        "memory.list": "memory_list",
+        "memory.clear": "memory_clear",
+        "memory.store": "memory_store",
+        "memory.recall": "memory_recall",
+        "memory.forget": "memory_forget",
+        "reminders.list": "reminders_list",
+        "reminders.clear": "reminders_clear",
+        "reminders.create": "reminder_create",
+        "reminders.delete": "reminder_delete",
+        "timer.start": "timer_start",
+        "timer.stop": "timer_stop",
+        "focus.start": "focus_start",
+        "break.start": "break_start",
+        "system.exit": "exit",
+        "system.shutdown": "shutdown",
+        "system.sleep": "exit",
+    }
+
+    SUPPORTED_ACTIONS = {
+        "help",
+        "status",
+        "introduce_self",
+        "ask_time",
+        "show_time",
+        "ask_date",
+        "show_date",
+        "ask_day",
+        "show_day",
+        "ask_month",
+        "show_month",
+        "ask_year",
+        "show_year",
+        "memory_list",
+        "memory_clear",
+        "memory_store",
+        "memory_recall",
+        "memory_forget",
+        "reminders_list",
+        "reminders_clear",
+        "reminder_create",
+        "reminder_delete",
+        "timer_start",
+        "timer_stop",
+        "focus_start",
+        "break_start",
+        "exit",
+        "shutdown",
+        "confirm_yes",
+        "confirm_no",
+    }
+
+    ACTION_LABELS = {
+        "help": ("pomoc", "help"),
+        "status": ("status", "status"),
+        "introduce_self": ("przedstawienie się", "introduce yourself"),
+        "ask_time": ("podanie czasu", "tell the time"),
+        "show_time": ("podanie czasu", "tell the time"),
+        "ask_date": ("podanie daty", "tell the date"),
+        "show_date": ("podanie daty", "tell the date"),
+        "ask_day": ("podanie dnia", "tell the day"),
+        "show_day": ("podanie dnia", "tell the day"),
+        "ask_month": ("podanie miesiąca", "tell the month"),
+        "show_month": ("podanie miesiąca", "tell the month"),
+        "ask_year": ("podanie roku", "tell the year"),
+        "show_year": ("podanie roku", "tell the year"),
+        "memory_list": ("pokazanie pamięci", "show memory"),
+        "memory_clear": ("wyczyszczenie pamięci", "clear memory"),
+        "memory_store": ("zapisanie w pamięci", "save to memory"),
+        "memory_recall": ("odczyt z pamięci", "recall memory"),
+        "memory_forget": ("usunięcie z pamięci", "forget from memory"),
+        "reminders_list": ("pokazanie przypomnień", "show reminders"),
+        "reminders_clear": ("usunięcie wszystkich przypomnień", "clear reminders"),
+        "reminder_create": ("utworzenie przypomnienia", "create a reminder"),
+        "reminder_delete": ("usunięcie przypomnienia", "delete a reminder"),
+        "timer_start": ("uruchomienie timera", "start a timer"),
+        "timer_stop": ("zatrzymanie timera", "stop the timer"),
+        "focus_start": ("uruchomienie focus mode", "start focus mode"),
+        "break_start": ("uruchomienie break mode", "start break mode"),
+        "exit": ("zamknięcie asystenta", "close the assistant"),
+        "shutdown": ("wyłączenie systemu", "shut down the system"),
+    }
+
+    def __init__(self, assistant: Any) -> None:
+        self.assistant = assistant
+        self._display_chars_per_line = int(
+            assistant.settings.get("streaming", {}).get("max_display_chars_per_line", 20)
+        )
+
+    def execute(
+        self,
+        *,
+        route: RouteDecision | None = None,
+        payload: Any | None = None,
+        language: str,
+    ) -> bool:
+        if route is None and payload is not None:
+            return self.execute_intent(payload, language)
+
+        if route is None:
+            return self._deliver_simple_action_response(
+                language=self.assistant._normalize_lang(language),
+                action="unknown",
+                spoken_text=self._localized(
+                    language,
+                    "Brakuje danych potrzebnych do wykonania akcji.",
+                    "The action request is missing required data.",
+                ),
+                display_title="ACTION",
+                display_lines=self._localized_lines(
+                    language,
+                    ["brak danych akcji"],
+                    ["missing action data"],
+                ),
+                extra_metadata={"phase": "missing_route"},
+            )
+
+        lang = self.assistant._normalize_lang(language)
+        resolved = self._resolve_action(route)
+
+        self.LOGGER.info(
+            "Action flow executing: action=%s source=%s confidence=%.3f payload_keys=%s",
+            resolved.name,
+            resolved.source,
+            resolved.confidence,
+            sorted(resolved.payload.keys()),
+        )
+
+        handler = getattr(self, f"_handle_{resolved.name}", None)
+        if not callable(handler):
+            return self._handle_unknown(route=route, language=lang, resolved=resolved)
+
+        try:
+            return bool(
+                handler(
+                    route=route,
+                    language=lang,
+                    payload=resolved.payload,
+                    resolved=resolved,
+                )
+            )
+        except Exception as error:
+            self.LOGGER.exception("Action flow handler failed: action=%s error=%s", resolved.name, error)
+            return self._deliver_simple_action_response(
+                language=lang,
+                action=resolved.name,
+                spoken_text=self._localized(
+                    lang,
+                    "Wystąpił problem podczas wykonania tej akcji.",
+                    "There was a problem while executing that action.",
+                ),
+                display_title="ACTION ERROR",
+                display_lines=self._display_lines(
+                    self._localized(lang, "problem z akcją", "action error")
+                ),
+                extra_metadata={
+                    "resolved_source": resolved.source,
+                    "error": str(error),
+                },
+            )
+
+    def execute_route_action(self, route: RouteDecision, language: str) -> bool:
+        return self.execute(route=route, language=language)
+
+    def execute_intent(self, intent: Any, language: str) -> bool:
+        action = str(getattr(intent, "action", "") or "").strip().lower()
+        if not action:
+            return self._deliver_simple_action_response(
+                language=self.assistant._normalize_lang(language),
+                action="unknown",
+                spoken_text=self._localized(
+                    language,
+                    "Nie rozumiem jeszcze, jaką akcję mam wykonać.",
+                    "I do not understand which action I should execute yet.",
+                ),
+                display_title="ACTION",
+                display_lines=self._localized_lines(
+                    language,
+                    ["nieznana akcja"],
+                    ["unknown action"],
+                ),
+                extra_metadata={"phase": "intent_missing_action"},
+            )
+
+        payload = dict(getattr(intent, "data", {}) or {})
+        normalized_text = str(getattr(intent, "normalized_text", "") or "").strip()
+        confidence = float(getattr(intent, "confidence", 1.0) or 1.0)
+
+        route = RouteDecision(
+            turn_id=create_turn_id("intent"),
+            raw_text=normalized_text or action,
+            normalized_text=normalized_text or action,
+            language=self.assistant._normalize_lang(language),
+            kind=RouteKind.ACTION,
+            confidence=confidence,
+            primary_intent=action,
+            intents=[
+                IntentMatch(
+                    name=action,
+                    confidence=confidence,
+                    entities=[
+                        EntityValue(name=str(key), value=value)
+                        for key, value in payload.items()
+                    ],
+                    requires_clarification=False,
+                    metadata={"source": "execute_intent"},
+                )
+            ],
+            conversation_topics=[],
+            tool_invocations=[],
+            notes=["execute_intent_bridge"],
+            metadata={
+                "action": action,
+                "payload": dict(payload),
+                "source": "execute_intent",
+            },
+        )
+        return self.execute(route=route, language=language)

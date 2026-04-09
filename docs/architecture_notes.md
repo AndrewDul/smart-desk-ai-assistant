@@ -1719,3 +1719,55 @@ The folder structure is now better aligned with the real runtime roles.
 
 At the same time, I can already see the next cleanup task clearly:
 I still need to break down the biggest files into smaller units so the internal structure becomes as strong as the outer folder structure.
+
+
+## 31. Large file breakdown and readability improvement
+
+In this stage I also broke down the biggest files into smaller modules.
+
+I did this because some parts of the project were becoming too heavy in one place. Even when the folder structure looked better, a few large files still made the code harder to read, harder to debug, and harder to change safely.
+
+So I split the larger files into smaller parts with clearer jobs. This made the project easier to follow and easier to work on. It also reduced the risk of making one change that affects too many unrelated parts.
+
+The main reason for this change was simple:
+I wanted the code to be more readable and easier to improve later.
+
+This breakdown also makes future work easier because:
+- I can find logic faster
+- I can test changes more safely
+- I can debug problems more easily
+- I can extend features without making the same files too large again
+
+This was an important cleanup step for the internal quality of the project.  
+The outer folder structure is now clearer, and the inside of the bigger modules is also in a better state than before.
+
+### Main files I broke down
+The main large files I worked on included:
+
+- `modules/core/flows/action_flow.py`
+- `modules/devices/audio/input/faster_whisper/backend.py`
+- `modules/core/flows/pending_flow.py`
+- `main.py`
+- `modules/core/assistant.py`
+- `modules/understanding/dialogue/llm/local_llm.py`
+- `modules/understanding/parsing/parser.py`
+- `modules/devices/audio/input/whisper_cpp/backend.py`
+- `modules/runtime/builder.py`
+- `modules/understanding/routing/companion_router.py`
+- `modules/understanding/dialogue/companion_dialogue.py`
+- `modules/devices/audio/output/tts_pipeline.py`
+- `modules/runtime/health.py`
+- `modules/presentation/response_streamer.py`
+- `modules/devices/audio/input/wake/openwakeword_gate.py`
+- `modules/core/flows/command_flow.py`
+- `modules/devices/display/display_service.py`
+- `modules/core/session/voice_session.py`
+- `modules/core/flows/dialogue_flow.py`
+- `modules/runtime/contracts.py`
+- `modules/shared/config/settings.py`
+- `modules/features/reminders/service.py`
+- `modules/core/flows/notification_flow.py`
+
+### Result
+After this change, the codebase is more modular, easier to read, and easier to change.  
+This should also make future refactors safer, because the logic is no longer packed into a few oversized files.
