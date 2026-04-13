@@ -2,177 +2,244 @@ from __future__ import annotations
 
 from typing import Any
 
-from modules.runtime.contracts import (
-    InputSource,
-    IntentMatch,
-    RouteDecision,
-    RouteKind,
-    ToolInvocation,
-    create_turn_id,
-    normalize_text,
-)
+from modules.runtime.contracts import InputSource, normalize_text
+
+from .helpers import CommandFlowHelpers
+from .language import CommandFlowLanguage
+from .memory import CommandFlowMemory
+from .models import PreparedCommand
+from .normalization import CommandFlowNormalization
 
 
-class CoreAssistantRoutingMixin:
-    def _execute_action_route(self, route: RouteDecision, language: str) -> bool:
-        return bool(self.action_flow.execute(route=route, language=language))
+class CommandFlowOrchestrator(
+    CommandFlowNormalization,
+    CommandFlowLanguage,
+    CommandFlowMemory,
+    CommandFlowHelpers,
+):
+    """
+    Premium command preparation flow for NeXa.
 
-    def _handle_mixed_route(self, route: RouteDecision, language: str) -> bool:
-        handle_method = getattr(self.dialogue_flow, "handle_mixed_route", None)
-        if callable(handle_method):
-            return bool(handle_method(route=route, language=language))
-        return bool(self.dialogue_flow.handle_mixed(route=route, language=language))
+    Responsibilities:
+    - sanitize raw user text
+    - optionally strip wake phrase
+    - normalize utterance through the available normalizer
+    - detect effective command language
+    - apply semantic override when available
+    - pre-parse deterministic actions for the fast lane
+    - remember user turns with rich metadata
+    - centralize preparation logging
+    """
 
-    def _handle_conversation_route(self, route: RouteDecision, language: str) -> bool:
-        handle_method = getattr(self.dialogue_flow, "handle_conversation_route", None)
-        if callable(handle_method):
-            return bool(handle_method(route=route, language=language))
-        return bool(self.dialogue_flow.handle_conversation(route=route, language=language))
+    def __init__(self, assistant: Any) -> None:
+        self.assistant = assistant
 
-    def _handle_unclear_route(self, route: RouteDecision, language: str) -> bool:
-        handle_method = getattr(self.dialogue_flow, "handle_unclear_route", None)
-        if callable(handle_method):
-            return bool(handle_method(route=route, language=language))
-        return bool(self.dialogue_flow.handle_unclear(route=route, language=language))
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
 
-    def _prepare_command(self, text: str) -> dict[str, Any]:
-        process_method = getattr(self.command_flow, "process", None)
-        if callable(process_method):
-            prepared = process_method(text=text, fallback_language=self.last_language)
-            if isinstance(prepared, dict):
-                prepared.setdefault("cancel_requested", self._looks_like_cancel_request(text))
-                prepared.setdefault("normalized_text", normalize_text(text))
-                prepared.setdefault("routing_text", text.strip())
-                prepared.setdefault("language", self._detect_language(text))
-                prepared.setdefault("source", InputSource.VOICE)
-                prepared.setdefault("ignore", not bool(prepared["normalized_text"]))
-                return prepared
+    def process(
+        self,
+        *,
+        text: str,
+        fallback_language: str = "en",
+        source: InputSource = InputSource.VOICE,
+        capture_phase: str = "",
+        capture_mode: str = "",
+        capture_backend: str = "",
+        capture_metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return self.prepare(
+            text=text,
+            fallback_language=fallback_language,
+            source=source,
+            capture_phase=capture_phase,
+            capture_mode=capture_mode,
+            capture_backend=capture_backend,
+            capture_metadata=capture_metadata,
+        ).to_dict()
 
-            return {
-                "ignore": bool(getattr(prepared, "ignore", False)),
-                "language": str(getattr(prepared, "language", self.last_language)),
-                "routing_text": str(getattr(prepared, "routing_text", text)),
-                "normalized_text": str(getattr(prepared, "normalized_text", normalize_text(text))),
-                "cancel_requested": bool(
-                    getattr(prepared, "cancel_requested", self._looks_like_cancel_request(text))
-                ),
-                "source": getattr(prepared, "source", InputSource.VOICE),
-                "already_remembered": bool(getattr(prepared, "already_remembered", False)),
-            }
+    def prepare(
+        self,
+        *,
+        text: str,
+        fallback_language: str = "en",
+        source: InputSource = InputSource.VOICE,
+        capture_phase: str = "",
+        capture_mode: str = "",
+        capture_backend: str = "",
+        capture_metadata: dict[str, Any] | None = None,
+    ) -> PreparedCommand:
+        cleaned = self._compact(text)
+        capture_phase_value = str(capture_phase or "").strip()
+        capture_mode_value = str(capture_mode or capture_phase_value).strip()
+        capture_backend_value = str(capture_backend or "").strip()
+        capture_metadata_value = dict(capture_metadata or {})
 
-        normalized_text = normalize_text(text)
-        language = self._detect_language(text)
-        return {
-            "ignore": not bool(normalized_text),
-            "language": language,
-            "routing_text": text.strip(),
-            "normalized_text": normalized_text,
-            "cancel_requested": self._looks_like_cancel_request(text),
-            "source": InputSource.VOICE,
-            "already_remembered": False,
-        }
+        capture_notes: list[str] = []
+        if capture_phase_value:
+            capture_notes.append(f"capture_phase:{capture_phase_value}")
+        if capture_mode_value and capture_mode_value != capture_phase_value:
+            capture_notes.append(f"capture_mode:{capture_mode_value}")
+        if capture_backend_value:
+            capture_notes.append(f"capture_backend:{capture_backend_value}")
 
-    def _handle_pending_state(self, prepared: dict[str, Any]) -> bool | None:
-        process_method = getattr(self.pending_flow, "process", None)
-        if not callable(process_method):
-            return None
+        if not cleaned:
+            prepared = PreparedCommand(
+                raw_text="",
+                routing_text="",
+                normalized_routing_text="",
+                detected_language=self._normalize_language(fallback_language),
+                normalizer_language_hint=self._normalize_language(fallback_language),
+                command_language=self._normalize_language(fallback_language),
+                parser_result=None,
+                semantic_override_applied=False,
+                semantic_override_mode=None,
+                semantic_override_source_text=None,
+                normalizer_corrections=(),
+                source=source,
+                ignore=True,
+                cancel_requested=False,
+                wake_phrase_detected=False,
+                capture_phase=capture_phase_value,
+                capture_mode=capture_mode_value,
+                capture_backend=capture_backend_value,
+                capture_metadata=capture_metadata_value,
+                notes=["empty_input", *capture_notes],
+            )
+            self._log_prepared_command(prepared)
+            return prepared
 
-        return process_method(
-            prepared=prepared,
-            language=str(prepared.get("language", self.last_language)),
+        wake_phrase_detected = False
+        wake_stripped_text = cleaned
+        voice_session = getattr(self.assistant, "voice_session", None)
+
+        heard_wake_phrase = getattr(voice_session, "heard_wake_phrase", None)
+        strip_wake_phrase = getattr(voice_session, "strip_wake_phrase", None)
+
+        if source == InputSource.VOICE and callable(heard_wake_phrase) and heard_wake_phrase(cleaned):
+            wake_phrase_detected = True
+            if callable(strip_wake_phrase):
+                candidate = self._compact(strip_wake_phrase(cleaned))
+                wake_stripped_text = candidate if candidate else ""
+
+        normalized_utterance = self._normalize_utterance(wake_stripped_text or cleaned)
+        routing_text = self._extract_canonical_text(
+            normalized_utterance,
+            fallback=wake_stripped_text or cleaned,
         )
 
-    def _handle_fast_lane(self, prepared: dict[str, Any]) -> bool | None:
-        if self.fast_command_lane is None:
-            return None
+        detected_lang = self._detect_language(cleaned, fallback_language=fallback_language)
+        normalizer_language_hint = self._extract_normalizer_language_hint(
+            normalized_utterance,
+            fallback_language=detected_lang,
+        )
 
-        handle_method = getattr(self.fast_command_lane, "try_handle", None)
-        if not callable(handle_method):
-            return None
+        command_lang = self._prefer_command_language(
+            routing_text=routing_text,
+            detected_language=detected_lang,
+            normalizer_language_hint=normalizer_language_hint,
+            fallback_language=fallback_language,
+        )
 
-        return handle_method(prepared=prepared, assistant=self)
+        semantic_override = self._semantic_override(routing_text, command_lang)
 
-    def _coerce_route_decision(
-        self,
-        value: Any,
-        *,
-        raw_text: str,
-        normalized_text: str,
-        language: str,
-    ) -> RouteDecision:
-        if isinstance(value, RouteDecision):
-            return value
+        semantic_override_applied = semantic_override is not None
+        semantic_override_mode: str | None = None
+        semantic_override_source_text: str | None = None
 
-        if isinstance(value, dict):
-            kind_value = str(value.get("kind", RouteKind.UNCLEAR.value)).strip().lower()
-            kind = self._coerce_route_kind(kind_value)
-
-            intents: list[IntentMatch] = []
-            for item in value.get("intents", []) or []:
-                if isinstance(item, IntentMatch):
-                    intents.append(item)
-
-            tool_invocations: list[ToolInvocation] = []
-            for item in value.get("tool_invocations", []) or []:
-                if isinstance(item, ToolInvocation):
-                    tool_invocations.append(item)
-                elif isinstance(item, dict):
-                    tool_invocations.append(
-                        ToolInvocation(
-                            tool_name=str(item.get("tool_name", item.get("name", ""))),
-                            payload=dict(item.get("payload", {})),
-                            reason=str(item.get("reason", "")),
-                            confidence=float(item.get("confidence", 1.0)),
-                            execute_immediately=bool(item.get("execute_immediately", True)),
-                        )
-                    )
-
-            return RouteDecision(
-                turn_id=str(value.get("turn_id", create_turn_id())),
-                raw_text=raw_text,
-                normalized_text=normalized_text,
-                language=self._normalize_lang(value.get("language", language)),
-                kind=kind,
-                confidence=float(value.get("confidence", 0.0)),
-                primary_intent=str(value.get("primary_intent", "unknown")),
-                intents=intents,
-                conversation_topics=list(value.get("conversation_topics", []) or []),
-                tool_invocations=tool_invocations,
-                notes=list(value.get("notes", []) or []),
-                metadata=dict(value.get("metadata", {})),
+        if semantic_override is not None:
+            semantic_override_mode = str(semantic_override.get("mode") or "").strip() or None
+            semantic_override_source_text = routing_text
+            routing_text = self._compact(str(semantic_override.get("text") or routing_text))
+            command_lang = self._normalize_language(
+                semantic_override.get("lang") or command_lang
             )
 
-        route_kind = RouteKind.UNCLEAR
-        primary_intent = "unknown"
+        normalized_routing_text = normalize_text(routing_text)
+        ignore = not bool(normalized_routing_text)
+        cancel_requested = self._looks_like_cancel_request(routing_text)
+        parser_result = None if ignore else self._parse_intent(routing_text)
 
-        if isinstance(value, str):
-            lowered = normalize_text(value)
-            if lowered in {"action", "tool", "task"}:
-                route_kind = RouteKind.ACTION
-            elif lowered in {"conversation", "chat", "dialogue"}:
-                route_kind = RouteKind.CONVERSATION
-            elif lowered == "mixed":
-                route_kind = RouteKind.MIXED
-            primary_intent = lowered or "unknown"
-
-        return RouteDecision(
-            turn_id=create_turn_id(),
-            raw_text=raw_text,
-            normalized_text=normalized_text,
-            language=self._normalize_lang(language),
-            kind=route_kind,
-            confidence=0.0,
-            primary_intent=primary_intent,
-            intents=[],
-            conversation_topics=[],
-            tool_invocations=[],
-            notes=[],
-            metadata={},
+        prepared = PreparedCommand(
+            raw_text=cleaned,
+            routing_text=routing_text,
+            normalized_routing_text=normalized_routing_text,
+            detected_language=detected_lang,
+            normalizer_language_hint=normalizer_language_hint,
+            command_language=command_lang,
+            parser_result=parser_result,
+            semantic_override_applied=semantic_override_applied,
+            semantic_override_mode=semantic_override_mode,
+            semantic_override_source_text=semantic_override_source_text,
+            normalizer_corrections=self._extract_normalizer_corrections(normalized_utterance),
+            source=source,
+            ignore=ignore,
+            cancel_requested=cancel_requested,
+            wake_phrase_detected=wake_phrase_detected,
+            capture_phase=capture_phase_value,
+            capture_mode=capture_mode_value,
+            capture_backend=capture_backend_value,
+            capture_metadata=capture_metadata_value,
+            notes=self._build_notes(
+                ignore=ignore,
+                cancel_requested=cancel_requested,
+                wake_phrase_detected=wake_phrase_detected,
+                semantic_override_applied=semantic_override_applied,
+                parser_result=parser_result,
+            )
+            + capture_notes,
         )
 
-    def _coerce_route_kind(self, raw_value: str) -> RouteKind:
-        normalized = str(raw_value or "").strip().lower()
-        for kind in RouteKind:
-            if kind.value == normalized:
-                return kind
-        return RouteKind.UNCLEAR
+        setattr(self.assistant, "_last_raw_command_text", prepared.raw_text)
+        setattr(self.assistant, "_last_normalized_command_text", prepared.normalized_routing_text)
+
+        self._remember_user_turn(prepared)
+        self._log_prepared_command(prepared)
+
+        return prepared
+
+    def prepare_command(self, text: str) -> PreparedCommand:
+        return self.prepare(text=text)
+
+    def build_text_command(
+        self,
+        *,
+        text: str,
+        fallback_language: str = "en",
+    ) -> PreparedCommand:
+        return self.prepare(
+            text=text,
+            fallback_language=fallback_language,
+            source=InputSource.TEXT,
+        )
+
+    def build_voice_command(
+        self,
+        *,
+        text: str,
+        fallback_language: str = "en",
+    ) -> PreparedCommand:
+        return self.prepare(
+            text=text,
+            fallback_language=fallback_language,
+            source=InputSource.VOICE,
+        )
+
+    def extract_pending_override_intent(self, text: str) -> Any | None:
+        clean_text = self._compact(text)
+        if not clean_text:
+            return None
+
+        result = self._parse_intent(clean_text)
+        if result is None:
+            return None
+
+        action = self._extract_action(result)
+        if action in {"", "unknown", "unclear", "confirm_yes", "confirm_no"}:
+            return None
+
+        return self._clone_parser_result(result)
+
+
+__all__ = ["CommandFlowOrchestrator"]

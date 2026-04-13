@@ -21,7 +21,14 @@ class CoreAssistantInteractionMixin:
 
         try:
             prepared_started = time.perf_counter()
-            prepared = self._prepare_command(cleaned)
+            prepared = self._prepare_command(
+                cleaned,
+                source=telemetry.get("input_source", "voice"),
+                capture_phase=str(telemetry.get("capture_phase", "") or ""),
+                capture_mode=str(telemetry.get("stt_mode", "") or ""),
+                capture_backend=str(telemetry.get("stt_backend", "") or ""),
+                capture_metadata=dict(telemetry.get("capture_metadata", {}) or {}),
+            )
             telemetry["prepare_ms"] = self._elapsed_ms(prepared_started)
 
             if prepared["ignore"]:
@@ -33,6 +40,15 @@ class CoreAssistantInteractionMixin:
             telemetry["language_commit_ms"] = self._elapsed_ms(language_started)
             telemetry["language"] = command_lang
             telemetry["input_source"] = getattr(prepared["source"], "value", str(prepared["source"]))
+            telemetry["capture_phase"] = str(
+                prepared.get("capture_phase", telemetry.get("capture_phase", "")) or ""
+            )
+            telemetry["stt_mode"] = str(
+                prepared.get("capture_mode", telemetry.get("stt_mode", "")) or ""
+            )
+            telemetry["stt_backend"] = str(
+                prepared.get("capture_backend", telemetry.get("stt_backend", "")) or ""
+            )
             routing_text = prepared["routing_text"]
 
             if not prepared.get("already_remembered", False):
@@ -72,10 +88,21 @@ class CoreAssistantInteractionMixin:
 
             self.voice_session.transition_to_routing(detail="route_command")
 
+            route_context = {
+                "input_source": telemetry.get("input_source", "voice"),
+                "capture_phase": telemetry.get("capture_phase", ""),
+                "capture_mode": telemetry.get("stt_mode", ""),
+                "capture_backend": telemetry.get("stt_backend", ""),
+            }
+
             routing_started = time.perf_counter()
             self._thinking_ack_start(language=command_lang, detail="route_command")
             try:
-                routed = self.router.route(routing_text, preferred_language=command_lang)
+                routed = self._route_command(
+                    routing_text,
+                    preferred_language=command_lang,
+                    context=route_context,
+                )
             finally:
                 self._thinking_ack_stop()
             telemetry["router_ms"] = self._elapsed_ms(routing_started)
@@ -85,6 +112,7 @@ class CoreAssistantInteractionMixin:
                 raw_text=cleaned,
                 normalized_text=prepared["normalized_text"],
                 language=command_lang,
+                context=route_context,
             )
 
             telemetry["route_kind"] = getattr(route.kind, "value", str(route.kind))
@@ -211,10 +239,11 @@ class CoreAssistantInteractionMixin:
             "primary_intent": "",
             "topics": [],
             "result": "",
-            "handled": False,
             "stt_backend": stt_backend,
             "stt_mode": stt_mode,
             "stt_phase": stt_phase,
+            "capture_phase": stt_phase,
+            "capture_metadata": dict(capture.get("metadata") or {}),
             "stt_latency_ms": stt_latency_ms,
             "stt_audio_duration_ms": stt_audio_duration_ms,
             "stt_confidence": stt_confidence,

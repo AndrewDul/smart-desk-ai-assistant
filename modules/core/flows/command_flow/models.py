@@ -23,6 +23,10 @@ class PreparedCommand:
     ignore: bool = False
     cancel_requested: bool = False
     wake_phrase_detected: bool = False
+    capture_phase: str = ""
+    capture_mode: str = ""
+    capture_backend: str = ""
+    capture_metadata: dict[str, Any] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 
     @property
@@ -52,6 +56,10 @@ class PreparedCommand:
             "ignore": self.ignore,
             "cancel_requested": self.cancel_requested,
             "wake_phrase_detected": self.wake_phrase_detected,
+            "capture_phase": self.capture_phase,
+            "capture_mode": self.capture_mode,
+            "capture_backend": self.capture_backend,
+            "capture_metadata": dict(self.capture_metadata),
             "notes": list(self.notes),
         }
 

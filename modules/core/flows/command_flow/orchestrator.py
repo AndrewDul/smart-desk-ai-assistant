@@ -44,11 +44,19 @@ class CommandFlowOrchestrator(
         text: str,
         fallback_language: str = "en",
         source: InputSource = InputSource.VOICE,
+        capture_phase: str = "",
+        capture_mode: str = "",
+        capture_backend: str = "",
+        capture_metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         return self.prepare(
             text=text,
             fallback_language=fallback_language,
             source=source,
+            capture_phase=capture_phase,
+            capture_mode=capture_mode,
+            capture_backend=capture_backend,
+            capture_metadata=capture_metadata,
         ).to_dict()
 
     def prepare(
@@ -57,8 +65,25 @@ class CommandFlowOrchestrator(
         text: str,
         fallback_language: str = "en",
         source: InputSource = InputSource.VOICE,
+        capture_phase: str = "",
+        capture_mode: str = "",
+        capture_backend: str = "",
+        capture_metadata: dict[str, Any] | None = None,
     ) -> PreparedCommand:
         cleaned = self._compact(text)
+        capture_phase_value = str(capture_phase or "").strip()
+        capture_mode_value = str(capture_mode or capture_phase_value).strip()
+        capture_backend_value = str(capture_backend or "").strip()
+        capture_metadata_value = dict(capture_metadata or {})
+
+        capture_notes: list[str] = []
+        if capture_phase_value:
+            capture_notes.append(f"capture_phase:{capture_phase_value}")
+        if capture_mode_value and capture_mode_value != capture_phase_value:
+            capture_notes.append(f"capture_mode:{capture_mode_value}")
+        if capture_backend_value:
+            capture_notes.append(f"capture_backend:{capture_backend_value}")
+
         if not cleaned:
             prepared = PreparedCommand(
                 raw_text="",
@@ -76,7 +101,11 @@ class CommandFlowOrchestrator(
                 ignore=True,
                 cancel_requested=False,
                 wake_phrase_detected=False,
-                notes=["empty_input"],
+                capture_phase=capture_phase_value,
+                capture_mode=capture_mode_value,
+                capture_backend=capture_backend_value,
+                capture_metadata=capture_metadata_value,
+                notes=["empty_input", *capture_notes],
             )
             self._log_prepared_command(prepared)
             return prepared
@@ -95,7 +124,10 @@ class CommandFlowOrchestrator(
                 wake_stripped_text = candidate if candidate else ""
 
         normalized_utterance = self._normalize_utterance(wake_stripped_text or cleaned)
-        routing_text = self._extract_canonical_text(normalized_utterance, fallback=wake_stripped_text or cleaned)
+        routing_text = self._extract_canonical_text(
+            normalized_utterance,
+            fallback=wake_stripped_text or cleaned,
+        )
 
         detected_lang = self._detect_language(cleaned, fallback_language=fallback_language)
         normalizer_language_hint = self._extract_normalizer_language_hint(
@@ -145,13 +177,18 @@ class CommandFlowOrchestrator(
             ignore=ignore,
             cancel_requested=cancel_requested,
             wake_phrase_detected=wake_phrase_detected,
+            capture_phase=capture_phase_value,
+            capture_mode=capture_mode_value,
+            capture_backend=capture_backend_value,
+            capture_metadata=capture_metadata_value,
             notes=self._build_notes(
                 ignore=ignore,
                 cancel_requested=cancel_requested,
                 wake_phrase_detected=wake_phrase_detected,
                 semantic_override_applied=semantic_override_applied,
                 parser_result=parser_result,
-            ),
+            )
+            + capture_notes,
         )
 
         setattr(self.assistant, "_last_raw_command_text", prepared.raw_text)
