@@ -141,6 +141,8 @@ class ActionFlowOrchestrator(
 
     def __init__(self, assistant: Any) -> None:
         self.assistant = assistant
+        self._active_route: RouteDecision | None = None
+        self._active_resolved_action: ResolvedAction | None = None
         self._display_chars_per_line = int(
             assistant.settings.get("streaming", {}).get("max_display_chars_per_line", 20)
         )
@@ -176,46 +178,56 @@ class ActionFlowOrchestrator(
         lang = self.assistant._normalize_lang(language)
         resolved = self._resolve_action(route)
 
+        self._active_route = route
+        self._active_resolved_action = resolved
+
         self.LOGGER.info(
-            "Action flow executing: action=%s source=%s confidence=%.3f payload_keys=%s",
+            "Action flow executing: action=%s source=%s route_kind=%s capture_phase=%s capture_backend=%s confidence=%.3f payload_keys=%s",
             resolved.name,
             resolved.source,
+            getattr(route.kind, "value", str(route.kind)),
+            str(route.metadata.get("capture_phase", "") or ""),
+            str(route.metadata.get("capture_backend", "") or ""),
             resolved.confidence,
             sorted(resolved.payload.keys()),
         )
 
-        handler = getattr(self, f"_handle_{resolved.name}", None)
-        if not callable(handler):
-            return self._handle_unknown(route=route, language=lang, resolved=resolved)
-
         try:
-            return bool(
-                handler(
-                    route=route,
-                    language=lang,
-                    payload=resolved.payload,
-                    resolved=resolved,
+            handler = getattr(self, f"_handle_{resolved.name}", None)
+            if not callable(handler):
+                return self._handle_unknown(route=route, language=lang, resolved=resolved)
+
+            try:
+                return bool(
+                    handler(
+                        route=route,
+                        language=lang,
+                        payload=resolved.payload,
+                        resolved=resolved,
+                    )
                 )
-            )
-        except Exception as error:
-            self.LOGGER.exception("Action flow handler failed: action=%s error=%s", resolved.name, error)
-            return self._deliver_simple_action_response(
-                language=lang,
-                action=resolved.name,
-                spoken_text=self._localized(
-                    lang,
-                    "Wystąpił problem podczas wykonania tej akcji.",
-                    "There was a problem while executing that action.",
-                ),
-                display_title="ACTION ERROR",
-                display_lines=self._display_lines(
-                    self._localized(lang, "problem z akcją", "action error")
-                ),
-                extra_metadata={
-                    "resolved_source": resolved.source,
-                    "error": str(error),
-                },
-            )
+            except Exception as error:
+                self.LOGGER.exception("Action flow handler failed: action=%s error=%s", resolved.name, error)
+                return self._deliver_simple_action_response(
+                    language=lang,
+                    action=resolved.name,
+                    spoken_text=self._localized(
+                        lang,
+                        "Wystąpił problem podczas wykonania tej akcji.",
+                        "There was a problem while executing that action.",
+                    ),
+                    display_title="ACTION ERROR",
+                    display_lines=self._display_lines(
+                        self._localized(lang, "problem z akcją", "action error")
+                    ),
+                    extra_metadata={
+                        "resolved_source": resolved.source,
+                        "error": str(error),
+                    },
+                )
+        finally:
+            self._active_route = None
+            self._active_resolved_action = None
 
     def execute_route_action(self, route: RouteDecision, language: str) -> bool:
         return self.execute(route=route, language=language)

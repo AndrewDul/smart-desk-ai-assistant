@@ -34,6 +34,7 @@ class CoreAssistantResponseMixin:
         started_at = time.perf_counter()
         route_kind_value = getattr(plan.route_kind, "value", str(plan.route_kind))
         self._last_response_stream_report = None
+        self._last_response_delivery_snapshot = None
         self.voice_session.transition_to_speaking(
             detail=f"response:{route_kind_value}",
         )
@@ -182,6 +183,24 @@ class CoreAssistantResponseMixin:
                 display_lines=display_lines,
                 default_chunk_kinds=["content"] if remembered_text else [],
             )
+
+            plan_metadata = dict(getattr(plan, "metadata", {}) or {})
+            safe_extra_metadata = dict(extra_metadata or {})
+            self._last_response_delivery_snapshot = {
+                "source": source,
+                "route_kind": route_kind_value,
+                "stream_mode": getattr(plan.stream_mode, "value", str(plan.stream_mode)),
+                "reply_source": str(plan_metadata.get("reply_source", "") or ""),
+                "display_title": display_title or str(plan_metadata.get("display_title", "") or ""),
+                "display_lines": list(display_lines or plan_metadata.get("display_lines", []) or []),
+                "remembered": bool(remember and remembered_text),
+                "delivered": bool(delivered),
+                "fallback_used": bool(not self._stream_report_delivered(stream_report)),
+                "extra_metadata": safe_extra_metadata,
+                "plan_metadata": plan_metadata,
+                "full_text_chars": len(remembered_text),
+            }
+
             append_log(
                 "Response delivery finished: "
                 f"route_kind={route_kind_value}, "

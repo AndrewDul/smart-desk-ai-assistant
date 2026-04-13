@@ -83,11 +83,61 @@ class ActionResponseHelpersMixin:
             language=lang,
             route_kind=RouteKind.CONVERSATION,
             source="action_confirmation_prompt",
-            metadata={
-                "pending_type": "confirmation",
-                "suggestions": [item["action"] for item in safe_suggestions],
-            },
+            metadata=self._current_action_response_metadata(
+                language=lang,
+                action="confirmation_prompt",
+                extra_metadata={
+                    "pending_type": "confirmation",
+                    "suggestions": [item["action"] for item in safe_suggestions],
+                },
+            ),
         )
+
+    def _current_action_response_metadata(
+        self,
+        *,
+        language: str,
+        action: str,
+        extra_metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        metadata: dict[str, Any] = {
+            "action": str(action or "").strip(),
+            "language": str(language or "").strip().lower(),
+        }
+
+        route = getattr(self, "_active_route", None)
+        if route is not None:
+            route_metadata = dict(getattr(route, "metadata", {}) or {})
+            metadata.update(
+                {
+                    "route_kind": getattr(route.kind, "value", str(route.kind)),
+                    "primary_intent": str(getattr(route, "primary_intent", "") or "").strip(),
+                    "topics": list(getattr(route, "conversation_topics", []) or []),
+                    "route_notes": list(getattr(route, "notes", []) or []),
+                    "capture_phase": str(route_metadata.get("capture_phase", "") or ""),
+                    "capture_mode": str(route_metadata.get("capture_mode", "") or ""),
+                    "capture_backend": str(route_metadata.get("capture_backend", "") or ""),
+                    "parser_action": str(route_metadata.get("parser_action", "") or ""),
+                    "route_metadata": route_metadata,
+                }
+            )
+
+        resolved = getattr(self, "_active_resolved_action", None)
+        if resolved is not None:
+            metadata.update(
+                {
+                    "action_source": str(getattr(resolved, "source", "") or "").strip(),
+                    "action_confidence": float(getattr(resolved, "confidence", 0.0) or 0.0),
+                    "resolved_route_kind": str(getattr(resolved, "route_kind", "") or "").strip(),
+                    "resolved_primary_intent": str(getattr(resolved, "primary_intent", "") or "").strip(),
+                }
+            )
+
+        if extra_metadata:
+            metadata.update(dict(extra_metadata))
+
+        return metadata    
+
 
     def _deliver_simple_action_response(
         self,
@@ -121,12 +171,18 @@ class ActionResponseHelpersMixin:
                 metadata={"action": action},
             )
         )
+        response_metadata = self._current_action_response_metadata(
+            language=language,
+            action=action,
+            extra_metadata=extra_metadata,
+        )
+
         return bool(
             self.assistant.deliver_response_plan(
                 plan,
                 source=f"action_flow:{action}",
                 remember=True,
-                extra_metadata=extra_metadata or {},
+                extra_metadata=response_metadata,
             )
         )
 

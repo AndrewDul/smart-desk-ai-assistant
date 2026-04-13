@@ -119,6 +119,19 @@ class CoreAssistantInteractionMixin:
             telemetry["route_confidence"] = float(getattr(route, "confidence", 0.0) or 0.0)
             telemetry["primary_intent"] = str(getattr(route, "primary_intent", "") or "")
             telemetry["topics"] = list(getattr(route, "conversation_topics", []) or [])
+            telemetry["route_notes"] = list(getattr(route, "notes", []) or [])
+            telemetry["route_metadata"] = dict(getattr(route, "metadata", {}) or {})
+
+            route_metadata = dict(getattr(route, "metadata", {}) or {})
+            telemetry["capture_phase"] = str(
+                route_metadata.get("capture_phase", telemetry.get("capture_phase", "")) or ""
+            )
+            telemetry["stt_mode"] = str(
+                route_metadata.get("capture_mode", telemetry.get("stt_mode", "")) or ""
+            )
+            telemetry["stt_backend"] = str(
+                route_metadata.get("capture_backend", telemetry.get("stt_backend", "")) or ""
+            )
             benchmark_service = getattr(self, "turn_benchmark_service", None)
             if benchmark_service is not None:
                 note_route_resolved = getattr(benchmark_service, "note_route_resolved", None)
@@ -259,6 +272,23 @@ class CoreAssistantInteractionMixin:
 
         llm_snapshot = self._collect_llm_snapshot()
         response_report = self._collect_response_stream_report()
+        response_delivery = self._collect_response_delivery_snapshot()
+
+        if response_delivery:
+            telemetry["response_source"] = str(response_delivery.get("source", "") or "").strip()
+            telemetry["response_reply_source"] = str(response_delivery.get("reply_source", "") or "").strip()
+            telemetry["response_display_title"] = str(response_delivery.get("display_title", "") or "").strip()
+            telemetry["response_stream_mode"] = str(response_delivery.get("stream_mode", "") or "").strip()
+            telemetry["response_memory_metadata"] = dict(
+                response_delivery.get("extra_metadata", {}) or {}
+            )
+
+            response_meta = dict(response_delivery.get("extra_metadata", {}) or {})
+            telemetry["action_name"] = str(response_meta.get("action", "") or "").strip()
+            telemetry["action_source"] = str(response_meta.get("action_source", "") or "").strip()
+            telemetry["action_confidence"] = self._safe_metric_float(
+                response_meta.get("action_confidence", 0.0)
+            )
 
         llm_part = ""
         if llm_snapshot:
@@ -323,6 +353,12 @@ class CoreAssistantInteractionMixin:
             f" | route_kind={telemetry.get('route_kind', '')}"
             f" | route_conf={float(telemetry.get('route_confidence', 0.0) or 0.0):.2f}"
             f" | intent={telemetry.get('primary_intent', '')}"
+            f" | capture_phase={telemetry.get('capture_phase', '')}"
+            f" | stt_backend={telemetry.get('stt_backend', '')}"
+            f" | response_source={telemetry.get('response_source', '')}"
+            f" | reply_source={telemetry.get('response_reply_source', '')}"
+            f" | action={telemetry.get('action_name', '')}"
+            f" | action_source={telemetry.get('action_source', '')}"
             f" | prepare_ms={float(telemetry.get('prepare_ms', 0.0) or 0.0):.1f}"
             f" | lang_ms={float(telemetry.get('language_commit_ms', 0.0) or 0.0):.1f}"
             f" | remember_ms={float(telemetry.get('remember_user_ms', 0.0) or 0.0):.1f}"
@@ -338,6 +374,7 @@ class CoreAssistantInteractionMixin:
         )
 
         self._last_response_stream_report = None
+        self._last_response_delivery_snapshot = None
 
     def _consume_last_input_capture(self) -> dict[str, Any]:
         capture = dict(getattr(self, "_last_input_capture", {}) or {})
@@ -380,6 +417,10 @@ class CoreAssistantInteractionMixin:
         return {}
     def _collect_response_stream_report(self) -> Any:
         return getattr(self, "_last_response_stream_report", None)
+
+    def _collect_response_delivery_snapshot(self) -> dict[str, Any]:
+        snapshot = getattr(self, "_last_response_delivery_snapshot", None)
+        return dict(snapshot or {})
     
     @staticmethod
     def _elapsed_ms(started_at: float) -> float:

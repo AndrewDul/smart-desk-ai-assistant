@@ -85,6 +85,7 @@ class CoreAssistant(
         self.shutdown_requested = False
 
         self._last_response_stream_report = None
+        self._last_response_delivery_snapshot = None
         self._last_input_capture: dict[str, Any] = {}
         self.turn_benchmark_service = TurnBenchmarkService(
             enabled=bool(benchmark_cfg.get("enabled", True)),

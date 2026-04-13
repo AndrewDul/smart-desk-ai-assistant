@@ -46,6 +46,7 @@ class DummyAssistant(CoreAssistantResponseMixin):
         self.shutdown_requested = False
         self.stream_mode = StreamMode.SENTENCE
         self._last_response_stream_report = None
+        self._last_response_delivery_snapshot = None
         self.remembered_turns: list[dict[str, object]] = []
 
     def _display_lines(self, text: str) -> list[str]:
@@ -107,6 +108,10 @@ class ResponseDeliveryTests(unittest.TestCase):
         self.assertIsNotNone(assistant._last_response_stream_report)
         self.assertTrue(assistant._last_response_stream_report.live_streaming)
         self.assertEqual(assistant._last_response_stream_report.chunks_spoken, 2)
+        self.assertIsNotNone(assistant._last_response_delivery_snapshot)
+        self.assertEqual(assistant._last_response_delivery_snapshot["source"], "test_dialogue_flow")
+        self.assertEqual(assistant._last_response_delivery_snapshot["route_kind"], "conversation")
+        self.assertTrue(assistant._last_response_delivery_snapshot["remembered"])
 
     def test_deliver_response_plan_falls_back_when_stream_report_is_empty(self) -> None:
         assistant = DummyAssistant(EmptyReportStreamer())

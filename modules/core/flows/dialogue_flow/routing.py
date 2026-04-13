@@ -80,6 +80,7 @@ class DialogueFlowRouting:
         *,
         source: str,
     ) -> dict[str, Any]:
+        route_metadata = dict(route.metadata or {})
         return {
             "source": source,
             "route_kind": route.kind.value,
@@ -88,6 +89,11 @@ class DialogueFlowRouting:
             "primary_intent": route.primary_intent,
             "suggested_actions": self._suggested_action_names(route),
             "notes": list(route.notes),
+            "capture_phase": str(route_metadata.get("capture_phase", "") or ""),
+            "capture_mode": str(route_metadata.get("capture_mode", "") or ""),
+            "capture_backend": str(route_metadata.get("capture_backend", "") or ""),
+            "parser_action": str(route_metadata.get("parser_action", "") or ""),
+            "route_metadata": route_metadata,
         }
 
 

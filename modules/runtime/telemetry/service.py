@@ -226,8 +226,19 @@ class TurnBenchmarkService:
                     telemetry.get("primary_intent") or trace.primary_intent or ""
                 ).strip(),
                 "topics": list(telemetry.get("topics", []) or []),
+                "route_notes": list(telemetry.get("route_notes", []) or []),
+                "route_metadata": dict(telemetry.get("route_metadata", {}) or {}),
                 "wake_source": str(trace.wake_source or "").strip(),
-                "wake_backend": str(trace.wake_backend or "").strip(),
+                "active_phase": str(trace.active_phase or "").strip(),
+                "capture_phase": str(
+                    telemetry.get("capture_phase") or trace.active_phase or ""
+                ).strip(),
+                "capture_mode": str(
+                    telemetry.get("stt_mode") or telemetry.get("capture_mode") or ""
+                ).strip(),
+                "capture_backend": str(
+                    telemetry.get("stt_backend") or telemetry.get("capture_backend") or ""
+                ).strip(),
                 "wake_latency_ms": self._optional_float(trace.wake_latency_ms),
                 "active_phase": str(trace.active_phase or "").strip(),
                 "stt_backend": str(
@@ -283,6 +294,18 @@ class TurnBenchmarkService:
                 "response_chars": len(str(getattr(response_report, "full_text", "") or "")),
                 "response_live_streaming": bool(getattr(response_report, "live_streaming", False)),
                 "response_chunk_kinds": list(getattr(response_report, "chunk_kinds", []) or []),
+                "response_source": str(telemetry.get("response_source", "") or "").strip(),
+                "response_reply_source": str(telemetry.get("response_reply_source", "") or "").strip(),
+                "response_display_title": str(telemetry.get("response_display_title", "") or "").strip(),
+                "response_stream_mode": str(telemetry.get("response_stream_mode", "") or "").strip(),
+                "response_memory_metadata": dict(
+                    telemetry.get("response_memory_metadata", {}) or {}
+                ),
+                "action_name": str(telemetry.get("action_name", "") or "").strip(),
+                "action_source": str(telemetry.get("action_source", "") or "").strip(),
+                "action_confidence": self._optional_float(
+                    telemetry.get("action_confidence", None)
+                ),
                 "total_turn_ms": total_turn_ms or None,
             }
 
@@ -368,6 +391,15 @@ class TurnBenchmarkService:
             return float(value)
         except (TypeError, ValueError):
             return 0.0
+
+    @staticmethod
+    def _optional_float(value: Any) -> float | None:
+        if value is None or value == "":
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
     @staticmethod
     def _optional_float(value: Any) -> float | None:
