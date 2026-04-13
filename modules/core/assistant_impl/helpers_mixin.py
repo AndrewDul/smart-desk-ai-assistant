@@ -146,18 +146,26 @@ class CoreAssistantHelpersMixin:
 
     def _runtime_overlay_lines(self) -> list[str]:
         snapshot = self._runtime_status_snapshot()
-        lifecycle_state = str(
-            snapshot.get("lifecycle_state", "booting") or "booting"
-        ).strip().lower()
 
-        if lifecycle_state == "ready":
-            status_line = "runtime ready"
-        elif lifecycle_state in {"degraded", "failed"}:
-            status_line = "runtime degraded"
-        elif lifecycle_state == "shutting_down":
-            status_line = "runtime stopping"
+        if bool(snapshot.get("premium_ready", False)):
+            status_line = "premium ready"
+        elif bool(snapshot.get("primary_ready", False)):
+            compatibility = list(snapshot.get("compatibility_components", []) or [])
+            if compatibility:
+                status_line = "ready / compat"
+            else:
+                status_line = "runtime ready"
         else:
-            status_line = "runtime booting"
+            lifecycle_state = str(
+                snapshot.get("lifecycle_state", "booting") or "booting"
+            ).strip().lower()
+
+            if lifecycle_state in {"degraded", "failed"}:
+                status_line = "runtime degraded"
+            elif lifecycle_state == "shutting_down":
+                status_line = "runtime stopping"
+            else:
+                status_line = "runtime booting"
 
         message = str(snapshot.get("status_message", "") or "").strip()
         if message:
@@ -194,6 +202,15 @@ class CoreAssistantHelpersMixin:
                 "I will start in a limited mode."
             )
 
+        compatibility = self._compatibility_component_names(snapshot=snapshot)
+        if compatibility:
+            compatibility_text = ", ".join(compatibility[:3])
+            return (
+                f"Hello. I am {self.ASSISTANT_NAME}. "
+                f"Core services are ready, but some modules are using compatibility paths: {compatibility_text}. "
+                "I am still ready to help."
+            )
+
         if degraded:
             degraded_text = ", ".join(degraded[:3])
             return (
@@ -213,6 +230,21 @@ class CoreAssistantHelpersMixin:
             f"Hello. I am {self.ASSISTANT_NAME}. "
             "Startup checks completed. I am ready to help."
         )
+
+
+    def _compatibility_component_names(
+        self,
+        *,
+        snapshot: dict[str, Any] | None = None,
+    ) -> list[str]:
+        safe_snapshot = snapshot if isinstance(snapshot, dict) else self._runtime_status_snapshot()
+        return [
+            str(item).strip()
+            for item in safe_snapshot.get("compatibility_components", [])
+            if str(item).strip()
+        ]
+
+
 
     def _degraded_component_names(self, *, snapshot: dict[str, Any] | None = None) -> list[str]:
         safe_snapshot = snapshot if isinstance(snapshot, dict) else self._runtime_status_snapshot()

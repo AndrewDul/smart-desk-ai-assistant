@@ -69,8 +69,14 @@ class RuntimeProductService:
             ready=False,
             degraded=bool(warnings),
             startup_allowed=bool(startup_allowed),
+            primary_ready=bool(self._snapshot.get("primary_ready", False)),
+            premium_ready=bool(self._snapshot.get("premium_ready", False)),
             warnings=self._unique_texts(warnings or []),
+            required_components=list(self._snapshot.get("required_components", []) or []),
+            compatibility_components=list(self._snapshot.get("compatibility_components", []) or []),
+            degraded_components=list(self._snapshot.get("degraded_components", []) or []),
             services=dict(self._snapshot.get("services", {}) or {}),
+            provider_inventory=dict(self._snapshot.get("provider_inventory", {}) or {}),
             updated_at_iso=self._now_iso(),
         )
         return self._replace_snapshot(snapshot)
@@ -85,29 +91,68 @@ class RuntimeProductService:
             services = self._collect_service_statuses_locked(auto_recover=True)
             warnings = list(runtime_warnings or [])
             blockers: list[str] = []
+            compatibility_components: list[str] = []
+            degraded_components: list[str] = []
 
             for name, status in services.items():
-                if status.state == "disabled":
+                state = str(status.state or "").strip().lower()
+                if state == "disabled":
                     continue
 
-                if status.required and status.state == "failed":
+                if status.required and state == "failed":
                     blockers.append(name)
+                    degraded_components.append(name)
                     continue
 
-                if status.state == "degraded":
+                if self._is_compatibility_status(status):
+                    compatibility_components.append(name)
+                    warnings.append(f"{name}: compatibility path active")
+
+                if state == "degraded":
+                    degraded_components.append(name)
                     warnings.append(f"{name}: degraded")
-                elif status.state == "failed" and not status.required:
+                elif state == "failed" and not status.required:
+                    degraded_components.append(name)
                     warnings.append(f"{name}: unavailable")
 
             warnings = self._unique_texts(warnings)
             blockers = self._unique_texts(blockers)
+            compatibility_components = self._unique_texts(compatibility_components)
+            degraded_components = self._unique_texts(degraded_components)
+
+            required_components = sorted(
+                name
+                for name, status in services.items()
+                if bool(getattr(status, "required", False))
+            )
+
+            primary_ready = bool(startup_allowed) and not blockers and all(
+                self._is_primary_service_status(status)
+                for name, status in services.items()
+                if bool(getattr(status, "required", False))
+                and str(getattr(status, "state", "") or "").strip().lower() != "disabled"
+            )
+
+            premium_ready = (
+                primary_ready
+                and not warnings
+                and not compatibility_components
+                and not degraded_components
+            )
 
             ready = bool(startup_allowed) and not blockers and not warnings
-            degraded = bool(startup_allowed) and not ready
-            lifecycle_state = "ready" if ready else "degraded" if startup_allowed else "failed"
+            degraded = bool(startup_allowed) and not premium_ready
+            lifecycle_state = "ready" if premium_ready else "degraded" if startup_allowed else "failed"
 
-            if ready:
-                status_message = "runtime ready"
+            if premium_ready:
+                status_message = "runtime ready in premium mode"
+            elif primary_ready and compatibility_components:
+                status_message = (
+                    "runtime ready with compatibility path: "
+                    f"{', '.join(compatibility_components[:2])}"
+                )
+            elif primary_ready and warnings:
+                status_message = f"runtime ready with limitations: {', '.join(warnings[:2])}"
             elif blockers:
                 status_message = f"required services need attention: {', '.join(blockers[:3])}"
             elif warnings:
@@ -115,15 +160,23 @@ class RuntimeProductService:
             else:
                 status_message = "startup checks failed"
 
+            provider_inventory = self._collect_provider_inventory_locked(services)
+
             snapshot = ProductRuntimeSnapshot(
                 lifecycle_state=lifecycle_state,
                 status_message=status_message,
                 ready=ready,
                 degraded=degraded,
                 startup_allowed=bool(startup_allowed),
+                primary_ready=primary_ready,
+                premium_ready=premium_ready,
                 blockers=blockers,
                 warnings=warnings,
+                required_components=required_components,
+                compatibility_components=compatibility_components,
+                degraded_components=degraded_components,
                 services={name: item.to_dict() for name, item in services.items()},
+                provider_inventory=provider_inventory,
                 updated_at_iso=self._now_iso(),
             )
             return self._replace_snapshot(snapshot)
@@ -219,9 +272,32 @@ class RuntimeProductService:
         backend_name = str(
             getattr(backend_status, "selected_backend", "") or "unknown"
         ).strip() or "unknown"
+        requested_backend = str(
+            getattr(backend_status, "requested_backend", "") or backend_name
+        ).strip() or backend_name
+        runtime_mode = str(getattr(backend_status, "runtime_mode", "") or "").strip()
+        capabilities = [
+            str(item).strip()
+            for item in getattr(backend_status, "capabilities", ()) or ()
+            if str(item).strip()
+        ]
+        metadata = dict(getattr(backend_status, "metadata", {}) or {})
         detail = str(getattr(backend_status, "detail", "") or "").strip()
 
-        if component == "wake_gate" and ok and backend_name == "compatibility_voice_input":
+        compatibility_mode = (
+            backend_name == "compatibility_voice_input"
+            or "compatibility" in runtime_mode.lower()
+            or bool(metadata.get("compatibility_mode", False))
+        )
+
+        primary = (
+            ok
+            and not fallback_used
+            and not compatibility_mode
+            and backend_name == requested_backend
+        )
+
+        if component == "wake_gate" and ok and compatibility_mode:
             state = "ready"
         elif ok and not fallback_used:
             state = "ready"
@@ -238,6 +314,12 @@ class RuntimeProductService:
             required=required,
             recoverable=component in self.auto_recovery_components,
             fallback_used=fallback_used,
+            requested_backend=requested_backend,
+            runtime_mode=runtime_mode,
+            capabilities=capabilities,
+            primary=primary,
+            compatibility_mode=compatibility_mode,
+            metadata=metadata,
             last_checked_iso=self._now_iso(),
         )
 
@@ -258,6 +340,12 @@ class RuntimeProductService:
                 detail="disabled by config",
                 required=required,
                 recoverable=False,
+                requested_backend=runner,
+                runtime_mode="disabled",
+                capabilities=[],
+                primary=False,
+                compatibility_mode=False,
+                metadata={},
                 last_checked_iso=self._now_iso(),
             )
 
@@ -270,6 +358,12 @@ class RuntimeProductService:
                 detail="dialogue layer has no local llm service",
                 required=required,
                 recoverable=False,
+                requested_backend=runner,
+                runtime_mode="persistent_service",
+                capabilities=["streaming", "healthcheck"],
+                primary=False,
+                compatibility_mode=False,
+                metadata={},
                 last_checked_iso=self._now_iso(),
             )
 
@@ -336,6 +430,14 @@ class RuntimeProductService:
                 detail = recovery_error or "local llm backend unavailable"
             state = "failed"
 
+        llm_capabilities = [
+            str(item).strip()
+            for item in backend_info.get("capabilities", []) or []
+            if str(item).strip()
+        ]
+        if not llm_capabilities:
+            llm_capabilities = ["streaming", "healthcheck"]
+
         return ProductServiceStatus(
             component="llm",
             backend=backend_name,
@@ -344,6 +446,12 @@ class RuntimeProductService:
             required=required,
             recoverable=True,
             fallback_used=False,
+            requested_backend=runner,
+            runtime_mode="persistent_service",
+            capabilities=llm_capabilities,
+            primary=available and backend_name == runner,
+            compatibility_mode=False,
+            metadata=dict(backend_info),
             last_checked_iso=self._now_iso(),
             recovery_attempted=recovery_attempted,
             recovery_ok=recovery_ok,
@@ -359,6 +467,46 @@ class RuntimeProductService:
 
             return dict(self._snapshot)
 
+
+    def _collect_provider_inventory_locked(
+        self,
+        services: dict[str, ProductServiceStatus],
+    ) -> dict[str, dict[str, Any]]:
+        inventory: dict[str, dict[str, Any]] = {}
+
+        for name, status in services.items():
+            inventory[name] = {
+                "component": str(status.component or name).strip(),
+                "requested_backend": str(status.requested_backend or status.backend).strip(),
+                "selected_backend": str(status.backend or "").strip(),
+                "state": str(status.state or "").strip(),
+                "required": bool(status.required),
+                "fallback_used": bool(status.fallback_used),
+                "runtime_mode": str(status.runtime_mode or "").strip(),
+                "capabilities": list(status.capabilities or []),
+                "primary": bool(status.primary),
+                "compatibility_mode": bool(status.compatibility_mode),
+                "detail": str(status.detail or "").strip(),
+                "metadata": dict(status.metadata or {}),
+            }
+
+        return inventory
+
+    @staticmethod
+    def _is_compatibility_status(status: ProductServiceStatus) -> bool:
+        return bool(getattr(status, "compatibility_mode", False))
+
+    @staticmethod
+    def _is_primary_service_status(status: ProductServiceStatus) -> bool:
+        return (
+            str(getattr(status, "state", "") or "").strip().lower() == "ready"
+            and bool(getattr(status, "primary", False))
+            and not bool(getattr(status, "compatibility_mode", False))
+            and not bool(getattr(status, "fallback_used", False))
+        )
+
+
+
     def _default_snapshot_dict(self) -> dict[str, Any]:
         return ProductRuntimeSnapshot(
             lifecycle_state="created",
@@ -366,9 +514,15 @@ class RuntimeProductService:
             ready=False,
             degraded=False,
             startup_allowed=False,
+            primary_ready=False,
+            premium_ready=False,
             blockers=[],
             warnings=[],
+            required_components=[],
+            compatibility_components=[],
+            degraded_components=[],
             services={},
+            provider_inventory={},
             updated_at_iso=self._now_iso(),
         ).to_dict()
 

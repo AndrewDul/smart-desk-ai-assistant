@@ -111,6 +111,8 @@ def _log_startup_summary(
             "Runtime product state: "
             f"lifecycle={runtime_snapshot.get('lifecycle_state', '')}, "
             f"ready={bool(runtime_snapshot.get('ready', False))}, "
+            f"primary_ready={bool(runtime_snapshot.get('primary_ready', False))}, "
+            f"premium_ready={bool(runtime_snapshot.get('premium_ready', False))}, "
             f"degraded={bool(runtime_snapshot.get('degraded', False))}, "
             f"message={runtime_snapshot.get('status_message', '')}"
         )
@@ -136,7 +138,22 @@ def _log_startup_summary(
                 f"recovery_attempted={bool(payload.get('recovery_attempted', False))}, "
                 f"recovery_ok={bool(payload.get('recovery_ok', False))}"
             )
+        provider_inventory = dict(runtime_snapshot.get("provider_inventory", {}) or {})
+        for component, payload in provider_inventory.items():
+            if not isinstance(payload, dict):
+                continue
 
+            append_log(
+                "Runtime provider inventory: "
+                f"component={component}, "
+                f"requested={payload.get('requested_backend', '')}, "
+                f"selected={payload.get('selected_backend', '')}, "
+                f"state={payload.get('state', '')}, "
+                f"mode={payload.get('runtime_mode', '')}, "
+                f"primary={bool(payload.get('primary', False))}, "
+                f"compatibility={bool(payload.get('compatibility_mode', False))}, "
+                f"fallback={bool(payload.get('fallback_used', False))}"
+            )
     if runtime_warnings:
         append_log(f"Runtime warning summary: {' | '.join(runtime_warnings)}")
     else:

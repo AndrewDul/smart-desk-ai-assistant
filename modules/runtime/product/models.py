@@ -13,6 +13,12 @@ class ProductServiceStatus:
     required: bool = False
     recoverable: bool = False
     fallback_used: bool = False
+    requested_backend: str = ""
+    runtime_mode: str = ""
+    capabilities: list[str] = field(default_factory=list)
+    primary: bool = False
+    compatibility_mode: bool = False
+    metadata: dict[str, Any] = field(default_factory=dict)
     last_checked_iso: str = ""
     recovery_attempted: bool = False
     recovery_ok: bool = False
@@ -29,9 +35,15 @@ class ProductRuntimeSnapshot:
     ready: bool = False
     degraded: bool = False
     startup_allowed: bool = False
+    primary_ready: bool = False
+    premium_ready: bool = False
     blockers: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    required_components: list[str] = field(default_factory=list)
+    compatibility_components: list[str] = field(default_factory=list)
+    degraded_components: list[str] = field(default_factory=list)
     services: dict[str, dict[str, Any]] = field(default_factory=dict)
+    provider_inventory: dict[str, dict[str, Any]] = field(default_factory=dict)
     updated_at_iso: str = ""
 
     def to_dict(self) -> dict[str, Any]:
