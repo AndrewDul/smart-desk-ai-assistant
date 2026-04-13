@@ -5,6 +5,8 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
+from cbor2 import value
+
 from modules.runtime.contracts import create_turn_id
 from modules.shared.persistence.json_store import JsonStore
 from modules.shared.persistence.paths import resolve_optional_path
@@ -71,7 +73,14 @@ class TurnBenchmarkService:
 
             return trace.turn_id
 
-    def note_wake_detected(self, *, source: str) -> None:
+    def note_wake_detected(
+        self,
+        *,
+        source: str,
+        input_source: str = "voice",
+        latency_ms: float | None = None,
+        backend_label: str = "",
+    ) -> None:
         if not self.enabled:
             return
 
@@ -79,7 +88,13 @@ class TurnBenchmarkService:
             self._active_trace = self._new_trace_locked()
             self._active_trace.wake_detected_at_monotonic = time.perf_counter()
             self._active_trace.wake_source = str(source or "wake_gate").strip() or "wake_gate"
-            self._active_trace.input_source = "voice"
+            self._active_trace.input_source = (
+                str(input_source or "voice").strip().lower() or "voice"
+            )
+            self._active_trace.wake_backend = str(
+                backend_label or self._active_trace.wake_source
+            ).strip()
+            self._active_trace.wake_latency_ms = self._optional_float(latency_ms)
 
     def note_listening_started(self, *, phase: str) -> None:
         if not self.enabled:
@@ -91,7 +106,19 @@ class TurnBenchmarkService:
                 trace.listening_started_at_monotonic = time.perf_counter()
             trace.active_phase = str(phase or trace.active_phase or "command").strip() or "command"
 
-    def note_speech_finalized(self, *, text: str, phase: str) -> None:
+    def note_speech_finalized(
+        self,
+        *,
+        text: str,
+        phase: str,
+        language: str = "",
+        input_source: str = "",
+        latency_ms: float | None = None,
+        audio_duration_ms: float | None = None,
+        backend_label: str = "",
+        mode: str = "",
+        confidence: float | None = None,
+    ) -> None:
         if not self.enabled:
             return
 
@@ -105,6 +132,22 @@ class TurnBenchmarkService:
 
             if phase:
                 trace.active_phase = str(phase).strip() or trace.active_phase
+
+            if language:
+                trace.language = str(language).strip().lower()
+
+            if input_source:
+                trace.input_source = str(input_source).strip().lower() or trace.input_source
+
+            if backend_label:
+                trace.stt_backend = str(backend_label).strip()
+
+            if mode:
+                trace.stt_mode = str(mode).strip()
+
+            trace.stt_latency_ms = self._optional_float(latency_ms)
+            trace.speech_duration_ms = self._optional_float(audio_duration_ms)
+            trace.stt_confidence = self._optional_float(confidence)
 
     def note_route_resolved(
         self,
@@ -184,7 +227,27 @@ class TurnBenchmarkService:
                 ).strip(),
                 "topics": list(telemetry.get("topics", []) or []),
                 "wake_source": str(trace.wake_source or "").strip(),
+                "wake_backend": str(trace.wake_backend or "").strip(),
+                "wake_latency_ms": self._optional_float(trace.wake_latency_ms),
                 "active_phase": str(trace.active_phase or "").strip(),
+                "stt_backend": str(
+                    telemetry.get("stt_backend") or trace.stt_backend or ""
+                ).strip(),
+                "stt_mode": str(
+                    telemetry.get("stt_mode") or trace.stt_mode or ""
+                ).strip(),
+                "stt_phase": str(
+                    telemetry.get("stt_phase") or trace.active_phase or ""
+                ).strip(),
+                "stt_latency_ms": self._optional_float(
+                    telemetry.get("stt_latency_ms", trace.stt_latency_ms)
+                ),
+                "stt_audio_duration_ms": self._optional_float(
+                    telemetry.get("stt_audio_duration_ms", trace.speech_duration_ms)
+                ),
+                "stt_confidence": self._optional_float(
+                    telemetry.get("stt_confidence", trace.stt_confidence)
+                ) or None,
                 "wake_to_listen_ms": self._delta_ms(
                     trace.wake_detected_at_monotonic,
                     trace.listening_started_at_monotonic,
@@ -305,6 +368,15 @@ class TurnBenchmarkService:
             return float(value)
         except (TypeError, ValueError):
             return 0.0
+
+    @staticmethod
+    def _optional_float(value: Any) -> float | None:
+        if value is None or value == "":
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
     @classmethod
     def _safe_attr_float(cls, value: Any, name: str) -> float:

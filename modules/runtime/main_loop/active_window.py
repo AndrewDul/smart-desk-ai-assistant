@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import time
+
 from typing import TYPE_CHECKING
 
+from modules.core import assistant
 from modules.core.session.voice_session import (
     VOICE_INPUT_OWNER_VOICE_INPUT,
     VOICE_INPUT_OWNER_WAKE_GATE,
@@ -13,6 +15,7 @@ from modules.core.session.voice_session import (
     VOICE_PHASE_WAKE_GATE,
     VOICE_STATE_STANDBY,
 )
+from modules.runtime.contracts import TranscriptResult, WakeDetectionResult
 from modules.shared.logging.logger import append_log
 
 from .backend_helpers import (
@@ -86,10 +89,71 @@ def _banner_for_phase(phase: str) -> str:
         return "\nStandby. Still listening..."
     return "\nStandby. Waiting for command..."
 
+
+def _input_source_label(value: object) -> str:
+    raw = getattr(value, "value", value)
+    cleaned = str(raw or "voice").strip().lower()
+    return cleaned or "voice"
+
+
+def _remember_input_capture(
+    assistant: CoreAssistant,
+    *,
+    text: str,
+    phase: str,
+    language: str,
+    input_source: str,
+    backend_label: str,
+    mode: str,
+    latency_ms: float,
+    audio_duration_ms: float,
+    confidence: float,
+    metadata: dict[str, object] | None = None,
+) -> None:
+    assistant._last_input_capture = {
+        "text": str(text or "").strip(),
+        "phase": str(phase or "").strip(),
+        "language": str(language or getattr(assistant, "last_language", "en")).strip().lower(),
+        "input_source": str(input_source or "voice").strip().lower() or "voice",
+        "backend_label": str(backend_label or "").strip(),
+        "mode": str(mode or phase).strip(),
+        "latency_ms": max(0.0, float(latency_ms or 0.0)),
+        "audio_duration_ms": max(0.0, float(audio_duration_ms or 0.0)),
+        "confidence": max(0.0, float(confidence or 0.0)),
+        "metadata": dict(metadata or {}),
+    }
+
+
+def _remember_capture_from_transcript(
+    assistant: CoreAssistant,
+    transcript: TranscriptResult,
+    *,
+    phase: str,
+) -> None:
+    capture_metadata = dict(getattr(transcript, "metadata", {}) or {})
+    _remember_input_capture(
+        assistant,
+        text=transcript.text,
+        phase=phase,
+        language=str(getattr(transcript, "language", "") or ""),
+        input_source=_input_source_label(getattr(transcript, "source", "voice")),
+        backend_label=str(capture_metadata.get("backend_label", "") or ""),
+        mode=str(capture_metadata.get("mode", phase) or phase),
+        latency_ms=float(getattr(transcript, "latency_ms", 0.0) or 0.0),
+        audio_duration_ms=max(
+            0.0,
+            float(getattr(transcript, "duration_seconds", 0.0) or 0.0) * 1000.0,
+        ),
+        confidence=float(getattr(transcript, "confidence", 0.0) or 0.0),
+        metadata=capture_metadata,
+    )
+
+
 def _note_turn_benchmark_wake_detected(
     assistant: CoreAssistant,
     *,
     source: str,
+    wake_event: WakeDetectionResult | None = None,
 ) -> None:
     service = getattr(assistant, "turn_benchmark_service", None)
     if service is None:
@@ -100,7 +164,13 @@ def _note_turn_benchmark_wake_detected(
         return
 
     try:
-        method(source=source)
+        wake_metadata = dict(getattr(wake_event, "metadata", {}) or {})
+        method(
+            source=source,
+            input_source=_input_source_label(getattr(wake_event, "source", "voice")),
+            latency_ms=float(getattr(wake_event, "latency_ms", 0.0) or 0.0),
+            backend_label=str(wake_metadata.get("backend_label", source) or source),
+        )
     except Exception as error:
         append_log(f"Turn benchmark wake note failed: {error}")
 
@@ -129,6 +199,7 @@ def _note_turn_benchmark_speech_finalized(
     *,
     text: str,
     phase: str,
+    transcript: TranscriptResult | None = None,
 ) -> None:
     service = getattr(assistant, "turn_benchmark_service", None)
     if service is None:
@@ -139,7 +210,21 @@ def _note_turn_benchmark_speech_finalized(
         return
 
     try:
-        method(text=text, phase=phase)
+        transcript_metadata = dict(getattr(transcript, "metadata", {}) or {})
+        method(
+            text=text,
+            phase=phase,
+            language=str(getattr(transcript, "language", "") or ""),
+            input_source=_input_source_label(getattr(transcript, "source", "voice")),
+            latency_ms=float(getattr(transcript, "latency_ms", 0.0) or 0.0),
+            audio_duration_ms=max(
+                0.0,
+                float(getattr(transcript, "duration_seconds", 0.0) or 0.0) * 1000.0,
+            ),
+            backend_label=str(transcript_metadata.get("backend_label", "") or ""),
+            mode=str(transcript_metadata.get("mode", phase) or phase),
+            confidence=float(getattr(transcript, "confidence", 0.0) or 0.0),
+        )
     except Exception as error:
         append_log(f"Turn benchmark speech-finalized note failed: {error}")
 
@@ -204,6 +289,7 @@ def _accept_standby_wake(
     source_label: str,
     *,
     inline_command: str | None = None,
+    wake_event: WakeDetectionResult | None = None,
 ) -> bool:
     safe_inline_command = _sanitize_inline_command(inline_command, assistant)
     if inline_command and safe_inline_command is None:
@@ -212,7 +298,11 @@ def _accept_standby_wake(
             f"{inline_command}"
         )
 
-    _note_turn_benchmark_wake_detected(assistant, source=source_label)
+    _note_turn_benchmark_wake_detected(
+    assistant,
+    source=source_label,
+    wake_event=wake_event,
+)
 
     state_flags.reset_wake_detection()
     state_flags.hide_standby_banner()
@@ -306,7 +396,12 @@ def _listen_for_wake(assistant: CoreAssistant, state_flags: MainLoopRuntimeState
     )
 
     if wake_event is not None and wake_event.accepted:
-        return _accept_standby_wake(assistant, state_flags, backend_label)
+        return _accept_standby_wake(
+            assistant,
+            state_flags,
+            backend_label,
+            wake_event=wake_event,
+        )
 
     if wake_backend is not None and callable(getattr(wake_backend, "listen_for_wake_phrase", None)):
         state_flags.record_wake_miss()
@@ -357,6 +452,19 @@ def _active_command_timeout(assistant: CoreAssistant) -> float:
 def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRuntimeState) -> str | None:
     prefetched = state_flags.consume_prefetched_command()
     if prefetched:
+        _remember_input_capture(
+            assistant,
+            text=prefetched,
+            phase="inline_command_after_wake",
+            language=getattr(assistant, "last_language", "en"),
+            input_source="voice",
+            backend_label="wake_inline_command",
+            mode="inline_command_after_wake",
+            latency_ms=0.0,
+            audio_duration_ms=0.0,
+            confidence=1.0,
+            metadata={"origin": "wake_inline_command"},
+        )
         _note_turn_benchmark_speech_finalized(
             assistant,
             text=prefetched,
@@ -392,6 +500,12 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
     if transcript is None:
         return None
 
+    _remember_capture_from_transcript(
+        assistant,
+        transcript,
+        phase=active_phase,
+    )
+
     heard_text = transcript.text
     cleaned = heard_text.strip()
     if cleaned:
@@ -399,6 +513,7 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
             assistant,
             text=cleaned,
             phase=active_phase,
+            transcript=transcript,
         )
         assistant.voice_session.transition_to_transcribing(
             detail="speech_captured",

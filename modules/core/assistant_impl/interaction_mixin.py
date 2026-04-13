@@ -3,6 +3,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from sympy import capture
+
 from modules.core.session.voice_session import VOICE_STATE_ROUTING
 from modules.shared.logging.logger import append_log, log_exception
 
@@ -159,6 +161,17 @@ class CoreAssistantInteractionMixin:
     def _start_turn_telemetry(self, text: str) -> dict[str, Any]:
         started_at = time.perf_counter()
         benchmark_turn_id = ""
+        capture = self._consume_last_input_capture()
+
+        input_source = str(capture.get("input_source") or "voice").strip().lower() or "voice"
+        capture_language = str(capture.get("language") or self.last_language or "").strip().lower()
+        current_language = capture_language or self.last_language
+        stt_backend = str(capture.get("backend_label") or "").strip()
+        stt_mode = str(capture.get("mode") or "").strip()
+        stt_phase = str(capture.get("phase") or "").strip()
+        stt_latency_ms = self._safe_metric_float(capture.get("latency_ms"))
+        stt_audio_duration_ms = self._safe_metric_float(capture.get("audio_duration_ms"))
+        stt_confidence = self._safe_metric_float(capture.get("confidence"))
 
         benchmark_service = getattr(self, "turn_benchmark_service", None)
         if benchmark_service is not None:
@@ -168,8 +181,8 @@ class CoreAssistantInteractionMixin:
                     benchmark_turn_id = str(
                         begin_turn(
                             user_text=str(text or "").strip(),
-                            language=self.last_language,
-                            input_source="voice",
+                            language=current_language,
+                            input_source=input_source,
                         )
                         or ""
                     ).strip()
@@ -182,8 +195,8 @@ class CoreAssistantInteractionMixin:
             "started_at": started_at,
             "benchmark_turn_id": benchmark_turn_id,
             "user_text": str(text or "").strip(),
-            "input_source": "voice",
-            "language": self.last_language,
+            "input_source": input_source,
+            "language": current_language,
             "prepare_ms": 0.0,
             "language_commit_ms": 0.0,
             "remember_user_ms": 0.0,
@@ -199,6 +212,12 @@ class CoreAssistantInteractionMixin:
             "topics": [],
             "result": "",
             "handled": False,
+            "stt_backend": stt_backend,
+            "stt_mode": stt_mode,
+            "stt_phase": stt_phase,
+            "stt_latency_ms": stt_latency_ms,
+            "stt_audio_duration_ms": stt_audio_duration_ms,
+            "stt_confidence": stt_confidence,
         }
 
     def _finish_turn_telemetry(self, telemetry: dict[str, Any]) -> None:
@@ -264,6 +283,14 @@ class CoreAssistantInteractionMixin:
             f" | total_ms={total_ms:.1f}"
             f" | result={telemetry.get('result', '')}"
             f" | handled={bool(telemetry.get('handled', False))}"
+            f" | input_source={telemetry.get('input_source', '')}"
+            f" | language={telemetry.get('language', '')}"
+            f" | stt_backend={telemetry.get('stt_backend', '')}"
+            f" | stt_mode={telemetry.get('stt_mode', '')}"
+            f" | stt_phase={telemetry.get('stt_phase', '')}"
+            f" | stt_ms={float(telemetry.get('stt_latency_ms', 0.0) or 0.0):.1f}"
+            f" | stt_audio_ms={float(telemetry.get('stt_audio_duration_ms', 0.0) or 0.0):.1f}"
+            f" | stt_conf={float(telemetry.get('stt_confidence', 0.0) or 0.0):.2f}"
             f" | route_kind={telemetry.get('route_kind', '')}"
             f" | route_conf={float(telemetry.get('route_confidence', 0.0) or 0.0):.2f}"
             f" | intent={telemetry.get('primary_intent', '')}"
@@ -282,6 +309,11 @@ class CoreAssistantInteractionMixin:
         )
 
         self._last_response_stream_report = None
+
+    def _consume_last_input_capture(self) -> dict[str, Any]:
+        capture = dict(getattr(self, "_last_input_capture", {}) or {})
+        self._last_input_capture = {}
+        return capture
 
     def _collect_llm_snapshot(self) -> dict[str, Any]:
         dialogue = getattr(self, "dialogue", None)
@@ -323,6 +355,13 @@ class CoreAssistantInteractionMixin:
     @staticmethod
     def _elapsed_ms(started_at: float) -> float:
         return (time.perf_counter() - float(started_at)) * 1000.0
+
+    @staticmethod
+    def _safe_metric_float(value: Any) -> float:
+        try:
+            return max(0.0, float(value or 0.0))
+        except (TypeError, ValueError):
+            return 0.0
 
     @staticmethod
     def _metric_text(value: Any) -> str:
