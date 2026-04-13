@@ -176,6 +176,7 @@ class LocalLLMHealthMixin:
             healthy = False
             health_reason = (
                 self._backend_last_error
+                or self._last_warmup_error
                 or self._last_availability_error
                 or self._server_availability_error
                 or "local llm backend unavailable"

@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from modules.runtime.contracts import ResponsePlan, clean_response_text
+from modules.runtime.contracts import ChunkKind, ResponsePlan, clean_response_text
 
 from .display import ResponseStreamerDisplay
 from .helpers import LOGGER
@@ -71,6 +71,7 @@ class ResponseStreamer(
         full_text_parts: list[str] = []
         response_started_at = time.monotonic()
         first_audio_latency_s: float | None = None
+        first_sentence_latency_s: float | None = None
 
         defer_display_until_after_first = self._should_defer_display_until_after_first(prepared_chunks)
         display_shown = False
@@ -110,8 +111,12 @@ class ResponseStreamer(
             spoken_count += 1
             full_text_parts.append(text)
 
+            spoken_at = time.monotonic()
             if first_audio_latency_s is None:
-                first_audio_latency_s = time.monotonic() - response_started_at
+                first_audio_latency_s = spoken_at - response_started_at
+
+            if first_sentence_latency_s is None and chunk.kind in {ChunkKind.CONTENT, ChunkKind.FOLLOW_UP}:
+                first_sentence_latency_s = spoken_at - response_started_at
 
             if defer_display_until_after_first and not display_shown:
                 display_shown = self._show_display_block(display_title, display_lines)
@@ -139,13 +144,16 @@ class ResponseStreamer(
         if not display_shown:
             self._show_display_block(display_title, display_lines)
 
+        if first_sentence_latency_s is None and first_audio_latency_s is not None:
+            first_sentence_latency_s = first_audio_latency_s
+
         full_text = " ".join(full_text_parts).strip()
         total_elapsed = time.monotonic() - response_started_at
 
         LOGGER.info(
             "Response plan executed: turn_id=%s, route_kind=%s, stream_mode=%s, "
             "spoken_chunks=%s, chunk_kinds=%s, display_deferred=%s, "
-            "first_audio_latency=%.3fs, total_elapsed=%.3fs",
+            "first_audio_latency=%.3fs, first_sentence_latency=%.3fs, total_elapsed=%.3fs",
             plan.turn_id,
             self._route_kind_value(plan),
             self._stream_mode_value(plan),
@@ -153,6 +161,7 @@ class ResponseStreamer(
             [chunk.kind.value for chunk in prepared_chunks],
             defer_display_until_after_first,
             first_audio_latency_s if first_audio_latency_s is not None else -1.0,
+            first_sentence_latency_s if first_sentence_latency_s is not None else -1.0,
             total_elapsed,
         )
 
@@ -163,11 +172,19 @@ class ResponseStreamer(
             display_title=display_title,
             display_lines=display_lines,
             first_audio_latency_ms=(first_audio_latency_s or 0.0) * 1000.0,
+            first_chunk_latency_ms=0.0,
+            first_sentence_latency_ms=(first_sentence_latency_s or 0.0) * 1000.0,
             total_elapsed_ms=total_elapsed * 1000.0,
             started_at_monotonic=response_started_at,
             first_audio_started_at_monotonic=(
                 response_started_at + first_audio_latency_s
                 if first_audio_latency_s is not None
+                else 0.0
+            ),
+            first_chunk_started_at_monotonic=0.0,
+            first_sentence_started_at_monotonic=(
+                response_started_at + first_sentence_latency_s
+                if first_sentence_latency_s is not None
                 else 0.0
             ),
             finished_at_monotonic=finished_at,

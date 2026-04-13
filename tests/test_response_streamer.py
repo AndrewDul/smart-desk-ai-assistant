@@ -37,6 +37,8 @@ class ResponseStreamerTests(unittest.TestCase):
         self.assertIn("I can help", report.full_text)
         self.assertGreaterEqual(report.total_elapsed_ms, 0.0)
         self.assertGreaterEqual(report.first_audio_latency_ms, 0.0)
+        self.assertGreaterEqual(report.first_sentence_latency_ms, 0.0)
+        self.assertEqual(report.first_chunk_latency_ms, 0.0)
         self.assertFalse(report.live_streaming)
         self.assertTrue(voice_output.speak_calls)
         self.assertTrue(display.blocks)
@@ -52,7 +54,12 @@ class ResponseStreamerTests(unittest.TestCase):
         )
 
         def live_factory():
-            yield AssistantChunk(text="Let me check.", kind=ChunkKind.ACK, sequence_index=0)
+            yield AssistantChunk(
+                text="Let me check.",
+                kind=ChunkKind.ACK,
+                sequence_index=0,
+                metadata={"first_chunk_latency_ms": 42.0},
+            )
             yield AssistantChunk(text="The timer is running.", kind=ChunkKind.CONTENT, sequence_index=1)
 
         plan = ResponsePlan(
@@ -74,6 +81,8 @@ class ResponseStreamerTests(unittest.TestCase):
         self.assertEqual(report.chunks_spoken, 2)
         self.assertIn("The timer is running.", report.full_text)
         self.assertEqual(report.chunk_kinds, ["ack", "content"])
+        self.assertEqual(report.first_chunk_latency_ms, 42.0)
+        self.assertGreaterEqual(report.first_sentence_latency_ms, 0.0)
         self.assertEqual(len(voice_output.speak_calls), 2)
         self.assertTrue(display.blocks)
 

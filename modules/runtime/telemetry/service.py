@@ -281,9 +281,10 @@ class TurnBenchmarkService:
                 ),
                 "response_first_audio_ms": response_first_audio_ms or None,
                 "response_total_ms": response_total_ms or None,
-                "llm_first_chunk_ms": self._safe_float(
-                    safe_llm.get("first_chunk_latency_ms", 0.0)
-                ) or None,
+                "llm_first_chunk_ms": self._optional_float(
+                    safe_llm.get("first_chunk_latency_ms")
+                    or getattr(response_report, "first_chunk_latency_ms", 0.0)
+                ),
                 "llm_total_ms": self._safe_float(
                     safe_llm.get("latency_ms", 0.0)
                 ) or None,
@@ -293,6 +294,12 @@ class TurnBenchmarkService:
                 "response_chunks_spoken": int(self._safe_attr_float(response_report, "chunks_spoken")),
                 "response_chars": len(str(getattr(response_report, "full_text", "") or "")),
                 "response_live_streaming": bool(getattr(response_report, "live_streaming", False)),
+                "response_first_chunk_ms": self._optional_float(
+                    getattr(response_report, "first_chunk_latency_ms", 0.0)
+                ),
+                "response_first_sentence_ms": self._optional_float(
+                    getattr(response_report, "first_sentence_latency_ms", 0.0)
+                ),
                 "response_chunk_kinds": list(getattr(response_report, "chunk_kinds", []) or []),
                 "response_source": str(telemetry.get("response_source", "") or "").strip(),
                 "response_reply_source": str(telemetry.get("response_reply_source", "") or "").strip(),
@@ -352,6 +359,8 @@ class TurnBenchmarkService:
             window_size=len(window),
             avg_total_turn_ms=self._average_metric(window, "total_turn_ms"),
             avg_response_first_audio_ms=self._average_metric(window, "response_first_audio_ms"),
+            avg_response_first_chunk_ms=self._average_metric(window, "response_first_chunk_ms"),
+            avg_response_first_sentence_ms=self._average_metric(window, "response_first_sentence_ms"),
             avg_route_to_first_audio_ms=self._average_metric(window, "route_to_first_audio_ms"),
             avg_llm_first_chunk_ms=self._average_metric(window, "llm_first_chunk_ms"),
             avg_llm_total_ms=self._average_metric(window, "llm_total_ms"),
@@ -391,24 +400,6 @@ class TurnBenchmarkService:
             return float(value)
         except (TypeError, ValueError):
             return 0.0
-
-    @staticmethod
-    def _optional_float(value: Any) -> float | None:
-        if value is None or value == "":
-            return None
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return None
-
-    @staticmethod
-    def _optional_float(value: Any) -> float | None:
-        if value is None or value == "":
-            return None
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return None
 
     @classmethod
     def _safe_attr_float(cls, value: Any, name: str) -> float:

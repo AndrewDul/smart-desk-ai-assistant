@@ -15,7 +15,6 @@ from .models import LocalLLMBackendPolicy, LocalLLMProfile
 from .prompting_mixin import LocalLLMPromptingMixin
 from .runtime_mixin import LocalLLMRuntimeMixin
 from .streaming_mixin import LocalLLMStreamingMixin
-
 from .utils_mixin import LocalLLMUtilsMixin
 
 LOGGER = get_logger(__name__)
@@ -138,6 +137,13 @@ class LocalLLMService(
         "llama_cpp_cli",
     }
 
+    @staticmethod
+    def _normalize_startup_requirement(value: Any) -> str:
+        normalized = str(value or "premium").strip().lower()
+        if normalized in {"optional", "premium", "required"}:
+            return normalized
+        return "premium"
+
     def __init__(self, settings: dict[str, Any] | None = None) -> None:
         self.settings = settings or {}
         llm_cfg = self.settings.get("llm", {}) if isinstance(self.settings, dict) else {}
@@ -158,7 +164,10 @@ class LocalLLMService(
         self.max_prompt_chars = max(int(llm_cfg.get("max_prompt_chars", 2400)), 400)
         self.prefer_json = bool(llm_cfg.get("prefer_json", False))
         self._last_first_chunk_latency_ms = 0.0
-        self.stream_sentence_min_chars = max(int(llm_cfg.get("stream_sentence_min_chars", 18)), 8)
+        self.stream_sentence_min_chars = max(
+            int(llm_cfg.get("stream_sentence_min_chars", 18)),
+            8,
+        )
         self.stream_sentence_soft_max_chars = max(
             int(llm_cfg.get("stream_sentence_soft_max_chars", 120)),
             self.stream_sentence_min_chars + 8,
@@ -191,7 +200,12 @@ class LocalLLMService(
                 1.0,
             ),
             healthcheck_timeout_seconds=max(
-                float(llm_cfg.get("healthcheck_timeout_seconds", self.server_connect_timeout_seconds)),
+                float(
+                    llm_cfg.get(
+                        "healthcheck_timeout_seconds",
+                        self.server_connect_timeout_seconds,
+                    )
+                ),
                 0.5,
             ),
             auto_recovery_enabled=bool(llm_cfg.get("auto_recovery_enabled", True)),
@@ -223,18 +237,12 @@ class LocalLLMService(
         self._server_availability_checked_at = 0.0
         self._server_availability_result = False
         self._server_availability_error = ""
+
         self._server_model_catalog_cache_seconds = 30.0
         self._server_model_catalog_checked_at = 0.0
         self._server_model_catalog: list[str] = []
         self._last_server_model_resolution_warning = ""
-        self._server_model_catalog_cache_seconds = 30.0
-        self._server_model_catalog_checked_at = 0.0
-        self._server_model_catalog: list[str] = []
-        self._last_server_model_resolution_warning = ""
-        self._server_model_catalog_cache_seconds = 30.0
-        self._server_model_catalog_checked_at = 0.0
-        self._server_model_catalog: list[str] = []
-        self._last_server_model_resolution_warning = ""
+
         self._last_generation_started_at = 0.0
         self._last_generation_finished_at = 0.0
         self._last_generation_latency_ms = 0.0
@@ -258,16 +266,6 @@ class LocalLLMService(
         self._recovery_attempts_since_success = 0
 
         self._coerce_server_defaults()
-
-
-    @staticmethod
-    def _normalize_startup_requirement(value: Any) -> str:
-        normalized = str(value or "premium").strip().lower()
-        if normalized in {"optional", "premium", "required"}:
-            return normalized
-        return "premium"
-
-
 
     def _coerce_server_defaults(self) -> None:
         if self.runner not in self._SERVER_RUNNERS:
@@ -380,7 +378,10 @@ class LocalLLMService(
         profile = LocalLLMProfile(
             prompt_chars=64,
             n_predict=8,
-            timeout_seconds=max(1.0, float(self.policy.startup_warmup_timeout_seconds)),
+            timeout_seconds=max(
+                1.0,
+                float(self.policy.startup_warmup_timeout_seconds),
+            ),
             temperature=0.1,
             top_p=0.9,
             top_k=20,

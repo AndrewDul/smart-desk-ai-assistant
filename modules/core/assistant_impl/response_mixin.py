@@ -333,6 +333,22 @@ class CoreAssistantResponseMixin:
             base_report,
             "first_audio_latency_ms",
         )
+        first_chunk_started_at_monotonic = self._report_float(
+            base_report,
+            "first_chunk_started_at_monotonic",
+        )
+        first_chunk_latency_ms = self._report_float(
+            base_report,
+            "first_chunk_latency_ms",
+        )
+        first_sentence_started_at_monotonic = self._report_float(
+            base_report,
+            "first_sentence_started_at_monotonic",
+        )
+        first_sentence_latency_ms = self._report_float(
+            base_report,
+            "first_sentence_latency_ms",
+        )
 
         if first_audio_started_at_monotonic <= 0.0 and started_at_monotonic > 0.0 and first_audio_latency_ms > 0.0:
             first_audio_started_at_monotonic = started_at_monotonic + (first_audio_latency_ms / 1000.0)
@@ -341,6 +357,24 @@ class CoreAssistantResponseMixin:
             first_audio_latency_ms = max(
                 0.0,
                 (first_audio_started_at_monotonic - started_at_monotonic) * 1000.0,
+            )
+
+        if first_chunk_started_at_monotonic <= 0.0 and started_at_monotonic > 0.0 and first_chunk_latency_ms > 0.0:
+            first_chunk_started_at_monotonic = started_at_monotonic + (first_chunk_latency_ms / 1000.0)
+
+        if first_chunk_latency_ms <= 0.0 and first_chunk_started_at_monotonic > 0.0 and started_at_monotonic > 0.0:
+            first_chunk_latency_ms = max(
+                0.0,
+                (first_chunk_started_at_monotonic - started_at_monotonic) * 1000.0,
+            )
+
+        if first_sentence_started_at_monotonic <= 0.0 and started_at_monotonic > 0.0 and first_sentence_latency_ms > 0.0:
+            first_sentence_started_at_monotonic = started_at_monotonic + (first_sentence_latency_ms / 1000.0)
+
+        if first_sentence_latency_ms <= 0.0 and first_sentence_started_at_monotonic > 0.0 and started_at_monotonic > 0.0:
+            first_sentence_latency_ms = max(
+                0.0,
+                (first_sentence_started_at_monotonic - started_at_monotonic) * 1000.0,
             )
 
         total_elapsed_ms = self._report_float(base_report, "total_elapsed_ms")
@@ -372,14 +406,17 @@ class CoreAssistantResponseMixin:
             display_title=safe_display_title,
             display_lines=safe_display_lines,
             first_audio_latency_ms=first_audio_latency_ms,
+            first_chunk_latency_ms=first_chunk_latency_ms,
+            first_sentence_latency_ms=first_sentence_latency_ms,
             total_elapsed_ms=total_elapsed_ms,
             started_at_monotonic=started_at_monotonic,
             first_audio_started_at_monotonic=first_audio_started_at_monotonic,
+            first_chunk_started_at_monotonic=first_chunk_started_at_monotonic,
+            first_sentence_started_at_monotonic=first_sentence_started_at_monotonic,
             finished_at_monotonic=finished_at_monotonic,
             chunk_kinds=safe_chunk_kinds,
             live_streaming=bool(getattr(base_report, "live_streaming", False)),
         )
-
     @staticmethod
     def _report_float(
         value: Any,

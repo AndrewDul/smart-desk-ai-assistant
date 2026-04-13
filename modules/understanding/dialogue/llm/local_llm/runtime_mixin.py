@@ -403,12 +403,13 @@ class LocalLLMRuntimeMixin:
             )
 
         return candidates
+
     def _normalize_hailo_prompt_text(self, text: str) -> str:
         normalized = str(text or "")
         normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
         normalized = normalized.replace("\n", " ").replace("\t", " ")
         return self._compact_whitespace(normalized)
-    
+
     def _payload_for_server_path(
         self,
         *,

@@ -306,6 +306,8 @@ class CoreAssistantInteractionMixin:
         if response_report is not None:
             response_part = (
                 f" | first_audio_ms={self._metric_text(getattr(response_report, 'first_audio_latency_ms', 0.0))}"
+                f" | first_chunk_ms={self._metric_text(getattr(response_report, 'first_chunk_latency_ms', 0.0))}"
+                f" | first_sentence_ms={self._metric_text(getattr(response_report, 'first_sentence_latency_ms', 0.0))}"
                 f" | response_ms={self._metric_text(getattr(response_report, 'total_elapsed_ms', 0.0))}"
                 f" | chunks={int(getattr(response_report, 'chunks_spoken', 0) or 0)}"
                 f" | live={bool(getattr(response_report, 'live_streaming', False))}"
@@ -404,6 +406,9 @@ class CoreAssistantInteractionMixin:
                     return {
                         "ok": bool(snapshot.get("last_generation_ok", False)),
                         "latency_ms": float(snapshot.get("last_generation_latency_ms", 0.0) or 0.0),
+                        "first_chunk_latency_ms": float(
+                            snapshot.get("last_first_chunk_latency_ms", 0.0) or 0.0
+                        ),
                         "source": str(snapshot.get("last_generation_source", "") or ""),
                         "error": str(
                             snapshot.get("last_generation_error")

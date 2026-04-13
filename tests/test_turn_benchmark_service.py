@@ -51,9 +51,13 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
                 display_title="ACTION",
                 display_lines=["It is 10"],
                 first_audio_latency_ms=120.0,
+                first_chunk_latency_ms=82.0,
+                first_sentence_latency_ms=138.0,
                 total_elapsed_ms=340.0,
                 started_at_monotonic=1.0,
                 first_audio_started_at_monotonic=1.12,
+                first_chunk_started_at_monotonic=1.082,
+                first_sentence_started_at_monotonic=1.138,
                 finished_at_monotonic=1.34,
                 chunk_kinds=["content"],
                 live_streaming=False,
@@ -99,6 +103,8 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
             self.assertAlmostEqual(sample["stt_latency_ms"], 312.0)
             self.assertAlmostEqual(sample["stt_audio_duration_ms"], 1850.0)
             self.assertAlmostEqual(sample["stt_confidence"], 0.93)
+            self.assertAlmostEqual(sample["response_first_chunk_ms"], 82.0)
+            self.assertAlmostEqual(sample["response_first_sentence_ms"], 138.0)
             self.assertAlmostEqual(sample["total_turn_ms"], 950.0)
             self.assertAlmostEqual(sample["response_first_audio_ms"], 120.0)
             self.assertAlmostEqual(sample["llm_first_chunk_ms"], 85.0)
@@ -107,6 +113,8 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
             self.assertEqual(len(payload["samples"]), 1)
             self.assertEqual(payload["summary"]["sample_count"], 1)
             self.assertEqual(payload["summary"]["last_turn_id"], turn_id)
+            self.assertAlmostEqual(payload["summary"]["avg_response_first_chunk_ms"], 82.0)
+            self.assertAlmostEqual(payload["summary"]["avg_response_first_sentence_ms"], 138.0)
 
     def test_max_samples_trims_old_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

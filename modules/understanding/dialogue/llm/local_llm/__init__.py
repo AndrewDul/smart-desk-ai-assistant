@@ -2,6 +2,7 @@ from .models import (
     LocalLLMBackendPolicy,
     LocalLLMChunk,
     LocalLLMContext,
+    LocalLLMHealthSnapshot,
     LocalLLMProfile,
     LocalLLMReply,
 )
@@ -11,6 +12,7 @@ __all__ = [
     "LocalLLMBackendPolicy",
     "LocalLLMChunk",
     "LocalLLMContext",
+    "LocalLLMHealthSnapshot",
     "LocalLLMProfile",
     "LocalLLMReply",
     "LocalLLMService",

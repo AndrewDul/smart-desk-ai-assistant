@@ -38,6 +38,8 @@ class TurnBenchmarkSummary:
     window_size: int = 0
     avg_total_turn_ms: float | None = None
     avg_response_first_audio_ms: float | None = None
+    avg_response_first_chunk_ms: float | None = None
+    avg_response_first_sentence_ms: float | None = None
     avg_route_to_first_audio_ms: float | None = None
     avg_llm_first_chunk_ms: float | None = None
     avg_llm_total_ms: float | None = None
