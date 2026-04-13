@@ -128,8 +128,10 @@ class CoreAssistantLifecycleMixin:
 
         append_log(
             "Runtime startup snapshot refreshed after LLM warmup: "
+            f"startup_mode={self._runtime_startup_snapshot.get('startup_mode', '')}, "
             f"premium_ready={bool(self._runtime_startup_snapshot.get('premium_ready', False))}, "
             f"primary_ready={bool(self._runtime_startup_snapshot.get('primary_ready', False))}, "
+            f"premium_blockers={list(self._runtime_startup_snapshot.get('premium_blockers', []) or [])}, "
             f"llm_state={self._runtime_startup_snapshot.get('llm_state', '')}, "
             f"llm_available={bool(self._runtime_startup_snapshot.get('llm_available', False))}, "
             f"llm_warmup_ready={bool(self._runtime_startup_snapshot.get('llm_warmup_ready', False))}, "

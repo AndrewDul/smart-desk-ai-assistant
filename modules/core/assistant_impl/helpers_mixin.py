@@ -146,9 +146,12 @@ class CoreAssistantHelpersMixin:
 
     def _runtime_overlay_lines(self) -> list[str]:
         snapshot = self._runtime_status_snapshot()
+        startup_mode = str(snapshot.get("startup_mode", "") or "").strip().lower()
 
         if bool(snapshot.get("premium_ready", False)):
             status_line = "premium ready"
+        elif startup_mode == "limited":
+            status_line = "ready / limited"
         elif bool(snapshot.get("primary_ready", False)):
             compatibility = list(snapshot.get("compatibility_components", []) or [])
             if compatibility:
@@ -181,6 +184,12 @@ class CoreAssistantHelpersMixin:
     def _startup_greeting(self, *, report_ok: bool) -> str:
         snapshot = self._runtime_status_snapshot()
         lifecycle_state = str(snapshot.get("lifecycle_state", "") or "").strip().lower()
+        startup_mode = str(snapshot.get("startup_mode", "") or "").strip().lower()
+        premium_blockers = [
+            str(item).strip()
+            for item in snapshot.get("premium_blockers", [])
+            if str(item).strip()
+        ]
         blockers = [
             str(item).strip()
             for item in snapshot.get("blockers", [])
@@ -216,7 +225,14 @@ class CoreAssistantHelpersMixin:
                 "I am still ready to help."
             )
 
-        if llm_enabled and llm_available and llm_warmup_required and not llm_warmup_ready:
+        if startup_mode == "limited" and "llm_backend_unavailable" in premium_blockers:
+            return (
+                f"Hello. I am {self.ASSISTANT_NAME}. "
+                "Core services are ready, but the local language model is currently unavailable. "
+                "I am starting in a limited mode."
+            )
+
+        if startup_mode == "limited" and "llm_warmup_incomplete" in premium_blockers:
             return (
                 f"Hello. I am {self.ASSISTANT_NAME}. "
                 "Core services are ready. The local language model is reachable, but startup warmup is not complete yet. "

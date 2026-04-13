@@ -190,6 +190,12 @@ class LocalLLMHealthMixin:
             warmup_required=warmup_required,
             warmup_ready=warmup_ready,
             startup_warmup_enabled=bool(self.policy.startup_warmup),
+            startup_availability_requirement=str(
+                self.policy.startup_availability_requirement or "premium"
+            ),
+            startup_warmup_requirement=str(
+                self.policy.startup_warmup_requirement or "premium"
+            ),
             last_error=(
                 self._backend_last_error
                 or self._last_warmup_error

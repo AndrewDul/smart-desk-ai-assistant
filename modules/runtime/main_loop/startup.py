@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import os
 import shutil
 import subprocess
@@ -24,7 +25,9 @@ def _collect_runtime_warnings(assistant: CoreAssistant) -> list[str]:
         label = _component_label(component)
 
         if component == "wake_gate":
-            selected_backend = str(getattr(status, "selected_backend", "") or "").strip().lower()
+            selected_backend = str(
+                getattr(status, "selected_backend", "") or ""
+            ).strip().lower()
             voice_input_status = _backend_status_for(assistant, "voice_input")
             compatibility_ready = (
                 selected_backend == "compatibility_voice_input"
@@ -43,6 +46,7 @@ def _collect_runtime_warnings(assistant: CoreAssistant) -> list[str]:
             warnings.append(f"{label}: degraded fallback")
             continue
         warnings.append(f"{label}: limited")
+
     return warnings
 
 
@@ -93,7 +97,9 @@ def _log_startup_summary(
     if report.startup_allowed:
         append_log("Startup health report: no blocking critical issues.")
     else:
-        append_log("Startup health report: critical issues detected, runtime may be degraded.")
+        append_log(
+            "Startup health report: critical issues detected, runtime may be degraded."
+        )
 
     for item in report.items:
         level = "OK" if item.ok else item.severity.value.upper()
@@ -103,7 +109,9 @@ def _log_startup_summary(
         level = "OK" if status.ok and not status.fallback_used else "WARN"
         append_log(
             f"Runtime backend item [{level}] {component}: "
-            f"backend={status.selected_backend}, fallback={status.fallback_used}, detail={status.detail}"
+            f"backend={status.selected_backend}, "
+            f"fallback={status.fallback_used}, "
+            f"detail={status.detail}"
         )
 
     if runtime_snapshot:
@@ -117,9 +125,11 @@ def _log_startup_summary(
             f"warmup_ready={bool(runtime_snapshot.get('llm_warmup_ready', False))}, "
             f"primary_ready={bool(runtime_snapshot.get('llm_primary_ready', False))}"
         )
+
         append_log(
             "Runtime product state: "
             f"lifecycle={runtime_snapshot.get('lifecycle_state', '')}, "
+            f"startup_mode={runtime_snapshot.get('startup_mode', '')}, "
             f"ready={bool(runtime_snapshot.get('ready', False))}, "
             f"primary_ready={bool(runtime_snapshot.get('primary_ready', False))}, "
             f"premium_ready={bool(runtime_snapshot.get('premium_ready', False))}, "
@@ -127,14 +137,22 @@ def _log_startup_summary(
             f"message={runtime_snapshot.get('status_message', '')}"
         )
 
+        premium_blockers = list(runtime_snapshot.get("premium_blockers", []) or [])
+        if premium_blockers:
+            append_log(f"Runtime premium blockers: {', '.join(premium_blockers)}")
+
         blockers = list(runtime_snapshot.get("blockers", []) or [])
         warnings = list(runtime_snapshot.get("warnings", []) or [])
         services = dict(runtime_snapshot.get("services", {}) or {})
 
         if blockers:
-            append_log(f"Runtime startup blockers: {' | '.join(str(item) for item in blockers)}")
+            append_log(
+                f"Runtime startup blockers: {' | '.join(str(item) for item in blockers)}"
+            )
         if warnings:
-            append_log(f"Runtime startup warnings: {' | '.join(str(item) for item in warnings)}")
+            append_log(
+                f"Runtime startup warnings: {' | '.join(str(item) for item in warnings)}"
+            )
 
         for component, payload in services.items():
             if not isinstance(payload, dict):
@@ -142,12 +160,15 @@ def _log_startup_summary(
 
             append_log(
                 "Runtime product service: "
-                f"component={component}, state={payload.get('state', '')}, "
-                f"backend={payload.get('backend', '')}, detail={payload.get('detail', '')}, "
+                f"component={component}, "
+                f"state={payload.get('state', '')}, "
+                f"backend={payload.get('backend', '')}, "
+                f"detail={payload.get('detail', '')}, "
                 f"required={bool(payload.get('required', False))}, "
                 f"recovery_attempted={bool(payload.get('recovery_attempted', False))}, "
                 f"recovery_ok={bool(payload.get('recovery_ok', False))}"
             )
+
         provider_inventory = dict(runtime_snapshot.get("provider_inventory", {}) or {})
         for component, payload in provider_inventory.items():
             if not isinstance(payload, dict):
@@ -164,6 +185,7 @@ def _log_startup_summary(
                 f"compatibility={bool(payload.get('compatibility_mode', False))}, "
                 f"fallback={bool(payload.get('fallback_used', False))}"
             )
+
     if runtime_warnings:
         append_log(f"Runtime warning summary: {' | '.join(runtime_warnings)}")
     else:
@@ -176,6 +198,7 @@ def _run_startup_sequence(assistant: CoreAssistant) -> None:
     append_log("Startup sequence initiated.")
     checker = RuntimeHealthChecker(assistant.settings)
     report = checker.run()
+
     runtime_warnings = _collect_runtime_warnings(assistant)
     runtime_snapshot = _evaluate_runtime_productization(
         assistant,
@@ -189,9 +212,16 @@ def _run_startup_sequence(assistant: CoreAssistant) -> None:
     assistant._boot_report_ok = bool(
         runtime_snapshot.get("ready", report.startup_allowed and not runtime_warnings)
     )
+
     _log_startup_summary(report, assistant, runtime_warnings, runtime_snapshot)
+
     runtime_mode = str(os.getenv("NEXA_RUNTIME_MODE", "") or "").strip().lower()
-    blockers = [str(item).strip() for item in runtime_snapshot.get("blockers", []) if str(item).strip()]
+    blockers = [
+        str(item).strip()
+        for item in runtime_snapshot.get("blockers", [])
+        if str(item).strip()
+    ]
+
     if runtime_mode == "systemd" and blockers:
         blocker_text = ", ".join(blockers)
         append_log(
@@ -202,6 +232,7 @@ def _run_startup_sequence(assistant: CoreAssistant) -> None:
             "Required runtime components unavailable during systemd startup: "
             f"{blocker_text}"
         )
+
     assistant.boot()
 
 
@@ -209,7 +240,9 @@ def _perform_system_shutdown(assistant: CoreAssistant) -> None:
     system_cfg = assistant.settings.get("system", {})
     allow_shutdown = bool(system_cfg.get("allow_shutdown_commands", False))
     if not allow_shutdown:
-        append_log("Shutdown requested, but system shutdown commands are disabled in config.")
+        append_log(
+            "Shutdown requested, but system shutdown commands are disabled in config."
+        )
         print("System shutdown requested, but shutdown commands are disabled in config.")
         return
 
@@ -235,11 +268,14 @@ def _perform_system_shutdown(assistant: CoreAssistant) -> None:
 
 def _log_runtime_mode(assistant: CoreAssistant) -> None:
     runtime_snapshot = getattr(assistant, "_runtime_startup_snapshot", {}) or {}
-    lifecycle_state = str(runtime_snapshot.get("lifecycle_state", "unknown") or "unknown").strip().upper()
+    lifecycle_state = str(
+        runtime_snapshot.get("lifecycle_state", "unknown") or "unknown"
+    ).strip().upper()
     status_message = str(runtime_snapshot.get("status_message", "") or "").strip()
 
     wake_backend, backend_label = _resolve_wake_backend(assistant)
     wake_name = wake_backend.__class__.__name__ if wake_backend is not None else "none"
+
     shared_note = (
         " Compatibility wake shares the main voice input backend and keeps a single input owner across standby and command capture."
         if _wake_backend_shares_voice_input(assistant, wake_backend)

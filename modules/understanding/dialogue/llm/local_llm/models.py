@@ -69,6 +69,8 @@ class LocalLLMBackendPolicy:
     auto_recovery_enabled: bool = True
     auto_recovery_cooldown_seconds: float = 20.0
     max_auto_recovery_attempts: int = 3
+    startup_availability_requirement: str = "premium"
+    startup_warmup_requirement: str = "premium"
 
 
 @dataclass(slots=True)
@@ -81,6 +83,8 @@ class LocalLLMHealthSnapshot:
     warmup_required: bool
     warmup_ready: bool
     startup_warmup_enabled: bool
+    startup_availability_requirement: str = "premium"
+    startup_warmup_requirement: str = "premium"
     last_error: str = ""
     health_reason: str = ""
     last_check_age_seconds: float | None = None

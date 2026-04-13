@@ -203,6 +203,12 @@ class LocalLLMService(
                 int(llm_cfg.get("max_auto_recovery_attempts", 3)),
                 0,
             ),
+            startup_availability_requirement=self._normalize_startup_requirement(
+                llm_cfg.get("startup_availability_requirement", "premium")
+            ),
+            startup_warmup_requirement=self._normalize_startup_requirement(
+                llm_cfg.get("startup_warmup_requirement", "premium")
+            ),
         )
 
         self.project_root = APP_ROOT
@@ -252,6 +258,16 @@ class LocalLLMService(
         self._recovery_attempts_since_success = 0
 
         self._coerce_server_defaults()
+
+
+    @staticmethod
+    def _normalize_startup_requirement(value: Any) -> str:
+        normalized = str(value or "premium").strip().lower()
+        if normalized in {"optional", "premium", "required"}:
+            return normalized
+        return "premium"
+
+
 
     def _coerce_server_defaults(self) -> None:
         if self.runner not in self._SERVER_RUNNERS:
@@ -449,6 +465,8 @@ class LocalLLMService(
             "last_recovery_ok": self._last_recovery_ok,
             "last_recovery_error": self._last_recovery_error,
             "recovery_attempts_since_success": self._recovery_attempts_since_success,
+            "startup_availability_requirement": self.policy.startup_availability_requirement,
+            "startup_warmup_requirement": self.policy.startup_warmup_requirement,
             "capabilities": self._backend_capabilities(),
             "health": health_snapshot,
         }

@@ -37,8 +37,10 @@ class ProductRuntimeSnapshot:
     startup_allowed: bool = False
     primary_ready: bool = False
     premium_ready: bool = False
+    startup_mode: str = "created"
     blockers: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    premium_blockers: list[str] = field(default_factory=list)
     required_components: list[str] = field(default_factory=list)
     compatibility_components: list[str] = field(default_factory=list)
     degraded_components: list[str] = field(default_factory=list)
@@ -54,6 +56,8 @@ class ProductRuntimeSnapshot:
     llm_warmup_ready: bool = False
     llm_primary_ready: bool = False
     llm_health_reason: str = ""
+    llm_availability_requirement: str = "premium"
+    llm_warmup_requirement: str = "premium"
 
     updated_at_iso: str = ""
 

@@ -77,6 +77,8 @@ class RuntimeProductService:
             degraded_components=list(self._snapshot.get("degraded_components", []) or []),
             services=dict(self._snapshot.get("services", {}) or {}),
             provider_inventory=dict(self._snapshot.get("provider_inventory", {}) or {}),
+            startup_mode=str(self._snapshot.get("startup_mode", "booting") or "booting"),
+            premium_blockers=list(self._snapshot.get("premium_blockers", []) or []),
             llm_enabled=bool(self._snapshot.get("llm_enabled", False)),
             llm_runner=str(self._snapshot.get("llm_runner", "") or ""),
             llm_state=str(self._snapshot.get("llm_state", "disabled") or "disabled"),
@@ -86,6 +88,12 @@ class RuntimeProductService:
             llm_warmup_ready=bool(self._snapshot.get("llm_warmup_ready", False)),
             llm_primary_ready=bool(self._snapshot.get("llm_primary_ready", False)),
             llm_health_reason=str(self._snapshot.get("llm_health_reason", "") or ""),
+            llm_availability_requirement=str(
+                self._snapshot.get("llm_availability_requirement", "premium") or "premium"
+            ),
+            llm_warmup_requirement=str(
+                self._snapshot.get("llm_warmup_requirement", "premium") or "premium"
+            ),
             updated_at_iso=self._now_iso(),
         )
         return self._replace_snapshot(snapshot)
@@ -102,6 +110,7 @@ class RuntimeProductService:
             blockers: list[str] = []
             compatibility_components: list[str] = []
             degraded_components: list[str] = []
+            premium_blockers: list[str] = []
 
             for name, status in services.items():
                 state = str(status.state or "").strip().lower()
@@ -143,17 +152,55 @@ class RuntimeProductService:
             )
 
             llm_fields = self._llm_startup_fields_locked(services)
+            llm_enabled = bool(llm_fields["llm_enabled"])
+            llm_available = bool(llm_fields["llm_available"])
+            llm_warmup_required = bool(llm_fields["llm_warmup_required"])
+            llm_warmup_ready = bool(llm_fields["llm_warmup_ready"])
+            llm_availability_requirement = str(
+                llm_fields.get("llm_availability_requirement", "premium") or "premium"
+            )
+            llm_warmup_requirement = str(
+                llm_fields.get("llm_warmup_requirement", "premium") or "premium"
+            )
+
+            if llm_enabled and not llm_available:
+                if llm_availability_requirement == "required":
+                    blockers.append("llm")
+                    degraded_components.append("llm")
+                elif llm_availability_requirement == "premium":
+                    premium_blockers.append("llm_backend_unavailable")
+                    warnings.append("llm: premium startup blocked (backend unavailable)")
+            elif llm_enabled and llm_warmup_required and not llm_warmup_ready:
+                if llm_warmup_requirement == "required":
+                    blockers.append("llm")
+                    degraded_components.append("llm")
+                elif llm_warmup_requirement == "premium":
+                    premium_blockers.append("llm_warmup_incomplete")
+                    warnings.append("llm: premium startup blocked (warmup incomplete)")
+
+            warnings = self._unique_texts(warnings)
+            blockers = self._unique_texts(blockers)
+            degraded_components = self._unique_texts(degraded_components)
+            premium_blockers = self._unique_texts(premium_blockers)
 
             premium_ready = (
                 primary_ready
                 and not warnings
                 and not compatibility_components
                 and not degraded_components
-                and (
-                    not llm_fields["llm_enabled"]
-                    or llm_fields["llm_primary_ready"]
-                )
+                and not premium_blockers
             )
+
+            if blockers:
+                startup_mode = "blocked"
+            elif primary_ready and not premium_ready:
+                startup_mode = "limited"
+            elif premium_ready:
+                startup_mode = "premium"
+            elif startup_allowed:
+                startup_mode = "degraded"
+            else:
+                startup_mode = "blocked"
 
             ready = bool(startup_allowed) and not blockers and not warnings
             degraded = bool(startup_allowed) and not premium_ready
@@ -161,13 +208,9 @@ class RuntimeProductService:
 
             if premium_ready:
                 status_message = "runtime ready in premium mode"
-            elif (
-                primary_ready
-                and llm_fields["llm_enabled"]
-                and llm_fields["llm_available"]
-                and llm_fields["llm_warmup_required"]
-                and not llm_fields["llm_warmup_ready"]
-            ):
+            elif "llm_backend_unavailable" in premium_blockers:
+                status_message = "runtime core ready, local llm unavailable, premium mode blocked"
+            elif "llm_warmup_incomplete" in premium_blockers:
                 status_message = "runtime core ready, local llm reachable, startup warmup incomplete"
             elif primary_ready and compatibility_components:
                 status_message = (
@@ -193,8 +236,10 @@ class RuntimeProductService:
                 startup_allowed=bool(startup_allowed),
                 primary_ready=primary_ready,
                 premium_ready=premium_ready,
+                startup_mode=startup_mode,
                 blockers=blockers,
                 warnings=warnings,
+                premium_blockers=premium_blockers,
                 required_components=required_components,
                 compatibility_components=compatibility_components,
                 degraded_components=degraded_components,
@@ -209,6 +254,8 @@ class RuntimeProductService:
                 llm_warmup_ready=bool(llm_fields["llm_warmup_ready"]),
                 llm_primary_ready=bool(llm_fields["llm_primary_ready"]),
                 llm_health_reason=str(llm_fields["llm_health_reason"] or ""),
+                llm_availability_requirement=llm_availability_requirement,
+                llm_warmup_requirement=llm_warmup_requirement,
                 updated_at_iso=self._now_iso(),
             )
             return self._replace_snapshot(snapshot)
@@ -579,6 +626,17 @@ class RuntimeProductService:
             or ""
         ).strip()
 
+        llm_availability_requirement = self._normalize_startup_requirement(
+            health.get("startup_availability_requirement")
+            or metadata.get("startup_availability_requirement")
+            or "premium"
+        )
+        llm_warmup_requirement = self._normalize_startup_requirement(
+            health.get("startup_warmup_requirement")
+            or metadata.get("startup_warmup_requirement")
+            or "premium"
+        )
+
         return {
             "llm_enabled": llm_enabled,
             "llm_runner": llm_runner,
@@ -589,7 +647,17 @@ class RuntimeProductService:
             "llm_warmup_ready": llm_warmup_ready,
             "llm_primary_ready": llm_primary_ready,
             "llm_health_reason": llm_health_reason,
+            "llm_availability_requirement": llm_availability_requirement,
+            "llm_warmup_requirement": llm_warmup_requirement,
         }
+
+
+    @staticmethod
+    def _normalize_startup_requirement(value: Any) -> str:
+        normalized = str(value or "premium").strip().lower()
+        if normalized in {"optional", "premium", "required"}:
+            return normalized
+        return "premium"
 
 
     def _replace_snapshot(self, snapshot: ProductRuntimeSnapshot) -> dict[str, Any]:
@@ -650,8 +718,10 @@ class RuntimeProductService:
             startup_allowed=False,
             primary_ready=False,
             premium_ready=False,
+            startup_mode="created",
             blockers=[],
             warnings=[],
+            premium_blockers=[],
             required_components=[],
             compatibility_components=[],
             degraded_components=[],
@@ -666,6 +736,8 @@ class RuntimeProductService:
             llm_warmup_ready=False,
             llm_primary_ready=False,
             llm_health_reason="",
+            llm_availability_requirement="premium",
+            llm_warmup_requirement="premium",
             updated_at_iso=self._now_iso(),
         ).to_dict()
 
