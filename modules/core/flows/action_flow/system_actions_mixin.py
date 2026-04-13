@@ -8,6 +8,240 @@ from .models import ResolvedAction
 
 
 class ActionSystemActionsMixin:
+    def _runtime_snapshot(self) -> dict[str, Any]:
+        assistant = getattr(self, "assistant", None)
+
+        snapshot_method = getattr(assistant, "_runtime_status_snapshot", None)
+        if callable(snapshot_method):
+            try:
+                snapshot = snapshot_method()
+                return dict(snapshot or {}) if isinstance(snapshot, dict) else {}
+            except Exception:
+                return {}
+
+        runtime_product = getattr(assistant, "runtime_product", None)
+        snapshot_method = getattr(runtime_product, "snapshot", None)
+        if callable(snapshot_method):
+            try:
+                snapshot = snapshot_method()
+                return dict(snapshot or {}) if isinstance(snapshot, dict) else {}
+            except Exception:
+                return {}
+
+        return {}
+
+    @staticmethod
+    def _runtime_service_payload(
+        snapshot: dict[str, Any],
+        component: str,
+    ) -> dict[str, Any]:
+        services = snapshot.get("services", {})
+        if not isinstance(services, dict):
+            return {}
+
+        payload = services.get(component, {})
+        return dict(payload or {}) if isinstance(payload, dict) else {}
+
+    @staticmethod
+    def _runtime_named_components(
+        snapshot: dict[str, Any],
+        key: str,
+        *,
+        fallback_states: tuple[str, ...] = (),
+        compatibility_only: bool = False,
+    ) -> list[str]:
+        direct = [
+            str(item).strip()
+            for item in snapshot.get(key, [])
+            if str(item).strip()
+        ]
+        if direct:
+            return direct
+
+        services = snapshot.get("services", {})
+        if not isinstance(services, dict):
+            return []
+
+        names: list[str] = []
+        for name, payload in services.items():
+            if not isinstance(payload, dict):
+                continue
+
+            if compatibility_only and bool(payload.get("compatibility_mode", False)):
+                names.append(str(name))
+                continue
+
+            state = str(payload.get("state", "") or "").strip().lower()
+            if fallback_states and state in fallback_states:
+                names.append(str(name))
+
+        return names
+
+    @staticmethod
+    def _runtime_backend_token(payload: dict[str, Any]) -> str:
+        raw = str(
+            payload.get("backend")
+            or payload.get("selected_backend")
+            or payload.get("requested_backend")
+            or "n/a"
+        ).strip().lower()
+
+        aliases = {
+            "compatibility_voice_input": "compat",
+            "faster_whisper": "faster",
+            "openwakeword": "oww",
+            "hailo-ollama": "hailo",
+            "text_input": "text",
+            "disabled": "off",
+            "waveshare_2inch": "waveshare",
+        }
+        normalized = aliases.get(raw, raw or "n/a")
+        return normalized[:14]
+
+    def _build_runtime_status_summary(
+        self,
+        language: str,
+    ) -> tuple[str, list[str], dict[str, Any]]:
+        snapshot = self._runtime_snapshot()
+        if not snapshot:
+            spoken = self._localized(
+                language,
+                "Nie mam jeszcze pełnego snapshotu runtime, ale podstawowe funkcje asystenta są dostępne.",
+                "I do not have a full runtime snapshot yet, but the core assistant features are available.",
+            )
+            lines = self._localized_lines(
+                language,
+                ["premium: brak", "core: brak", "wake: n/a", "stt: n/a", "llm: n/a"],
+                ["premium: n/a", "core: n/a", "wake: n/a", "stt: n/a", "llm: n/a"],
+            )
+            return spoken, lines, {"runtime_snapshot_available": False}
+
+        lifecycle_state = str(snapshot.get("lifecycle_state", "unknown") or "unknown").strip().lower()
+        premium_ready = bool(snapshot.get("premium_ready", False))
+        primary_ready = bool(snapshot.get("primary_ready", snapshot.get("ready", False)))
+        status_message = str(snapshot.get("status_message", "") or "").strip()
+
+        compatibility = self._runtime_named_components(
+            snapshot,
+            "compatibility_components",
+            compatibility_only=True,
+        )
+        degraded_components = self._runtime_named_components(
+            snapshot,
+            "degraded_components",
+            fallback_states=("degraded", "failed"),
+        )
+        blockers = self._runtime_named_components(
+            snapshot,
+            "blockers",
+            fallback_states=("failed",),
+        )
+
+        voice_input = self._runtime_service_payload(snapshot, "voice_input")
+        wake_gate = self._runtime_service_payload(snapshot, "wake_gate")
+        llm = self._runtime_service_payload(snapshot, "llm")
+
+        voice_token = self._runtime_backend_token(voice_input)
+        wake_token = self._runtime_backend_token(wake_gate)
+        llm_token = self._runtime_backend_token(llm)
+
+        if language == "pl":
+            if premium_ready:
+                runtime_sentence = "Tryb premium jest gotowy."
+            elif primary_ready and compatibility:
+                runtime_sentence = (
+                    "Rdzeń runtime działa, ale aktywna jest ścieżka kompatybilności dla: "
+                    f"{', '.join(compatibility[:2])}."
+                )
+            elif blockers:
+                runtime_sentence = (
+                    "Część wymaganych usług wymaga uwagi: "
+                    f"{', '.join(blockers[:2])}."
+                )
+            elif degraded_components:
+                runtime_sentence = (
+                    "Runtime działa w trybie ograniczonym. "
+                    f"Zdegradowane moduły: {', '.join(degraded_components[:2])}."
+                )
+            else:
+                runtime_sentence = "Runtime jest dostępny, ale raportuje stan pośredni."
+
+            backend_sentence = (
+                f"Wake używa {wake_token}, STT używa {voice_token}, a LLM używa {llm_token}."
+            )
+        else:
+            if premium_ready:
+                runtime_sentence = "Premium mode is ready."
+            elif primary_ready and compatibility:
+                runtime_sentence = (
+                    "The runtime core is ready, but a compatibility path is active for: "
+                    f"{', '.join(compatibility[:2])}."
+                )
+            elif blockers:
+                runtime_sentence = (
+                    "Some required services need attention: "
+                    f"{', '.join(blockers[:2])}."
+                )
+            elif degraded_components:
+                runtime_sentence = (
+                    "The runtime is operating in a limited mode. "
+                    f"Degraded modules: {', '.join(degraded_components[:2])}."
+                )
+            else:
+                runtime_sentence = "The runtime is available, but it is reporting an intermediate state."
+
+            backend_sentence = (
+                f"Wake uses {wake_token}, STT uses {voice_token}, and LLM uses {llm_token}."
+            )
+
+        if status_message and lifecycle_state not in {"ready", "degraded"}:
+            runtime_sentence = f"{runtime_sentence} {status_message}"
+
+        lines = self._localized_lines(
+            language,
+            [
+                f"premium: {'TAK' if premium_ready else 'NIE'}",
+                f"core: {'TAK' if primary_ready else 'NIE'}",
+                f"wake: {wake_token}",
+                f"stt: {voice_token}",
+                f"llm: {llm_token}",
+            ],
+            [
+                f"premium: {'YES' if premium_ready else 'NO'}",
+                f"core: {'YES' if primary_ready else 'NO'}",
+                f"wake: {wake_token}",
+                f"stt: {voice_token}",
+                f"llm: {llm_token}",
+            ],
+        )
+
+        runtime_services = {}
+        for component in ("voice_input", "wake_gate", "voice_output", "display", "llm"):
+            payload = self._runtime_service_payload(snapshot, component)
+            if not payload:
+                continue
+            runtime_services[component] = {
+                "backend": str(payload.get("backend", "") or "").strip(),
+                "state": str(payload.get("state", "") or "").strip(),
+                "requested_backend": str(payload.get("requested_backend", "") or "").strip(),
+                "runtime_mode": str(payload.get("runtime_mode", "") or "").strip(),
+                "primary": bool(payload.get("primary", False)),
+                "compatibility_mode": bool(payload.get("compatibility_mode", False)),
+            }
+
+        metadata = {
+            "runtime_snapshot_available": True,
+            "runtime_lifecycle_state": lifecycle_state,
+            "runtime_status_message": status_message,
+            "runtime_primary_ready": primary_ready,
+            "runtime_premium_ready": premium_ready,
+            "runtime_compatibility_components": compatibility,
+            "runtime_degraded_components": degraded_components,
+            "runtime_blockers": blockers,
+            "runtime_services": runtime_services,
+        }
+
+        return f"{runtime_sentence} {backend_sentence}".strip(), lines, metadata
     def _handle_help(
         self,
         *,
@@ -19,8 +253,8 @@ class ActionSystemActionsMixin:
         del route, payload
         spoken = self._localized(
             language,
-            "Mogę rozmawiać z Tobą, zapamiętywać informacje, ustawiać przypomnienia, uruchamiać timery, focus mode i break mode oraz podawać czas i datę.",
-            "I can talk with you, remember information, set reminders, start timers, focus mode and break mode, and tell you the time and date.",
+            "Mogę rozmawiać z Tobą, zapamiętywać informacje, ustawiać przypomnienia, uruchamiać timery, focus mode i break mode, podawać czas i datę oraz raportować stan runtime i backendów.",
+            "I can talk with you, remember information, set reminders, start timers, focus mode and break mode, tell you the time and date, and report the runtime or backend status.",
         )
         return self._deliver_simple_action_response(
             language=language,
@@ -53,38 +287,29 @@ class ActionSystemActionsMixin:
         break_on = bool(self.assistant.state.get("break_mode"))
         timer_running = bool(timer_status.get("running"))
 
+        runtime_spoken, runtime_lines, runtime_metadata = self._build_runtime_status_summary(language)
+
         if language == "pl":
-            spoken = (
+            feature_spoken = (
                 f"Focus jest {'włączony' if focus_on else 'wyłączony'}, "
                 f"przerwa jest {'włączona' if break_on else 'wyłączona'}, "
                 f"aktywny timer to {current_timer}, "
                 f"w pamięci mam {memory_count} wpisów, "
                 f"a przypomnień jest {reminder_count}."
             )
-            lines = [
-                f"focus: {'ON' if focus_on else 'OFF'}",
-                f"przerwa: {'ON' if break_on else 'OFF'}",
-                f"timer: {current_timer}",
-                f"pamiec: {memory_count}",
-                f"przyp: {reminder_count}",
-                f"dziala: {'TAK' if timer_running else 'NIE'}",
-            ]
+            timer_line = f"timer: {str(current_timer)[:12]}"
         else:
-            spoken = (
+            feature_spoken = (
                 f"Focus is {'on' if focus_on else 'off'}, "
                 f"break is {'on' if break_on else 'off'}, "
                 f"the current timer is {current_timer}, "
                 f"I have {memory_count} memory items, "
                 f"and there are {reminder_count} reminders."
             )
-            lines = [
-                f"focus: {'ON' if focus_on else 'OFF'}",
-                f"break: {'ON' if break_on else 'OFF'}",
-                f"timer: {current_timer}",
-                f"memory: {memory_count}",
-                f"remind: {reminder_count}",
-                f"running: {'YES' if timer_running else 'NO'}",
-            ]
+            timer_line = f"timer: {str(current_timer)[:12]}"
+
+        spoken = f"{runtime_spoken} {feature_spoken}".strip()
+        lines = [*runtime_lines[:5], timer_line]
 
         return self._deliver_simple_action_response(
             language=language,
@@ -92,7 +317,16 @@ class ActionSystemActionsMixin:
             spoken_text=spoken,
             display_title="STATUS",
             display_lines=lines,
-            extra_metadata={"resolved_source": resolved.source},
+            extra_metadata={
+                "resolved_source": resolved.source,
+                "timer_running": timer_running,
+                "focus_mode": focus_on,
+                "break_mode": break_on,
+                "memory_count": memory_count,
+                "reminder_count": reminder_count,
+                "current_timer": str(current_timer),
+                **runtime_metadata,
+            },
         )
 
     def _handle_introduce_self(
