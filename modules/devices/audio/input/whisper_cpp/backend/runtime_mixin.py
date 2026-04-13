@@ -4,8 +4,6 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import sounddevice as sd
-
 if TYPE_CHECKING:
     from modules.devices.audio.coordination import AssistantAudioCoordinator
 
@@ -69,51 +67,6 @@ class WhisperCppRuntimeMixin:
         if self._last_input_blocked_monotonic <= 0.0:
             return False
         return (self._now() - self._last_input_blocked_monotonic) < self.input_unblock_settle_seconds
-
-    def _resolve_input_device(
-        self,
-        device_index: int | None,
-        device_name_contains: str | None,
-    ) -> int | str | None:
-        if device_name_contains:
-            wanted = device_name_contains.lower()
-            for index, device in enumerate(sd.query_devices()):
-                if device.get("max_input_channels", 0) < 1:
-                    continue
-                if wanted in str(device["name"]).lower():
-                    return index
-            raise ValueError(f"Input device containing '{device_name_contains}' was not found.")
-        return device_index
-
-    def _resolve_supported_sample_rate(self, preferred_sample_rate: int | None) -> int:
-        candidates: list[int] = []
-        if preferred_sample_rate:
-            candidates.append(int(preferred_sample_rate))
-
-        candidates.extend([self.device_default_sample_rate, 16000, 32000, 44100, 48000])
-
-        seen: set[int] = set()
-        unique_candidates: list[int] = []
-        for rate in candidates:
-            if rate and rate not in seen:
-                unique_candidates.append(rate)
-                seen.add(rate)
-
-        for rate in unique_candidates:
-            try:
-                sd.check_input_settings(
-                    device=self.device,
-                    channels=self.channels,
-                    dtype=self.dtype,
-                    samplerate=rate,
-                )
-                return rate
-            except Exception:
-                continue
-
-        raise RuntimeError(
-            f"No supported sample rate found for input device '{self.device_name}'. Tried: {unique_candidates}"
-        )
 
     def _ensure_runtime_ready(self) -> None:
         if not self.whisper_cli_path.exists():

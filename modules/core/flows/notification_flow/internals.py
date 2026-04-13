@@ -104,28 +104,45 @@ class NotificationFlowInternals:
     ) -> None:
         assistant = self.assistant
 
-        try:
-            assistant.voice_session.set_state(VOICE_STATE_SPEAKING, detail=detail)
-        except Exception as error:
-            log_exception("Failed to set speaking state for notification", error)
+        transition_to_speaking = getattr(assistant.voice_session, "transition_to_speaking", None)
+        if callable(transition_to_speaking):
+            try:
+                transition_to_speaking(detail=detail, phase="notification")
+            except Exception as error:
+                log_exception("Failed to set speaking state for notification", error)
+        else:
+            try:
+                assistant.voice_session.set_state(VOICE_STATE_SPEAKING, detail=detail)
+            except Exception as error:
+                log_exception("Failed to set speaking state for notification", error)
 
         try:
             assistant.voice_out.speak(text, language=language)
         except Exception as error:
             log_exception("Failed to speak async notification", error)
         finally:
-            try:
-                assistant.voice_session.close_active_window()
-            except Exception as error:
-                log_exception("Failed to close active window after notification", error)
+            transition_to_standby = getattr(assistant.voice_session, "transition_to_standby", None)
+            if callable(transition_to_standby):
+                try:
+                    transition_to_standby(
+                        detail=f"{detail}:complete",
+                        close_active_window=True,
+                    )
+                except Exception as error:
+                    log_exception("Failed to return to standby after notification", error)
+            else:
+                try:
+                    assistant.voice_session.close_active_window()
+                except Exception as error:
+                    log_exception("Failed to close active window after notification", error)
 
-            try:
-                assistant.voice_session.set_state(
-                    VOICE_STATE_STANDBY,
-                    detail=f"{detail}:complete",
-                )
-            except Exception as error:
-                log_exception("Failed to return to standby after notification", error)
+                try:
+                    assistant.voice_session.set_state(
+                        VOICE_STATE_STANDBY,
+                        detail=f"{detail}:complete",
+                    )
+                except Exception as error:
+                    log_exception("Failed to return to standby after notification", error)
 
 
 __all__ = ["NotificationFlowInternals"]

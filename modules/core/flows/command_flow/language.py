@@ -2,7 +2,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from .helpers import LOGGER, CommandFlowHelpers, normalize_text
+from modules.understanding.parsing.normalization import (
+    CANCEL_PHRASES,
+    MICRO_REPLY_PHRASES,
+    contains_any_phrase,
+    exact_phrase_match,
+    is_cancel_request,
+    normalize_text,
+    tokenize,
+)
+
+from .helpers import LOGGER, CommandFlowHelpers
 
 
 class CommandFlowLanguage(CommandFlowHelpers):
@@ -10,71 +20,160 @@ class CommandFlowLanguage(CommandFlowHelpers):
 
     assistant: Any
 
+    _POLISH_MARKERS = {
+        "jest",
+        "czy",
+        "pokaz",
+        "pokaż",
+        "godzina",
+        "czas",
+        "data",
+        "dzien",
+        "dzień",
+        "miesiac",
+        "miesiąc",
+        "rok",
+        "przerwa",
+        "skupienie",
+        "skupienia",
+        "przypomnienie",
+        "przypomnienia",
+        "zapamietaj",
+        "zapamiętaj",
+        "usun",
+        "usuń",
+        "wyłącz",
+        "wylacz",
+        "zamknij",
+        "jaki",
+        "jaka",
+        "jakie",
+        "ktora",
+        "która",
+        "pomoc",
+        "stan",
+        "tak",
+        "nie",
+        "jasne",
+        "okej",
+        "dobrze",
+        "spij",
+        "śpij",
+        "czuwanie",
+        "pa",
+    }
+
+    _ENGLISH_MARKERS = {
+        "time",
+        "date",
+        "day",
+        "month",
+        "year",
+        "timer",
+        "focus",
+        "break",
+        "reminder",
+        "remember",
+        "forget",
+        "delete",
+        "remove",
+        "shutdown",
+        "close",
+        "what",
+        "who",
+        "help",
+        "status",
+        "yes",
+        "no",
+        "sure",
+        "okay",
+        "ok",
+        "sleep",
+        "standby",
+        "bye",
+    }
+
+    _POLISH_SHORT_PHRASES = {
+        "tak",
+        "nie",
+        "jasne",
+        "okej",
+        "dobrze",
+        "anuluj",
+        "zostaw to",
+        "nieważne",
+        "niewazne",
+        "śpij",
+        "spij",
+        "wróć do czuwania",
+        "wroc do czuwania",
+        "do widzenia",
+        "pa",
+    }
+
+    _ENGLISH_SHORT_PHRASES = {
+        "yes",
+        "no",
+        "sure",
+        "ok",
+        "okay",
+        "cancel",
+        "never mind",
+        "sleep",
+        "standby",
+        "go to sleep",
+        "stop listening",
+        "goodbye",
+        "bye",
+    }
+
     def _detect_language(self, text: str, *, fallback_language: str) -> str:
         detector = getattr(self.assistant, "_detect_language", None)
         if callable(detector):
             try:
-                return self._normalize_language(detector(text) or fallback_language)
+                detected = self._normalize_language(detector(text) or fallback_language)
+                if detected in {"pl", "en"}:
+                    return detected
             except Exception as error:
                 LOGGER.warning("Language detection failed: %s", error)
 
-        lowered = normalize_text(text)
-        polish_markers = {
-            "jest",
-            "czy",
-            "pokaz",
-            "pokaż",
-            "godzina",
-            "czas",
-            "data",
-            "dzien",
-            "dzień",
-            "przerwa",
-            "skupienie",
-            "skupienia",
-            "przypomnienie",
-            "przypomnienia",
-            "zapamietaj",
-            "zapamiętaj",
-            "usun",
-            "usuń",
-            "wyłącz",
-            "wylacz",
-            "zamknij",
-            "jaki",
-            "ktora",
-            "która",
-        }
-        english_markers = {
-            "time",
-            "date",
-            "day",
-            "month",
-            "year",
-            "timer",
-            "focus",
-            "break",
-            "reminder",
-            "remember",
-            "forget",
-            "delete",
-            "remove",
-            "shutdown",
-            "close",
-            "what",
-            "who",
-            "help",
-            "status",
-        }
+        raw_text = str(text or "")
+        lowered = normalize_text(raw_text)
+        tokens = set(tokenize(lowered))
 
-        tokens = set(lowered.split())
-        polish_hits = len(tokens & polish_markers)
-        english_hits = len(tokens & english_markers)
+        if not lowered:
+            return self._normalize_language(fallback_language)
+
+        polish_hits = 0
+        english_hits = 0
+
+        polish_hits += len(tokens & self._POLISH_MARKERS)
+        english_hits += len(tokens & self._ENGLISH_MARKERS)
+
+        if any(ch in raw_text for ch in "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ"):
+            polish_hits += 2
+
+        if exact_phrase_match(lowered, self._POLISH_SHORT_PHRASES):
+            polish_hits += 3
+        if exact_phrase_match(lowered, self._ENGLISH_SHORT_PHRASES):
+            english_hits += 3
+
+        if contains_any_phrase(lowered, {"która godzina", "jaka data", "jaki dzień"}):
+            polish_hits += 2
+        if contains_any_phrase(lowered, {"what time", "what day", "what date"}):
+            english_hits += 2
+
+        if lowered in {normalize_text(item) for item in MICRO_REPLY_PHRASES}:
+            if lowered in {normalize_text(item) for item in self._POLISH_SHORT_PHRASES}:
+                polish_hits += 2
+            elif lowered in {normalize_text(item) for item in self._ENGLISH_SHORT_PHRASES}:
+                english_hits += 2
 
         if polish_hits > english_hits:
             return "pl"
         if english_hits > polish_hits:
             return "en"
+
         return self._normalize_language(fallback_language)
 
     def _prefer_command_language(
@@ -93,14 +192,27 @@ class CommandFlowLanguage(CommandFlowHelpers):
                     detected_language,
                     normalizer_language_hint,
                 )
-                return self._normalize_language(chosen or fallback_language)
+                normalized = self._normalize_language(chosen or fallback_language)
+                if normalized in {"pl", "en"}:
+                    return normalized
             except Exception as error:
                 LOGGER.warning("Preferred command language selection failed: %s", error)
 
+        normalized_text = normalize_text(routing_text)
+
+        if normalized_text in {normalize_text(item) for item in self._POLISH_SHORT_PHRASES}:
+            return "pl"
+        if normalized_text in {normalize_text(item) for item in self._ENGLISH_SHORT_PHRASES}:
+            return "en"
+
         if normalizer_language_hint in {"pl", "en"} and normalizer_language_hint != detected_language:
+            if exact_phrase_match(normalized_text, MICRO_REPLY_PHRASES):
+                return self._normalize_language(fallback_language)
             return normalizer_language_hint
+
         if detected_language in {"pl", "en"}:
             return detected_language
+
         return self._normalize_language(fallback_language)
 
     def _looks_like_cancel_request(self, text: str) -> bool:
@@ -112,19 +224,16 @@ class CommandFlowLanguage(CommandFlowHelpers):
                 pass
 
         normalized = normalize_text(text)
-        return normalized in {
-            "cancel",
-            "stop",
-            "never mind",
-            "nevermind",
-            "forget it",
-            "leave it",
-            "anuluj",
-            "nieważne",
-            "niewazne",
-            "zostaw to",
-            "zapomnij",
-        }
+        if not normalized:
+            return False
+
+        if is_cancel_request(normalized):
+            return True
+
+        if exact_phrase_match(normalized, CANCEL_PHRASES):
+            return True
+
+        return contains_any_phrase(normalized, CANCEL_PHRASES)
 
 
 __all__ = ["CommandFlowLanguage"]

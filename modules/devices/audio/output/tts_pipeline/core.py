@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import threading
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from modules.system.utils import BASE_DIR, CACHE_DIR, append_log
@@ -41,9 +42,10 @@ class TTSPipeline(
     - prefetch likely next chunks in the background
     - keep interruption responsive
     - fall back to eSpeak when Piper is unavailable
+    - reduce first-audio latency for short live replies
     """
 
-    _CACHE_VERSION = "tts-v7-priority-synthesis-queue"
+    _CACHE_VERSION = "tts-v8-direct-current-low-latency"
 
     _PRIORITY_CURRENT = 0
     _PRIORITY_NEXT = 10
@@ -96,19 +98,44 @@ class TTSPipeline(
         self._stop_requested = threading.Event()
 
         self._active_processes: list[subprocess.Popen] = []
+        self._last_process_results: dict[str, dict[str, object]] = {}
+
         self.audio_coordinator: AssistantAudioCoordinator | None = None
+
+        self.runtime_python_path = str(sys.executable or "")
+        project_venv_python = self._base_dir / ".venv" / "bin" / "python"
+        self.project_venv_python_path = (
+            str(project_venv_python)
+            if project_venv_python.exists()
+            else ""
+        )
+        self.piper_python_runner_path: str | None = None
 
         self._playback_backends: list[tuple[str, list[str]]] = (
             self._detect_playback_backends()
         )
         self._last_good_playback_backend: str | None = None
 
-        self._synthesis_timeout_seconds = 28.0
-        self._playback_timeout_seconds = 32.0
-        self._job_wait_poll_seconds = 0.03
-        self._cache_warmup_delay_seconds = 0.8
-        self._current_job_wait_seconds = 20.0
-        self._early_next_prefetch_max_chars = 64
+        # Timeouts and queue timing tuned for fast short replies on Raspberry Pi.
+        self._synthesis_timeout_seconds = 18.0
+        self._playback_timeout_seconds = 24.0
+        self._job_wait_poll_seconds = 0.015
+        self._cache_warmup_delay_seconds = 0.45
+        self._current_job_wait_seconds = 6.5
+
+        # If the current reply is short enough, synthesize it directly instead
+        # of waiting behind the background queue.
+        self._direct_current_synthesis_max_chars = 115
+
+        # Output hold tuning:
+        # - interrupted playback should release input almost immediately
+        # - short replies should not keep the mic blocked too long
+        self._interrupted_output_hold_seconds = 0.10
+        self._short_response_output_hold_seconds = 0.18
+        self._short_response_output_hold_max_chars = 48
+
+        # Start preparing the likely next chunk early for short current chunks.
+        self._early_next_prefetch_max_chars = 72
 
         self._job_queue: queue.PriorityQueue[
             tuple[int, int, int, _SynthesisJob | None]
@@ -163,6 +190,20 @@ class TTSPipeline(
             f"piper_binary={'yes' if self.piper_path else 'no'}, "
             f"python_runner={'yes' if self.python_path else 'no'}, "
             f"espeak={'yes' if self.espeak_path else 'no'}"
+        )
+        append_log(
+            "TTS latency profile: "
+            f"synthesis_timeout={self._synthesis_timeout_seconds:.1f}s, "
+            f"playback_timeout={self._playback_timeout_seconds:.1f}s, "
+            f"job_wait_poll={self._job_wait_poll_seconds:.3f}s, "
+            f"current_job_wait={self._current_job_wait_seconds:.1f}s, "
+            f"direct_current_chars={self._direct_current_synthesis_max_chars}, "
+            f"early_next_prefetch_chars={self._early_next_prefetch_max_chars}"
+        )
+        append_log(
+            "TTS python paths: "
+            f"runtime_python={self.runtime_python_path or '-'}, "
+            f"project_venv_python={self.project_venv_python_path or '-'}"
         )
 
         if self.enabled and self.preferred_engine == "piper":

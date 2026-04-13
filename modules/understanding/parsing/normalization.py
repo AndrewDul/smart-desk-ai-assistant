@@ -10,19 +10,34 @@ YES_PHRASES = {
     "yes",
     "yeah",
     "yep",
+    "yup",
     "sure",
+    "okay",
+    "ok",
+    "okay then",
     "of course",
     "correct",
+    "right",
+    "affirmative",
     "do it",
     "show it",
     "display it",
+    "go ahead",
+    "continue",
     "tak",
+    "ta",
+    "no tak",
     "jasne",
     "pewnie",
-    "dokladnie",
-    "dokładnie",
+    "dobra",
+    "dobrze",
+    "okej",
+    "ok",
+    "zgoda",
     "zgadza sie",
     "zgadza się",
+    "dokladnie",
+    "dokładnie",
     "potwierdzam",
     "zrob to",
     "zrób to",
@@ -30,27 +45,140 @@ YES_PHRASES = {
     "pokaż",
     "wyswietl",
     "wyświetl",
+    "kontynuuj",
+    "dalej",
 }
 
 NO_PHRASES = {
     "no",
     "nope",
+    "nah",
+    "not now",
     "cancel",
     "stop",
     "leave it",
     "do not",
     "do not show it",
     "dont show it",
+    "don't show it",
     "never mind",
+    "forget it",
     "nie",
     "nie teraz",
+    "nie chce",
+    "nie chcę",
     "anuluj",
+    "stop",
     "zostaw to",
     "niewazne",
     "nieważne",
     "nie pokazuj",
     "nie wyswietlaj",
     "nie wyświetlaj",
+    "odpusc",
+    "odpuść",
+}
+
+CANCEL_PHRASES = {
+    "cancel",
+    "stop",
+    "never mind",
+    "nevermind",
+    "forget it",
+    "leave it",
+    "drop it",
+    "abort",
+    "anuluj",
+    "nieważne",
+    "niewazne",
+    "zostaw to",
+    "zapomnij",
+    "przestan",
+    "przestań",
+    "przerwij",
+    "odpusc",
+    "odpuść",
+}
+
+EXIT_PHRASES = {
+    "exit",
+    "quit",
+    "close assistant",
+    "exit assistant",
+    "goodbye",
+    "bye",
+    "bye bye",
+    "stop listening",
+    "go to sleep",
+    "sleep now",
+    "sleep",
+    "assistant sleep",
+    "go idle",
+    "stand by",
+    "standby",
+    "go standby",
+    "wyjdz",
+    "wyjdź",
+    "zamknij asystenta",
+    "do widzenia",
+    "pa",
+    "paa",
+    "idz spac",
+    "idź spać",
+    "spij",
+    "śpij",
+    "uspij sie",
+    "uśpij się",
+    "tryb czuwania",
+    "przejdz w czuwanie",
+    "przejdź w czuwanie",
+    "wroc do czuwania",
+    "wróć do czuwania",
+    "czuwanie",
+    "standby mode",
+}
+
+STANDBY_PHRASES = {
+    "sleep",
+    "go to sleep",
+    "sleep now",
+    "stop listening",
+    "stand by",
+    "standby",
+    "go standby",
+    "go idle",
+    "back to sleep",
+    "return to standby",
+    "idle mode",
+    "spij",
+    "śpij",
+    "idz spac",
+    "idź spać",
+    "uspij sie",
+    "uśpij się",
+    "wroc do czuwania",
+    "wróć do czuwania",
+    "przejdz w czuwanie",
+    "przejdź w czuwanie",
+    "tryb czuwania",
+    "czuwanie",
+}
+
+MICRO_REPLY_PHRASES = YES_PHRASES | NO_PHRASES | CANCEL_PHRASES | {
+    "exit",
+    "quit",
+    "sleep",
+    "standby",
+    "ok",
+    "okej",
+    "okay",
+    "dalej",
+    "continue",
+    "next",
+    "stop listening",
+    "go to sleep",
+    "wróć do czuwania",
+    "wroc do czuwania",
 }
 
 _SPOKEN_NUMBERS = {
@@ -169,6 +297,27 @@ def is_no(text: str) -> bool:
     return exact_phrase_match(text, NO_PHRASES)
 
 
+def is_cancel_request(text: str) -> bool:
+    return exact_phrase_match(text, CANCEL_PHRASES) or contains_any_phrase(text, CANCEL_PHRASES)
+
+
+def is_exit_request(text: str) -> bool:
+    return exact_phrase_match(text, EXIT_PHRASES) or contains_any_phrase(text, EXIT_PHRASES)
+
+
+def is_standby_request(text: str) -> bool:
+    return exact_phrase_match(text, STANDBY_PHRASES) or contains_any_phrase(text, STANDBY_PHRASES)
+
+
+def is_micro_reply(text: str) -> bool:
+    normalized = normalize_text(text)
+    if not normalized:
+        return False
+    if normalized in {normalize_text(item) for item in MICRO_REPLY_PHRASES}:
+        return True
+    return len(normalized.split()) <= 3 and contains_any_phrase(normalized, MICRO_REPLY_PHRASES)
+
+
 def similarity_score(left: str, right: str) -> float:
     normalized_left = normalize_text(left)
     normalized_right = normalize_text(right)
@@ -247,7 +396,7 @@ def strip_leading_fillers(text: str) -> str:
         changed = False
         for filler in fillers:
             if result.startswith(filler):
-                result = result[len(filler) :].strip()
+                result = result[len(filler):].strip()
                 changed = True
 
     return result
@@ -363,7 +512,11 @@ def starts_with_show_intent(text: str) -> bool:
 
 
 __all__ = [
+    "CANCEL_PHRASES",
+    "EXIT_PHRASES",
+    "MICRO_REPLY_PHRASES",
     "NO_PHRASES",
+    "STANDBY_PHRASES",
     "YES_PHRASES",
     "best_overlap_against",
     "best_similarity_against",
@@ -372,7 +525,11 @@ __all__ = [
     "exact_phrase_match",
     "extract_duration_minutes",
     "extract_first_number",
+    "is_cancel_request",
+    "is_exit_request",
+    "is_micro_reply",
     "is_no",
+    "is_standby_request",
     "is_yes",
     "normalize_for_fuzzy_key",
     "normalize_text",

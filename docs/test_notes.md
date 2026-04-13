@@ -705,3 +705,120 @@ The voice loop feels much closer to a real assistant now because:
 
 The next testing step should happen after I split the largest files further.  
 That is the point where I want to start writing the next proper unit test batch for the new wake and session logic.
+
+# Test Notes
+
+## Date
+2026-04-10
+
+## Area
+AI HAT+ 2, Hailo backend direction, pan-tilt platform, LCD-on-platform integration, voice movement control, and camera preparation
+
+---
+
+## Main purpose of this test stage
+
+In this stage I focused on extending NeXa beyond a voice-only runtime and turning it into a more physical assistant system.
+
+The main goals were:
+- continue breaking down the largest files into smaller modules
+- validate the AI HAT+ 2 installation direction
+- move toward a Hailo-backed local LLM runtime path
+- test the moving platform
+- test LCD behaviour on the mounted platform
+- connect spoken commands to physical pan-tilt movement
+- carry out camera-related preparation and hardware checks
+
+---
+
+## Main changes tested
+
+I tested changes in:
+- continued split of oversized runtime and assistant files
+- backend direction for accelerated local LLM use
+- startup behaviour around the Hailo-related runtime path
+- pan-tilt service behaviour
+- directional voice commands
+- LCD use on the mounted moving platform
+- combined motion and visual test direction
+- camera-related hardware preparation
+
+---
+
+## Current testing approach
+
+This stage was tested mainly through:
+- direct hardware runs on Raspberry Pi
+- terminal output and runtime observation
+- repeated manual movement commands
+- dedicated pan-tilt test scripts
+- LCD hardware behaviour checks during platform-related work
+- practical startup and backend behaviour checks
+
+This was mainly a real hardware validation stage rather than a pure unit-test stage.
+
+---
+
+## Successful results confirmed
+
+The following behaviour was confirmed working in this stage:
+
+- large-file split work continued and the codebase remained modular
+- AI HAT+ 2 was mounted and incorporated into the current project direction
+- the local LLM direction moved toward a dedicated Hailo-backed backend model
+- the pan-tilt platform could be controlled programmatically
+- the LCD was used as part of the moving hardware setup
+- movement commands for left / right / up / down were added to the voice-control direction
+- dedicated pan-tilt hardware test scripts were available
+- the project moved closer to combined motion-and-display behaviour tests
+- camera-related preparation and test work moved forward
+
+---
+
+## Problems found during testing
+
+I also found several important problems during this stage:
+
+- Hailo-related installation and backend setup were harder than a normal software-only change
+- the main assistant runtime did not always connect cleanly to the backend path
+- speaker-related output issues could still make the assistant feel broken even when reply generation worked
+- the runtime could still fall back to text input behaviour when the real voice path failed
+- wake handling could still become noisy or repetitive
+- combined display-and-motion behaviour still needed more polish
+- camera work was still in a preparation stage rather than a fully finished product runtime path
+
+---
+
+## Fixes applied after testing
+
+After these tests I applied or clarified the following improvements:
+
+- kept the architecture modular while continuing the file split
+- treated the Hailo path as a backend boundary instead of mixing it into assistant logic
+- used dedicated motion test paths for safer pan-tilt validation
+- moved the project toward combined LCD + movement behaviour testing
+- treated voice fallback and backend readiness as honest runtime-state problems
+- improved understanding of wake instability as a full runtime problem, not only a threshold problem
+- kept camera work described as preparation and validation until full runtime integration is ready
+
+---
+
+## Practical test conclusion
+
+This stage was important because it proved that NeXa is no longer only a software assistant loop.
+
+The assistant now has:
+- a stronger modular runtime base
+- a clearer accelerated local LLM direction
+- a physical motion layer
+- a mounted display layer connected with hardware behaviour
+- spoken movement control
+- early camera-stage preparation
+
+This made the project feel much closer to a real embedded assistant system.
+
+The next important step after this stage should be:
+- more polished integration between backend readiness and startup flow
+- cleaner premium wake behaviour
+- stronger combined motion + display behaviour
+- full camera runtime integration when the vision path is ready

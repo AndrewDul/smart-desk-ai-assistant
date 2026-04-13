@@ -2370,3 +2370,214 @@ Next improvement area:
 - tighten grace window behaviour
 - reduce weak post-reply transcriptions
 - improve confirmation handling even more
+
+
+## 091. Hailo backend installation and startup path were harder than expected
+ 
+
+### Problem
+The move toward the AI HAT+ 2 and Hailo-backed local LLM path was not a simple plug-and-play change.
+
+### Symptom
+The assistant could be configured for the new backend direction, but the real runtime path was still fragile during installation and startup.
+
+### Root cause
+The Hailo direction introduced a new kind of dependency chain:
+- accelerator-side setup
+- backend serving setup
+- runtime connection from the assistant
+- health-check reliability
+- startup order correctness
+
+### Fix applied
+I treated the Hailo path as a dedicated backend boundary instead of mixing it directly into assistant logic.
+
+I also checked:
+- installation readiness
+- backend startup path
+- whether the backend was reachable from the assistant runtime
+- whether the runtime should report degraded or healthy status honestly
+
+### Result
+The project moved closer to a proper local accelerated LLM architecture, even though this area still required more stabilisation than a normal software-only change.
+
+---
+
+## 092. Main assistant runtime could not reliably connect to the Hailo-backed backend
+
+
+### Problem
+Even when the Hailo-related setup existed, the main assistant runtime did not always connect cleanly to the backend.
+
+### Symptom
+The assistant could look mostly healthy while richer local LLM behaviour was still unavailable or only partially available.
+
+### Root cause
+This was not only a model issue.  
+The real problem was the runtime boundary between:
+- the NeXa assistant process
+- the dedicated local backend process
+
+### Fix applied
+I treated backend availability as a real runtime concern and checked:
+- server reachability
+- backend health path
+- startup order
+- whether degraded state was being reported honestly
+
+### Result
+The project gained a cleaner direction for backend-aware startup and diagnostics instead of pretending the LLM path was healthy when it was not.
+
+---
+
+## 093. Speaker path confusion made it look like the assistant was broken
+
+
+### Problem
+At one point the assistant could generate replies correctly, but the audible output path was still unreliable or confusing.
+
+### Symptom
+The system looked alive, but real spoken feedback was missing or inconsistent.
+
+### Root cause
+The output path had to be treated as multiple separate layers:
+- reply generation
+- speech synthesis
+- playback command
+- speaker routing
+
+A problem in one of these layers could make the whole assistant look broken even when the rest of the runtime was still working.
+
+### Fix applied
+I checked the output path more carefully as a pipeline instead of treating it as one single TTS problem.
+
+### Result
+This made speaker-related failures much easier to diagnose and reduced confusion between “the assistant cannot answer” and “the assistant answered but audio playback failed”.
+
+---
+
+## 094. Runtime fell back to text input and behaved as if it wanted typed commands
+
+**Date:** 2026-04-10  
+**Area:** voice input / degraded fallback  
+**Status:** improved  
+
+### Problem
+The assistant stopped behaving like a voice assistant and instead acted as if it wanted typed input.
+
+### Symptom
+It looked like the system was waiting for text instead of listening through the real microphone.
+
+### Root cause
+The real voice input path had failed or degraded, and the runtime had fallen back to a developer-style text input path.
+
+### Fix applied
+I treated this as a degraded runtime condition, not as normal assistant behaviour.
+
+I also improved the runtime understanding of this failure mode so it would be easier to diagnose instead of looking like a normal working assistant.
+
+### Result
+The project now handles this problem more consciously and the runtime behaviour is easier to interpret when voice input is not really active.
+
+---
+
+## 095. Wake spam caused repeated unstable wake behaviour
+
+**Date:** 2026-04-10  
+**Area:** wake loop / input stability  
+**Status:** improved  
+
+### Problem
+The assistant could enter a noisy repeated wake pattern instead of behaving like a calm premium standby system.
+
+### Symptom
+Wake handling could feel like:
+- repeated wake attempts
+- noisy wake logs
+- unstable wake triggering
+- repeated `wake`-style behaviour instead of one clean wake event
+
+### Root cause
+Wake stability depended on more than the wake model alone.
+
+The real problem involved:
+- microphone input quality
+- short phrase handling
+- threshold and cooldown tuning
+- coordination with assistant playback
+- post-reply listening behaviour
+
+### Fix applied
+I hardened the wake path and treated wake stability as a full runtime behaviour problem, not only as a model-threshold problem.
+
+### Result
+Wake handling became much more controlled, although this area still remained one of the most important premium-polish tasks.
+
+---
+
+## 096. Pan-tilt motion needed its own safer hardware test path
+  
+
+### Problem
+After adding the moving platform, I needed a reliable way to test motion without mixing too much unrelated assistant logic into the hardware checks.
+
+### Symptom
+Without dedicated motion tests, it would be harder to separate:
+- parsing problems
+- runtime problems
+- hardware movement problems
+- calibration problems
+
+### Root cause
+The new platform added physical behaviour, so simple software-only checks were no longer enough.
+
+### Fix applied
+I added dedicated pan-tilt test paths so platform behaviour could be tested directly and more safely.
+
+### Result
+Motion hardware became easier to validate and safer to improve.
+
+---
+
+## 097. LCD and movement now needed coordinated behaviour instead of separate testing only
+
+
+### Problem
+After mounting the LCD on the moving platform, the project needed a better way to test visual output together with motion.
+
+### Symptom
+Separate testing of only display or only movement was no longer enough for the new hardware layout.
+
+### Root cause
+The project had moved into a more embodied assistant setup where:
+- display
+- movement
+- expression timing
+
+had to work together.
+
+### Fix applied
+I expanded the hardware test direction so combined behaviour scripts could control both motion and visual feedback.
+
+### Result
+This created a better basis for future premium expression testing.
+
+---
+
+## 098. Camera work moved forward, but the runtime vision path is still not fully finished
+
+
+### Problem
+Camera testing started moving forward, but the project still needed a clearer separation between hardware validation and fully productised vision runtime support.
+
+### Symptom
+Camera-related work existed at the testing and preparation level, but this did not yet mean the whole production vision path was complete.
+
+### Root cause
+Testing hardware readiness is not the same as delivering a fully integrated stable runtime service.
+
+### Fix applied
+I treated camera work in this stage as preparation, validation, and architecture progression rather than overstating it as fully finished production vision support.
+
+### Result
+The project is closer to the future camera stage, but this area still needs a full runtime integration pass.

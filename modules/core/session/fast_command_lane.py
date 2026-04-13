@@ -10,9 +10,15 @@ from modules.runtime.contracts import (
     RouteKind,
     ToolInvocation,
     create_turn_id,
-    normalize_text,
 )
 from modules.shared.logging.logger import get_logger
+from modules.understanding.parsing.normalization import (
+    is_exit_request,
+    is_micro_reply,
+    is_no,
+    is_yes,
+    normalize_text,
+)
 
 LOGGER = get_logger(__name__)
 
@@ -35,9 +41,9 @@ class FastCommandLane:
 
     Purpose:
     - bypass the heavier semantic router for obvious commands
-    - keep temporal / timer / reminder interactions feeling instant
-    - allow a new clear command to override stale pending follow-up state
-    - hand off execution to the new ActionFlow instead of legacy handlers
+    - keep short command interactions feeling instant
+    - allow a new clear command to override stale follow-up state
+    - hand off execution to ActionFlow in a stable route format
     """
 
     TEMPORAL_ACTIONS = {
@@ -72,6 +78,9 @@ class FastCommandLane:
         "status",
         "exit",
         "shutdown",
+        "confirm_yes",
+        "confirm_no",
+        "look_direction",
     }
 
     ALL_ACTIONS = TEMPORAL_ACTIONS | DIRECT_ACTIONS
@@ -90,9 +99,12 @@ class FastCommandLane:
             return None
 
         raw_text = str(prepared.get("routing_text") or prepared.get("raw_text") or "").strip()
-        normalized_text = str(prepared.get("normalized_text") or normalize_text(raw_text))
+        normalized_text = str(prepared.get("normalized_text") or normalize_text(raw_text)).strip()
         if not normalized_text:
             return None
+
+        language = assistant._normalize_lang(prepared.get("language") or "en")
+        interrupts_pending = bool(assistant.pending_confirmation or assistant.pending_follow_up)
 
         parser_result = prepared.get("parser_result")
         if parser_result is None:
@@ -101,16 +113,28 @@ class FastCommandLane:
                 prepared["parser_result"] = parser_result
 
         action = self._extract_action(parser_result)
-        if action in {"", "unknown", "unclear", "confirm_yes", "confirm_no"}:
+        payload = self._extract_payload(parser_result)
+        confidence = self._extract_confidence(parser_result)
+
+        if action in {"", "unknown", "unclear"}:
+            heuristic = self._heuristic_decision(
+                raw_text=raw_text,
+                normalized_text=normalized_text,
+                language=language,
+                interrupts_pending=interrupts_pending,
+            )
+            if heuristic is None:
+                return None
+            return heuristic
+
+        if action in {"confirm_yes", "confirm_no"} and not interrupts_pending:
             return None
 
         if action not in self.ALL_ACTIONS:
             return None
 
-        language = assistant._normalize_lang(prepared.get("language") or "en")
-        payload = self._extract_payload(parser_result)
-        confidence = self._extract_confidence(parser_result)
-        interrupts_pending = bool(assistant.pending_confirmation or assistant.pending_follow_up)
+        if confidence <= 0.0:
+            confidence = 0.96 if is_micro_reply(raw_text) else 0.90
 
         return FastCommandDecision(
             action=action,
@@ -130,10 +154,11 @@ class FastCommandLane:
         assistant._commit_language(decision.language)
 
         LOGGER.info(
-            "Fast command lane executing: action=%s, language=%s, interrupts_pending=%s",
+            "Fast command lane executing: action=%s, language=%s, interrupts_pending=%s, source=%s",
             decision.action,
             decision.language,
             decision.interrupts_pending,
+            decision.source,
         )
 
         route = self._build_route_decision(decision)
@@ -165,7 +190,105 @@ class FastCommandLane:
 
         return None
 
+    def _heuristic_decision(
+        self,
+        *,
+        raw_text: str,
+        normalized_text: str,
+        language: str,
+        interrupts_pending: bool,
+    ) -> FastCommandDecision | None:
+        action = ""
+        confidence = 0.0
+        source = "fast_command_lane_heuristic"
+
+        if interrupts_pending:
+            if is_yes(normalized_text):
+                action = "confirm_yes"
+                confidence = 0.99
+            elif is_no(normalized_text):
+                action = "confirm_no"
+                confidence = 0.99
+
+        if not action and is_exit_request(normalized_text):
+            action = "exit"
+            confidence = 0.98 if is_micro_reply(normalized_text) else 0.94
+
+        if not action:
+            action = self._match_simple_action(normalized_text)
+            if action:
+                confidence = 0.94 if is_micro_reply(normalized_text) else 0.90
+
+        if not action:
+            return None
+
+        if action not in self.ALL_ACTIONS:
+            return None
+
+        return FastCommandDecision(
+            action=action,
+            language=language,
+            source=source,
+            confidence=confidence,
+            payload={},
+            raw_text=raw_text,
+            normalized_text=normalized_text,
+            interrupts_pending=interrupts_pending,
+        )
+
+    @staticmethod
+    def _match_simple_action(normalized_text: str) -> str:
+        normalized = str(normalized_text or "").strip()
+        if not normalized:
+            return ""
+
+        direct_map = {
+            "help": "help",
+            "pomoc": "help",
+            "status": "status",
+            "stan": "status",
+            "time": "ask_time",
+            "what time": "ask_time",
+            "current time": "ask_time",
+            "godzina": "ask_time",
+            "ktora godzina": "ask_time",
+            "która godzina": "ask_time",
+            "czas": "ask_time",
+            "date": "ask_date",
+            "today date": "ask_date",
+            "data": "ask_date",
+            "jaka data": "ask_date",
+            "day": "ask_day",
+            "what day": "ask_day",
+            "jaki dzis dzien": "ask_day",
+            "jaki dziś dzień": "ask_day",
+            "dzien": "ask_day",
+            "dzień": "ask_day",
+            "month": "ask_month",
+            "jaki miesiac": "ask_month",
+            "jaki miesiąc": "ask_month",
+            "miesiac": "ask_month",
+            "miesiąc": "ask_month",
+            "year": "ask_year",
+            "jaki rok": "ask_year",
+            "rok": "ask_year",
+            "who are you": "introduce_self",
+            "what is your name": "introduce_self",
+            "tell me your name": "introduce_self",
+            "kim jestes": "introduce_self",
+            "kim jesteś": "introduce_self",
+            "jak sie nazywasz": "introduce_self",
+            "jak się nazywasz": "introduce_self",
+            "przedstaw sie": "introduce_self",
+            "przedstaw się": "introduce_self",
+        }
+
+        return direct_map.get(normalized, "")
+
     def _interrupt_pending_context(self, *, assistant: Any, action: str) -> None:
+        if action in {"confirm_yes", "confirm_no"}:
+            return
+
         clear_context = getattr(assistant, "_clear_interaction_context", None)
         if callable(clear_context):
             try:
@@ -174,6 +297,8 @@ class FastCommandLane:
             except TypeError:
                 clear_context()
                 return
+            except Exception as error:
+                LOGGER.warning("Failed to clear interaction context in fast lane: %s", error)
 
         assistant.pending_confirmation = None
         assistant.pending_follow_up = None
@@ -278,13 +403,15 @@ class FastCommandLane:
         if isinstance(parser_result, dict):
             if isinstance(parser_result.get("payload"), dict):
                 return dict(parser_result["payload"])
+            if isinstance(parser_result.get("data"), dict):
+                return dict(parser_result["data"])
             if isinstance(parser_result.get("entities"), dict):
                 return dict(parser_result["entities"])
             if isinstance(parser_result.get("slots"), dict):
                 return dict(parser_result["slots"])
             return self._dict_payload_from_known_keys(parser_result)
 
-        for attr in ("payload", "entities", "slots"):
+        for attr in ("payload", "data", "entities", "slots"):
             value = getattr(parser_result, attr, None)
             if isinstance(value, dict):
                 return dict(value)
@@ -303,6 +430,7 @@ class FastCommandLane:
             "name",
             "id",
             "reminder_id",
+            "direction",
         ):
             value = getattr(parser_result, key, None)
             if value not in (None, ""):
@@ -325,6 +453,7 @@ class FastCommandLane:
             "name",
             "id",
             "reminder_id",
+            "direction",
         ):
             value = data.get(key)
             if value not in (None, ""):
@@ -362,6 +491,9 @@ class FastCommandLane:
             "break_start": "break.start",
             "exit": "system.exit",
             "shutdown": "system.shutdown",
+            "confirm_yes": "",
+            "confirm_no": "",
+            "look_direction": "pan_tilt.look",
         }
         return mapping.get(str(action).strip().lower(), "")
 

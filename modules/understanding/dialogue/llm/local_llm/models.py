@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from modules.runtime.contracts import ChunkKind
+
 
 @dataclass(slots=True)
 class LocalLLMReply:
@@ -12,6 +14,23 @@ class LocalLLMReply:
     source: str = "disabled"
     error: str = ""
     raw_output: str = ""
+    streamed: bool = False
+    first_chunk_latency_ms: float = 0.0
+    chunks: list["LocalLLMChunk"] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class LocalLLMChunk:
+    text: str = ""
+    language: str = "en"
+    source: str = "disabled"
+    sequence: int = 0
+    finished: bool = False
+    flush: bool = True
+    speak_now: bool = True
+    kind: ChunkKind = ChunkKind.CONTENT
+    metadata: dict[str, Any] = field(default_factory=dict)
+    first_chunk_latency_ms: float = 0.0
 
 
 @dataclass(slots=True)
@@ -37,3 +56,21 @@ class LocalLLMProfile:
     repeat_penalty: float
     max_sentences: int
     style_hint: str
+
+
+@dataclass(slots=True)
+class LocalLLMBackendPolicy:
+    require_persistent_backend: bool = True
+    allow_cli_fallback: bool = False
+    stream_responses: bool = True
+    startup_warmup: bool = True
+    startup_warmup_timeout_seconds: float = 8.0
+
+
+__all__ = [
+    "LocalLLMBackendPolicy",
+    "LocalLLMChunk",
+    "LocalLLMContext",
+    "LocalLLMProfile",
+    "LocalLLMReply",
+]

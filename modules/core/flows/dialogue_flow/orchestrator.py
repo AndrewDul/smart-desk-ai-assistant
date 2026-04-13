@@ -66,7 +66,7 @@ class DialogueFlowOrchestrator(
         finally:
             assistant._thinking_ack_stop()
 
-        return bool(
+        delivered = bool(
             assistant.deliver_response_plan(
                 plan,
                 source="dialogue_flow",
@@ -74,6 +74,17 @@ class DialogueFlowOrchestrator(
                 extra_metadata=self._route_memory_metadata(route, lang, source="dialogue_flow"),
             )
         )
+
+        if not delivered:
+            LOGGER.error(
+                "Dialogue response delivery returned False. "
+                "Keeping runtime alive. turn_id=%s route_kind=%s",
+                route.turn_id,
+                route.kind.value,
+            )
+            return True
+
+        return True
 
     def handle_conversation_route(self, *, route: RouteDecision, language: str) -> bool:
         self.assistant.pending_follow_up = None

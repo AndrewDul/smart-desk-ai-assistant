@@ -10,6 +10,7 @@ from modules.understanding.parsing.normalization import (
 from .direct_actions_mixin import IntentParserDirectActionsMixin
 from .fuzzy_helpers_mixin import IntentParserFuzzyHelpersMixin
 from .memory_mixin import IntentParserMemoryMixin
+from .pan_tilt_mixin import IntentParserPanTiltMixin
 from .reminders_mixin import IntentParserRemindersMixin
 from .temporal_mixin import IntentParserTemporalMixin
 from .timer_mixin import IntentParserTimerMixin
@@ -21,6 +22,7 @@ class IntentParser(
     IntentParserRemindersMixin,
     IntentParserTimerMixin,
     IntentParserTemporalMixin,
+    IntentParserPanTiltMixin,
     IntentParserDirectActionsMixin,
 ):
     """
@@ -349,6 +351,7 @@ class IntentParser(
             "show_month": "show month / pokaż miesiąc",
             "ask_year": "year / rok",
             "show_year": "show year / pokaż rok",
+            "look_direction": "look / spójrz",
             "exit": "exit / wyjście",
             "shutdown": "shutdown / wyłącz system",
         }
@@ -452,6 +455,7 @@ class IntentParser(
         for parser in (
             self._parse_direct_action,
             self._parse_temporal_query,
+            self._parse_pan_tilt,
             self._parse_timer,
             self._parse_focus_or_break,
             self._parse_reminder_delete,

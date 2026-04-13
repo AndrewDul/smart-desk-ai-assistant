@@ -34,16 +34,26 @@ class NotificationFlowContext:
             if self.interrupt_settle_seconds > 0:
                 time.sleep(self.interrupt_settle_seconds)
 
-        if close_active_window:
+        transition_to_standby = getattr(assistant.voice_session, "transition_to_standby", None)
+        if callable(transition_to_standby):
             try:
-                assistant.voice_session.close_active_window()
+                transition_to_standby(
+                    detail=reason,
+                    close_active_window=close_active_window,
+                )
             except Exception as error:
-                log_exception("Failed to close active voice window for notification", error)
+                log_exception("Failed to set standby state before notification", error)
+        else:
+            if close_active_window:
+                try:
+                    assistant.voice_session.close_active_window()
+                except Exception as error:
+                    log_exception("Failed to close active voice window for notification", error)
 
-        try:
-            assistant.voice_session.set_state(VOICE_STATE_STANDBY, detail=reason)
-        except Exception as error:
-            log_exception("Failed to set standby state before notification", error)
+            try:
+                assistant.voice_session.set_state(VOICE_STATE_STANDBY, detail=reason)
+            except Exception as error:
+                log_exception("Failed to set standby state before notification", error)
 
         if had_pending_confirmation or had_pending_follow_up:
             append_log(

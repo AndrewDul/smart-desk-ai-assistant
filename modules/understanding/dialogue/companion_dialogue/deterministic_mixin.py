@@ -19,8 +19,6 @@ class CompanionDialogueDeterministicMixin:
         user_profile: dict | None,
         topics: list[str],
     ) -> DialogueReply | None:
-        del user_profile
-
         math_reply = self._try_math_reply(normalized_text, language)
         if math_reply is not None:
             return math_reply
@@ -161,7 +159,7 @@ class CompanionDialogueDeterministicMixin:
         )
         for prefix in prefixes:
             if compact.startswith(prefix):
-                compact = compact[len(prefix) :].strip()
+                compact = compact[len(prefix):].strip()
                 break
 
         if not re.fullmatch(r"\d+(?:\.\d+)?\s*[\+\-\*/]\s*\d+(?:\.\d+)?", compact):

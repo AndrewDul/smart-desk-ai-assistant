@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 from typing import Any
 
+from modules.runtime.telemetry import TurnBenchmarkService
 from modules.core.flows.action_flow import ActionFlowOrchestrator
 from modules.core.flows.command_flow import CommandFlowOrchestrator
 from modules.core.flows.dialogue_flow import DialogueFlowOrchestrator
@@ -15,6 +16,7 @@ from modules.presentation.response_streamer import ResponseStreamer
 from modules.presentation.thinking_ack import ThinkingAckService
 from modules.runtime.builder import RuntimeBuilder
 from modules.runtime.contracts import StreamMode
+from modules.runtime.product import RuntimeProductService
 from modules.shared.config.settings import load_settings
 from modules.shared.persistence.json_store import JsonStore
 from modules.shared.persistence.paths import SESSION_STATE_PATH, USER_PROFILE_PATH
@@ -61,6 +63,8 @@ class CoreAssistant(
         timers_cfg = self.settings.get("timers", {})
         project_cfg = self.settings.get("project", {})
         user_cfg = self.settings.get("user", {})
+        runtime_product_cfg = self.settings.get("runtime_product", {})
+        benchmark_cfg = self.settings.get("benchmarks", {})
 
         self.project_name = str(project_cfg.get("name", self.ASSISTANT_NAME))
         self.default_user_name = str(user_cfg.get("name", "Andrzej"))
@@ -79,6 +83,15 @@ class CoreAssistant(
         self.pending_follow_up: dict[str, Any] | None = None
         self.last_language = "en"
         self.shutdown_requested = False
+
+        self._last_response_stream_report = None
+        self.turn_benchmark_service = TurnBenchmarkService(
+            enabled=bool(benchmark_cfg.get("enabled", True)),
+            persist_turns=bool(benchmark_cfg.get("persist_turns", True)),
+            path=str(benchmark_cfg.get("path", "var/data/turn_benchmarks.json")),
+            max_samples=int(benchmark_cfg.get("max_samples", 300)),
+            summary_window=int(benchmark_cfg.get("summary_window", 30)),
+        )
 
         self.interrupt_controller = InteractionInterruptController()
         self.voice_session = VoiceSessionController(
@@ -123,8 +136,29 @@ class CoreAssistant(
         self.timer = self.runtime.timer
         self.audio_coordinator = self.runtime.metadata.get("audio_coordinator")
         self.vision = self.runtime.metadata.get("vision_backend")
+        self.pan_tilt = self.runtime.metadata.get("pan_tilt_backend")
         self.mobility = self.runtime.metadata.get("mobility_backend")
         self.backend_statuses = dict(self.runtime.backend_statuses)
+
+        self.runtime_product = RuntimeProductService(
+            settings=self.settings,
+            persist_enabled=bool(runtime_product_cfg.get("persist_status", True)),
+            path=str(runtime_product_cfg.get("status_path", "var/data/runtime_status.json")),
+            required_ready_components=tuple(
+                runtime_product_cfg.get(
+                    "required_ready_components",
+                    ["voice_input", "voice_output", "display"],
+                )
+            ),
+            auto_recovery_components=tuple(
+                runtime_product_cfg.get("auto_recovery_components", ["llm"])
+            ),
+            treat_llm_as_required_when_enabled=bool(
+                runtime_product_cfg.get("treat_llm_as_required_when_enabled", False)
+            ),
+        )
+        self.runtime_product.bind_runtime(runtime=self.runtime, dialogue=self.dialogue)
+        self._runtime_startup_snapshot: dict[str, Any] = self.runtime_product.snapshot()
 
         self.response_streamer = ResponseStreamer(
             voice_output=self.voice_out,

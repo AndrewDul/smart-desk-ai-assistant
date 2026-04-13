@@ -14,23 +14,17 @@ from .constants import (
 from .matching import VoiceSessionMatching
 from .models import VoiceSessionSnapshot
 from .state import VoiceSessionState
+from .transitions import VoiceSessionTransitions
 
 
 class VoiceSessionController(
     VoiceSessionAcknowledgements,
+    VoiceSessionTransitions,
     VoiceSessionState,
     VoiceSessionMatching,
 ):
     """
     Central voice-session state controller for NeXa.
-
-    Responsibilities:
-    - keep one authoritative interaction state
-    - manage standby / wake / command / follow-up timing safely
-    - normalize wake and cancel phrase detection with tolerant matching
-    - keep wake stripping conservative so command text is not damaged
-    - generate non-repeating wake and thinking acknowledgements
-    - keep access thread-safe for the full runtime
     """
 
     def __init__(

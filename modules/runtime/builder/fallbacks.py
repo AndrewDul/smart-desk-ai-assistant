@@ -127,7 +127,18 @@ class NullVisionBackend:
     def close(self) -> None:
         return None
 
+class NullPanTiltBackend:
+    """Placeholder backend until the pan/tilt stack is enabled."""
 
+    def move_direction(self, direction: str) -> dict[str, object]:
+        return {"ok": False, "error": f"Pan/tilt disabled. Direction={direction}"}
+
+    def status(self) -> dict[str, object]:
+        return {"ok": False, "error": "Pan/tilt disabled."}
+
+    def close(self) -> None:
+        return None
+    
 class NullMobilityBackend:
     """
     Placeholder backend until the mobile base stack is fully enabled.
@@ -143,6 +154,7 @@ class NullMobilityBackend:
 __all__ = [
     "NullDisplay",
     "NullMobilityBackend",
+    "NullPanTiltBackend",
     "NullVisionBackend",
     "NullWakeGate",
     "SilentVoiceOutput",

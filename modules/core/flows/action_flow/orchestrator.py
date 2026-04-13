@@ -13,6 +13,7 @@ from modules.shared.logging.logger import get_logger
 
 from .memory_actions_mixin import ActionMemoryActionsMixin
 from .models import ResolvedAction
+from .pan_tilt_actions_mixin import ActionPanTiltActionsMixin
 from .reminder_actions_mixin import ActionReminderActionsMixin
 from .resolver_mixin import ActionResolverMixin
 from .response_helpers_mixin import ActionResponseHelpersMixin
@@ -29,6 +30,7 @@ class ActionFlowOrchestrator(
     ActionMemoryActionsMixin,
     ActionReminderActionsMixin,
     ActionTimerActionsMixin,
+    ActionPanTiltActionsMixin,
 ):
     """
     Final action execution flow for NeXa.
@@ -65,6 +67,7 @@ class ActionFlowOrchestrator(
         "timer.stop": "timer_stop",
         "focus.start": "focus_start",
         "break.start": "break_start",
+        "pan_tilt.look": "look_direction",
         "system.exit": "exit",
         "system.shutdown": "shutdown",
         "system.sleep": "exit",
@@ -97,6 +100,7 @@ class ActionFlowOrchestrator(
         "timer_stop",
         "focus_start",
         "break_start",
+        "look_direction",
         "exit",
         "shutdown",
         "confirm_yes",
@@ -130,6 +134,7 @@ class ActionFlowOrchestrator(
         "timer_stop": ("zatrzymanie timera", "stop the timer"),
         "focus_start": ("uruchomienie focus mode", "start focus mode"),
         "break_start": ("uruchomienie break mode", "start break mode"),
+        "look_direction": ("ruch głowicy", "move camera head"),
         "exit": ("zamknięcie asystenta", "close the assistant"),
         "shutdown": ("wyłączenie systemu", "shut down the system"),
     }
@@ -269,3 +274,6 @@ class ActionFlowOrchestrator(
             },
         )
         return self.execute(route=route, language=language)
+
+
+__all__ = ["ActionFlowOrchestrator", "ResolvedAction"]

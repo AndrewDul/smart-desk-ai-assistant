@@ -1,0 +1,26 @@
+[Unit]
+Description=NeXa premium local voice assistant
+After=network-online.target sound.target
+Wants=network-online.target sound.target
+StartLimitIntervalSec=30
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=/home/devdul/Projects/smart-desk-ai-assistant
+User=devdul
+Group=devdul
+EnvironmentFile=-/home/devdul/Projects/smart-desk-ai-assistant/config/systemd/nexa.env
+Environment=NEXA_RUNTIME_MODE=systemd
+Environment=PYTHONIOENCODING=utf-8
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/devdul/Projects/smart-desk-ai-assistant/.venv/bin/python /home/devdul/Projects/smart-desk-ai-assistant/main.py
+Restart=on-failure
+RestartSec=2.0
+TimeoutStopSec=25.0
+KillSignal=SIGINT
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

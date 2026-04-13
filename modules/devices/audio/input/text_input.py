@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
+import sys
+import time
 import unicodedata
 from typing import TYPE_CHECKING
 
@@ -58,6 +61,7 @@ class TextInput:
         self.enforce_wake_phrase_match = bool(enforce_wake_phrase_match)
 
         self.audio_coordinator: AssistantAudioCoordinator | None = None
+        self._non_interactive_logged = False
 
         LOGGER.info(
             "TextInput prepared: wake_prompt=%r, command_prompt=%r, enforce_wake_phrase_match=%s",
@@ -65,6 +69,52 @@ class TextInput:
             self.command_prompt,
             self.enforce_wake_phrase_match,
         )
+
+    def _stdin_is_interactive(self) -> bool:
+        stdin = getattr(sys, "stdin", None)
+        if stdin is None:
+            return False
+
+        is_tty = getattr(stdin, "isatty", None)
+        if not callable(is_tty):
+            return False
+
+        try:
+            return bool(is_tty())
+        except Exception:
+            return False
+
+    def _read_line(self, prompt: str, *, timeout: float | None = None) -> str | None:
+        if not self._stdin_is_interactive():
+            runtime_mode = str(os.getenv("NEXA_RUNTIME_MODE", "") or "").strip().lower()
+
+            if not self._non_interactive_logged:
+                LOGGER.warning(
+                    "TextInput is running without an interactive stdin. "
+                    "Prompts are disabled to avoid Wake>/You> spam. runtime_mode=%s",
+                    runtime_mode or "unknown",
+                )
+                self._non_interactive_logged = True
+
+            if timeout is not None:
+                try:
+                    time.sleep(max(0.05, float(timeout)))
+                except Exception:
+                    time.sleep(0.25)
+            else:
+                time.sleep(0.25)
+
+            return None
+
+        try:
+            value = input(prompt)
+        except EOFError:
+            return None
+        except KeyboardInterrupt:
+            raise
+
+        normalized = self._normalize_text(value)
+        return normalized or None
 
     def set_audio_coordinator(
         self,
@@ -116,29 +166,18 @@ class TextInput:
 
         return False
 
-    def _read_line(self, prompt: str) -> str | None:
-        try:
-            value = input(prompt)
-        except EOFError:
-            return None
-        except KeyboardInterrupt:
-            raise
-
-        normalized = self._normalize_text(value)
-        return normalized or None
-
     def listen(
         self,
         timeout: float = 8.0,
         debug: bool = False,
     ) -> str | None:
-        del timeout, debug
+        del debug
 
         if self._input_blocked_by_assistant_output():
             LOGGER.debug("TextInput command listen skipped because assistant output is active.")
             return None
 
-        text = self._read_line(self.command_prompt)
+        text = self._read_line(self.command_prompt, timeout=timeout)
         if text:
             LOGGER.info("TextInput command received: %s", text)
         return text
@@ -156,13 +195,11 @@ class TextInput:
         debug: bool = False,
         ignore_audio_block: bool = False,
     ) -> str | None:
-        del timeout
-
         if not ignore_audio_block and self._input_blocked_by_assistant_output():
             LOGGER.debug("TextInput wake listen skipped because assistant output is active.")
             return None
 
-        text = self._read_line(self.wake_prompt)
+        text = self._read_line(self.wake_prompt, timeout=timeout)
         if text is None:
             return None
 

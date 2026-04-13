@@ -9,6 +9,7 @@ from .audio_coordination_mixin import RuntimeBuilderAudioCoordinationMixin
 from .display_mixin import RuntimeBuilderDisplayMixin
 from .features_mixin import RuntimeBuilderFeaturesMixin
 from .mobility_mixin import RuntimeBuilderMobilityMixin
+from .pan_tilt_mixin import RuntimeBuilderPanTiltMixin
 from .understanding_mixin import RuntimeBuilderUnderstandingMixin
 from .utils_mixin import RuntimeBuilderUtilsMixin
 from .vision_mixin import RuntimeBuilderVisionMixin
@@ -27,6 +28,7 @@ class RuntimeBuilder(
     RuntimeBuilderVoiceOutputMixin,
     RuntimeBuilderDisplayMixin,
     RuntimeBuilderVisionMixin,
+    RuntimeBuilderPanTiltMixin,
     RuntimeBuilderMobilityMixin,
 ):
     """
@@ -68,6 +70,7 @@ class RuntimeBuilder(
         voice_output_cfg = self._cfg("voice_output")
         display_cfg = self._cfg("display")
         vision_cfg = self._cfg("vision")
+        pan_tilt_cfg = self._cfg("pan_tilt")
         mobility_cfg = self._cfg("mobility")
 
         voice_input, voice_input_status = self._build_voice_input(voice_input_cfg)
@@ -79,6 +82,7 @@ class RuntimeBuilder(
         voice_output, voice_output_status = self._build_voice_output(voice_output_cfg)
         display, display_status = self._build_display(display_cfg)
         vision, vision_status = self._build_vision(vision_cfg)
+        pan_tilt, pan_tilt_status = self._build_pan_tilt(pan_tilt_cfg)
         mobility, mobility_status = self._build_mobility(mobility_cfg)
 
         self._attach_audio_coordinator(voice_input, audio_coordinator)
@@ -91,6 +95,7 @@ class RuntimeBuilder(
             "voice_output": voice_output_status,
             "display": display_status,
             "vision": vision_status,
+            "pan_tilt": pan_tilt_status,
             "mobility": mobility_status,
         }
 
@@ -113,6 +118,7 @@ class RuntimeBuilder(
             metadata={
                 "audio_coordinator": audio_coordinator,
                 "vision_backend": vision,
+                "pan_tilt_backend": pan_tilt,
                 "mobility_backend": mobility,
                 "wake_backend": wake_gate,
                 "single_capture_mode": self._single_capture_mode_enabled(voice_input_cfg),

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import shutil
+import subprocess
 import time
+from pathlib import Path
 
 from modules.system.utils import append_log
 
@@ -8,23 +11,126 @@ from modules.system.utils import append_log
 class TTSPipelineSynthesisMixin:
     """
     Helpers for Piper synthesis, WAV playback, and eSpeak fallback.
+
+    Main latency improvement:
+    - short current utterances can be synthesized directly instead of waiting
+      behind the background queue
+    - if the same text is already being synthesized, reuse that pending job
     """
 
-    def _build_piper_command(self, model_path, config_path, wav_path) -> list[str] | None:
-        if self.piper_path:
+    def _resolve_piper_binary_runner(self) -> str | None:
+        candidate = str(getattr(self, "piper_path", "") or "").strip()
+        if not candidate:
+            return None
+
+        path = Path(candidate)
+        if path.exists() and path.is_file():
+            return candidate
+
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+
+        return None
+
+    def _python_has_piper_module(self, python_path: str) -> bool:
+        candidate = str(python_path or "").strip()
+        if not candidate:
+            return False
+
+        try:
+            if not Path(candidate).exists():
+                return False
+        except Exception:
+            return False
+
+        try:
+            completed = subprocess.run(
+                [
+                    candidate,
+                    "-c",
+                    "import importlib.util; raise SystemExit(0 if importlib.util.find_spec('piper') else 1)",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=1.5,
+                check=False,
+            )
+            return completed.returncode == 0
+        except Exception:
+            return False
+
+    def _resolve_piper_python_runner(self) -> str | None:
+        cached = str(getattr(self, "piper_python_runner_path", "") or "").strip()
+        if cached and self._python_has_piper_module(cached):
+            return cached
+
+        candidates: list[str] = []
+
+        explicit_python = str(getattr(self, "python_path", "") or "").strip()
+        if explicit_python:
+            candidates.append(explicit_python)
+
+        project_venv_python = str(getattr(self, "project_venv_python_path", "") or "").strip()
+        if project_venv_python:
+            candidates.append(project_venv_python)
+
+        runtime_python = str(getattr(self, "runtime_python_path", "") or "").strip()
+        if runtime_python:
+            candidates.append(runtime_python)
+
+        python3_path = shutil.which("python3") or ""
+        if python3_path:
+            candidates.append(python3_path)
+
+        python_path = shutil.which("python") or ""
+        if python_path:
+            candidates.append(python_path)
+
+        seen: set[str] = set()
+        for candidate in candidates:
+            normalized = str(candidate or "").strip()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+
+            if self._python_has_piper_module(normalized):
+                self.piper_python_runner_path = normalized
+                append_log(f"Piper python runner resolved: {normalized}")
+                return normalized
+
+        self.piper_python_runner_path = None
+        return None
+
+    def _build_piper_command(
+        self,
+        model_path,
+        config_path,
+        wav_path,
+        text: str,
+    ) -> list[str] | None:
+        normalized_text = str(text or "").strip()
+        if not normalized_text:
+            return None
+
+        binary_runner = self._resolve_piper_binary_runner()
+        if binary_runner:
             return [
-                self.piper_path,
+                binary_runner,
                 "-m",
                 str(model_path),
                 "-c",
                 str(config_path),
                 "-f",
                 str(wav_path),
+                "--",
+                normalized_text,
             ]
 
-        if self.python_path:
+        python_runner = self._resolve_piper_python_runner()
+        if python_runner:
             return [
-                self.python_path,
+                python_runner,
                 "-m",
                 "piper",
                 "-m",
@@ -33,9 +139,36 @@ class TTSPipelineSynthesisMixin:
                 str(config_path),
                 "-f",
                 str(wav_path),
+                "--",
+                normalized_text,
             ]
 
         return None
+
+    def _log_last_tts_process_failure(self, source: str, lang: str) -> None:
+        result = self._get_last_process_result(source)
+        if not result:
+            append_log(f"No subprocess diagnostics available for {source} ({lang}).")
+            return
+
+        command_display = str(result.get("command_display", "") or "").strip()
+        return_code = result.get("return_code")
+        elapsed_seconds = float(result.get("elapsed_seconds", 0.0) or 0.0)
+        error_text = str(result.get("error_text", "") or "").strip()
+        stderr_text = str(result.get("stderr_text", "") or "").strip()
+        stdout_text = str(result.get("stdout_text", "") or "").strip()
+
+        append_log(
+            f"TTS subprocess diagnostics: source={source}, lang={lang}, "
+            f"exit_code={return_code}, elapsed={elapsed_seconds:.3f}s, "
+            f"command={command_display or '-'}"
+        )
+        if error_text:
+            append_log(f"TTS subprocess exception: {error_text}")
+        if stderr_text:
+            append_log(f"TTS subprocess stderr: {stderr_text}")
+        elif stdout_text:
+            append_log(f"TTS subprocess stdout: {stdout_text}")
 
     def _synthesize_piper_to_wav(self, text: str, lang: str, wav_path) -> bool:
         normalized_lang = self._normalize_language(lang)
@@ -51,22 +184,35 @@ class TTSPipelineSynthesisMixin:
             append_log(f"Piper model missing for language '{normalized_lang}'.")
             return False
 
-        command = self._build_piper_command(model_path, config_path, wav_path)
+        command = self._build_piper_command(model_path, config_path, wav_path, text)
         if not command:
-            append_log("Piper command is not available.")
+            append_log(
+                "Piper command is not available. "
+                "No usable Piper binary and no Python interpreter with module 'piper' were found. "
+                f"explicit_python={getattr(self, 'python_path', '') or '-'} | "
+                f"runtime_python={getattr(self, 'runtime_python_path', '') or '-'} | "
+                f"project_venv_python={getattr(self, 'project_venv_python_path', '') or '-'} | "
+                f"piper_path={getattr(self, 'piper_path', '') or '-'}"
+            )
             return False
+
+        append_log(
+            "Piper synthesis command prepared: "
+            f"lang={normalized_lang}, command={self._format_process_command(command)}"
+        )
 
         wav_path.parent.mkdir(parents=True, exist_ok=True)
 
         started_at = time.monotonic()
+        source = f"piper_synthesis_{normalized_lang}"
         ok = self._run_process_interruptibly(
             command,
-            input_text=text,
             timeout_seconds=self._synthesis_timeout_seconds,
-            source=f"piper_synthesis_{normalized_lang}",
+            source=source,
         )
         if not ok:
             append_log(f"Piper synthesis failed for language '{normalized_lang}'.")
+            self._log_last_tts_process_failure(source, normalized_lang)
             return False
 
         if not wav_path.exists():
@@ -74,6 +220,7 @@ class TTSPipelineSynthesisMixin:
                 "Piper synthesis finished but WAV was not created for language "
                 f"'{normalized_lang}'."
             )
+            self._log_last_tts_process_failure(source, normalized_lang)
             return False
 
         append_log(
@@ -125,37 +272,43 @@ class TTSPipelineSynthesisMixin:
             return False
 
         started_at = time.monotonic()
-        cache_path = self._cached_wav_path(text, lang)
+        normalized_lang = self._normalize_language(lang)
+        cache_path = self._cached_wav_path(text, normalized_lang)
         cache_hit = cache_path.exists()
 
         normalized_next = self._normalize_prefetch_request(prepare_next)
         if normalized_next is not None and len(text) <= self._early_next_prefetch_max_chars:
             self._start_prefetch(normalized_next[0], normalized_next[1])
 
-        if not cache_hit:
-            current_job = self._enqueue_synthesis(
-                text,
-                lang,
-                priority=self._PRIORITY_CURRENT,
+        wav_ready_started_at = time.monotonic()
+        ready, ready_source = self._ensure_current_wav_ready(
+            text=text,
+            lang=normalized_lang,
+            cache_path=cache_path,
+            cache_hit=cache_hit,
+        )
+        wav_ready_ms = (time.monotonic() - wav_ready_started_at) * 1000.0
+
+        if not ready:
+            append_log(
+                f"TTS current synthesis did not finish in time: lang={normalized_lang}, "
+                f"chars={len(text)}, wav_ready_ms={wav_ready_ms:.1f}, source={ready_source}"
             )
-            ready = self._wait_for_job(
-                current_job,
-                timeout_seconds=self._current_job_wait_seconds,
-            )
-            if not ready:
-                append_log(
-                    f"TTS current synthesis did not finish in time: lang={lang}, chars={len(text)}"
-                )
-                return False
+            return False
 
         if normalized_next is not None and len(text) > self._early_next_prefetch_max_chars:
             self._start_prefetch(normalized_next[0], normalized_next[1])
 
+        first_audio_started_at = time.monotonic()
         played = self._play_wav(cache_path)
+        first_audio_ms = (time.monotonic() - started_at) * 1000.0
+
         if played:
             append_log(
-                f"TTS total finished: lang={lang}, chars={len(text)}, "
-                f"cache_hit={cache_hit}, elapsed={time.monotonic() - started_at:.3f}s"
+                f"TTS total finished: lang={normalized_lang}, chars={len(text)}, "
+                f"cache_hit={cache_hit}, wav_ready_source={ready_source}, "
+                f"wav_ready_ms={wav_ready_ms:.1f}, first_audio_path_ms={first_audio_ms:.1f}, "
+                f"elapsed={time.monotonic() - started_at:.3f}s"
             )
             return True
 
@@ -164,6 +317,59 @@ class TTSPipelineSynthesisMixin:
                 cache_path.unlink()
             except OSError:
                 pass
+
+        retry_ready_started_at = time.monotonic()
+        current_job = self._enqueue_synthesis(
+            text,
+            normalized_lang,
+            priority=self._PRIORITY_CURRENT,
+        )
+        ready = self._wait_for_job(
+            current_job,
+            timeout_seconds=self._current_job_wait_seconds,
+        )
+        retry_ready_ms = (time.monotonic() - retry_ready_started_at) * 1000.0
+        if not ready:
+            append_log(
+                f"TTS retry synthesis did not finish in time: lang={normalized_lang}, "
+                f"chars={len(text)}, retry_ready_ms={retry_ready_ms:.1f}"
+            )
+            return False
+
+        played = self._play_wav(cache_path)
+        if played:
+            append_log(
+                "TTS total finished after playback retry: "
+                f"lang={normalized_lang}, chars={len(text)}, retry_ready_ms={retry_ready_ms:.1f}, "
+                f"elapsed={time.monotonic() - started_at:.3f}s"
+            )
+            return True
+
+        append_log(f"No working WAV playback command available for language '{normalized_lang}'.")
+        return False
+
+    def _ensure_current_wav_ready(
+        self,
+        *,
+        text: str,
+        lang: str,
+        cache_path: Path,
+        cache_hit: bool,
+    ) -> tuple[bool, str]:
+        if cache_hit and cache_path.exists():
+            return True, "cache_hit"
+
+        existing_job = self._get_pending_job(text=text, lang=lang)
+        if existing_job is not None:
+            ready = self._wait_for_job(
+                existing_job,
+                timeout_seconds=self._current_job_wait_seconds,
+            )
+            return ready, "pending_job"
+
+        if self._should_direct_synthesize_current(text=text, lang=lang):
+            ok = self._synthesize_piper_to_wav(text, lang, cache_path)
+            return ok, "direct_current"
 
         current_job = self._enqueue_synthesis(
             text,
@@ -174,19 +380,33 @@ class TTSPipelineSynthesisMixin:
             current_job,
             timeout_seconds=self._current_job_wait_seconds,
         )
-        if not ready:
+        return ready, "queued_current"
+
+    def _get_pending_job(self, *, text: str, lang: str):
+        key = self._prefetch_key(text, lang)
+        with self._prefetch_lock:
+            job = self._pending_jobs.get(key)
+            if job is None:
+                return None
+            if job.event.is_set() and not job.cache_path.exists():
+                return None
+            return job
+
+    def _should_direct_synthesize_current(self, *, text: str, lang: str) -> bool:
+        if not self.enabled:
+            return False
+        if self.preferred_engine != "piper":
+            return False
+        if not self._piper_model_ready(lang):
+            return False
+        if self._stop_requested.is_set():
             return False
 
-        played = self._play_wav(cache_path)
-        if played:
-            append_log(
-                "TTS total finished after playback retry: "
-                f"lang={lang}, chars={len(text)}, elapsed={time.monotonic() - started_at:.3f}s"
-            )
-            return True
+        max_chars = int(getattr(self, "_direct_current_synthesis_max_chars", 120))
+        if len(text) > max_chars:
+            return False
 
-        append_log(f"No working WAV playback command available for language '{lang}'.")
-        return False
+        return True
 
     def _speak_with_espeak(self, text: str, lang: str) -> bool:
         if not self.espeak_path:

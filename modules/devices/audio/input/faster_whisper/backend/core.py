@@ -8,6 +8,10 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import sounddevice as sd
+from modules.devices.audio.input.shared import (
+    resolve_input_device_selection,
+    resolve_supported_input_sample_rate,
+)
 
 if TYPE_CHECKING:
     from modules.devices.audio.coordination import AssistantAudioCoordinator
@@ -172,6 +176,8 @@ class FasterWhisperInputBackend(
         vad_min_speech_ms: int = 120,
         vad_min_silence_ms: int = 250,
         vad_speech_pad_ms: int = 180,
+        device_discovery_timeout_seconds: float = 8.0,
+        device_discovery_poll_seconds: float = 0.35,
     ) -> None:
         self.language = self._normalize_language(language, allow_auto=True)
 
@@ -200,11 +206,27 @@ class FasterWhisperInputBackend(
         self.audio_queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=48)
         self.audio_coordinator: AssistantAudioCoordinator | None = None
 
-        self.device = self._resolve_input_device(device_index, device_name_contains)
-        input_info = sd.query_devices(self.device, "input")
-        self.device_name = str(input_info["name"])
-        self.device_default_sample_rate = int(round(float(input_info.get("default_samplerate", 16000))))
-        self.sample_rate = self._resolve_supported_sample_rate(sample_rate)
+        selection = resolve_input_device_selection(
+            device_index=device_index,
+            device_name_contains=device_name_contains,
+            discovery_timeout_seconds=device_discovery_timeout_seconds,
+            discovery_poll_seconds=device_discovery_poll_seconds,
+        )
+        self.device = selection.device
+        self.device_name = selection.name
+        self.device_default_sample_rate = selection.default_sample_rate
+        self.device_selection_reason = selection.reason
+        self.available_input_devices_summary = selection.available_inputs_summary
+        self.sample_rate = resolve_supported_input_sample_rate(
+            device=self.device,
+            device_name=self.device_name,
+            channels=self.channels,
+            dtype=self.dtype,
+            preferred_sample_rate=sample_rate,
+            default_sample_rate=self.device_default_sample_rate,
+            logger=self.LOGGER,
+            context_label="FasterWhisperInputBackend",
+        )
 
         self._fw_model: Any | None = None
         self._silero_model: Any | None = None
@@ -238,11 +260,13 @@ class FasterWhisperInputBackend(
         self._session_temp_dir = Path(tempfile.mkdtemp(prefix="nexa_fw_stt_"))
 
         self.LOGGER.info(
-            "FasterWhisperInputBackend prepared: device='%s', sample_rate=%s, language_mode=%s, vad=%s",
+            "FasterWhisperInputBackend prepared: device='%s', sample_rate=%s, language_mode=%s, vad=%s, selection_reason='%s', available_inputs='%s'",
             self.device_name,
             self.sample_rate,
             self.language,
             "on" if self.vad_enabled else "off",
+            self.device_selection_reason,
+            self.available_input_devices_summary,
         )
 
         try:

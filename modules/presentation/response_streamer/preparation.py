@@ -70,23 +70,102 @@ class ResponseStreamerPreparation(ResponseStreamerHelpers):
         if not body_source_chunks:
             return [ack_chunk] if ack_chunk else []
 
-        merged_body_chunks = self._merge_chunks_by_target(
-            body_source_chunks,
-            target_chars=self.dialogue_merge_target_chars,
+        first_body_group, remaining_source_chunks = self._prepare_first_dialogue_group(body_source_chunks)
+
+        remaining_merged_chunks = self._merge_chunks_by_target(
+            remaining_source_chunks,
+            target_chars=self._dialogue_remaining_target_chars(),
             max_chars=self.dialogue_max_chunk_chars,
         )
-
-        if merged_body_chunks:
-            merged_body_chunks = self._split_fast_lead_from_first_content(merged_body_chunks)
 
         prepared: list[AssistantChunk] = []
         if ack_chunk is not None:
             prepared.append(self._clone_chunk(ack_chunk, sequence_index=len(prepared)))
 
-        for chunk in merged_body_chunks:
+        for chunk in first_body_group:
+            prepared.append(self._clone_chunk(chunk, sequence_index=len(prepared)))
+
+        for chunk in remaining_merged_chunks:
             prepared.append(self._clone_chunk(chunk, sequence_index=len(prepared)))
 
         return prepared
+
+    def _prepare_first_dialogue_group(
+        self,
+        chunks: list[AssistantChunk],
+    ) -> tuple[list[AssistantChunk], list[AssistantChunk]]:
+        if not chunks:
+            return [], []
+
+        first = chunks[0]
+        first_text = clean_response_text(first.text)
+        if not first_text:
+            return [], chunks[1:]
+
+        if first.kind not in {ChunkKind.CONTENT, ChunkKind.TOOL_STATUS, ChunkKind.FOLLOW_UP}:
+            return [self._clone_chunk(first, sequence_index=0)], chunks[1:]
+
+        first_target = self._dialogue_first_chunk_target_chars()
+        first_max = self._dialogue_first_chunk_max_chars()
+
+        if len(first_text) <= first_target:
+            return [self._clone_chunk(first, sequence_index=0)], chunks[1:]
+
+        split = self._extract_fast_lead(
+            first_text,
+            min_chars=self.fast_lead_min_chars,
+            max_chars=min(self.fast_lead_max_chars, first_max),
+        )
+        if split is None:
+            split = self._fallback_fast_split(
+                first_text,
+                min_chars=self.fast_lead_min_chars,
+                max_chars=first_target,
+            )
+
+        if split is None:
+            return [self._clone_chunk(first, sequence_index=0)], chunks[1:]
+
+        lead_text, remainder_text = split
+        if not lead_text or not remainder_text:
+            return [self._clone_chunk(first, sequence_index=0)], chunks[1:]
+
+        rebuilt_first: list[AssistantChunk] = [
+            AssistantChunk(
+                text=lead_text,
+                language=first.language,
+                kind=first.kind,
+                speak_now=True,
+                flush=True,
+                sequence_index=0,
+                metadata={
+                    **dict(first.metadata),
+                    "fast_lead_chunk": True,
+                },
+            )
+        ]
+
+        remainder_chunk = AssistantChunk(
+            text=remainder_text,
+            language=first.language,
+            kind=first.kind,
+            speak_now=True,
+            flush=True,
+            sequence_index=1,
+            metadata={
+                **dict(first.metadata),
+                "post_fast_lead_chunk": True,
+            },
+        )
+
+        remaining_source = [remainder_chunk, *chunks[1:]]
+
+        LOGGER.info(
+            "Fast lead extracted for dialogue: lead_chars=%s, remainder_chars=%s",
+            len(lead_text),
+            len(remainder_text),
+        )
+        return rebuilt_first, remaining_source
 
     def _prepare_action_like_chunks(self, chunks: list[AssistantChunk]) -> list[AssistantChunk]:
         if not chunks:
@@ -241,82 +320,87 @@ class ResponseStreamerPreparation(ResponseStreamerHelpers):
 
         return merged
 
-    def _split_fast_lead_from_first_content(self, chunks: list[AssistantChunk]) -> list[AssistantChunk]:
-        if not chunks:
-            return []
-
-        first = chunks[0]
-        if first.kind not in {ChunkKind.CONTENT, ChunkKind.TOOL_STATUS, ChunkKind.FOLLOW_UP}:
-            return chunks
-
-        first_text = clean_response_text(first.text)
-        if len(first_text) < 95:
-            return chunks
-
-        lead_and_body = self._extract_fast_lead(first_text)
-        if lead_and_body is None:
-            return chunks
-
-        lead_text, body_text = lead_and_body
-        if not lead_text or not body_text:
-            return chunks
-
-        rebuilt: list[AssistantChunk] = [
-            AssistantChunk(
-                text=lead_text,
-                language=first.language,
-                kind=first.kind,
-                speak_now=True,
-                flush=True,
-                sequence_index=0,
-                metadata={
-                    **dict(first.metadata),
-                    "fast_lead_chunk": True,
-                },
-            ),
-            AssistantChunk(
-                text=body_text,
-                language=first.language,
-                kind=first.kind,
-                speak_now=True,
-                flush=True,
-                sequence_index=1,
-                metadata={
-                    **dict(first.metadata),
-                    "post_fast_lead_chunk": True,
-                },
-            ),
-        ]
-
-        for chunk in chunks[1:]:
-            rebuilt.append(self._clone_chunk(chunk, sequence_index=len(rebuilt)))
-
-        LOGGER.info(
-            "Fast lead split applied: lead_chars=%s, body_chars=%s",
-            len(lead_text),
-            len(body_text),
-        )
-        return rebuilt
-
-    def _extract_fast_lead(self, text: str) -> tuple[str, str] | None:
+    def _extract_fast_lead(
+        self,
+        text: str,
+        *,
+        min_chars: int,
+        max_chars: int,
+    ) -> tuple[str, str] | None:
         cleaned = clean_response_text(text)
         if not cleaned:
             return None
 
         sentence_parts = self._sentence_units(cleaned)
-        if len(sentence_parts) < 2:
+        if len(sentence_parts) >= 2:
+            first_sentence = sentence_parts[0]
+            remainder = clean_response_text(" ".join(sentence_parts[1:]))
+            if (
+                remainder
+                and min_chars <= len(first_sentence) <= max_chars
+            ):
+                return first_sentence, remainder
+
+        separators = [", ", "; ", " — ", " - ", ": "]
+        for separator in separators:
+            split_index = cleaned.find(separator)
+            if split_index == -1:
+                continue
+
+            lead_text = cleaned[:split_index].strip()
+            remainder_text = cleaned[split_index + len(separator):].strip()
+            if (
+                remainder_text
+                and min_chars <= len(lead_text) <= max_chars
+            ):
+                return lead_text, remainder_text
+
+        return None
+
+    def _fallback_fast_split(
+        self,
+        text: str,
+        *,
+        min_chars: int,
+        max_chars: int,
+    ) -> tuple[str, str] | None:
+        cleaned = clean_response_text(text)
+        if not cleaned or len(cleaned) <= max_chars:
             return None
 
-        first_sentence = sentence_parts[0]
-        remainder = clean_response_text(" ".join(sentence_parts[1:]))
+        candidate_window = cleaned[: max_chars + 1]
+        split_positions = [
+            candidate_window.rfind(". "),
+            candidate_window.rfind("! "),
+            candidate_window.rfind("? "),
+            candidate_window.rfind(", "),
+            candidate_window.rfind("; "),
+            candidate_window.rfind(" "),
+        ]
 
-        if not remainder:
+        split_index = max(split_positions)
+        if split_index < min_chars:
             return None
 
-        if not (self.fast_lead_min_chars <= len(first_sentence) <= self.fast_lead_max_chars):
+        lead_text = clean_response_text(cleaned[:split_index + 1])
+        remainder_text = clean_response_text(cleaned[split_index + 1:])
+
+        if not lead_text or not remainder_text:
             return None
 
-        return first_sentence, remainder
+        if len(lead_text) > max_chars:
+            return None
+
+        return lead_text, remainder_text
+
+    def _dialogue_first_chunk_target_chars(self) -> int:
+        return max(self.fast_lead_max_chars, 64)
+
+    def _dialogue_first_chunk_max_chars(self) -> int:
+        return max(self.fast_lead_max_chars, 72)
+
+    def _dialogue_remaining_target_chars(self) -> int:
+        return min(self.dialogue_merge_target_chars, 185)
 
 
 __all__ = ["ResponseStreamerPreparation"]

@@ -5,6 +5,8 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from numpy.random import set_state
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -263,6 +265,14 @@ class ThinkingAckService:
 
     def _handle_started(self, detail: str) -> None:
         if self.voice_session is None:
+            return
+
+        transition_to_thinking = getattr(self.voice_session, "transition_to_thinking", None)
+        if callable(transition_to_thinking):
+            try:
+                transition_to_thinking(detail=detail)
+            except Exception as error:
+                LOGGER.warning("Thinking acknowledgement could not update voice session state: %s", logging.error)
             return
 
         set_state = getattr(self.voice_session, "set_state", None)

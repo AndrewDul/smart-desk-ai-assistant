@@ -42,3 +42,5 @@ pytest
 
 # Optional vision stack
 # opencv-python-headless
+
+smbus2

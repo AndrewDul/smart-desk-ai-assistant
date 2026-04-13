@@ -40,5 +40,41 @@ class TTSPipelineControlMixin:
         for process in processes:
             self._terminate_process(process, reason="stop_request")
 
+    def _resolve_output_hold_seconds(
+        self,
+        *,
+        interrupted: bool,
+        success: bool,
+        spoken_text: str,
+    ) -> float:
+        if not success:
+            return 0.0
+
+        if interrupted:
+            return max(
+                0.0,
+                float(getattr(self, "_interrupted_output_hold_seconds", 0.10)),
+            )
+
+        short_response_max_chars = int(
+            getattr(self, "_short_response_output_hold_max_chars", 48)
+        )
+        if len(str(spoken_text or "").strip()) <= short_response_max_chars:
+            return max(
+                0.0,
+                float(getattr(self, "_short_response_output_hold_seconds", 0.18)),
+            )
+
+        coordinator = getattr(self, "audio_coordinator", None)
+        if coordinator is not None:
+            value = getattr(coordinator, "post_speech_hold_seconds", None)
+            if value is not None:
+                try:
+                    return max(0.0, float(value))
+                except (TypeError, ValueError):
+                    pass
+
+        return 0.32
+
 
 __all__ = ["TTSPipelineControlMixin"]

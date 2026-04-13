@@ -31,6 +31,7 @@ ACTION_TO_TOOL: dict[str, str] = {
     "shutdown": "system.shutdown",
     "confirm_yes": "dialogue.confirm",
     "confirm_no": "dialogue.confirm",
+    "look_direction": "pan_tilt.look",
 }
 
 DIRECT_ACTIONS = {
@@ -62,6 +63,7 @@ DIRECT_ACTIONS = {
     "show_year",
     "exit",
     "shutdown",
+    "look_direction",
 }
 
 ALWAYS_EXPLICIT_ACTIONS = {
@@ -92,6 +94,7 @@ ALWAYS_EXPLICIT_ACTIONS = {
     "shutdown",
     "confirm_yes",
     "confirm_no",
+    "look_direction",
 }
 
 EXPLICIT_FOCUS_PATTERNS = (

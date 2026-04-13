@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import time
+from typing import Any
+
 from modules.core.session.voice_session import VOICE_STATE_ROUTING
+from modules.shared.logging.logger import append_log, log_exception
 
 
 class CoreAssistantInteractionMixin:
@@ -11,68 +15,124 @@ class CoreAssistantInteractionMixin:
         if not cleaned:
             return True
 
-        prepared = self._prepare_command(cleaned)
-        if prepared["ignore"]:
-            return True
+        telemetry = self._start_turn_telemetry(cleaned)
 
-        command_lang = self._commit_language(prepared["language"])
-        routing_text = prepared["routing_text"]
+        try:
+            prepared_started = time.perf_counter()
+            prepared = self._prepare_command(cleaned)
+            telemetry["prepare_ms"] = self._elapsed_ms(prepared_started)
 
-        if not prepared.get("already_remembered", False):
-            self._remember_user_turn(
-                cleaned,
+            if prepared["ignore"]:
+                telemetry["result"] = "ignored"
+                return True
+
+            language_started = time.perf_counter()
+            command_lang = self._commit_language(prepared["language"])
+            telemetry["language_commit_ms"] = self._elapsed_ms(language_started)
+            telemetry["language"] = command_lang
+            telemetry["input_source"] = getattr(prepared["source"], "value", str(prepared["source"]))
+            routing_text = prepared["routing_text"]
+
+            if not prepared.get("already_remembered", False):
+                remember_started = time.perf_counter()
+                self._remember_user_turn(
+                    cleaned,
+                    language=command_lang,
+                    metadata={
+                        "source": prepared["source"].value,
+                        "normalized_text": prepared["normalized_text"],
+                    },
+                )
+                telemetry["remember_user_ms"] = self._elapsed_ms(remember_started)
+
+            if prepared["cancel_requested"]:
+                cancel_started = time.perf_counter()
+                result = self._cancel_active_request(command_lang)
+                telemetry["cancel_ms"] = self._elapsed_ms(cancel_started)
+                telemetry["result"] = "cancel_request"
+                return result
+
+            pending_started = time.perf_counter()
+            pending_result = self._handle_pending_state(prepared)
+            telemetry["pending_ms"] = self._elapsed_ms(pending_started)
+
+            if pending_result is not None:
+                telemetry["result"] = "pending_flow"
+                return bool(pending_result)
+
+            fast_lane_started = time.perf_counter()
+            fast_lane_result = self._handle_fast_lane(prepared)
+            telemetry["fast_lane_ms"] = self._elapsed_ms(fast_lane_started)
+
+            if fast_lane_result is not None:
+                telemetry["result"] = "fast_lane"
+                return bool(fast_lane_result)
+
+            self.voice_session.transition_to_routing(detail="route_command")
+
+            routing_started = time.perf_counter()
+            self._thinking_ack_start(language=command_lang, detail="route_command")
+            try:
+                routed = self.router.route(routing_text, preferred_language=command_lang)
+            finally:
+                self._thinking_ack_stop()
+            telemetry["router_ms"] = self._elapsed_ms(routing_started)
+
+            route = self._coerce_route_decision(
+                routed,
+                raw_text=cleaned,
+                normalized_text=prepared["normalized_text"],
                 language=command_lang,
-                metadata={
-                    "source": prepared["source"].value,
-                    "normalized_text": prepared["normalized_text"],
-                },
             )
 
-        if prepared["cancel_requested"]:
-            return self._cancel_active_request(command_lang)
+            telemetry["route_kind"] = getattr(route.kind, "value", str(route.kind))
+            telemetry["route_confidence"] = float(getattr(route, "confidence", 0.0) or 0.0)
+            telemetry["primary_intent"] = str(getattr(route, "primary_intent", "") or "")
+            telemetry["topics"] = list(getattr(route, "conversation_topics", []) or [])
+            benchmark_service = getattr(self, "turn_benchmark_service", None)
+            if benchmark_service is not None:
+                note_route_resolved = getattr(benchmark_service, "note_route_resolved", None)
+                if callable(note_route_resolved):
+                    try:
+                        note_route_resolved(
+                            route_kind=telemetry["route_kind"],
+                            primary_intent=telemetry["primary_intent"],
+                            confidence=telemetry["route_confidence"],
+                        )
+                    except Exception as error:
+                        log_exception("Failed to note route benchmark telemetry", error)
 
-        pending_result = self._handle_pending_state(prepared)
-        if pending_result is not None:
-            return bool(pending_result)
+            log_route_decision = getattr(self.command_flow, "log_route_decision", None)
+            if callable(log_route_decision):
+                try:
+                    log_route_decision(route)
+                except Exception as error:
+                    log_exception("Route decision logging failed", error)
 
-        fast_lane_result = self._handle_fast_lane(prepared)
-        if fast_lane_result is not None:
-            return bool(fast_lane_result)
+            dispatch_started = time.perf_counter()
 
-        self.voice_session.set_state(VOICE_STATE_ROUTING, detail="route_command")
-        self._thinking_ack_start(language=command_lang, detail="route_command")
-        try:
-            routed = self.router.route(routing_text, preferred_language=command_lang)
+            if route.kind == self._route_kind_action():
+                self.pending_confirmation = None
+                result = self._execute_action_route(route, command_lang)
+                telemetry["result"] = "action_route"
+            elif route.kind == self._route_kind_mixed():
+                self.pending_confirmation = None
+                result = self._handle_mixed_route(route, command_lang)
+                telemetry["result"] = "mixed_route"
+            elif route.kind == self._route_kind_conversation():
+                self.pending_confirmation = None
+                result = self._handle_conversation_route(route, command_lang)
+                telemetry["result"] = "conversation_route"
+            else:
+                result = self._handle_unclear_route(route, command_lang)
+                telemetry["result"] = "unclear_route"
+
+            telemetry["dispatch_ms"] = self._elapsed_ms(dispatch_started)
+            telemetry["handled"] = bool(result)
+            return bool(result)
+
         finally:
-            self._thinking_ack_stop()
-
-        route = self._coerce_route_decision(
-            routed,
-            raw_text=cleaned,
-            normalized_text=prepared["normalized_text"],
-            language=command_lang,
-        )
-
-        log_route_decision = getattr(self.command_flow, "log_route_decision", None)
-        if callable(log_route_decision):
-            try:
-                log_route_decision(route)
-            except Exception:
-                pass
-
-        if route.kind == self._route_kind_action():
-            self.pending_confirmation = None
-            return self._execute_action_route(route, command_lang)
-
-        if route.kind == self._route_kind_mixed():
-            self.pending_confirmation = None
-            return self._handle_mixed_route(route, command_lang)
-
-        if route.kind == self._route_kind_conversation():
-            self.pending_confirmation = None
-            return self._handle_conversation_route(route, command_lang)
-
-        return self._handle_unclear_route(route, command_lang)
+            self._finish_turn_telemetry(telemetry)
 
     def request_interrupt(
         self,
@@ -86,9 +146,190 @@ class CoreAssistantInteractionMixin:
             source=source,
             metadata=metadata,
         )
+        mark_interrupt_requested = getattr(self.voice_session, "mark_interrupt_requested", None)
+        if callable(mark_interrupt_requested):
+            try:
+                mark_interrupt_requested(detail=reason)
+            except Exception:
+                pass
 
     def _interrupt_requested(self) -> bool:
         return bool(self.interrupt_controller.is_requested())
+
+    def _start_turn_telemetry(self, text: str) -> dict[str, Any]:
+        started_at = time.perf_counter()
+        benchmark_turn_id = ""
+
+        benchmark_service = getattr(self, "turn_benchmark_service", None)
+        if benchmark_service is not None:
+            begin_turn = getattr(benchmark_service, "begin_turn", None)
+            if callable(begin_turn):
+                try:
+                    benchmark_turn_id = str(
+                        begin_turn(
+                            user_text=str(text or "").strip(),
+                            language=self.last_language,
+                            input_source="voice",
+                        )
+                        or ""
+                    ).strip()
+                except Exception as error:
+                    log_exception("Failed to begin turn benchmark trace", error)
+
+        self._last_response_stream_report = None
+
+        return {
+            "started_at": started_at,
+            "benchmark_turn_id": benchmark_turn_id,
+            "user_text": str(text or "").strip(),
+            "input_source": "voice",
+            "language": self.last_language,
+            "prepare_ms": 0.0,
+            "language_commit_ms": 0.0,
+            "remember_user_ms": 0.0,
+            "cancel_ms": 0.0,
+            "pending_ms": 0.0,
+            "fast_lane_ms": 0.0,
+            "router_ms": 0.0,
+            "dispatch_ms": 0.0,
+            "total_ms": 0.0,
+            "route_kind": "",
+            "route_confidence": 0.0,
+            "primary_intent": "",
+            "topics": [],
+            "result": "",
+            "handled": False,
+        }
+
+    def _finish_turn_telemetry(self, telemetry: dict[str, Any]) -> None:
+        try:
+            total_ms = (time.perf_counter() - float(telemetry["started_at"])) * 1000.0
+        except Exception:
+            total_ms = 0.0
+
+        telemetry["total_ms"] = total_ms
+
+        llm_snapshot = self._collect_llm_snapshot()
+        response_report = self._collect_response_stream_report()
+
+        llm_part = ""
+        if llm_snapshot:
+            llm_part = (
+                f" | llm_ok={llm_snapshot.get('ok', False)}"
+                f" llm_ms={float(llm_snapshot.get('latency_ms', 0.0) or 0.0):.1f}"
+                f" llm_first_chunk_ms={float(llm_snapshot.get('first_chunk_latency_ms', 0.0) or 0.0):.1f}"
+                f" llm_source={llm_snapshot.get('source', '')}"
+            )
+            llm_error = str(llm_snapshot.get("error", "") or "").strip()
+            if llm_error:
+                llm_part += f" llm_error={llm_error}"
+
+        response_part = ""
+        if response_report is not None:
+            response_part = (
+                f" | first_audio_ms={self._metric_text(getattr(response_report, 'first_audio_latency_ms', 0.0))}"
+                f" | response_ms={self._metric_text(getattr(response_report, 'total_elapsed_ms', 0.0))}"
+                f" | chunks={int(getattr(response_report, 'chunks_spoken', 0) or 0)}"
+                f" | live={bool(getattr(response_report, 'live_streaming', False))}"
+            )
+
+        benchmark_part = ""
+        benchmark_service = getattr(self, "turn_benchmark_service", None)
+        if benchmark_service is not None:
+            finish_turn = getattr(benchmark_service, "finish_turn", None)
+            if callable(finish_turn):
+                try:
+                    sample = finish_turn(
+                        telemetry=telemetry,
+                        llm_snapshot=llm_snapshot,
+                        response_report=response_report,
+                    )
+                except Exception as error:
+                    sample = {}
+                    log_exception("Failed to finish turn benchmark trace", error)
+
+                if sample:
+                    benchmark_part = (
+                        f" | wake_to_listen_ms={self._metric_text(sample.get('wake_to_listen_ms'))}"
+                        f" | listen_to_speech_ms={self._metric_text(sample.get('listen_to_speech_ms'))}"
+                        f" | speech_to_route_ms={self._metric_text(sample.get('speech_to_route_ms'))}"
+                        f" | route_to_first_audio_ms={self._metric_text(sample.get('route_to_first_audio_ms'))}"
+                    )
+
+        topics = telemetry.get("topics") or []
+        safe_topics = ",".join(str(item) for item in topics[:6]) if topics else "-"
+
+        append_log(
+            "TURN telemetry"
+            f" | total_ms={total_ms:.1f}"
+            f" | result={telemetry.get('result', '')}"
+            f" | handled={bool(telemetry.get('handled', False))}"
+            f" | route_kind={telemetry.get('route_kind', '')}"
+            f" | route_conf={float(telemetry.get('route_confidence', 0.0) or 0.0):.2f}"
+            f" | intent={telemetry.get('primary_intent', '')}"
+            f" | prepare_ms={float(telemetry.get('prepare_ms', 0.0) or 0.0):.1f}"
+            f" | lang_ms={float(telemetry.get('language_commit_ms', 0.0) or 0.0):.1f}"
+            f" | remember_ms={float(telemetry.get('remember_user_ms', 0.0) or 0.0):.1f}"
+            f" | cancel_ms={float(telemetry.get('cancel_ms', 0.0) or 0.0):.1f}"
+            f" | pending_ms={float(telemetry.get('pending_ms', 0.0) or 0.0):.1f}"
+            f" | fast_lane_ms={float(telemetry.get('fast_lane_ms', 0.0) or 0.0):.1f}"
+            f" | router_ms={float(telemetry.get('router_ms', 0.0) or 0.0):.1f}"
+            f" | dispatch_ms={float(telemetry.get('dispatch_ms', 0.0) or 0.0):.1f}"
+            f" | topics={safe_topics}"
+            f"{llm_part}"
+            f"{response_part}"
+            f"{benchmark_part}"
+        )
+
+        self._last_response_stream_report = None
+
+    def _collect_llm_snapshot(self) -> dict[str, Any]:
+        dialogue = getattr(self, "dialogue", None)
+        local_llm = getattr(dialogue, "local_llm", None)
+        if local_llm is None:
+            return {}
+
+        snapshot_method = getattr(local_llm, "last_generation_snapshot", None)
+        if callable(snapshot_method):
+            try:
+                snapshot = snapshot_method()
+                if isinstance(snapshot, dict):
+                    return dict(snapshot)
+            except Exception as error:
+                log_exception("Failed to collect LLM generation snapshot", error)
+
+        backend_method = getattr(local_llm, "describe_backend", None)
+        if callable(backend_method):
+            try:
+                snapshot = backend_method()
+                if isinstance(snapshot, dict):
+                    return {
+                        "ok": bool(snapshot.get("last_generation_ok", False)),
+                        "latency_ms": float(snapshot.get("last_generation_latency_ms", 0.0) or 0.0),
+                        "source": str(snapshot.get("last_generation_source", "") or ""),
+                        "error": str(
+                            snapshot.get("last_generation_error")
+                            or snapshot.get("last_availability_error")
+                            or ""
+                        ).strip(),
+                    }
+            except Exception as error:
+                log_exception("Failed to collect LLM backend description", error)
+
+        return {}
+    def _collect_response_stream_report(self) -> Any:
+        return getattr(self, "_last_response_stream_report", None)
+    
+    @staticmethod
+    def _elapsed_ms(started_at: float) -> float:
+        return (time.perf_counter() - float(started_at)) * 1000.0
+
+    @staticmethod
+    def _metric_text(value: Any) -> str:
+        try:
+            return f"{float(value):.1f}"
+        except (TypeError, ValueError):
+            return "-"    
 
     @staticmethod
     def _route_kind_action():

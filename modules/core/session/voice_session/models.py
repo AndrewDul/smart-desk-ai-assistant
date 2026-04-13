@@ -3,6 +3,11 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
+from .constants import (
+    VOICE_INPUT_OWNER_WAKE_GATE,
+    VOICE_PHASE_WAKE_GATE,
+)
+
 
 @dataclass(slots=True)
 class VoiceSessionSnapshot:
@@ -13,6 +18,11 @@ class VoiceSessionSnapshot:
     last_wake_detected_monotonic: float = 0.0
     last_command_accepted_monotonic: float = 0.0
     active_window_generation: int = 0
+    interaction_phase: str = VOICE_PHASE_WAKE_GATE
+    input_owner: str = VOICE_INPUT_OWNER_WAKE_GATE
+    last_response_started_monotonic: float = 0.0
+    last_response_finished_monotonic: float = 0.0
+    last_interrupt_requested_monotonic: float = 0.0
 
     @property
     def active_window_open(self) -> bool:

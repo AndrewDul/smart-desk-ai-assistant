@@ -1771,3 +1771,175 @@ The main large files I worked on included:
 ### Result
 After this change, the codebase is more modular, easier to read, and easier to change.  
 This should also make future refactors safer, because the logic is no longer packed into a few oversized files.
+
+## 32. AI HAT+ 2, Hailo-backed local LLM, pan-tilt platform, and LCD hardware expansion
+
+During this stage I pushed the project further from a voice prototype toward a more physical and modular assistant system.
+
+The biggest practical changes in this stage were:
+- continuing the breakdown of oversized files into smaller modules
+- mounting and integrating the AI HAT+ 2
+- moving the local LLM direction toward a Hailo-backed backend model
+- adding pan-tilt platform control
+- mounting the LCD on the moving platform
+- adding voice-controlled movement commands
+- carrying out camera-related hardware tests
+- improving runtime behaviour around wake, voice input fallback, and audio output problems
+
+### Large file split continuation
+
+After the earlier folder cleanup, I continued breaking down the biggest files into smaller parts.
+
+This was important because some core runtime files were still carrying too much logic in one place. The main goal was to keep the architecture readable and scalable while adding more hardware and backend complexity.
+
+This continued split was especially important for:
+- runtime builder logic
+- assistant flow coordination
+- parser logic
+- local LLM runtime logic
+- display handling
+- wake handling
+- reminder service structure
+
+This made the project easier to reason about while the system was growing into a more advanced hardware-assisted assistant.
+
+### AI HAT+ 2 and Hailo-backed backend direction
+
+A major architectural change in this stage was the move toward running the optional local LLM through a dedicated backend path connected with the AI HAT+ 2 workflow.
+
+The important design decision here is that NeXa should not treat the accelerator as random low-level hardware attached directly to the assistant logic. Instead, the project now moves toward a cleaner architecture where the assistant talks to a dedicated local backend service and receives model responses through a controlled runtime boundary.
+
+This is a better product direction because it:
+- keeps assistant logic cleaner
+- separates inference serving from assistant orchestration
+- makes backend health easier to diagnose
+- gives a better foundation for startup checks and future deployment flow
+
+### Practical Hailo-related lesson
+
+This stage also showed an important real-world lesson:
+getting Hailo working is not only a code problem.
+
+The practical work included:
+- installation-related problems
+- backend connection problems
+- checking whether the backend was really reachable from the main assistant runtime
+- distinguishing between model logic problems and backend availability problems
+
+This became an important architecture note because the assistant can appear healthy while the Hailo-backed local LLM path is still unavailable or only partially connected.
+
+### Pan-tilt platform architecture update
+
+The hardware architecture was expanded with a pan-tilt platform.
+
+The project now includes:
+- pan / tilt hardware control
+- platform motion logic
+- dedicated motion test scripts
+- integration of movement behaviour with the assistant runtime direction
+
+This is important because the assistant is no longer only a voice-and-screen prototype.  
+It now also has a physical motion layer that can be controlled and tested.
+
+### Voice-controlled movement
+
+Another important update in this stage was adding spoken control for directional movement.
+
+The assistant can now interpret movement commands such as:
+- left
+- right
+- up
+- down
+
+This means the voice interaction layer is now connected not only to reminders, memory, timers, and conversation, but also to physical hardware motion.
+
+That is an important architectural step because it proves the assistant is growing into a more embodied system rather than staying only a software shell.
+
+### LCD mounted on the moving platform
+
+The display architecture also became more physical in this stage.
+
+The LCD was mounted on the moving platform, which means visual output and motion behaviour now exist together as one combined hardware presentation layer.
+
+This is important because the project is moving toward synchronised behaviour across:
+- voice
+- visual output
+- mechanical movement
+
+That is much closer to the premium assistant direction than keeping these parts separate.
+
+### Expressive hardware testing direction
+
+A useful result of this stage is that the project now has a clearer path toward combined behaviour testing.
+
+This means:
+- platform movement can be tested directly
+- the LCD can be used during motion-related tests
+- future behaviour scripts can combine eye states, visual feedback, and movement patterns in one hardware flow
+
+This gives a much better base for future premium interaction design.
+
+### Camera testing status
+
+Camera-related testing was also carried out during this stage, but the important architectural point is that this should still be treated as a preparation and validation phase rather than a fully finished production vision runtime.
+
+In practical terms:
+- camera work has started at the testing level
+- hardware validation has moved forward
+- the project is closer to vision integration
+- but the camera path should still be described as an in-progress integration area unless a full production runtime service is added and stabilised
+
+### Voice input fallback lesson
+
+Another important practical issue in this stage was the case where the assistant stopped behaving like a real voice assistant and instead acted as if it wanted typed input.
+
+This happened when the real voice path failed or degraded and the runtime fell back to text input behaviour.
+
+From an architecture point of view, this matters because it shows that:
+- startup success is not enough
+- runtime health must reflect the real active input path
+- voice failure must not silently look like normal assistant behaviour
+
+This became an important product lesson for NeXa:
+a premium assistant must report degraded runtime truthfully and should avoid misleading fallback behaviour.
+
+### Speaker and output-path lesson
+
+I also had to deal with speaker-related runtime confusion.
+
+This was important because speech output problems are not always the same as TTS generation problems. In practice, the project had to treat:
+- speech synthesis
+- playback
+- system audio routing
+
+as separate parts of one output pipeline.
+
+That became another useful architecture lesson:
+the assistant may generate a reply correctly while still failing to produce real audible output.
+
+### Wake spam and wake-loop hardening
+
+Another practical issue during this stage was unstable wake behaviour, including repeated wake-like triggering and noisy wake-loop behaviour.
+
+This matters architecturally because the wake path is not only a detection model problem. It is also a runtime control problem involving:
+- microphone ownership
+- filtering of short speech
+- coordination with assistant playback
+- post-reply listening behaviour
+- threshold and cooldown tuning
+
+This stage pushed the project further toward a cleaner premium wake model rather than a fragile experimental wake loop.
+
+### Result of this architecture stage
+
+At the end of this stage, the project became stronger in several important ways:
+- the codebase stayed modular while complexity increased
+- the AI HAT+ 2 and Hailo-backed backend direction became part of the architecture
+- the assistant gained a physical motion layer
+- the LCD became part of a moving hardware presentation setup
+- voice commands expanded into motion control
+- camera preparation moved forward
+- troubleshooting knowledge around Hailo, speaker output, fallback input, and wake stability became much more mature
+
+This stage was important because it moved NeXa further away from a software prototype and closer to a real modular embedded assistant system.
+

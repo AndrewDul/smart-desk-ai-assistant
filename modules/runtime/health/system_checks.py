@@ -147,9 +147,18 @@ class HealthSystemChecks(HealthCheckHelpers):
         if not bool(llm_cfg.get("enabled", False)):
             return self._info("llm", "disabled by config", critical=False)
 
-        runner = str(llm_cfg.get("runner", "llama-cli")).strip().lower()
+        runner = str(llm_cfg.get("runner", "hailo-ollama")).strip().lower()
+        require_persistent_backend = bool(llm_cfg.get("require_persistent_backend", True))
+        allow_cli_fallback = bool(llm_cfg.get("allow_cli_fallback", False))
+        stream_responses = bool(llm_cfg.get("stream_responses", True))
 
         if runner == "llama-cli":
+            if require_persistent_backend and not allow_cli_fallback:
+                return self._error(
+                    "llm",
+                    "persistent llm service is required, but runner is llama-cli",
+                )
+
             command = str(llm_cfg.get("command", "llama-cli")).strip() or "llama-cli"
             command_path = self._resolve_command(command)
             if not command_path:
@@ -163,16 +172,16 @@ class HealthSystemChecks(HealthCheckHelpers):
             if not model_path.exists():
                 return self._error("llm", f"llm model missing: {model_path}")
 
-            return self._info("llm", f"llama-cli ready, model={model_path.name}")
+            return self._info("llm", f"llama-cli fallback ready, model={model_path.name}")
 
-        if runner in {"llama-server", "server", "ollama-server", "hailo-ollama"}:
+        if runner in {"llama-server", "server", "ollama-server", "hailo-ollama", "openai-server"}:
             server_url = str(llm_cfg.get("server_url", "")).strip()
             if not self._is_valid_url(server_url):
                 return self._error("llm", "llm server URL is missing or invalid")
 
-            chat_path = str(llm_cfg.get("server_chat_path", "/v1/chat/completions")).strip()
-            chat_path = chat_path or "/v1/chat/completions"
-            return self._info("llm", f"{runner} configured at {server_url}{chat_path}")
+            chat_path = str(llm_cfg.get("server_chat_path", "/api/chat")).strip() or "/api/chat"
+            stream_note = "streaming on" if stream_responses else "streaming off"
+            return self._info("llm", f"{runner} configured at {server_url}{chat_path} ({stream_note})")
 
         return self._error("llm", f"unsupported llm runner '{runner}'")
 

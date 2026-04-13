@@ -87,7 +87,8 @@ class OpenWakeWordGate(OpenWakeWordGateListener):
         input_info = sd.query_devices(self.device, "input")
         self.device_name = str(input_info["name"])
         self.dtype = "int16"
-        self.channels = 1
+        self.available_input_channels = max(1, int(input_info.get("max_input_channels", 1)))
+        self.channels = min(2, self.available_input_channels)
         self.audio_queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=24)
 
         default_input_rate = int(round(float(input_info.get("default_samplerate", self.MODEL_SAMPLE_RATE))))
@@ -117,7 +118,7 @@ class OpenWakeWordGate(OpenWakeWordGateListener):
             "threshold=%.3f, direct_accept_threshold=%.3f, direct_support_floor=%.3f, "
             "relaxed_hit_floor=%.3f, trigger_level=%s, min_frames_before_accept=%s, "
             "block_ms=%s, activation_cooldown=%.2fs, block_release_settle=%.2fs, "
-            "energy_rms_threshold=%.4f, smoothing_window=%s",
+            "energy_rms_threshold=%.4f, smoothing_window=%s, selection_reason='%s', available_inputs='%s'",
             self.model_path,
             self.device_name,
             self.input_sample_rate,
@@ -132,6 +133,8 @@ class OpenWakeWordGate(OpenWakeWordGateListener):
             self.block_release_settle_seconds,
             self.energy_rms_threshold,
             self.score_smoothing_window,
+            getattr(self, "device_selection_reason", "unknown"),
+            getattr(self, "available_input_devices_summary", "unknown"),
         )
 
     def close(self) -> None:

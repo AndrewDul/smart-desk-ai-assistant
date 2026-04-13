@@ -30,7 +30,17 @@ class OpenWakeWordGateAudioRuntime(OpenWakeWordGateHelpers):
 
         try:
             if indata.ndim == 2:
-                mono = indata[:, 0].copy()
+                if indata.shape[1] == 1:
+                    mono = indata[:, 0].copy()
+                else:
+                    rms_scores: list[float] = []
+                    for channel_index in range(indata.shape[1]):
+                        channel_audio = indata[:, channel_index].astype(np.float32, copy=False)
+                        rms = float(np.sqrt(np.mean(np.square(channel_audio), dtype=np.float64)))
+                        rms_scores.append(rms)
+
+                    best_channel_index = int(np.argmax(rms_scores))
+                    mono = indata[:, best_channel_index].copy()
             else:
                 mono = indata.copy()
 

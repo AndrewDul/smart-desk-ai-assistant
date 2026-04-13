@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import time
 from typing import Any
 
@@ -36,6 +37,12 @@ class ResponseStreamerPlayback(ResponseStreamerHelpers):
         if next_hint is None:
             return
 
+        # Important:
+        # If the voice_output.speak(...) method already accepts prepare_next,
+        # we do NOT prefetch here to avoid doing the same work twice.
+        if self._voice_output_supports_prepare_next():
+            return
+
         prepare_method = getattr(self.voice_output, "prepare_speech", None)
         if not callable(prepare_method):
             return
@@ -56,19 +63,54 @@ class ResponseStreamerPlayback(ResponseStreamerHelpers):
         if not callable(speak_method):
             return False
 
+        started_at = time.monotonic()
+
         try:
-            return bool(
-                speak_method(
-                    text,
-                    language=chunk.language,
-                    prepare_next=next_hint,
+            if self._voice_output_supports_prepare_next():
+                result = bool(
+                    speak_method(
+                        text,
+                        language=chunk.language,
+                        prepare_next=next_hint,
+                    )
                 )
-            )
+            else:
+                result = bool(speak_method(text, language=chunk.language))
         except TypeError:
             try:
-                return bool(speak_method(text, language=chunk.language))
+                result = bool(speak_method(text, language=chunk.language))
             except TypeError:
-                return bool(speak_method(text))
+                result = bool(speak_method(text))
+        except Exception as error:
+            LOGGER.warning("Response stream speak warning: %s", error)
+            return False
+
+        LOGGER.info(
+            "Response stream speak call finished: kind=%s, chars=%s, success=%s, elapsed=%.3fs",
+            chunk.kind.value,
+            len(text),
+            result,
+            time.monotonic() - started_at,
+        )
+        return result
+
+    def _voice_output_supports_prepare_next(self) -> bool:
+        speak_method = getattr(self.voice_output, "speak", None)
+        if not callable(speak_method):
+            return False
+
+        cached = getattr(self, "_supports_prepare_next_cache", None)
+        if isinstance(cached, bool):
+            return cached
+
+        try:
+            signature = inspect.signature(speak_method)
+            supports = "prepare_next" in signature.parameters
+        except Exception:
+            supports = False
+
+        self._supports_prepare_next_cache = supports
+        return supports
 
     def _should_defer_display_until_after_first(self, chunks: list[AssistantChunk]) -> bool:
         if not chunks:

@@ -8,6 +8,10 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import sounddevice as sd
+from modules.devices.audio.input.shared import (
+    resolve_input_device_selection,
+    resolve_supported_input_sample_rate,
+)
 
 if TYPE_CHECKING:
     from modules.devices.audio.coordination import AssistantAudioCoordinator
@@ -237,13 +241,25 @@ class WhisperCppInputBackend(
         self.audio_queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=24)
         self.audio_coordinator: AssistantAudioCoordinator | None = None
 
-        self.device = self._resolve_input_device(device_index, device_name_contains)
-        input_info = sd.query_devices(self.device, "input")
-        self.device_name = str(input_info["name"])
-        self.device_default_sample_rate = int(
-            round(float(input_info.get("default_samplerate", 16000)))
+        selection = resolve_input_device_selection(
+            device_index=device_index,
+            device_name_contains=device_name_contains,
         )
-        self.sample_rate = self._resolve_supported_sample_rate(sample_rate)
+        self.device = selection.device
+        self.device_name = selection.name
+        self.device_default_sample_rate = selection.default_sample_rate
+        self.device_selection_reason = selection.reason
+        self.available_input_devices_summary = selection.available_inputs_summary
+        self.sample_rate = resolve_supported_input_sample_rate(
+            device=self.device,
+            device_name=self.device_name,
+            channels=self.channels,
+            dtype=self.dtype,
+            preferred_sample_rate=sample_rate,
+            default_sample_rate=self.device_default_sample_rate,
+            logger=self.LOGGER,
+            context_label="WhisperCppInputBackend",
+        )
 
         self.energy_speech_threshold = 0.0070
         self.input_unblock_settle_seconds = 0.20
@@ -258,11 +274,13 @@ class WhisperCppInputBackend(
         self._ensure_runtime_ready()
 
         self.LOGGER.info(
-            "WhisperCppInputBackend prepared: device='%s', sample_rate=%s, language_mode=%s, vad=%s",
+            "WhisperCppInputBackend prepared: device='%s', sample_rate=%s, language_mode=%s, vad=%s, selection_reason='%s', available_inputs='%s'",
             self.device_name,
             self.sample_rate,
             self.language,
             "on" if self.vad_enabled else "off",
+            self.device_selection_reason,
+            self.available_input_devices_summary,
         )
 
     def listen(self, timeout: float = 8.0, debug: bool = False) -> str | None:

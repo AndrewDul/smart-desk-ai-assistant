@@ -13,6 +13,21 @@ from .startup import (
 )
 
 
+def _mark_runtime_state(assistant: CoreAssistant, method_name: str, reason: str) -> None:
+    runtime_product = getattr(assistant, "runtime_product", None)
+    if runtime_product is None:
+        return
+
+    method = getattr(runtime_product, method_name, None)
+    if not callable(method):
+        return
+
+    try:
+        method(reason=reason)
+    except Exception as error:
+        append_log(f"Failed to update runtime state via {method_name}: {error}")
+
+
 def main() -> None:
     assistant = CoreAssistant()
     _run_startup_sequence(assistant)
@@ -47,9 +62,11 @@ def main() -> None:
             append_log(traceback.format_exc())
             print("\nError during assistant shutdown:")
             traceback.print_exc()
+            _mark_runtime_state(assistant, "mark_failed", f"shutdown error: {shutdown_error}")
 
         if shutdown_requested:
             _perform_system_shutdown(assistant)
 
         if fatal_error is not None:
+            _mark_runtime_state(assistant, "mark_failed", f"fatal runtime error: {fatal_error}")
             print("Assistant exited after handling a runtime error.")

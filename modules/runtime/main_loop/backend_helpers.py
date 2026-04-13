@@ -3,7 +3,15 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any
 
-from modules.core.session.voice_session import VOICE_STATE_SPEAKING
+from modules.core.session.voice_session import (
+    VOICE_INPUT_OWNER_ASSISTANT_OUTPUT,
+    VOICE_INPUT_OWNER_NONE,
+    VOICE_INPUT_OWNER_VOICE_INPUT,
+    VOICE_INPUT_OWNER_WAKE_GATE,
+    VOICE_STATE_SHUTDOWN,
+    VOICE_STATE_SPEAKING,
+    VOICE_STATE_THINKING,
+)
 from modules.shared.logging.logger import append_log
 
 from .constants import (
@@ -149,7 +157,20 @@ def _assistant_output_blocks_input(assistant: CoreAssistant) -> bool:
     except Exception:
         return False
 
-    if blocked:
+    set_input_owner = getattr(assistant.voice_session, "set_input_owner", None)
+    if callable(set_input_owner):
+        try:
+            set_input_owner(
+                VOICE_INPUT_OWNER_ASSISTANT_OUTPUT if blocked else VOICE_INPUT_OWNER_NONE
+            )
+        except Exception:
+            pass
+
+    if blocked and assistant.voice_session.state not in {
+        VOICE_STATE_SPEAKING,
+        VOICE_STATE_THINKING,
+        VOICE_STATE_SHUTDOWN,
+    }:
         assistant.voice_session.set_state(VOICE_STATE_SPEAKING, detail="assistant_output_shield")
     return blocked
 
@@ -260,7 +281,21 @@ def _prepare_for_active_capture(assistant: CoreAssistant) -> None:
     _ensure_wake_capture_released(assistant)
     _wait_for_input_ready(assistant)
 
+    set_input_owner = getattr(assistant.voice_session, "set_input_owner", None)
+    if callable(set_input_owner):
+        try:
+            set_input_owner(VOICE_INPUT_OWNER_VOICE_INPUT)
+        except Exception:
+            pass
 
-def _prepare_for_standby_capture(assistant: CoreAssistant, state_flags: dict[str, Any]) -> None:
+
+def _prepare_for_standby_capture(assistant: CoreAssistant, state_flags: Any) -> None:
     del state_flags
     _ensure_voice_capture_released(assistant)
+
+    set_input_owner = getattr(assistant.voice_session, "set_input_owner", None)
+    if callable(set_input_owner):
+        try:
+            set_input_owner(VOICE_INPUT_OWNER_WAKE_GATE)
+        except Exception:
+            pass

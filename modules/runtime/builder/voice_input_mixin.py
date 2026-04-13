@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from modules.runtime.contracts import RuntimeBackendStatus, SpeechInputBackend
+from modules.shared.logging.logger import get_logger
+
+LOGGER = get_logger(__name__)
 
 
 class RuntimeBuilderVoiceInputMixin:
@@ -64,6 +67,12 @@ class RuntimeBuilderVoiceInputMixin:
                     vad_min_speech_ms=int(config.get("vad_min_speech_ms", 120)),
                     vad_min_silence_ms=int(config.get("vad_min_silence_ms", 250)),
                     vad_speech_pad_ms=int(config.get("vad_speech_pad_ms", 180)),
+                    device_discovery_timeout_seconds=float(
+                        config.get("device_discovery_timeout_seconds", 8.0)
+                    ),
+                    device_discovery_poll_seconds=float(
+                        config.get("device_discovery_poll_seconds", 0.35)
+                    ),
                 )
                 return (
                     backend,
@@ -111,6 +120,12 @@ class RuntimeBuilderVoiceInputMixin:
                         15.0,
                     ),
                     cpu_threads=int(config.get("threads", 4)),
+                    device_discovery_timeout_seconds=float(
+                        config.get("device_discovery_timeout_seconds", 8.0)
+                    ),
+                    device_discovery_poll_seconds=float(
+                        config.get("device_discovery_poll_seconds", 0.35)
+                    ),
                 )
                 return (
                     backend,
@@ -135,6 +150,13 @@ class RuntimeBuilderVoiceInputMixin:
             )
 
         except Exception as error:
+            LOGGER.exception(
+                "Voice input backend build failed: engine=%s, device_index=%s, device_name_contains=%s, sample_rate=%s",
+                engine,
+                config.get("device_index"),
+                config.get("device_name_contains"),
+                config.get("sample_rate"),
+            )
             backend = text_input_class()
             return (
                 backend,
@@ -144,7 +166,10 @@ class RuntimeBuilderVoiceInputMixin:
                     selected_backend="text_input",
                     detail=(
                         f"Voice input backend '{engine}' failed. "
-                        f"Falling back to text input. Error: {error}"
+                        f"Falling back to text input. Error: {type(error).__name__}: {error}. "
+                        f"Config: device_index={config.get('device_index')}, "
+                        f"device_name_contains={config.get('device_name_contains')}, "
+                        f"sample_rate={config.get('sample_rate')}"
                     ),
                     fallback_used=True,
                 ),

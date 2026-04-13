@@ -5,7 +5,10 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import sounddevice as sd
+from modules.devices.audio.input.shared import (
+    resolve_input_device_selection,
+    resolve_supported_input_sample_rate,
+)
 
 if TYPE_CHECKING:
     from modules.devices.audio.coordination import AssistantAudioCoordinator
@@ -42,6 +45,7 @@ class OpenWakeWordGateHelpers:
     vad_threshold: float
     _last_blocked_observed_monotonic: float
     _last_detection_monotonic: float
+    _device_default_sample_rate: int
 
     @classmethod
     def _normalize_threshold(cls, raw_value: float) -> float:
@@ -200,37 +204,27 @@ class OpenWakeWordGateHelpers:
         device_index: int | None,
         device_name_contains: str | None,
     ) -> int | str | None:
-        if device_name_contains:
-            wanted = device_name_contains.lower()
-            for index, device in enumerate(sd.query_devices()):
-                if device.get("max_input_channels", 0) < 1:
-                    continue
-                if wanted in str(device["name"]).lower():
-                    return index
-            raise ValueError(f"Input device containing '{device_name_contains}' was not found.")
-        return device_index
+        selection = resolve_input_device_selection(
+            device_index=device_index,
+            device_name_contains=device_name_contains,
+        )
+        self.device_name = selection.name
+        self.available_input_devices_summary = selection.available_inputs_summary
+        self.device_selection_reason = selection.reason
+        self._device_default_sample_rate = selection.default_sample_rate
+        return selection.device
 
     def _resolve_supported_input_sample_rate(self, preferred_rate: int) -> int:
-        candidates = [preferred_rate, self.MODEL_SAMPLE_RATE, 32000, 44100, 48000]
-        seen: set[int] = set()
-
-        for rate in candidates:
-            if not rate or rate in seen:
-                continue
-            seen.add(rate)
-            try:
-                sd.check_input_settings(
-                    device=self.device,
-                    channels=self.channels,
-                    dtype=self.dtype,
-                    samplerate=rate,
-                )
-                return rate
-            except Exception:
-                continue
-
-        raise RuntimeError(
-            f"No supported sample rate found for openWakeWord gate on device '{self.device_name}'."
+        default_rate = getattr(self, "_device_default_sample_rate", self.MODEL_SAMPLE_RATE)
+        return resolve_supported_input_sample_rate(
+            device=self.device,
+            device_name=self.device_name,
+            channels=self.channels,
+            dtype=self.dtype,
+            preferred_sample_rate=preferred_rate,
+            default_sample_rate=default_rate,
+            logger=LOGGER,
+            context_label="OpenWakeWordGate",
         )
 
     def _build_model(

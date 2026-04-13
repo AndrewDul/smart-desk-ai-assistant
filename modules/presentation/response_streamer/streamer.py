@@ -7,6 +7,7 @@ from modules.runtime.contracts import ResponsePlan, clean_response_text
 
 from .display import ResponseStreamerDisplay
 from .helpers import LOGGER
+from .live_stream import ResponseStreamerLiveStream
 from .models import StreamExecutionReport
 from .playback import ResponseStreamerPlayback
 from .preparation import ResponseStreamerPreparation
@@ -16,16 +17,10 @@ class ResponseStreamer(
     ResponseStreamerPreparation,
     ResponseStreamerDisplay,
     ResponseStreamerPlayback,
+    ResponseStreamerLiveStream,
 ):
     """
     Premium low-pause response streamer for NeXa.
-
-    Design goals:
-    - minimize audible latency before first useful speech
-    - reduce long pauses between spoken chunks
-    - keep OLED/LCD output short, stable, and legible
-    - prewarm likely next TTS chunk when possible
-    - remain interruption-aware throughout the whole response flow
     """
 
     def __init__(
@@ -47,16 +42,19 @@ class ResponseStreamer(
         self.max_display_chars_per_line = max(8, int(max_display_chars_per_line))
         self.interrupt_requested = interrupt_requested
 
-        self.short_ack_max_chars = 28
-        self.short_follow_up_merge_max_chars = 46
-        self.action_merge_target_chars = 150
-        self.dialogue_merge_target_chars = 210
-        self.dialogue_max_chunk_chars = 260
-        self.prefetch_max_chars = 220
-        self.fast_lead_min_chars = 10
-        self.fast_lead_max_chars = 44
+        self.short_ack_max_chars = 24
+        self.short_follow_up_merge_max_chars = 34
+        self.action_merge_target_chars = 132
+        self.dialogue_merge_target_chars = 168
+        self.dialogue_max_chunk_chars = 210
+        self.prefetch_max_chars = 150
+        self.fast_lead_min_chars = 8
+        self.fast_lead_max_chars = 34
 
     def execute(self, plan: ResponsePlan) -> StreamExecutionReport:
+        if self._has_live_chunk_source(plan):
+            return self._execute_live_stream(plan)
+
         prepared_chunks = self._prepare_chunks(plan)
         display_title, display_lines = self._resolve_display_content(plan, prepared_chunks)
 
@@ -72,6 +70,7 @@ class ResponseStreamer(
         spoken_count = 0
         full_text_parts: list[str] = []
         response_started_at = time.monotonic()
+        first_audio_latency_s: float | None = None
 
         defer_display_until_after_first = self._should_defer_display_until_after_first(prepared_chunks)
         display_shown = False
@@ -111,6 +110,9 @@ class ResponseStreamer(
             spoken_count += 1
             full_text_parts.append(text)
 
+            if first_audio_latency_s is None:
+                first_audio_latency_s = time.monotonic() - response_started_at
+
             if defer_display_until_after_first and not display_shown:
                 display_shown = self._show_display_block(display_title, display_lines)
 
@@ -142,21 +144,35 @@ class ResponseStreamer(
 
         LOGGER.info(
             "Response plan executed: turn_id=%s, route_kind=%s, stream_mode=%s, "
-            "spoken_chunks=%s, chunk_kinds=%s, display_deferred=%s, total_elapsed=%.3fs",
+            "spoken_chunks=%s, chunk_kinds=%s, display_deferred=%s, "
+            "first_audio_latency=%.3fs, total_elapsed=%.3fs",
             plan.turn_id,
             self._route_kind_value(plan),
             self._stream_mode_value(plan),
             spoken_count,
             [chunk.kind.value for chunk in prepared_chunks],
             defer_display_until_after_first,
+            first_audio_latency_s if first_audio_latency_s is not None else -1.0,
             total_elapsed,
         )
 
+        finished_at = time.monotonic()
         return StreamExecutionReport(
             chunks_spoken=spoken_count,
             full_text=full_text,
             display_title=display_title,
             display_lines=display_lines,
+            first_audio_latency_ms=(first_audio_latency_s or 0.0) * 1000.0,
+            total_elapsed_ms=total_elapsed * 1000.0,
+            started_at_monotonic=response_started_at,
+            first_audio_started_at_monotonic=(
+                response_started_at + first_audio_latency_s
+                if first_audio_latency_s is not None
+                else 0.0
+            ),
+            finished_at_monotonic=finished_at,
+            chunk_kinds=[chunk.kind.value for chunk in prepared_chunks],
+            live_streaming=False,
         )
 
     def preview_display(self, plan: ResponsePlan) -> tuple[str, list[str]]:

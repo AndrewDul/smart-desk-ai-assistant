@@ -127,14 +127,73 @@ class CoreAssistantHelpersMixin:
         if close_active_window:
             self.voice_session.close_active_window()
 
+    def _runtime_status_snapshot(self) -> dict[str, Any]:
+        runtime_product = getattr(self, "runtime_product", None)
+        if runtime_product is None:
+            return {}
+
+        snapshot_method = getattr(runtime_product, "snapshot", None)
+        if not callable(snapshot_method):
+            return {}
+
+        try:
+            snapshot = snapshot_method()
+        except Exception as error:
+            log_exception("Failed to read runtime product snapshot", error)
+            return {}
+
+        return dict(snapshot) if isinstance(snapshot, dict) else {}
+
+    def _runtime_overlay_lines(self) -> list[str]:
+        snapshot = self._runtime_status_snapshot()
+        lifecycle_state = str(
+            snapshot.get("lifecycle_state", "booting") or "booting"
+        ).strip().lower()
+
+        if lifecycle_state == "ready":
+            status_line = "runtime ready"
+        elif lifecycle_state in {"degraded", "failed"}:
+            status_line = "runtime degraded"
+        elif lifecycle_state == "shutting_down":
+            status_line = "runtime stopping"
+        else:
+            status_line = "runtime booting"
+
+        message = str(snapshot.get("status_message", "") or "").strip()
+        if message:
+            compact = " ".join(message.split())
+            if compact:
+                status_line = compact[:20].lower()
+
+        return [
+            "starting up...",
+            status_line,
+        ]
+
     def _startup_greeting(self, *, report_ok: bool) -> str:
-        if report_ok:
+        snapshot = self._runtime_status_snapshot()
+        lifecycle_state = str(snapshot.get("lifecycle_state", "") or "").strip().lower()
+        blockers = [
+            str(item).strip()
+            for item in snapshot.get("blockers", [])
+            if str(item).strip()
+        ]
+        degraded = self._degraded_component_names(snapshot=snapshot)
+
+        if lifecycle_state == "ready" and report_ok:
             return (
                 f"Hello. I am {self.ASSISTANT_NAME}. "
                 "Startup checks look good. Say NeXa when you need me."
             )
 
-        degraded = self._degraded_component_names()
+        if blockers:
+            blocker_text = ", ".join(blockers[:3])
+            return (
+                f"Hello. I am {self.ASSISTANT_NAME}. "
+                f"Some required services need attention: {blocker_text}. "
+                "I will start in a limited mode."
+            )
+
         if degraded:
             degraded_text = ", ".join(degraded[:3])
             return (
@@ -143,16 +202,40 @@ class CoreAssistantHelpersMixin:
                 "I am still ready to help."
             )
 
+        if lifecycle_state == "degraded":
+            return (
+                f"Hello. I am {self.ASSISTANT_NAME}. "
+                "Startup checks completed with some limitations. "
+                "I am still ready to help."
+            )
+
         return (
             f"Hello. I am {self.ASSISTANT_NAME}. "
             "Startup checks completed. I am ready to help."
         )
 
-    def _degraded_component_names(self) -> list[str]:
+    def _degraded_component_names(self, *, snapshot: dict[str, Any] | None = None) -> list[str]:
+        safe_snapshot = snapshot if isinstance(snapshot, dict) else self._runtime_status_snapshot()
+        services = safe_snapshot.get("services", {})
+
+        if isinstance(services, dict):
+            degraded_names: list[str] = []
+            for name, payload in services.items():
+                if not isinstance(payload, dict):
+                    continue
+
+                state = str(payload.get("state", "") or "").strip().lower()
+                if state in {"degraded", "failed"}:
+                    degraded_names.append(str(name))
+
+            if degraded_names:
+                return degraded_names
+
         return [
             name
             for name, status in self.backend_statuses.items()
-            if not bool(getattr(status, "ok", False))
+            if (not bool(getattr(status, "ok", False)))
+            or bool(getattr(status, "fallback_used", False))
         ]
 
     def _minutes_text(self, minutes: float | None, language: str) -> str:
