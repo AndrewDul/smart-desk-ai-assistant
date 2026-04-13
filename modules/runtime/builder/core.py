@@ -98,6 +98,10 @@ class RuntimeBuilder(
             "pan_tilt": pan_tilt_status,
             "mobility": mobility_status,
         }
+        provider_inventory = {
+            name: status.to_snapshot()
+            for name, status in backend_statuses.items()
+        }
 
         for status in backend_statuses.values():
             self._log_backend_status(status)
@@ -122,6 +126,7 @@ class RuntimeBuilder(
                 "mobility_backend": mobility,
                 "wake_backend": wake_gate,
                 "single_capture_mode": self._single_capture_mode_enabled(voice_input_cfg),
+                "provider_inventory": provider_inventory,
             },
         )
 

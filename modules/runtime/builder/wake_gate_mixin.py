@@ -27,6 +27,9 @@ class RuntimeBuilderWakeGateMixin:
                         component="wake_gate",
                         ok=True,
                         selected_backend="text_input",
+                        requested_backend="text_input",
+                        runtime_mode="developer_text_input",
+                        capabilities=("listen_for_wake_phrase",),
                         detail="Wake gate handled by text input backend.",
                     ),
                 )
@@ -38,6 +41,9 @@ class RuntimeBuilderWakeGateMixin:
                     component="wake_gate",
                     ok=True,
                     selected_backend="disabled",
+                    requested_backend="disabled",
+                    runtime_mode="disabled",
+                    capabilities=(),
                     detail="Wake gate disabled because voice input is disabled.",
                 ),
             )
@@ -50,6 +56,9 @@ class RuntimeBuilderWakeGateMixin:
                     component="wake_gate",
                     ok=True,
                     selected_backend="disabled",
+                    requested_backend=engine,
+                    runtime_mode="disabled",
+                    capabilities=(),
                     detail="Wake gate disabled in config.",
                 ),
             )
@@ -63,6 +72,9 @@ class RuntimeBuilderWakeGateMixin:
                     component="wake_gate",
                     ok=True,
                     selected_backend="compatibility_voice_input",
+                    requested_backend=engine,
+                    runtime_mode="single_capture_compatibility",
+                    capabilities=("listen_for_wake_phrase",),
                     detail="Wake gate reuses the main voice input backend in single-capture mode.",
                 ),
             )
@@ -100,6 +112,9 @@ class RuntimeBuilderWakeGateMixin:
                         component="wake_gate",
                         ok=True,
                         selected_backend="openwakeword",
+                        requested_backend="openwakeword",
+                        runtime_mode="dedicated_wake_gate",
+                        capabilities=("listen_for_wake_phrase",),
                         detail="OpenWakeWord wake gate loaded successfully.",
                     ),
                 )
@@ -111,6 +126,9 @@ class RuntimeBuilderWakeGateMixin:
                     component="wake_gate",
                     ok=True,
                     selected_backend="compatibility_voice_input",
+                    requested_backend=engine,
+                    runtime_mode="single_capture_compatibility",
+                    capabilities=("listen_for_wake_phrase",),
                     detail=(
                         f"Unsupported wake engine '{engine}'. "
                         "Using compatibility wake through the main voice input backend."
@@ -128,6 +146,9 @@ class RuntimeBuilderWakeGateMixin:
                         component="wake_gate",
                         ok=True,
                         selected_backend="compatibility_voice_input",
+                        requested_backend=engine,
+                        runtime_mode="single_capture_compatibility",
+                        capabilities=("listen_for_wake_phrase",),
                         detail=(
                             f"Wake gate backend '{engine}' failed. "
                             "Using compatibility wake through the main voice input backend. "
@@ -143,6 +164,9 @@ class RuntimeBuilderWakeGateMixin:
                     component="wake_gate",
                     ok=False,
                     selected_backend="disabled",
+                    requested_backend=engine,
+                    runtime_mode="disabled",
+                    capabilities=(),
                     detail=(
                         f"Wake gate backend '{engine}' failed and voice input is unavailable. "
                         f"Error: {error}"

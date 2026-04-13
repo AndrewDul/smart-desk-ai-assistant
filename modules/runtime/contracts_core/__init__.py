@@ -1,6 +1,13 @@
 from .context import TurnContext, VisionObservation
 from .enums import ChunkKind, InputSource, RouteKind, StreamMode
-from .protocols import DisplayBackend, SpeechInputBackend, SpeechOutputBackend, WakeGateBackend
+from .protocols import (
+    DisplayBackend,
+    RichSpeechInputBackend,
+    RichWakeGateBackend,
+    SpeechInputBackend,
+    SpeechOutputBackend,
+    WakeGateBackend,
+)
 from .response import AssistantChunk, ResponsePlan
 from .runtime import RuntimeBackendStatus, RuntimeServices
 from .text import (
@@ -15,7 +22,9 @@ from .understanding import (
     RouteDecision,
     ToolInvocation,
     ToolResult,
+    TranscriptRequest,
     TranscriptResult,
+    WakeDetectionResult,
 )
 
 __all__ = [
@@ -26,6 +35,8 @@ __all__ = [
     "InputSource",
     "IntentMatch",
     "ResponsePlan",
+    "RichSpeechInputBackend",
+    "RichWakeGateBackend",
     "RouteDecision",
     "RouteKind",
     "RuntimeBackendStatus",
@@ -35,9 +46,11 @@ __all__ = [
     "StreamMode",
     "ToolInvocation",
     "ToolResult",
+    "TranscriptRequest",
     "TranscriptResult",
     "TurnContext",
     "VisionObservation",
+    "WakeDetectionResult",
     "WakeGateBackend",
     "chunk_text_for_streaming",
     "clean_response_text",

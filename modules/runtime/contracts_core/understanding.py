@@ -9,6 +9,17 @@ from .text import normalize_text
 
 
 @dataclass(slots=True)
+class TranscriptRequest:
+    """Structured request passed into the speech recognition layer."""
+
+    timeout_seconds: float = 8.0
+    debug: bool = False
+    source: InputSource = InputSource.VOICE
+    mode: str = "command"
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
 class TranscriptResult:
     """Final or partial text produced by the speech layer."""
 
@@ -26,8 +37,37 @@ class TranscriptResult:
         return max(0.0, self.ended_at - self.started_at)
 
     @property
+    def latency_ms(self) -> float:
+        return self.duration_seconds * 1000.0
+
+    @property
     def normalized_text(self) -> str:
         return normalize_text(self.text)
+
+
+@dataclass(slots=True)
+class WakeDetectionResult:
+    """Normalized wake-word detection event."""
+
+    phrase: str
+    accepted: bool = True
+    confidence: float = 1.0
+    source: InputSource = InputSource.VOICE
+    started_at: float = field(default_factory=time.monotonic)
+    ended_at: float = field(default_factory=time.monotonic)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def duration_seconds(self) -> float:
+        return max(0.0, self.ended_at - self.started_at)
+
+    @property
+    def latency_ms(self) -> float:
+        return self.duration_seconds * 1000.0
+
+    @property
+    def normalized_phrase(self) -> str:
+        return normalize_text(self.phrase)
 
 
 @dataclass(slots=True)
@@ -112,5 +152,7 @@ __all__ = [
     "RouteDecision",
     "ToolInvocation",
     "ToolResult",
+    "TranscriptRequest",
     "TranscriptResult",
+    "WakeDetectionResult",
 ]

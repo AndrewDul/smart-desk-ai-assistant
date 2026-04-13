@@ -28,6 +28,9 @@ class RuntimeBuilderVoiceInputMixin:
                     component="voice_input",
                     ok=True,
                     selected_backend="text_input",
+                    requested_backend="disabled",
+                    runtime_mode="developer_text_input",
+                    capabilities=("text_input",),
                     detail="Voice input disabled in config. Using developer text input.",
                 ),
             )
@@ -80,6 +83,9 @@ class RuntimeBuilderVoiceInputMixin:
                         component="voice_input",
                         ok=True,
                         selected_backend="faster_whisper",
+                        requested_backend="faster_whisper",
+                        runtime_mode="speech_to_text",
+                        capabilities=("listen", "listen_once", "listen_for_command", "listen_for_wake_phrase"),
                         detail="Faster-Whisper voice input loaded successfully.",
                     ),
                 )
@@ -133,6 +139,9 @@ class RuntimeBuilderVoiceInputMixin:
                         component="voice_input",
                         ok=True,
                         selected_backend="whisper_cpp",
+                        requested_backend="whisper_cpp",
+                        runtime_mode="speech_to_text",
+                        capabilities=("listen", "listen_once", "listen_for_command"),
                         detail="whisper.cpp voice input loaded successfully.",
                     ),
                 )
@@ -144,6 +153,9 @@ class RuntimeBuilderVoiceInputMixin:
                     component="voice_input",
                     ok=False,
                     selected_backend="text_input",
+                    requested_backend=engine,
+                    runtime_mode="developer_text_input",
+                    capabilities=("text_input",),
                     detail=f"Unsupported voice input engine '{engine}'. Using text input instead.",
                     fallback_used=True,
                 ),
@@ -164,6 +176,9 @@ class RuntimeBuilderVoiceInputMixin:
                     component="voice_input",
                     ok=False,
                     selected_backend="text_input",
+                    requested_backend=engine,
+                    runtime_mode="developer_text_input",
+                    capabilities=("text_input",),
                     detail=(
                         f"Voice input backend '{engine}' failed. "
                         f"Falling back to text input. Error: {type(error).__name__}: {error}. "

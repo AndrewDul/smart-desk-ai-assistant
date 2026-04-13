@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
+from .understanding import TranscriptRequest, TranscriptResult, WakeDetectionResult
+
 
 @runtime_checkable
 class SpeechInputBackend(Protocol):
@@ -18,6 +20,14 @@ class SpeechInputBackend(Protocol):
 
 
 @runtime_checkable
+class RichSpeechInputBackend(SpeechInputBackend, Protocol):
+    """Optional richer STT contract used by the final NeXa 2.0 pipeline."""
+
+    def transcribe(self, request: TranscriptRequest) -> TranscriptResult | None:
+        ...
+
+
+@runtime_checkable
 class WakeGateBackend(Protocol):
     """Contract implemented by wake-word gates."""
 
@@ -30,6 +40,20 @@ class WakeGateBackend(Protocol):
         ...
 
     def close(self) -> None:
+        ...
+
+
+@runtime_checkable
+class RichWakeGateBackend(WakeGateBackend, Protocol):
+    """Optional richer wake contract used by the final NeXa 2.0 pipeline."""
+
+    def detect_wake(
+        self,
+        *,
+        timeout_seconds: float = 2.0,
+        debug: bool = False,
+        ignore_audio_block: bool = False,
+    ) -> WakeDetectionResult | None:
         ...
 
 
@@ -84,6 +108,8 @@ class DisplayBackend(Protocol):
 
 __all__ = [
     "DisplayBackend",
+    "RichSpeechInputBackend",
+    "RichWakeGateBackend",
     "SpeechInputBackend",
     "SpeechOutputBackend",
     "WakeGateBackend",
