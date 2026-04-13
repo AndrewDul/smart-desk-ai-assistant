@@ -16,18 +16,30 @@ class LocalLLMAvailabilityMixin:
     def is_available(self) -> bool:
         if not self.enabled:
             self._last_availability_error = "Local LLM is disabled in settings."
+            self._record_backend_availability_result(
+                False,
+                error=self._last_availability_error,
+            )
             self._log_availability_once(False)
             return False
 
         if self.runner in self._SERVER_RUNNERS:
             available = self._check_server_available()
             self._last_availability_error = self._server_availability_error
+            self._record_backend_availability_result(
+                available,
+                error=self._last_availability_error or self._server_availability_error,
+            )
             return available
 
         if self.policy.require_persistent_backend and not self.policy.allow_cli_fallback:
             self._last_availability_error = (
                 "Persistent LLM service is required, but the configured runner is not a service. "
                 "Use hailo-ollama, ollama-server, llama-server, server, or openai-server."
+            )
+            self._record_backend_availability_result(
+                False,
+                error=self._last_availability_error,
             )
             self._log_availability_once(False)
             return False
@@ -38,6 +50,10 @@ class LocalLLMAvailabilityMixin:
                 "Could not resolve local LLM command path. "
                 "Check llm.command in settings."
             )
+            self._record_backend_availability_result(
+                False,
+                error=self._last_availability_error,
+            )
             self._log_availability_once(False)
             return False
 
@@ -47,17 +63,26 @@ class LocalLLMAvailabilityMixin:
                 "Could not resolve local LLM model path. "
                 "Check llm.model_path in settings."
             )
+            self._record_backend_availability_result(
+                False,
+                error=self._last_availability_error,
+            )
             self._log_availability_once(False)
             return False
 
         self._last_availability_error = ""
         self._server_availability_error = ""
+        self._record_backend_availability_result(True, error="")
         self._log_availability_once(True)
         return True
 
     def _check_server_available(self) -> bool:
         now = time.monotonic()
-        if (now - self._server_availability_checked_at) <= self._server_availability_cache_seconds:
+        cache_seconds = max(
+            float(self._server_availability_cache_seconds or 0.0),
+            0.0,
+        )
+        if (now - self._server_availability_checked_at) <= cache_seconds:
             return self._server_availability_result
 
         base_url = self._normalized_server_base_url()
@@ -81,7 +106,15 @@ class LocalLLMAvailabilityMixin:
         if port is None:
             port = 443 if parsed.scheme == "https" else 80
 
-        if not self._tcp_port_open(host=host, port=port, timeout_seconds=self.server_connect_timeout_seconds):
+        connect_timeout = max(
+            float(self.policy.healthcheck_timeout_seconds or self.server_connect_timeout_seconds),
+            0.5,
+        )
+        if not self._tcp_port_open(
+            host=host,
+            port=port,
+            timeout_seconds=connect_timeout,
+        ):
             self._server_availability_error = (
                 f"Local LLM server port is not reachable: {host}:{port}"
             )
@@ -153,9 +186,13 @@ class LocalLLMAvailabilityMixin:
                 headers=self._server_headers(json_body=False),
             )
             try:
+                timeout_seconds = max(
+                    float(self.policy.healthcheck_timeout_seconds or self.server_connect_timeout_seconds),
+                    0.5,
+                )
                 with urllib.request.urlopen(
                     request,
-                    timeout=self.server_connect_timeout_seconds,
+                    timeout=timeout_seconds,
                 ) as response:
                     status_code = int(getattr(response, "status", 200))
                     if 200 <= status_code < 500:
@@ -182,7 +219,10 @@ class LocalLLMAvailabilityMixin:
             return False
 
         try:
-            with socket.create_connection((host, int(port)), timeout=max(timeout_seconds, 0.5)):
+            with socket.create_connection(
+                (host, int(port)),
+                timeout=max(timeout_seconds, 0.5),
+            ):
                 return True
         except Exception:
             return False

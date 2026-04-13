@@ -331,6 +331,7 @@ class RuntimeProductService:
     ) -> ProductServiceStatus | None:
         llm_cfg = self._cfg("llm")
         runner = str(llm_cfg.get("runner", "disabled") or "disabled").strip() or "disabled"
+        default_capabilities = ["streaming", "healthcheck", "warmup", "auto_recovery"]
 
         if not bool(llm_cfg.get("enabled", False)):
             return ProductServiceStatus(
@@ -340,12 +341,20 @@ class RuntimeProductService:
                 detail="disabled by config",
                 required=required,
                 recoverable=False,
+                fallback_used=False,
                 requested_backend=runner,
-                runtime_mode="disabled",
-                capabilities=[],
+                runtime_mode="persistent_service",
+                capabilities=default_capabilities,
                 primary=False,
                 compatibility_mode=False,
-                metadata={},
+                metadata={
+                    "health": {
+                        "enabled": False,
+                        "runner": runner,
+                        "state": "disabled",
+                        "available": False,
+                    }
+                },
                 last_checked_iso=self._now_iso(),
             )
 
@@ -358,17 +367,26 @@ class RuntimeProductService:
                 detail="dialogue layer has no local llm service",
                 required=required,
                 recoverable=False,
+                fallback_used=False,
                 requested_backend=runner,
                 runtime_mode="persistent_service",
-                capabilities=["streaming", "healthcheck"],
+                capabilities=default_capabilities,
                 primary=False,
                 compatibility_mode=False,
-                metadata={},
+                metadata={
+                    "health": {
+                        "enabled": True,
+                        "runner": runner,
+                        "state": "failed",
+                        "available": False,
+                        "health_reason": "dialogue layer has no local llm service",
+                    }
+                },
                 last_checked_iso=self._now_iso(),
             )
 
         describe_backend = getattr(local_llm, "describe_backend", None)
-        backend_info = {}
+        backend_info: dict[str, Any] = {}
         if callable(describe_backend):
             try:
                 payload = describe_backend()
@@ -377,66 +395,86 @@ class RuntimeProductService:
             except Exception:
                 backend_info = {}
 
-        backend_name = str(backend_info.get("runner", runner) or runner).strip() or runner
+        ensure_backend_ready = getattr(local_llm, "ensure_backend_ready", None)
+        health_snapshot: dict[str, Any] = {}
+        if callable(ensure_backend_ready):
+            try:
+                payload = ensure_backend_ready(auto_recover=auto_recover)
+                if isinstance(payload, dict):
+                    health_snapshot = dict(payload)
+            except Exception as error:
+                health_snapshot = {
+                    "enabled": True,
+                    "runner": runner,
+                    "state": "failed",
+                    "available": False,
+                    "health_reason": str(error),
+                    "last_error": str(error),
+                    "recovery_attempted": False,
+                    "recovery_ok": False,
+                    "recovery_error": str(error),
+                }
+        else:
+            is_available = getattr(local_llm, "is_available", None)
+            available = False
+            error_text = ""
+            if callable(is_available):
+                try:
+                    available = bool(is_available())
+                except Exception as error:
+                    available = False
+                    error_text = str(error)
+
+            health_snapshot = {
+                "enabled": True,
+                "runner": runner,
+                "state": "ready" if available else "failed",
+                "available": available,
+                "health_reason": "" if available else (error_text or "local llm backend unavailable"),
+                "last_error": error_text,
+                "recovery_attempted": False,
+                "recovery_ok": False,
+                "recovery_error": "",
+                "capabilities": default_capabilities,
+            }
+
+        backend_name = str(
+            backend_info.get("runner")
+            or health_snapshot.get("runner")
+            or runner
+        ).strip() or runner
+
+        available = bool(health_snapshot.get("available", False))
+        state = str(
+            health_snapshot.get("state", "ready" if available else "failed")
+        ).strip().lower() or ("ready" if available else "failed")
+
         detail = str(
-            backend_info.get("last_availability_error")
+            health_snapshot.get("health_reason")
+            or health_snapshot.get("last_error")
+            or backend_info.get("last_availability_error")
             or backend_info.get("server_availability_error")
             or backend_info.get("last_generation_error")
             or ""
         ).strip()
 
-        recovery_attempted = False
-        recovery_ok = False
-        recovery_error = ""
-
-        is_available = getattr(local_llm, "is_available", None)
-        available = False
-        if callable(is_available):
-            try:
-                available = bool(is_available())
-            except Exception as error:
-                available = False
-                recovery_error = str(error)
-
-        if not available and auto_recover and "llm" in self.auto_recovery_components:
-            recovery_attempted = True
-
-            reset_backend_cache = getattr(local_llm, "reset_backend_cache", None)
-            if callable(reset_backend_cache):
-                try:
-                    reset_backend_cache()
-                except Exception as error:
-                    recovery_error = str(error)
-
-            warmup_backend = getattr(local_llm, "warmup_backend_if_enabled", None)
-            try:
-                if callable(warmup_backend):
-                    available = bool(warmup_backend())
-                elif callable(is_available):
-                    available = bool(is_available())
-            except Exception as error:
-                available = False
-                recovery_error = str(error)
-
-            recovery_ok = available
-
-        if available:
+        if not detail and state == "ready":
             detail = f"{backend_name} ready"
-            if recovery_attempted and recovery_ok:
-                detail += " after auto-recovery"
-            state = "ready"
-        else:
-            if not detail:
-                detail = recovery_error or "local llm backend unavailable"
-            state = "failed"
+        elif not detail:
+            detail = "local llm backend unavailable"
 
-        llm_capabilities = [
+        capabilities = [
             str(item).strip()
-            for item in backend_info.get("capabilities", []) or []
+            for item in (backend_info.get("capabilities") or health_snapshot.get("capabilities") or default_capabilities)
             if str(item).strip()
         ]
-        if not llm_capabilities:
-            llm_capabilities = ["streaming", "healthcheck"]
+        if not capabilities:
+            capabilities = list(default_capabilities)
+
+        recovery_attempted = bool(health_snapshot.get("recovery_attempted", False))
+        recovery_ok = bool(health_snapshot.get("recovery_ok", False))
+        recovery_error = str(health_snapshot.get("recovery_error", "") or "").strip()
+        recoverable = bool(health_snapshot.get("recovery_allowed", auto_recover))
 
         return ProductServiceStatus(
             component="llm",
@@ -444,14 +482,17 @@ class RuntimeProductService:
             state=state,
             detail=detail,
             required=required,
-            recoverable=True,
+            recoverable=recoverable,
             fallback_used=False,
             requested_backend=runner,
             runtime_mode="persistent_service",
-            capabilities=llm_capabilities,
-            primary=available and backend_name == runner,
+            capabilities=capabilities,
+            primary=available and state == "ready" and backend_name == runner,
             compatibility_mode=False,
-            metadata=dict(backend_info),
+            metadata={
+                **backend_info,
+                "health": health_snapshot,
+            },
             last_checked_iso=self._now_iso(),
             recovery_attempted=recovery_attempted,
             recovery_ok=recovery_ok,

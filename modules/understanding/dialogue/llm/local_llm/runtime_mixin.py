@@ -165,9 +165,15 @@ class LocalLLMRuntimeMixin:
         if not self.enabled:
             raise ValueError("Local LLM is disabled in settings.")
 
-        if not self.is_available():
+        backend_snapshot = self.ensure_backend_ready(auto_recover=False)
+        if not bool(backend_snapshot.get("available", False)):
             raise RuntimeError(
-                self._last_availability_error or "Local LLM backend is unavailable."
+                str(
+                    backend_snapshot.get("last_error")
+                    or backend_snapshot.get("health_reason")
+                    or self._last_availability_error
+                    or "Local LLM backend is unavailable."
+                ).strip()
             )
 
         llm_context = self._coerce_context(context, user_text=safe_text)

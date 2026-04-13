@@ -10,6 +10,7 @@ from modules.shared.persistence.paths import APP_ROOT
 
 from .availability_mixin import LocalLLMAvailabilityMixin
 from .cleanup_mixin import LocalLLMCleanupMixin
+from .health_mixin import LocalLLMHealthMixin
 from .models import LocalLLMBackendPolicy, LocalLLMProfile
 from .prompting_mixin import LocalLLMPromptingMixin
 from .runtime_mixin import LocalLLMRuntimeMixin
@@ -25,6 +26,7 @@ class LocalLLMService(
     LocalLLMCleanupMixin,
     LocalLLMPromptingMixin,
     LocalLLMAvailabilityMixin,
+    LocalLLMHealthMixin,
     LocalLLMRuntimeMixin,
     LocalLLMStreamingMixin,
 ):
@@ -188,6 +190,19 @@ class LocalLLMService(
                 float(llm_cfg.get("startup_warmup_timeout_seconds", 8.0)),
                 1.0,
             ),
+            healthcheck_timeout_seconds=max(
+                float(llm_cfg.get("healthcheck_timeout_seconds", self.server_connect_timeout_seconds)),
+                0.5,
+            ),
+            auto_recovery_enabled=bool(llm_cfg.get("auto_recovery_enabled", True)),
+            auto_recovery_cooldown_seconds=max(
+                float(llm_cfg.get("auto_recovery_cooldown_seconds", 20.0)),
+                0.0,
+            ),
+            max_auto_recovery_attempts=max(
+                int(llm_cfg.get("max_auto_recovery_attempts", 3)),
+                0,
+            ),
         )
 
         self.project_root = APP_ROOT
@@ -225,6 +240,16 @@ class LocalLLMService(
 
         self._last_warmup_ok = False
         self._last_warmup_error = ""
+
+        self._backend_available = False
+        self._backend_last_checked_at = 0.0
+        self._backend_last_success_at = 0.0
+        self._backend_consecutive_failures = 0
+        self._backend_last_error = ""
+        self._backend_last_recovery_at = 0.0
+        self._last_recovery_ok = False
+        self._last_recovery_error = ""
+        self._recovery_attempts_since_success = 0
 
         self._coerce_server_defaults()
 
@@ -282,6 +307,11 @@ class LocalLLMService(
         else:
             self._last_generation_latency_ms = 0.0
 
+        if ok:
+            self._record_backend_availability_result(True, error="")
+        elif self._last_generation_error:
+            self._backend_last_error = self._last_generation_error
+
     def reset_backend_cache(self) -> None:
         self._resolved_command_path = None
         self._resolved_model_path = None
@@ -294,112 +324,41 @@ class LocalLLMService(
         self._server_model_catalog_checked_at = 0.0
         self._server_model_catalog = []
         self._last_server_model_resolution_warning = ""
-        self._server_model_catalog_checked_at = 0.0
-        self._server_model_catalog = []
-        self._last_server_model_resolution_warning = ""
-        self._server_model_catalog_checked_at = 0.0
-        self._server_model_catalog = []
-        self._last_server_model_resolution_warning = ""
+
+        self._backend_available = False
+        self._backend_last_checked_at = 0.0
+        self._backend_last_success_at = 0.0
+        self._backend_consecutive_failures = 0
+        self._backend_last_error = ""
+
         self._last_warmup_ok = False
         self._last_warmup_error = ""
-
 
     def warmup_backend_if_enabled(self) -> bool:
         self._last_warmup_ok = False
         self._last_warmup_error = ""
 
         if not self.enabled:
-            self._last_warmup_ok = True
+            self._record_warmup_result(ok=False, error="Local LLM is disabled.")
             return False
 
         if not self.is_available():
-            self._last_warmup_error = self._last_availability_error or self._server_availability_error
+            error_text = self._last_availability_error or self._server_availability_error
+            self._record_warmup_result(ok=False, error=error_text)
             return False
 
         if not self.policy.startup_warmup:
-            self._last_warmup_ok = True
+            self._record_warmup_result(ok=True, error="")
             return True
 
         if self.runner not in self._SERVER_RUNNERS:
-            self._last_warmup_ok = True
+            self._record_warmup_result(ok=True, error="")
             return True
 
         base_url = self._normalized_server_base_url()
         if not base_url:
-            self._last_warmup_error = "Local LLM server URL is empty."
-            return False
-
-        profile = LocalLLMProfile(
-            prompt_chars=48,
-            n_predict=8,
-            timeout_seconds=max(1.0, float(self.policy.startup_warmup_timeout_seconds)),
-            temperature=0.1,
-            top_p=0.9,
-            top_k=20,
-            repeat_penalty=1.0,
-            max_sentences=1,
-            style_hint="warmup",
-        )
-
-        try:
-            self._fetch_server_model_names(force_refresh=True)
-
-            endpoints = self._server_request_candidates(
-                base_url=base_url,
-                system_prompt="You are NeXa. Reply with exactly one word: ready.",
-                user_prompt="ready",
-                profile=profile,
-                stream=False,
-            )
-            if not endpoints:
-                self._last_warmup_error = "No warmup endpoints available for local LLM service."
-                return False
-
-            response_text = self._post_json(
-                url=endpoints[0]["url"],
-                payload=endpoints[0]["payload"],
-                timeout_seconds=profile.timeout_seconds,
-            )
-            extracted = self._extract_server_response_text(response_text)
-            if not extracted.strip():
-                self._last_warmup_error = "Warmup request returned empty text."
-                return False
-
-            self._last_warmup_ok = True
-            self.LOGGER.info(
-                "Local LLM warmup completed: runner=%s model=%s",
-                self.runner,
-                self._resolved_server_model_name(),
-            )
-            return True
-        except Exception as error:
-            self._last_warmup_error = str(error)
-            self.LOGGER.warning("Local LLM warmup failed: %s", error)
-            return False
-        
-    def warmup_backend_if_enabled(self) -> bool:
-        self._last_warmup_ok = False
-        self._last_warmup_error = ""
-
-        if not self.enabled:
-            self._last_warmup_ok = True
-            return False
-
-        if not self.is_available():
-            self._last_warmup_error = self._last_availability_error or self._server_availability_error
-            return False
-
-        if not self.policy.startup_warmup:
-            self._last_warmup_ok = True
-            return True
-
-        if self.runner not in self._SERVER_RUNNERS:
-            self._last_warmup_ok = True
-            return True
-
-        base_url = self._normalized_server_base_url()
-        if not base_url:
-            self._last_warmup_error = "Local LLM server URL is empty."
+            error_text = "Local LLM server URL is empty."
+            self._record_warmup_result(ok=False, error=error_text)
             return False
 
         profile = LocalLLMProfile(
@@ -425,7 +384,8 @@ class LocalLLMService(
                 stream=False,
             )
             if not endpoints:
-                self._last_warmup_error = "No warmup endpoints available for local LLM service."
+                error_text = "No warmup endpoints available for local LLM service."
+                self._record_warmup_result(ok=False, error=error_text)
                 return False
 
             response_text = self._post_json(
@@ -435,10 +395,11 @@ class LocalLLMService(
             )
             extracted = self._extract_server_response_text(response_text)
             if not extracted.strip():
-                self._last_warmup_error = "Warmup request returned empty text."
+                error_text = "Warmup request returned empty text."
+                self._record_warmup_result(ok=False, error=error_text)
                 return False
 
-            self._last_warmup_ok = True
+            self._record_warmup_result(ok=True, error="")
             self.LOGGER.info(
                 "Local LLM warmup completed: runner=%s model=%s",
                 self.runner,
@@ -446,11 +407,13 @@ class LocalLLMService(
             )
             return True
         except Exception as error:
-            self._last_warmup_error = str(error)
+            error_text = str(error)
             self.LOGGER.warning("Local LLM warmup failed: %s", error)
+            self._record_warmup_result(ok=False, error=error_text)
             return False
 
     def describe_backend(self) -> dict[str, Any]:
+        health_snapshot = self.backend_health_snapshot()
         return {
             "enabled": self.enabled,
             "runner": self.runner,
@@ -483,7 +446,11 @@ class LocalLLMService(
             "last_generation_error": self._last_generation_error,
             "last_warmup_ok": self._last_warmup_ok,
             "last_warmup_error": self._last_warmup_error,
-
+            "last_recovery_ok": self._last_recovery_ok,
+            "last_recovery_error": self._last_recovery_error,
+            "recovery_attempts_since_success": self._recovery_attempts_since_success,
+            "capabilities": self._backend_capabilities(),
+            "health": health_snapshot,
         }
 
     def last_generation_snapshot(self) -> dict[str, Any]:
