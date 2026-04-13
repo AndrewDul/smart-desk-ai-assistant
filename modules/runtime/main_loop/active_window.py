@@ -25,6 +25,7 @@ from .backend_helpers import (
     _session_requires_follow_up,
     _wait_for_input_ready,
 )
+from .capture_adapters import capture_transcript, detect_wake_event
 from .constants import (
     COMMAND_EMPTY_RETRY_LIMIT,
     COMMAND_IGNORE_RETRY_LIMIT,
@@ -185,18 +186,17 @@ def _listen_with_backend_fallback(
     *,
     timeout: float,
     debug: bool,
+    mode: str = "command",
 ) -> str | None:
-    voice_in = assistant.voice_in
-
-    for method_name in ("listen", "listen_once", "listen_for_command"):
-        method = getattr(voice_in, method_name, None)
-        if callable(method):
-            return method(timeout=timeout, debug=debug)
-
-    raise AttributeError(
-        "Voice input backend does not expose listen(), listen_once(), or listen_for_command()."
+    transcript = capture_transcript(
+        assistant.voice_in,
+        timeout=timeout,
+        debug=debug,
+        mode=mode,
     )
-
+    if transcript is None:
+        return None
+    return transcript.text
 
 def _accept_standby_wake(
     assistant: CoreAssistant,
@@ -227,15 +227,16 @@ def _listen_for_wake_via_stt_fallback(
     state_flags: MainLoopRuntimeState,
 ) -> bool:
     state_flags.mark_stt_wake_fallback_attempt()
-    heard_text = _listen_with_backend_fallback(
-        assistant,
+    transcript = capture_transcript(
+        assistant.voice_in,
         timeout=WAKE_STT_FALLBACK_TIMEOUT_SECONDS,
         debug=False,
+        mode="wake_fallback",
     )
-    if heard_text is None:
+    if transcript is None:
         return False
 
-    cleaned = heard_text.strip()
+    cleaned = transcript.text.strip()
     if not cleaned:
         return False
 
@@ -297,17 +298,17 @@ def _listen_for_wake(assistant: CoreAssistant, state_flags: MainLoopRuntimeState
         return False
 
     wake_backend, backend_label = _resolve_wake_backend(assistant)
-    wake_method = getattr(wake_backend, "listen_for_wake_phrase", None) if wake_backend is not None else None
+    wake_event = detect_wake_event(
+        wake_backend,
+        timeout_seconds=WAKE_GATE_TIMEOUT_SECONDS,
+        debug=False,
+        ignore_audio_block=False,
+    )
 
-    if callable(wake_method):
-        heard_wake = wake_method(
-            timeout=WAKE_GATE_TIMEOUT_SECONDS,
-            debug=False,
-            ignore_audio_block=False,
-        )
-        if heard_wake is not None:
-            return _accept_standby_wake(assistant, state_flags, backend_label)
+    if wake_event is not None and wake_event.accepted:
+        return _accept_standby_wake(assistant, state_flags, backend_label)
 
+    if wake_backend is not None and callable(getattr(wake_backend, "listen_for_wake_phrase", None)):
         state_flags.record_wake_miss()
         if _should_try_stt_wake_fallback(state_flags):
             return _listen_for_wake_via_stt_fallback(assistant, state_flags)
@@ -382,14 +383,16 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
     )
     print("\nListening for your request...")
 
-    heard_text = _listen_with_backend_fallback(
-        assistant,
+    transcript = capture_transcript(
+        assistant.voice_in,
         timeout=_active_command_timeout(assistant),
         debug=bool(getattr(assistant, "voice_debug", False)),
+        mode=active_phase,
     )
-    if heard_text is None:
+    if transcript is None:
         return None
 
+    heard_text = transcript.text
     cleaned = heard_text.strip()
     if cleaned:
         _note_turn_benchmark_speech_finalized(
