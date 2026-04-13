@@ -30,6 +30,254 @@ class ActionSystemActionsMixin:
 
         return {}
 
+    def _benchmark_summary(self) -> dict[str, Any]:
+        assistant = getattr(self, "assistant", None)
+        service = getattr(assistant, "turn_benchmark_service", None)
+        latest_summary = getattr(service, "latest_summary", None)
+        if not callable(latest_summary):
+            return {}
+
+        try:
+            payload = latest_summary()
+        except Exception:
+            return {}
+
+        return dict(payload or {}) if isinstance(payload, dict) else {}
+
+    def _last_llm_generation_snapshot(self) -> dict[str, Any]:
+        assistant = getattr(self, "assistant", None)
+        dialogue = getattr(assistant, "dialogue", None)
+        local_llm = getattr(dialogue, "local_llm", None)
+
+        snapshot_method = getattr(local_llm, "last_generation_snapshot", None)
+        if not callable(snapshot_method):
+            return {}
+
+        try:
+            payload = snapshot_method()
+        except Exception:
+            return {}
+
+        return dict(payload or {}) if isinstance(payload, dict) else {}
+
+    @staticmethod
+    def _safe_metric_float(value: Any) -> float | None:
+        if value is None or value == "":
+            return None
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return None
+        if parsed <= 0.0:
+            return None
+        return parsed
+
+    @staticmethod
+    def _runtime_service_payload(snapshot: dict[str, Any], component: str) -> dict[str, Any]:
+        services = snapshot.get("services", {})
+        if not isinstance(services, dict):
+            return {}
+
+        payload = services.get(component, {})
+        return dict(payload or {}) if isinstance(payload, dict) else {}
+
+    def _fallback_backend_name(self, component: str) -> str:
+        assistant = getattr(self, "assistant", None)
+        backend_statuses = getattr(assistant, "backend_statuses", {}) or {}
+        payload = backend_statuses.get(component)
+        if payload is None:
+            return "n/a"
+
+        selected = str(getattr(payload, "selected_backend", "") or "").strip()
+        return selected or "n/a"
+
+    def _backend_token(self, snapshot: dict[str, Any], component: str) -> str:
+        payload = self._runtime_service_payload(snapshot, component)
+
+        raw = str(
+            payload.get("backend")
+            or payload.get("selected_backend")
+            or payload.get("requested_backend")
+            or self._fallback_backend_name(component)
+            or "n/a"
+        ).strip().lower()
+
+        aliases = {
+            "compatibility_voice_input": "compat",
+            "faster_whisper": "faster",
+            "whisper_cpp": "whisper",
+            "openwakeword": "oww",
+            "hailo-ollama": "hailo",
+            "llama-cli": "llama-cli",
+            "text_input": "text",
+            "disabled": "off",
+            "unknown": "n/a",
+        }
+
+        normalized = aliases.get(raw, raw or "n/a")
+        return normalized[:14]
+
+    def _runtime_state_phrase(self, snapshot: dict[str, Any], language: str) -> str:
+        ready = bool(snapshot.get("ready", False))
+        degraded = bool(snapshot.get("degraded", False))
+        lifecycle = str(snapshot.get("lifecycle_state", "") or "").strip().lower()
+
+        if language == "pl":
+            if ready:
+                return "gotowy"
+            if degraded or lifecycle == "degraded":
+                return "ograniczony"
+            if lifecycle == "booting":
+                return "uruchamiany"
+            return "pośredni"
+        if ready:
+            return "ready"
+        if degraded or lifecycle == "degraded":
+            return "limited"
+        if lifecycle == "booting":
+            return "booting"
+        return "intermediate"
+
+    def _metric_phrase(self, value_ms: float | None, language: str) -> str:
+        if value_ms is None:
+            return "brak" if language == "pl" else "n/a"
+
+        rounded = int(round(float(value_ms)))
+        if language == "pl":
+            return f"{rounded} milisekund"
+        return f"{rounded} milliseconds"
+
+    def _metric_display(self, value_ms: float | None) -> str:
+        if value_ms is None:
+            return "n/a"
+        return f"{int(round(float(value_ms)))}ms"
+
+    def _build_runtime_metrics_summary(
+        self,
+        language: str,
+    ) -> tuple[str, list[str], dict[str, Any]]:
+        snapshot = self._runtime_snapshot()
+        benchmark = self._benchmark_summary()
+        llm_last = self._last_llm_generation_snapshot()
+
+        runtime_state = self._runtime_state_phrase(snapshot, language)
+        wake_token = self._backend_token(snapshot, "wake_gate")
+        stt_token = self._backend_token(snapshot, "voice_input")
+        llm_token = self._backend_token(snapshot, "llm")
+
+        llm_first_chunk_ms = self._safe_metric_float(
+            benchmark.get("avg_llm_first_chunk_ms")
+        )
+        response_first_audio_ms = self._safe_metric_float(
+            benchmark.get("avg_response_first_audio_ms")
+        )
+        response_first_sentence_ms = self._safe_metric_float(
+            benchmark.get("avg_response_first_sentence_ms")
+        )
+
+        status_message = str(snapshot.get("status_message", "") or "").strip()
+
+        if language == "pl":
+            runtime_spoken = (
+                f"Runtime jest {runtime_state}. "
+                f"Wake używa {wake_token}, STT używa {stt_token}, a LLM używa {llm_token}."
+            )
+
+            if any(value is not None for value in (
+                llm_first_chunk_ms,
+                response_first_audio_ms,
+                response_first_sentence_ms,
+            )):
+                metrics_spoken = (
+                    " Średnie metryki odpowiedzi są następujące: "
+                    f"pierwszy chunk LLM {self._metric_phrase(llm_first_chunk_ms, language)}, "
+                    f"start głosu {self._metric_phrase(response_first_audio_ms, language)}, "
+                    f"pierwsze zdanie {self._metric_phrase(response_first_sentence_ms, language)}."
+                )
+            else:
+                metrics_spoken = " Nie mam jeszcze pełnych metryk odpowiedzi."
+
+            if status_message:
+                runtime_spoken = f"{runtime_spoken} {status_message}."
+        else:
+            runtime_spoken = (
+                f"The runtime is {runtime_state}. "
+                f"Wake uses {wake_token}, STT uses {stt_token}, and LLM uses {llm_token}."
+            )
+
+            if any(value is not None for value in (
+                llm_first_chunk_ms,
+                response_first_audio_ms,
+                response_first_sentence_ms,
+            )):
+                metrics_spoken = (
+                    " Average response metrics are: "
+                    f"LLM first chunk {self._metric_phrase(llm_first_chunk_ms, language)}, "
+                    f"voice start {self._metric_phrase(response_first_audio_ms, language)}, "
+                    f"first sentence {self._metric_phrase(response_first_sentence_ms, language)}."
+                )
+            else:
+                metrics_spoken = " I do not have full response metrics yet."
+
+            if status_message:
+                runtime_spoken = f"{runtime_spoken} {status_message}."
+
+        lines = self._localized_lines(
+            language,
+            [
+                f"runtime: {runtime_state}",
+                f"wake: {wake_token}",
+                f"stt: {stt_token}",
+                f"llm: {llm_token}",
+                f"ttft: {self._metric_display(llm_first_chunk_ms)}",
+                f"voice: {self._metric_display(response_first_audio_ms)}",
+            ],
+            [
+                f"runtime: {runtime_state}",
+                f"wake: {wake_token}",
+                f"stt: {stt_token}",
+                f"llm: {llm_token}",
+                f"ttft: {self._metric_display(llm_first_chunk_ms)}",
+                f"voice: {self._metric_display(response_first_audio_ms)}",
+            ],
+        )
+
+        metadata = {
+            "runtime_snapshot": snapshot,
+            "benchmark_summary": benchmark,
+            "llm_last_generation": llm_last,
+            "runtime_state": runtime_state,
+            "wake_backend": wake_token,
+            "stt_backend": stt_token,
+            "llm_backend": llm_token,
+            "avg_llm_first_chunk_ms": llm_first_chunk_ms,
+            "avg_response_first_audio_ms": response_first_audio_ms,
+            "avg_response_first_sentence_ms": response_first_sentence_ms,
+        }
+
+        return f"{runtime_spoken}{metrics_spoken}".strip(), lines, metadata
+    def _runtime_snapshot(self) -> dict[str, Any]:
+        assistant = getattr(self, "assistant", None)
+
+        snapshot_method = getattr(assistant, "_runtime_status_snapshot", None)
+        if callable(snapshot_method):
+            try:
+                snapshot = snapshot_method()
+                return dict(snapshot or {}) if isinstance(snapshot, dict) else {}
+            except Exception:
+                return {}
+
+        runtime_product = getattr(assistant, "runtime_product", None)
+        snapshot_method = getattr(runtime_product, "snapshot", None)
+        if callable(snapshot_method):
+            try:
+                snapshot = snapshot_method()
+                return dict(snapshot or {}) if isinstance(snapshot, dict) else {}
+            except Exception:
+                return {}
+
+        return {}
+
     @staticmethod
     def _runtime_service_payload(
         snapshot: dict[str, Any],
@@ -253,8 +501,8 @@ class ActionSystemActionsMixin:
         del route, payload
         spoken = self._localized(
             language,
-            "Mogę rozmawiać z Tobą, zapamiętywać informacje, ustawiać przypomnienia, uruchamiać timery, focus mode i break mode, podawać czas i datę oraz raportować stan runtime i backendów.",
-            "I can talk with you, remember information, set reminders, start timers, focus mode and break mode, tell you the time and date, and report the runtime or backend status.",
+            "Mogę rozmawiać z Tobą, zapamiętywać informacje, ustawiać przypomnienia, uruchamiać timery, focus mode i break mode, podawać czas i datę oraz raportować stan runtime i metryki odpowiedzi.",
+            "I can talk with you, remember information, set reminders, start timers, focus mode and break mode, tell you the time and date, and report runtime or response metrics.",
         )
         return self._deliver_simple_action_response(
             language=language,
@@ -263,8 +511,8 @@ class ActionSystemActionsMixin:
             display_title=self._localized(language, "JAK MOGĘ POMÓC", "HOW I CAN HELP"),
             display_lines=self._localized_lines(
                 language,
-                ["rozmowa", "pamiec", "przypomnienia", "timery i focus"],
-                ["conversation", "memory", "reminders", "timers and focus"],
+                ["rozmowa", "pamiec", "przypomnienia", "status i metryki"],
+                ["conversation", "memory", "reminders", "status and metrics"],
             ),
             extra_metadata={"resolved_source": resolved.source},
         )
@@ -287,7 +535,7 @@ class ActionSystemActionsMixin:
         break_on = bool(self.assistant.state.get("break_mode"))
         timer_running = bool(timer_status.get("running"))
 
-        runtime_spoken, runtime_lines, runtime_metadata = self._build_runtime_status_summary(language)
+        runtime_spoken, runtime_lines, runtime_metadata = self._build_runtime_metrics_summary(language)
 
         if language == "pl":
             feature_spoken = (
@@ -297,7 +545,14 @@ class ActionSystemActionsMixin:
                 f"w pamięci mam {memory_count} wpisów, "
                 f"a przypomnień jest {reminder_count}."
             )
-            timer_line = f"timer: {str(current_timer)[:12]}"
+            feature_lines = [
+                f"focus: {'ON' if focus_on else 'OFF'}",
+                f"break: {'ON' if break_on else 'OFF'}",
+                f"timer: {str(current_timer)[:12]}",
+                f"pamiec: {memory_count}",
+                f"przyp: {reminder_count}",
+                f"run: {'TAK' if timer_running else 'NIE'}",
+            ]
         else:
             feature_spoken = (
                 f"Focus is {'on' if focus_on else 'off'}, "
@@ -306,17 +561,24 @@ class ActionSystemActionsMixin:
                 f"I have {memory_count} memory items, "
                 f"and there are {reminder_count} reminders."
             )
-            timer_line = f"timer: {str(current_timer)[:12]}"
+            feature_lines = [
+                f"focus: {'ON' if focus_on else 'OFF'}",
+                f"break: {'ON' if break_on else 'OFF'}",
+                f"timer: {str(current_timer)[:12]}",
+                f"memory: {memory_count}",
+                f"remind: {reminder_count}",
+                f"run: {'YES' if timer_running else 'NO'}",
+            ]
 
         spoken = f"{runtime_spoken} {feature_spoken}".strip()
-        lines = [*runtime_lines[:5], timer_line]
+        display_lines = runtime_lines[:3] + feature_lines[:3]
 
         return self._deliver_simple_action_response(
             language=language,
             action="status",
             spoken_text=spoken,
             display_title="STATUS",
-            display_lines=lines,
+            display_lines=display_lines,
             extra_metadata={
                 "resolved_source": resolved.source,
                 "timer_running": timer_running,
