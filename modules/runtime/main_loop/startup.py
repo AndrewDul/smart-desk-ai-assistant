@@ -108,6 +108,16 @@ def _log_startup_summary(
 
     if runtime_snapshot:
         append_log(
+            "Runtime LLM startup state: "
+            f"runner={runtime_snapshot.get('llm_runner', '')}, "
+            f"state={runtime_snapshot.get('llm_state', '')}, "
+            f"available={bool(runtime_snapshot.get('llm_available', False))}, "
+            f"healthy={bool(runtime_snapshot.get('llm_healthy', False))}, "
+            f"warmup_required={bool(runtime_snapshot.get('llm_warmup_required', False))}, "
+            f"warmup_ready={bool(runtime_snapshot.get('llm_warmup_ready', False))}, "
+            f"primary_ready={bool(runtime_snapshot.get('llm_primary_ready', False))}"
+        )
+        append_log(
             "Runtime product state: "
             f"lifecycle={runtime_snapshot.get('lifecycle_state', '')}, "
             f"ready={bool(runtime_snapshot.get('ready', False))}, "
@@ -173,6 +183,8 @@ def _run_startup_sequence(assistant: CoreAssistant) -> None:
         runtime_warnings=runtime_warnings,
     )
 
+    assistant._runtime_startup_allowed = bool(report.startup_allowed)
+    assistant._runtime_startup_runtime_warnings = list(runtime_warnings)
     assistant._runtime_startup_snapshot = runtime_snapshot
     assistant._boot_report_ok = bool(
         runtime_snapshot.get("ready", report.startup_allowed and not runtime_warnings)

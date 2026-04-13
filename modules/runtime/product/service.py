@@ -77,6 +77,15 @@ class RuntimeProductService:
             degraded_components=list(self._snapshot.get("degraded_components", []) or []),
             services=dict(self._snapshot.get("services", {}) or {}),
             provider_inventory=dict(self._snapshot.get("provider_inventory", {}) or {}),
+            llm_enabled=bool(self._snapshot.get("llm_enabled", False)),
+            llm_runner=str(self._snapshot.get("llm_runner", "") or ""),
+            llm_state=str(self._snapshot.get("llm_state", "disabled") or "disabled"),
+            llm_available=bool(self._snapshot.get("llm_available", False)),
+            llm_healthy=bool(self._snapshot.get("llm_healthy", False)),
+            llm_warmup_required=bool(self._snapshot.get("llm_warmup_required", False)),
+            llm_warmup_ready=bool(self._snapshot.get("llm_warmup_ready", False)),
+            llm_primary_ready=bool(self._snapshot.get("llm_primary_ready", False)),
+            llm_health_reason=str(self._snapshot.get("llm_health_reason", "") or ""),
             updated_at_iso=self._now_iso(),
         )
         return self._replace_snapshot(snapshot)
@@ -133,11 +142,17 @@ class RuntimeProductService:
                 and str(getattr(status, "state", "") or "").strip().lower() != "disabled"
             )
 
+            llm_fields = self._llm_startup_fields_locked(services)
+
             premium_ready = (
                 primary_ready
                 and not warnings
                 and not compatibility_components
                 and not degraded_components
+                and (
+                    not llm_fields["llm_enabled"]
+                    or llm_fields["llm_primary_ready"]
+                )
             )
 
             ready = bool(startup_allowed) and not blockers and not warnings
@@ -146,6 +161,14 @@ class RuntimeProductService:
 
             if premium_ready:
                 status_message = "runtime ready in premium mode"
+            elif (
+                primary_ready
+                and llm_fields["llm_enabled"]
+                and llm_fields["llm_available"]
+                and llm_fields["llm_warmup_required"]
+                and not llm_fields["llm_warmup_ready"]
+            ):
+                status_message = "runtime core ready, local llm reachable, startup warmup incomplete"
             elif primary_ready and compatibility_components:
                 status_message = (
                     "runtime ready with compatibility path: "
@@ -177,6 +200,15 @@ class RuntimeProductService:
                 degraded_components=degraded_components,
                 services={name: item.to_dict() for name, item in services.items()},
                 provider_inventory=provider_inventory,
+                llm_enabled=bool(llm_fields["llm_enabled"]),
+                llm_runner=str(llm_fields["llm_runner"] or ""),
+                llm_state=str(llm_fields["llm_state"] or "disabled"),
+                llm_available=bool(llm_fields["llm_available"]),
+                llm_healthy=bool(llm_fields["llm_healthy"]),
+                llm_warmup_required=bool(llm_fields["llm_warmup_required"]),
+                llm_warmup_ready=bool(llm_fields["llm_warmup_ready"]),
+                llm_primary_ready=bool(llm_fields["llm_primary_ready"]),
+                llm_health_reason=str(llm_fields["llm_health_reason"] or ""),
                 updated_at_iso=self._now_iso(),
             )
             return self._replace_snapshot(snapshot)
@@ -499,6 +531,67 @@ class RuntimeProductService:
             recovery_error=recovery_error,
         )
 
+
+    def _llm_startup_fields_locked(
+        self,
+        services: dict[str, ProductServiceStatus],
+    ) -> dict[str, Any]:
+        llm_status = services.get("llm")
+        if llm_status is None:
+            return {
+                "llm_enabled": False,
+                "llm_runner": "",
+                "llm_state": "disabled",
+                "llm_available": False,
+                "llm_healthy": False,
+                "llm_warmup_required": False,
+                "llm_warmup_ready": False,
+                "llm_primary_ready": False,
+                "llm_health_reason": "",
+            }
+
+        metadata = dict(getattr(llm_status, "metadata", {}) or {})
+        health = dict(metadata.get("health", {}) or {})
+
+        llm_enabled = bool(health.get("enabled", llm_status.state != "disabled"))
+        llm_runner = str(
+            health.get("runner")
+            or getattr(llm_status, "requested_backend", "")
+            or llm_status.backend
+            or ""
+        ).strip()
+        llm_state = str(health.get("state", llm_status.state) or llm_status.state).strip().lower()
+        llm_available = bool(health.get("available", llm_state == "ready"))
+        llm_healthy = bool(health.get("healthy", llm_state == "ready"))
+        llm_warmup_required = bool(health.get("warmup_required", False))
+        llm_warmup_ready = bool(health.get("warmup_ready", not llm_warmup_required))
+        llm_primary_ready = bool(
+            llm_enabled
+            and getattr(llm_status, "primary", False)
+            and llm_available
+            and (llm_warmup_ready or not llm_warmup_required)
+            and llm_state == "ready"
+        )
+        llm_health_reason = str(
+            health.get("health_reason")
+            or health.get("last_error")
+            or getattr(llm_status, "detail", "")
+            or ""
+        ).strip()
+
+        return {
+            "llm_enabled": llm_enabled,
+            "llm_runner": llm_runner,
+            "llm_state": llm_state,
+            "llm_available": llm_available,
+            "llm_healthy": llm_healthy,
+            "llm_warmup_required": llm_warmup_required,
+            "llm_warmup_ready": llm_warmup_ready,
+            "llm_primary_ready": llm_primary_ready,
+            "llm_health_reason": llm_health_reason,
+        }
+
+
     def _replace_snapshot(self, snapshot: ProductRuntimeSnapshot) -> dict[str, Any]:
         with self._lock:
             self._snapshot = snapshot.to_dict()
@@ -564,6 +657,15 @@ class RuntimeProductService:
             degraded_components=[],
             services={},
             provider_inventory={},
+            llm_enabled=False,
+            llm_runner="",
+            llm_state="disabled",
+            llm_available=False,
+            llm_healthy=False,
+            llm_warmup_required=False,
+            llm_warmup_ready=False,
+            llm_primary_ready=False,
+            llm_health_reason="",
             updated_at_iso=self._now_iso(),
         ).to_dict()
 

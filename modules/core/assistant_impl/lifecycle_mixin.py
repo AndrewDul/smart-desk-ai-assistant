@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from typing import Any
 
 from modules.core.session.voice_session import (
     VOICE_STATE_SHUTDOWN,
@@ -24,30 +25,118 @@ class CoreAssistantLifecycleMixin:
         except Exception as error:
             log_exception(f"Failed to update runtime product state via {method_name}", error)
 
-    def _warmup_local_llm_backend(self) -> None:
+    def _warmup_local_llm_backend(self) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "attempted": False,
+            "ok": False,
+            "snapshot": {},
+            "error": "",
+        }
+
         dialogue = getattr(self, "dialogue", None)
         local_llm = getattr(dialogue, "local_llm", None)
         if local_llm is None:
-            return
+            return result
 
+        ensure_method = getattr(local_llm, "ensure_backend_ready", None)
         warmup_method = getattr(local_llm, "warmup_backend_if_enabled", None)
-        if not callable(warmup_method):
-            return
 
         append_log("Local LLM warmup requested during boot.")
-        try:
-            warmed = bool(warmup_method())
-            if warmed:
-                append_log("Local LLM warmup completed during boot.")
-                return
 
-            last_warmup_error = str(getattr(local_llm, "_last_warmup_error", "") or "").strip()
-            if last_warmup_error:
-                append_log(f"Local LLM warmup did not complete: {last_warmup_error}")
+        try:
+            if callable(warmup_method):
+                result["attempted"] = True
+                result["ok"] = bool(warmup_method())
+            elif callable(ensure_method):
+                snapshot = ensure_method(auto_recover=False)
+                if isinstance(snapshot, dict):
+                    result["snapshot"] = dict(snapshot)
+                    result["ok"] = bool(snapshot.get("warmup_ready", snapshot.get("available", False)))
+        except Exception as error:
+            result["error"] = str(error)
+            log_exception("Local LLM warmup failed during boot", error)
+
+        if callable(ensure_method):
+            try:
+                snapshot = ensure_method(auto_recover=False)
+                if isinstance(snapshot, dict):
+                    result["snapshot"] = dict(snapshot)
+                    result["ok"] = bool(
+                        result["ok"]
+                        or snapshot.get("warmup_ready", False)
+                        or (
+                            snapshot.get("available", False)
+                            and not snapshot.get("warmup_required", False)
+                        )
+                    )
+            except Exception as error:
+                if not result["error"]:
+                    result["error"] = str(error)
+                log_exception("Failed to collect Local LLM health snapshot after boot warmup", error)
+
+        snapshot = dict(result.get("snapshot", {}) or {})
+        if result["ok"]:
+            append_log(
+                "Local LLM warmup completed during boot: "
+                f"state={snapshot.get('state', '')}, "
+                f"available={bool(snapshot.get('available', False))}, "
+                f"warmup_ready={bool(snapshot.get('warmup_ready', False))}"
+            )
+        else:
+            error_text = (
+                str(snapshot.get("last_error", "") or "").strip()
+                or str(snapshot.get("health_reason", "") or "").strip()
+                or str(result.get("error", "") or "").strip()
+            )
+            if error_text:
+                append_log(f"Local LLM warmup did not complete: {error_text}")
             else:
                 append_log("Local LLM warmup did not complete.")
+
+        return result
+
+    def _refresh_runtime_startup_snapshot_after_llm_warmup(
+        self,
+        *,
+        warmup_result: dict[str, Any] | None = None,
+    ) -> None:
+        runtime_product = getattr(self, "runtime_product", None)
+        if runtime_product is None:
+            return
+
+        evaluate_startup = getattr(runtime_product, "evaluate_startup", None)
+        if not callable(evaluate_startup):
+            return
+
+        startup_allowed = bool(getattr(self, "_runtime_startup_allowed", self._boot_report_ok))
+        runtime_warnings = list(getattr(self, "_runtime_startup_runtime_warnings", []))
+
+        try:
+            snapshot = evaluate_startup(
+                startup_allowed=startup_allowed,
+                runtime_warnings=runtime_warnings,
+            )
         except Exception as error:
-            log_exception("Local LLM warmup failed during boot", error)
+            log_exception("Failed to refresh runtime startup snapshot after LLM warmup", error)
+            return
+
+        self._runtime_startup_snapshot = dict(snapshot or {}) if isinstance(snapshot, dict) else {}
+        self._boot_report_ok = bool(self._runtime_startup_snapshot.get("ready", False))
+
+        llm_snapshot = dict(warmup_result or {})
+        llm_health = dict(llm_snapshot.get("snapshot", {}) or {})
+
+        append_log(
+            "Runtime startup snapshot refreshed after LLM warmup: "
+            f"premium_ready={bool(self._runtime_startup_snapshot.get('premium_ready', False))}, "
+            f"primary_ready={bool(self._runtime_startup_snapshot.get('primary_ready', False))}, "
+            f"llm_state={self._runtime_startup_snapshot.get('llm_state', '')}, "
+            f"llm_available={bool(self._runtime_startup_snapshot.get('llm_available', False))}, "
+            f"llm_warmup_ready={bool(self._runtime_startup_snapshot.get('llm_warmup_ready', False))}, "
+            f"warmup_attempted={bool(llm_snapshot.get('attempted', False))}, "
+            f"warmup_ok={bool(llm_snapshot.get('ok', False))}, "
+            f"health_reason={llm_health.get('health_reason', '')}"
+        )
 
     def boot(self) -> None:
         self.shutdown_requested = False
@@ -72,7 +161,10 @@ class CoreAssistantLifecycleMixin:
         append_log("Assistant boot sequence started.")
 
         overlay_started_at = time.perf_counter()
-        self._warmup_local_llm_backend()
+        warmup_result = self._warmup_local_llm_backend()
+        self._refresh_runtime_startup_snapshot_after_llm_warmup(
+            warmup_result=warmup_result,
+        )
 
         min_boot_visual_seconds = max(self.boot_overlay_seconds, 0.8)
         elapsed_since_overlay = time.perf_counter() - overlay_started_at

@@ -44,6 +44,17 @@ class ProductRuntimeSnapshot:
     degraded_components: list[str] = field(default_factory=list)
     services: dict[str, dict[str, Any]] = field(default_factory=dict)
     provider_inventory: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+    llm_enabled: bool = False
+    llm_runner: str = ""
+    llm_state: str = "disabled"
+    llm_available: bool = False
+    llm_healthy: bool = False
+    llm_warmup_required: bool = False
+    llm_warmup_ready: bool = False
+    llm_primary_ready: bool = False
+    llm_health_reason: str = ""
+
     updated_at_iso: str = ""
 
     def to_dict(self) -> dict[str, Any]:

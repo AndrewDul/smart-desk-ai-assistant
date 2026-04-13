@@ -187,7 +187,12 @@ class CoreAssistantHelpersMixin:
             if str(item).strip()
         ]
         degraded = self._degraded_component_names(snapshot=snapshot)
-
+        
+        llm_enabled = bool(snapshot.get("llm_enabled", False))
+        llm_available = bool(snapshot.get("llm_available", False))
+        llm_warmup_required = bool(snapshot.get("llm_warmup_required", False))
+        llm_warmup_ready = bool(snapshot.get("llm_warmup_ready", False))
+        llm_health_reason = str(snapshot.get("llm_health_reason", "") or "").strip()
         if lifecycle_state == "ready" and report_ok:
             return (
                 f"Hello. I am {self.ASSISTANT_NAME}. "
@@ -211,12 +216,20 @@ class CoreAssistantHelpersMixin:
                 "I am still ready to help."
             )
 
+        if llm_enabled and llm_available and llm_warmup_required and not llm_warmup_ready:
+            return (
+                f"Hello. I am {self.ASSISTANT_NAME}. "
+                "Core services are ready. The local language model is reachable, but startup warmup is not complete yet. "
+                "I am starting in a limited mode."
+            )
+
         if degraded:
             degraded_text = ", ".join(degraded[:3])
+            suffix = f" LLM detail: {llm_health_reason}." if llm_health_reason else ""
             return (
                 f"Hello. I am {self.ASSISTANT_NAME}. "
                 f"Startup checks found some degraded modules: {degraded_text}. "
-                "I am still ready to help."
+                f"I am still ready to help.{suffix}"
             )
 
         if lifecycle_state == "degraded":
