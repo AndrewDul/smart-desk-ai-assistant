@@ -20,30 +20,11 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
                 summary_window=5,
             )
 
-            service.note_wake_detected(
-                source="wake_gate",
-                input_source="voice",
-                latency_ms=74.0,
-                backend_label="openwakeword",
-            )
+            service.note_wake_detected(source="wake_gate")
             turn_id = service.begin_turn(user_text="what time is it", language="en")
             service.note_listening_started(phase="command")
-            service.note_speech_finalized(
-                text="what time is it",
-                phase="command",
-                language="en",
-                input_source="voice",
-                latency_ms=312.0,
-                audio_duration_ms=1850.0,
-                backend_label="faster_whisper",
-                mode="command",
-                confidence=0.93,
-            )
-            service.note_route_resolved(
-                route_kind="action",
-                primary_intent="time_query",
-                confidence=0.95,
-            )
+            service.note_speech_finalized(text="what time is it", phase="command")
+            service.note_route_resolved(route_kind="action", primary_intent="time_query", confidence=0.95)
 
             response_report = StreamExecutionReport(
                 chunks_spoken=1,
@@ -76,12 +57,6 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
                     "language": "en",
                     "input_source": "voice",
                     "user_text": "what time is it",
-                    "stt_backend": "faster_whisper",
-                    "stt_mode": "command",
-                    "stt_phase": "command",
-                    "stt_latency_ms": 312.0,
-                    "stt_audio_duration_ms": 1850.0,
-                    "stt_confidence": 0.93,
                 },
                 llm_snapshot={
                     "ok": True,
@@ -96,13 +71,6 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
             self.assertEqual(sample["turn_id"], turn_id)
             self.assertEqual(sample["result"], "action_done")
             self.assertEqual(sample["route_kind"], "action")
-            self.assertEqual(sample["wake_backend"], "openwakeword")
-            self.assertEqual(sample["stt_backend"], "faster_whisper")
-            self.assertEqual(sample["stt_mode"], "command")
-            self.assertAlmostEqual(sample["wake_latency_ms"], 74.0)
-            self.assertAlmostEqual(sample["stt_latency_ms"], 312.0)
-            self.assertAlmostEqual(sample["stt_audio_duration_ms"], 1850.0)
-            self.assertAlmostEqual(sample["stt_confidence"], 0.93)
             self.assertAlmostEqual(sample["response_first_chunk_ms"], 82.0)
             self.assertAlmostEqual(sample["response_first_sentence_ms"], 138.0)
             self.assertAlmostEqual(sample["total_turn_ms"], 950.0)
@@ -132,11 +100,7 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
                 turn_id = service.begin_turn(user_text=f"cmd {index}", language="en")
                 service.note_listening_started(phase="command")
                 service.note_speech_finalized(text=f"cmd {index}", phase="command")
-                service.note_route_resolved(
-                    route_kind="action",
-                    primary_intent="test",
-                    confidence=1.0,
-                )
+                service.note_route_resolved(route_kind="action", primary_intent="test", confidence=1.0)
                 service.finish_turn(
                     telemetry={
                         "benchmark_turn_id": turn_id,

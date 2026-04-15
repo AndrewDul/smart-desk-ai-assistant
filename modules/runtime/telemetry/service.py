@@ -394,6 +394,18 @@ class TurnBenchmarkService:
             return cleaned
         return f"{cleaned[: max_chars - 3].rstrip()}..."
 
+
+
+    @staticmethod
+    def _optional_float(value: Any) -> float | None:
+        if value is None or value == "":
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+
     @staticmethod
     def _safe_float(value: Any) -> float:
         try:

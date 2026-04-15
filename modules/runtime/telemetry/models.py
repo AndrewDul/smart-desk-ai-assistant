@@ -16,17 +16,10 @@ class TurnBenchmarkTrace:
     input_source: str = "voice"
     language: str = ""
     wake_source: str = ""
-    wake_backend: str = ""
-    wake_latency_ms: float | None = None
     active_phase: str = ""
     route_kind: str = ""
     primary_intent: str = ""
     route_confidence: float = 0.0
-    stt_backend: str = ""
-    stt_mode: str = ""
-    stt_latency_ms: float | None = None
-    speech_duration_ms: float | None = None
-    stt_confidence: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
