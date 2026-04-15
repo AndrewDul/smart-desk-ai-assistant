@@ -8,7 +8,213 @@ from .models import ResolvedAction
 
 
 class ActionSystemActionsMixin:
+    def _runtime_snapshot(self) -> dict[str, Any]:
+        assistant = getattr(self, "assistant", None)
 
+        snapshot_method = getattr(assistant, "_runtime_status_snapshot", None)
+        if callable(snapshot_method):
+            try:
+                snapshot = snapshot_method()
+                return dict(snapshot or {}) if isinstance(snapshot, dict) else {}
+            except Exception:
+                return {}
+
+        runtime_product = getattr(assistant, "runtime_product", None)
+        snapshot_method = getattr(runtime_product, "snapshot", None)
+        if callable(snapshot_method):
+            try:
+                snapshot = snapshot_method()
+                return dict(snapshot or {}) if isinstance(snapshot, dict) else {}
+            except Exception:
+                return {}
+
+        return {}
+
+    def _benchmark_snapshot(self) -> dict[str, Any]:
+        assistant = getattr(self, "assistant", None)
+        service = getattr(assistant, "turn_benchmark_service", None)
+
+        latest_snapshot = getattr(service, "latest_snapshot", None)
+        if callable(latest_snapshot):
+            try:
+                payload = latest_snapshot()
+                return dict(payload or {}) if isinstance(payload, dict) else {}
+            except Exception:
+                return {}
+
+        latest_summary = getattr(service, "latest_summary", None)
+        if callable(latest_summary):
+            try:
+                summary = latest_summary()
+            except Exception:
+                summary = {}
+            return {
+                "latest_sample": {},
+                "summary": dict(summary or {}) if isinstance(summary, dict) else {},
+                "overlay_lines": [],
+            }
+
+        return {}
+
+    @staticmethod
+    def _runtime_service_payload(snapshot: dict[str, Any], component: str) -> dict[str, Any]:
+        services = snapshot.get("services", {})
+        if not isinstance(services, dict):
+            return {}
+
+        payload = services.get(component, {})
+        return dict(payload or {}) if isinstance(payload, dict) else {}
+
+    def _fallback_backend_name(self, component: str) -> str:
+        assistant = getattr(self, "assistant", None)
+        backend_statuses = getattr(assistant, "backend_statuses", {}) or {}
+        payload = backend_statuses.get(component)
+        if payload is None:
+            return "n/a"
+
+        selected = str(getattr(payload, "selected_backend", "") or "").strip()
+        return selected or "n/a"
+
+    def _backend_token(self, snapshot: dict[str, Any], component: str) -> str:
+        payload = self._runtime_service_payload(snapshot, component)
+
+        raw = str(
+            payload.get("backend")
+            or payload.get("selected_backend")
+            or payload.get("requested_backend")
+            or self._fallback_backend_name(component)
+            or "n/a"
+        ).strip().lower()
+
+        aliases = {
+            "compatibility_voice_input": "compat",
+            "faster_whisper": "faster",
+            "openwakeword": "oww",
+            "hailo-ollama": "hailo",
+            "llama-cli": "llama-cli",
+            "text_input": "text",
+            "disabled": "off",
+            "unknown": "n/a",
+        }
+
+        normalized = aliases.get(raw, raw or "n/a")
+        return normalized[:14]
+
+    @staticmethod
+    def _safe_metric_float(value: Any) -> float | None:
+        if value is None or value == "":
+            return None
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return None
+        if parsed <= 0.0:
+            return None
+        return parsed
+
+    def _metric_phrase(self, value_ms: float | None, language: str) -> str:
+        if value_ms is None:
+            return "brak" if language == "pl" else "n/a"
+
+        rounded = int(round(float(value_ms)))
+        if language == "pl":
+            return f"{rounded} milisekund"
+        return f"{rounded} milliseconds"
+
+    def _runtime_state_phrase(self, snapshot: dict[str, Any], language: str) -> str:
+        ready = bool(snapshot.get("ready", False))
+        degraded = bool(snapshot.get("degraded", False))
+        lifecycle = str(snapshot.get("lifecycle_state", "") or "").strip().lower()
+
+        if language == "pl":
+            if ready:
+                return "gotowy"
+            if degraded or lifecycle == "degraded":
+                return "ograniczony"
+            if lifecycle == "booting":
+                return "uruchamiany"
+            return "pośredni"
+
+        if ready:
+            return "ready"
+        if degraded or lifecycle == "degraded":
+            return "limited"
+        if lifecycle == "booting":
+            return "booting"
+        return "intermediate"
+
+    def _build_runtime_benchmark_summary(
+        self,
+        language: str,
+    ) -> tuple[str, list[str], dict[str, Any]]:
+        runtime_snapshot = self._runtime_snapshot()
+        benchmark_snapshot = self._benchmark_snapshot()
+        latest_sample = dict(benchmark_snapshot.get("latest_sample", {}) or {})
+        summary = dict(benchmark_snapshot.get("summary", {}) or {})
+
+        runtime_state = self._runtime_state_phrase(runtime_snapshot, language)
+        wake_token = self._backend_token(runtime_snapshot, "wake_gate")
+        stt_token = self._backend_token(runtime_snapshot, "voice_input")
+        llm_token = self._backend_token(runtime_snapshot, "llm")
+
+        last_turn_ms = self._safe_metric_float(latest_sample.get("total_turn_ms"))
+        avg_audio_ms = self._safe_metric_float(summary.get("avg_response_first_audio_ms"))
+        avg_llm_first_chunk_ms = self._safe_metric_float(summary.get("avg_llm_first_chunk_ms"))
+
+        if language == "pl":
+            runtime_part = (
+                f"Runtime jest {runtime_state}. "
+                f"Wake używa {wake_token}, STT używa {stt_token}, a LLM używa {llm_token}."
+            )
+            benchmark_part = (
+                f" Ostatni pełny turn trwał {self._metric_phrase(last_turn_ms, language)}. "
+                f"Średni start głosu to {self._metric_phrase(avg_audio_ms, language)}, "
+                f"a średni pierwszy chunk LLM to {self._metric_phrase(avg_llm_first_chunk_ms, language)}."
+            )
+        else:
+            runtime_part = (
+                f"The runtime is {runtime_state}. "
+                f"Wake uses {wake_token}, STT uses {stt_token}, and LLM uses {llm_token}."
+            )
+            benchmark_part = (
+                f" The latest full turn took {self._metric_phrase(last_turn_ms, language)}. "
+                f"Average voice start is {self._metric_phrase(avg_audio_ms, language)}, "
+                f"and average LLM first chunk is {self._metric_phrase(avg_llm_first_chunk_ms, language)}."
+            )
+
+        lines = self._localized_lines(
+            language,
+            [
+                f"runtime: {runtime_state}",
+                f"wake: {wake_token}",
+                f"stt: {stt_token}",
+                f"llm: {llm_token}",
+                f"turn: {int(round(last_turn_ms))}ms" if last_turn_ms is not None else "turn: n/a",
+                f"audio: {int(round(avg_audio_ms))}ms" if avg_audio_ms is not None else "audio: n/a",
+            ],
+            [
+                f"runtime: {runtime_state}",
+                f"wake: {wake_token}",
+                f"stt: {stt_token}",
+                f"llm: {llm_token}",
+                f"turn: {int(round(last_turn_ms))}ms" if last_turn_ms is not None else "turn: n/a",
+                f"audio: {int(round(avg_audio_ms))}ms" if avg_audio_ms is not None else "audio: n/a",
+            ],
+        )
+
+        metadata = {
+            "runtime_snapshot": runtime_snapshot,
+            "benchmark_snapshot": benchmark_snapshot,
+            "runtime_state": runtime_state,
+            "wake_backend": wake_token,
+            "stt_backend": stt_token,
+            "llm_backend": llm_token,
+            "last_turn_ms": last_turn_ms,
+            "avg_response_first_audio_ms": avg_audio_ms,
+            "avg_llm_first_chunk_ms": avg_llm_first_chunk_ms,
+        }
+
+        return f"{runtime_part}{benchmark_part}".strip(), lines, metadata
     def _runtime_snapshot(self) -> dict[str, Any]:
         assistant = getattr(self, "assistant", None)
 
@@ -786,7 +992,7 @@ class ActionSystemActionsMixin:
         break_on = bool(self.assistant.state.get("break_mode"))
         timer_running = bool(timer_status.get("running"))
 
-        runtime_spoken, runtime_lines, runtime_metadata = self._build_runtime_metrics_summary(language)
+        runtime_spoken, runtime_lines, runtime_metadata = self._build_runtime_benchmark_summary(language)
 
         if language == "pl":
             feature_spoken = (

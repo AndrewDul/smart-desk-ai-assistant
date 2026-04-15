@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
@@ -31,8 +31,6 @@ class TurnBenchmarkSummary:
     window_size: int = 0
     avg_total_turn_ms: float | None = None
     avg_response_first_audio_ms: float | None = None
-    avg_response_first_chunk_ms: float | None = None
-    avg_response_first_sentence_ms: float | None = None
     avg_route_to_first_audio_ms: float | None = None
     avg_llm_first_chunk_ms: float | None = None
     avg_llm_total_ms: float | None = None
@@ -44,7 +42,18 @@ class TurnBenchmarkSummary:
         return asdict(self)
 
 
+@dataclass(slots=True)
+class TurnBenchmarkSnapshot:
+    latest_sample: dict[str, Any] = field(default_factory=dict)
+    summary: dict[str, Any] = field(default_factory=dict)
+    overlay_lines: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 __all__ = [
+    "TurnBenchmarkSnapshot",
     "TurnBenchmarkSummary",
     "TurnBenchmarkTrace",
 ]

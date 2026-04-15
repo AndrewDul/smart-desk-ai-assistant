@@ -24,7 +24,11 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
             turn_id = service.begin_turn(user_text="what time is it", language="en")
             service.note_listening_started(phase="command")
             service.note_speech_finalized(text="what time is it", phase="command")
-            service.note_route_resolved(route_kind="action", primary_intent="time_query", confidence=0.95)
+            service.note_route_resolved(
+                route_kind="action",
+                primary_intent="time_query",
+                confidence=0.95,
+            )
 
             response_report = StreamExecutionReport(
                 chunks_spoken=1,
@@ -32,13 +36,9 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
                 display_title="ACTION",
                 display_lines=["It is 10"],
                 first_audio_latency_ms=120.0,
-                first_chunk_latency_ms=82.0,
-                first_sentence_latency_ms=138.0,
                 total_elapsed_ms=340.0,
                 started_at_monotonic=1.0,
                 first_audio_started_at_monotonic=1.12,
-                first_chunk_started_at_monotonic=1.082,
-                first_sentence_started_at_monotonic=1.138,
                 finished_at_monotonic=1.34,
                 chunk_kinds=["content"],
                 live_streaming=False,
@@ -71,18 +71,24 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
             self.assertEqual(sample["turn_id"], turn_id)
             self.assertEqual(sample["result"], "action_done")
             self.assertEqual(sample["route_kind"], "action")
-            self.assertAlmostEqual(sample["response_first_chunk_ms"], 82.0)
-            self.assertAlmostEqual(sample["response_first_sentence_ms"], 138.0)
             self.assertAlmostEqual(sample["total_turn_ms"], 950.0)
             self.assertAlmostEqual(sample["response_first_audio_ms"], 120.0)
             self.assertAlmostEqual(sample["llm_first_chunk_ms"], 85.0)
+
+            latest_sample = service.latest_sample()
+            latest_summary = service.latest_summary()
+            latest_snapshot = service.latest_snapshot()
+
+            self.assertEqual(latest_sample["turn_id"], turn_id)
+            self.assertEqual(latest_summary["sample_count"], 1)
+            self.assertEqual(latest_summary["last_turn_id"], turn_id)
+            self.assertEqual(latest_snapshot["latest_sample"]["turn_id"], turn_id)
+            self.assertTrue(latest_snapshot["overlay_lines"])
 
             payload = service._store.read()
             self.assertEqual(len(payload["samples"]), 1)
             self.assertEqual(payload["summary"]["sample_count"], 1)
             self.assertEqual(payload["summary"]["last_turn_id"], turn_id)
-            self.assertAlmostEqual(payload["summary"]["avg_response_first_chunk_ms"], 82.0)
-            self.assertAlmostEqual(payload["summary"]["avg_response_first_sentence_ms"], 138.0)
 
     def test_max_samples_trims_old_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -100,7 +106,11 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
                 turn_id = service.begin_turn(user_text=f"cmd {index}", language="en")
                 service.note_listening_started(phase="command")
                 service.note_speech_finalized(text=f"cmd {index}", phase="command")
-                service.note_route_resolved(route_kind="action", primary_intent="test", confidence=1.0)
+                service.note_route_resolved(
+                    route_kind="action",
+                    primary_intent="test",
+                    confidence=1.0,
+                )
                 service.finish_turn(
                     telemetry={
                         "benchmark_turn_id": turn_id,
@@ -116,6 +126,12 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
             self.assertEqual(len(payload["samples"]), 20)
             self.assertEqual(payload["summary"]["sample_count"], 20)
             self.assertEqual(payload["summary"]["window_size"], 5)
+
+            latest_sample = service.latest_sample()
+            latest_summary = service.latest_summary()
+
+            self.assertEqual(latest_summary["sample_count"], 20)
+            self.assertEqual(latest_sample["result"], "ok")
             kept_ids = [item["turn_id"] for item in payload["samples"]]
             self.assertEqual(len(set(kept_ids)), 20)
 

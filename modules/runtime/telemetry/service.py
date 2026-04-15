@@ -5,21 +5,20 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from cbor2 import value
-
 from modules.runtime.contracts import create_turn_id
 from modules.shared.persistence.json_store import JsonStore
 from modules.shared.persistence.paths import resolve_optional_path
 
-from .models import TurnBenchmarkSummary, TurnBenchmarkTrace
+from .models import TurnBenchmarkSnapshot, TurnBenchmarkSummary, TurnBenchmarkTrace
 
 
 class TurnBenchmarkService:
     """
     Persistent end-to-end benchmark recorder for NeXa turns.
 
-    The service keeps one active trace in memory and writes completed
-    turn samples to a rolling JSON store.
+    The service keeps one active trace in memory, persists completed samples
+    to a rolling JSON store, and exposes the latest benchmark snapshot
+    directly from memory for fast status/debug access.
     """
 
     def __init__(
@@ -38,6 +37,10 @@ class TurnBenchmarkService:
         self._lock = threading.RLock()
         self._active_trace = TurnBenchmarkTrace()
 
+        self._recent_samples: list[dict[str, Any]] = []
+        self._latest_sample_cache: dict[str, Any] = {}
+        self._latest_summary_cache: dict[str, Any] = {}
+
         resolved_path = resolve_optional_path(path)
         if resolved_path is None:
             raise ValueError("Benchmark path cannot be None.")
@@ -49,6 +52,9 @@ class TurnBenchmarkService:
 
         if self.enabled and self.persist_turns:
             self._store.ensure_exists()
+
+        if self.enabled:
+            self._hydrate_memory_cache()
 
     def begin_turn(
         self,
@@ -73,14 +79,7 @@ class TurnBenchmarkService:
 
             return trace.turn_id
 
-    def note_wake_detected(
-        self,
-        *,
-        source: str,
-        input_source: str = "voice",
-        latency_ms: float | None = None,
-        backend_label: str = "",
-    ) -> None:
+    def note_wake_detected(self, *, source: str) -> None:
         if not self.enabled:
             return
 
@@ -88,13 +87,7 @@ class TurnBenchmarkService:
             self._active_trace = self._new_trace_locked()
             self._active_trace.wake_detected_at_monotonic = time.perf_counter()
             self._active_trace.wake_source = str(source or "wake_gate").strip() or "wake_gate"
-            self._active_trace.input_source = (
-                str(input_source or "voice").strip().lower() or "voice"
-            )
-            self._active_trace.wake_backend = str(
-                backend_label or self._active_trace.wake_source
-            ).strip()
-            self._active_trace.wake_latency_ms = self._optional_float(latency_ms)
+            self._active_trace.input_source = "voice"
 
     def note_listening_started(self, *, phase: str) -> None:
         if not self.enabled:
@@ -106,19 +99,7 @@ class TurnBenchmarkService:
                 trace.listening_started_at_monotonic = time.perf_counter()
             trace.active_phase = str(phase or trace.active_phase or "command").strip() or "command"
 
-    def note_speech_finalized(
-        self,
-        *,
-        text: str,
-        phase: str,
-        language: str = "",
-        input_source: str = "",
-        latency_ms: float | None = None,
-        audio_duration_ms: float | None = None,
-        backend_label: str = "",
-        mode: str = "",
-        confidence: float | None = None,
-    ) -> None:
+    def note_speech_finalized(self, *, text: str, phase: str) -> None:
         if not self.enabled:
             return
 
@@ -132,22 +113,6 @@ class TurnBenchmarkService:
 
             if phase:
                 trace.active_phase = str(phase).strip() or trace.active_phase
-
-            if language:
-                trace.language = str(language).strip().lower()
-
-            if input_source:
-                trace.input_source = str(input_source).strip().lower() or trace.input_source
-
-            if backend_label:
-                trace.stt_backend = str(backend_label).strip()
-
-            if mode:
-                trace.stt_mode = str(mode).strip()
-
-            trace.stt_latency_ms = self._optional_float(latency_ms)
-            trace.speech_duration_ms = self._optional_float(audio_duration_ms)
-            trace.stt_confidence = self._optional_float(confidence)
 
     def note_route_resolved(
         self,
@@ -188,7 +153,10 @@ class TurnBenchmarkService:
                 )
 
             report_started = self._safe_attr_float(response_report, "started_at_monotonic")
-            report_first_audio = self._safe_attr_float(response_report, "first_audio_started_at_monotonic")
+            report_first_audio = self._safe_attr_float(
+                response_report,
+                "first_audio_started_at_monotonic",
+            )
             report_finished = self._safe_attr_float(response_report, "finished_at_monotonic")
             response_first_audio_ms = self._safe_attr_float(response_report, "first_audio_latency_ms")
             response_total_ms = self._safe_attr_float(response_report, "total_elapsed_ms")
@@ -209,11 +177,13 @@ class TurnBenchmarkService:
                 "created_at_iso": self._now_iso(),
                 "input_source": str(
                     telemetry.get("input_source") or trace.input_source or "voice"
-                ).strip() or "voice",
+                ).strip()
+                or "voice",
                 "language": str(
                     telemetry.get("language") or trace.language or ""
                 ).strip().lower(),
-                "user_text_preview": trace.user_text or self._preview_text(str(telemetry.get("user_text", "") or "")),
+                "user_text_preview": trace.user_text
+                or self._preview_text(str(telemetry.get("user_text", "") or "")),
                 "result": str(telemetry.get("result", "") or "").strip(),
                 "handled": bool(telemetry.get("handled", False)),
                 "route_kind": str(
@@ -226,39 +196,8 @@ class TurnBenchmarkService:
                     telemetry.get("primary_intent") or trace.primary_intent or ""
                 ).strip(),
                 "topics": list(telemetry.get("topics", []) or []),
-                "route_notes": list(telemetry.get("route_notes", []) or []),
-                "route_metadata": dict(telemetry.get("route_metadata", {}) or {}),
                 "wake_source": str(trace.wake_source or "").strip(),
                 "active_phase": str(trace.active_phase or "").strip(),
-                "capture_phase": str(
-                    telemetry.get("capture_phase") or trace.active_phase or ""
-                ).strip(),
-                "capture_mode": str(
-                    telemetry.get("stt_mode") or telemetry.get("capture_mode") or ""
-                ).strip(),
-                "capture_backend": str(
-                    telemetry.get("stt_backend") or telemetry.get("capture_backend") or ""
-                ).strip(),
-                "wake_latency_ms": self._optional_float(trace.wake_latency_ms),
-                "active_phase": str(trace.active_phase or "").strip(),
-                "stt_backend": str(
-                    telemetry.get("stt_backend") or trace.stt_backend or ""
-                ).strip(),
-                "stt_mode": str(
-                    telemetry.get("stt_mode") or trace.stt_mode or ""
-                ).strip(),
-                "stt_phase": str(
-                    telemetry.get("stt_phase") or trace.active_phase or ""
-                ).strip(),
-                "stt_latency_ms": self._optional_float(
-                    telemetry.get("stt_latency_ms", trace.stt_latency_ms)
-                ),
-                "stt_audio_duration_ms": self._optional_float(
-                    telemetry.get("stt_audio_duration_ms", trace.speech_duration_ms)
-                ),
-                "stt_confidence": self._optional_float(
-                    telemetry.get("stt_confidence", trace.stt_confidence)
-                ) or None,
                 "wake_to_listen_ms": self._delta_ms(
                     trace.wake_detected_at_monotonic,
                     trace.listening_started_at_monotonic,
@@ -281,58 +220,105 @@ class TurnBenchmarkService:
                 ),
                 "response_first_audio_ms": response_first_audio_ms or None,
                 "response_total_ms": response_total_ms or None,
-                "llm_first_chunk_ms": self._optional_float(
-                    safe_llm.get("first_chunk_latency_ms")
-                    or getattr(response_report, "first_chunk_latency_ms", 0.0)
-                ),
+                "llm_first_chunk_ms": self._safe_float(
+                    safe_llm.get("first_chunk_latency_ms", 0.0)
+                )
+                or None,
                 "llm_total_ms": self._safe_float(
                     safe_llm.get("latency_ms", 0.0)
-                ) or None,
+                )
+                or None,
                 "llm_source": str(safe_llm.get("source", "") or "").strip(),
                 "llm_ok": bool(safe_llm.get("ok", False)),
                 "llm_error": str(safe_llm.get("error", "") or "").strip(),
-                "response_chunks_spoken": int(self._safe_attr_float(response_report, "chunks_spoken")),
+                "response_chunks_spoken": int(
+                    self._safe_attr_float(response_report, "chunks_spoken")
+                ),
                 "response_chars": len(str(getattr(response_report, "full_text", "") or "")),
-                "response_live_streaming": bool(getattr(response_report, "live_streaming", False)),
-                "response_first_chunk_ms": self._optional_float(
-                    getattr(response_report, "first_chunk_latency_ms", 0.0)
+                "response_live_streaming": bool(
+                    getattr(response_report, "live_streaming", False)
                 ),
-                "response_first_sentence_ms": self._optional_float(
-                    getattr(response_report, "first_sentence_latency_ms", 0.0)
-                ),
-                "response_chunk_kinds": list(getattr(response_report, "chunk_kinds", []) or []),
-                "response_source": str(telemetry.get("response_source", "") or "").strip(),
-                "response_reply_source": str(telemetry.get("response_reply_source", "") or "").strip(),
-                "response_display_title": str(telemetry.get("response_display_title", "") or "").strip(),
-                "response_stream_mode": str(telemetry.get("response_stream_mode", "") or "").strip(),
-                "response_memory_metadata": dict(
-                    telemetry.get("response_memory_metadata", {}) or {}
-                ),
-                "action_name": str(telemetry.get("action_name", "") or "").strip(),
-                "action_source": str(telemetry.get("action_source", "") or "").strip(),
-                "action_confidence": self._optional_float(
-                    telemetry.get("action_confidence", None)
+                "response_chunk_kinds": list(
+                    getattr(response_report, "chunk_kinds", []) or []
                 ),
                 "total_turn_ms": total_turn_ms or None,
             }
 
+            self._append_sample_in_memory_locked(sample)
+
             if self.persist_turns:
-                self._store.update(lambda payload: self._append_sample(payload, sample))
+                self._store.update(
+                    lambda payload: self._append_sample_payload(payload, sample)
+                )
 
             self._active_trace = TurnBenchmarkTrace()
-            return sample
+            return dict(sample)
+
+    def latest_sample(self) -> dict[str, Any]:
+        if not self.enabled:
+            return {}
+
+        with self._lock:
+            return dict(self._latest_sample_cache)
 
     def latest_summary(self) -> dict[str, Any]:
-        if not self.enabled or not self.persist_turns:
+        if not self.enabled:
             return {}
 
-        result = self._store.read_result()
-        if not isinstance(result.value, dict):
+        with self._lock:
+            return dict(self._latest_summary_cache)
+
+    def latest_snapshot(self) -> dict[str, Any]:
+        if not self.enabled:
             return {}
 
-        return dict(result.value.get("summary", {}) or {})
+        with self._lock:
+            snapshot = TurnBenchmarkSnapshot(
+                latest_sample=dict(self._latest_sample_cache),
+                summary=dict(self._latest_summary_cache),
+                overlay_lines=self._build_overlay_lines(
+                    latest_sample=self._latest_sample_cache,
+                    summary=self._latest_summary_cache,
+                ),
+            )
+            return snapshot.to_dict()
 
-    def _append_sample(self, payload: dict[str, Any] | None, sample: dict[str, Any]) -> dict[str, Any]:
+    def _hydrate_memory_cache(self) -> None:
+        with self._lock:
+            if not self.persist_turns:
+                self._recent_samples = []
+                self._latest_sample_cache = {}
+                self._latest_summary_cache = {}
+                return
+
+            result = self._store.read_result()
+            payload = result.value if isinstance(result.value, dict) else {}
+            samples = list(payload.get("samples", []) or [])
+            if len(samples) > self.max_samples:
+                samples = samples[-self.max_samples :]
+
+            self._recent_samples = [dict(item) for item in samples if isinstance(item, dict)]
+            self._latest_sample_cache = dict(self._recent_samples[-1]) if self._recent_samples else {}
+
+            summary = payload.get("summary", {})
+            if isinstance(summary, dict) and summary:
+                self._latest_summary_cache = dict(summary)
+            else:
+                self._latest_summary_cache = self._build_summary(self._recent_samples)
+
+    def _append_sample_in_memory_locked(self, sample: dict[str, Any]) -> None:
+        self._recent_samples.append(dict(sample))
+        if len(self._recent_samples) > self.max_samples:
+            self._recent_samples = self._recent_samples[-self.max_samples :]
+
+        self._latest_sample_cache = dict(sample)
+        self._latest_summary_cache = self._build_summary(self._recent_samples)
+
+    def _append_sample_payload(
+        self,
+        payload: dict[str, Any] | None,
+        sample: dict[str, Any],
+    ) -> dict[str, Any]:
         data = dict(payload or {})
         samples = list(data.get("samples", []) or [])
         samples.append(dict(sample))
@@ -359,8 +345,6 @@ class TurnBenchmarkService:
             window_size=len(window),
             avg_total_turn_ms=self._average_metric(window, "total_turn_ms"),
             avg_response_first_audio_ms=self._average_metric(window, "response_first_audio_ms"),
-            avg_response_first_chunk_ms=self._average_metric(window, "response_first_chunk_ms"),
-            avg_response_first_sentence_ms=self._average_metric(window, "response_first_sentence_ms"),
             avg_route_to_first_audio_ms=self._average_metric(window, "route_to_first_audio_ms"),
             avg_llm_first_chunk_ms=self._average_metric(window, "llm_first_chunk_ms"),
             avg_llm_total_ms=self._average_metric(window, "llm_total_ms"),
@@ -369,6 +353,35 @@ class TurnBenchmarkService:
             last_total_turn_ms=self._safe_float(latest.get("total_turn_ms", 0.0)) or None,
         )
         return summary.to_dict()
+
+    def _build_overlay_lines(
+        self,
+        *,
+        latest_sample: dict[str, Any],
+        summary: dict[str, Any],
+    ) -> list[str]:
+        if not latest_sample and not summary:
+            return []
+
+        last_turn_ms = self._metric_compact(latest_sample.get("total_turn_ms"))
+        avg_audio_ms = self._metric_compact(summary.get("avg_response_first_audio_ms"))
+        avg_llm_ms = self._metric_compact(summary.get("avg_llm_first_chunk_ms"))
+
+        return [
+            f"turn:{last_turn_ms} audio:{avg_audio_ms}",
+            f"llm:{avg_llm_ms} result:{str(latest_sample.get('result', '-') or '-')[:6]}",
+        ]
+
+    @staticmethod
+    def _metric_compact(value: Any) -> str:
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return "n/a"
+
+        if parsed <= 0.0:
+            return "n/a"
+        return f"{int(round(parsed))}ms"
 
     @staticmethod
     def _default_payload() -> dict[str, Any]:
@@ -393,18 +406,6 @@ class TurnBenchmarkService:
         if len(cleaned) <= max_chars:
             return cleaned
         return f"{cleaned[: max_chars - 3].rstrip()}..."
-
-
-
-    @staticmethod
-    def _optional_float(value: Any) -> float | None:
-        if value is None or value == "":
-            return None
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return None
-
 
     @staticmethod
     def _safe_float(value: Any) -> float:

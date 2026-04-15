@@ -24,27 +24,21 @@ class _FakeTimer:
 
 
 class _FakeBenchmarkService:
-    def latest_summary(self):
+    def latest_snapshot(self):
         return {
-            "avg_llm_first_chunk_ms": 82.0,
-            "avg_response_first_audio_ms": 145.0,
-            "avg_response_first_sentence_ms": 188.0,
+            "latest_sample": {
+                "total_turn_ms": 910.0,
+                "result": "conversation_route",
+            },
+            "summary": {
+                "avg_response_first_audio_ms": 145.0,
+                "avg_llm_first_chunk_ms": 82.0,
+            },
+            "overlay_lines": [
+                "turn:910ms audio:145ms",
+                "llm:82ms result:conv",
+            ],
         }
-
-
-class _FakeLocalLLM:
-    def last_generation_snapshot(self):
-        return {
-            "latency_ms": 420.0,
-            "first_chunk_latency_ms": 80.0,
-            "ok": True,
-            "source": "hailo-ollama",
-        }
-
-
-class _FakeDialogue:
-    def __init__(self):
-        self.local_llm = _FakeLocalLLM()
 
 
 class _FakeAssistant:
@@ -58,7 +52,6 @@ class _FakeAssistant:
         self.reminders = _FakeReminders()
         self.timer = _FakeTimer()
         self.turn_benchmark_service = _FakeBenchmarkService()
-        self.dialogue = _FakeDialogue()
         self.backend_statuses = {}
         self._last_plan = None
         self._last_source = ""
@@ -69,7 +62,6 @@ class _FakeAssistant:
             "lifecycle_state": "ready",
             "ready": True,
             "degraded": False,
-            "status_message": "runtime ready",
             "services": {
                 "wake_gate": {"backend": "openwakeword"},
                 "voice_input": {"backend": "faster_whisper"},
@@ -102,7 +94,7 @@ class _Probe(ActionSystemActionsMixin, ActionResponseHelpersMixin):
 
 
 class SystemStatusMetricsTests(unittest.TestCase):
-    def test_status_includes_runtime_backends_and_metrics(self) -> None:
+    def test_status_includes_runtime_backends_and_benchmark_metrics(self) -> None:
         probe = _Probe()
 
         ok = probe._handle_status(
@@ -114,6 +106,11 @@ class SystemStatusMetricsTests(unittest.TestCase):
                 kind=RouteKind.ACTION,
                 confidence=0.95,
                 primary_intent="status",
+                intents=[],
+                conversation_topics=[],
+                tool_invocations=[],
+                notes=[],
+                metadata={},
             ),
             language="en",
             payload={},
@@ -127,22 +124,22 @@ class SystemStatusMetricsTests(unittest.TestCase):
 
         self.assertTrue(ok)
         self.assertEqual(probe.assistant._last_source, "action_flow:status")
-        spoken = probe.assistant._last_plan.chunks[0].text
 
+        spoken = probe.assistant._last_plan.chunks[0].text
         self.assertIn("Wake uses oww", spoken)
         self.assertIn("STT uses faster", spoken)
         self.assertIn("LLM uses hailo", spoken)
-        self.assertIn("LLM first chunk 82 milliseconds", spoken)
-        self.assertIn("voice start 145 milliseconds", spoken)
-        self.assertIn("first sentence 188 milliseconds", spoken)
+        self.assertIn("latest full turn took 910 milliseconds", spoken.lower())
+        self.assertIn("average voice start is 145 milliseconds", spoken.lower())
+        self.assertIn("average llm first chunk is 82 milliseconds", spoken.lower())
 
         metadata = probe.assistant._last_extra_metadata
         self.assertEqual(metadata["wake_backend"], "oww")
         self.assertEqual(metadata["stt_backend"], "faster")
         self.assertEqual(metadata["llm_backend"], "hailo")
-        self.assertAlmostEqual(metadata["avg_llm_first_chunk_ms"], 82.0)
+        self.assertAlmostEqual(metadata["last_turn_ms"], 910.0)
         self.assertAlmostEqual(metadata["avg_response_first_audio_ms"], 145.0)
-        self.assertAlmostEqual(metadata["avg_response_first_sentence_ms"], 188.0)
+        self.assertAlmostEqual(metadata["avg_llm_first_chunk_ms"], 82.0)
 
 
 if __name__ == "__main__":
