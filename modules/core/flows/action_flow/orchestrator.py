@@ -48,6 +48,7 @@ class ActionFlowOrchestrator(
     TOOL_TO_ACTION: dict[str, str] = {
         "system.help": "help",
         "system.status": "status",
+        "system.debug_status": "debug_status",
         "assistant.introduce": "introduce_self",
         "clock.time": "ask_time",
         "clock.date": "ask_date",
@@ -76,6 +77,7 @@ class ActionFlowOrchestrator(
     SUPPORTED_ACTIONS = {
         "help",
         "status",
+        "debug_status",
         "introduce_self",
         "ask_time",
         "show_time",
@@ -110,6 +112,7 @@ class ActionFlowOrchestrator(
     ACTION_LABELS = {
         "help": ("pomoc", "help"),
         "status": ("status", "status"),
+        "debug_status": ("status debug", "debug status"),
         "introduce_self": ("przedstawienie się", "introduce yourself"),
         "ask_time": ("podanie czasu", "tell the time"),
         "show_time": ("podanie czasu", "tell the time"),

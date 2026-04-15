@@ -177,8 +177,7 @@ class TurnBenchmarkService:
                 "created_at_iso": self._now_iso(),
                 "input_source": str(
                     telemetry.get("input_source") or trace.input_source or "voice"
-                ).strip()
-                or "voice",
+                ).strip() or "voice",
                 "language": str(
                     telemetry.get("language") or trace.language or ""
                 ).strip().lower(),
@@ -222,12 +221,10 @@ class TurnBenchmarkService:
                 "response_total_ms": response_total_ms or None,
                 "llm_first_chunk_ms": self._safe_float(
                     safe_llm.get("first_chunk_latency_ms", 0.0)
-                )
-                or None,
+                ) or None,
                 "llm_total_ms": self._safe_float(
                     safe_llm.get("latency_ms", 0.0)
-                )
-                or None,
+                ) or None,
                 "llm_source": str(safe_llm.get("source", "") or "").strip(),
                 "llm_ok": bool(safe_llm.get("ok", False)),
                 "llm_error": str(safe_llm.get("error", "") or "").strip(),
@@ -397,7 +394,8 @@ class TurnBenchmarkService:
             self._active_trace = self._new_trace_locked()
         return self._active_trace
 
-    def _new_trace_locked(self) -> TurnBenchmarkTrace:
+    @staticmethod
+    def _new_trace_locked() -> TurnBenchmarkTrace:
         return TurnBenchmarkTrace(turn_id=create_turn_id("bench"))
 
     @staticmethod

@@ -199,6 +199,20 @@ class IntentParser(
                 "status systemu",
                 "stan systemu",
             ],
+            "debug_status": [
+                "debug status",
+                "developer status",
+                "technical status",
+                "diagnostic status",
+                "show debug status",
+                "show developer status",
+                "status debug",
+                "status deweloperski",
+                "status techniczny",
+                "stan debug",
+                "stan techniczny",
+                "stan deweloperski",
+           ],
             "memory_list": [
                 "memory",
                 "show memory",
@@ -327,6 +341,7 @@ class IntentParser(
         self.action_labels = {
             "help": "help / pomoc",
             "status": "status / stan",
+            "debug_status": "debug status / status debug",
             "memory_list": "memory / pamięć",
             "memory_clear": "clear memory / wyczyść pamięć",
             "memory_store": "remember / zapamiętaj",

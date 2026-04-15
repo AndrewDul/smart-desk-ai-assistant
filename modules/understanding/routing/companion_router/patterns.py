@@ -3,6 +3,7 @@ from __future__ import annotations
 ACTION_TO_TOOL: dict[str, str] = {
     "help": "system.help",
     "status": "system.status",
+    "debug_status": "system.debug_status",
     "memory_list": "memory.list",
     "memory_clear": "memory.clear",
     "memory_store": "memory.store",
@@ -37,6 +38,7 @@ ACTION_TO_TOOL: dict[str, str] = {
 DIRECT_ACTIONS = {
     "help",
     "status",
+    "debug_status",
     "memory_list",
     "memory_clear",
     "memory_store",
@@ -68,6 +70,7 @@ DIRECT_ACTIONS = {
 
 ALWAYS_EXPLICIT_ACTIONS = {
     "status",
+    "debug_status",
     "memory_list",
     "memory_clear",
     "memory_store",

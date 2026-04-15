@@ -29,14 +29,16 @@ class _FakeBenchmarkService:
             "latest_sample": {
                 "total_turn_ms": 910.0,
                 "result": "conversation_route",
+                "route_kind": "conversation",
             },
             "summary": {
+                "avg_total_turn_ms": 930.0,
                 "avg_response_first_audio_ms": 145.0,
                 "avg_llm_first_chunk_ms": 82.0,
             },
             "overlay_lines": [
                 "turn:910ms audio:145ms",
-                "llm:82ms result:conv",
+                "llm:82ms result:conver",
             ],
         }
 
@@ -60,6 +62,7 @@ class _FakeAssistant:
     def _runtime_status_snapshot(self):
         return {
             "lifecycle_state": "ready",
+            "startup_mode": "premium",
             "ready": True,
             "degraded": False,
             "services": {
@@ -140,6 +143,49 @@ class SystemStatusMetricsTests(unittest.TestCase):
         self.assertAlmostEqual(metadata["last_turn_ms"], 910.0)
         self.assertAlmostEqual(metadata["avg_response_first_audio_ms"], 145.0)
         self.assertAlmostEqual(metadata["avg_llm_first_chunk_ms"], 82.0)
+
+    def test_debug_status_exposes_technical_snapshot(self) -> None:
+        probe = _Probe()
+
+        ok = probe._handle_debug_status(
+            route=RouteDecision(
+                turn_id="turn-debug-status",
+                raw_text="debug status",
+                normalized_text="debug status",
+                language="en",
+                kind=RouteKind.ACTION,
+                confidence=0.95,
+                primary_intent="debug_status",
+                intents=[],
+                conversation_topics=[],
+                tool_invocations=[],
+                notes=[],
+                metadata={},
+            ),
+            language="en",
+            payload={},
+            resolved=ResolvedAction(
+                name="debug_status",
+                payload={},
+                source="route.primary_intent",
+                confidence=0.95,
+            ),
+        )
+
+        self.assertTrue(ok)
+        self.assertEqual(probe.assistant._last_source, "action_flow:debug_status")
+
+        spoken = probe.assistant._last_plan.chunks[0].text
+        self.assertIn("technical debug status", spoken.lower())
+        self.assertIn("latest result is conversation_route", spoken.lower())
+        self.assertIn("debug overlay contains 2 lines", spoken.lower())
+
+        metadata = probe.assistant._last_extra_metadata
+        self.assertEqual(metadata["wake_backend"], "oww")
+        self.assertEqual(metadata["stt_backend"], "faster")
+        self.assertEqual(metadata["llm_backend"], "hailo")
+        self.assertTrue(metadata["overlay_lines"])
+        self.assertTrue(metadata["debug_lines"])
 
 
 if __name__ == "__main__":

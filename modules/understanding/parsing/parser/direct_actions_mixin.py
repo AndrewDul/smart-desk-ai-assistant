@@ -24,6 +24,14 @@ class IntentParserDirectActionsMixin:
         if {"what", "can", "you", "do"}.issubset(tokens):
             return IntentResult.from_action(action="help")
 
+        if {"debug", "status"}.issubset(tokens):
+            return IntentResult.from_action(action="debug_status")
+        if {"developer", "status"}.issubset(tokens):
+            return IntentResult.from_action(action="debug_status")
+        if {"technical", "status"}.issubset(tokens):
+            return IntentResult.from_action(action="debug_status")
+        if "status" in tokens and ("debug" in tokens or "techniczny" in tokens or "deweloperski" in tokens):
+            return IntentResult.from_action(action="debug_status")
         if "status" in tokens or ("stan" in tokens and "systemu" in tokens):
             return IntentResult.from_action(action="status")
 
