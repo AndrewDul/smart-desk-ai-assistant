@@ -35,6 +35,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "active_listen_window_seconds": 6.0,
         "thinking_ack_seconds": 1.2,
         "wake_ack_prefetch_on_boot": True,
+        "active_window_retry_min_remaining_seconds": 0.35,
         "debug": False,
         "sample_rate": 16000,
         "max_record_seconds": 6.5,

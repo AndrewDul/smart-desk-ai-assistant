@@ -21,13 +21,13 @@ from modules.shared.logging.logger import append_log
 from .backend_helpers import (
     _follow_up_window_seconds,
     _grace_window_seconds,
-    _initial_command_window_seconds,
     _prepare_for_active_capture,
     _prepare_for_standby_capture,
     _resolve_wake_backend,
     _wait_for_input_ready,
 )
 from .capture_adapters import capture_transcript, detect_wake_event
+from .command_window_policy import CommandWindowPolicyService
 from .resume_policy import ResumePolicyService
 from .constants import (
     COMMAND_EMPTY_RETRY_LIMIT,
@@ -59,6 +59,7 @@ if TYPE_CHECKING:
     from modules.core.assistant import CoreAssistant
 
 
+_COMMAND_WINDOW_POLICY_SERVICE = CommandWindowPolicyService()
 _RESUME_POLICY_SERVICE = ResumePolicyService()
 
 
@@ -578,26 +579,22 @@ def _handle_no_speech_capture(assistant: CoreAssistant, state_flags: MainLoopRun
     phase = _active_phase(state_flags)
     attempt_number = state_flags.record_empty_capture()
     remaining = assistant.voice_session.active_window_remaining_seconds()
+    decision = _COMMAND_WINDOW_POLICY_SERVICE.decide_after_empty_capture(
+        assistant,
+        phase=phase,
+        attempt_number=attempt_number,
+        remaining_seconds=remaining,
+    )
 
-    if phase == PHASE_FOLLOW_UP:
-        retry_limit = FOLLOW_UP_EMPTY_RETRY_LIMIT
-        detail = "awaiting_followup_after_silence"
-    elif phase == PHASE_GRACE:
-        retry_limit = GRACE_EMPTY_RETRY_LIMIT
-        detail = "grace_after_silence"
-    else:
-        retry_limit = COMMAND_EMPTY_RETRY_LIMIT
-        detail = "awaiting_command_after_silence"
-
-    if remaining > 0.35 and attempt_number <= retry_limit:
+    if decision.action == "retry":
         assistant.voice_session.transition_to_listening(
-            detail=detail,
+            detail=decision.detail,
             phase=_voice_phase_for_active_phase(phase),
             input_owner=VOICE_INPUT_OWNER_VOICE_INPUT,
         )
         return True
 
-    _return_to_wake_gate(assistant, state_flags, reason=f"{phase}_window_expired")
+    _return_to_wake_gate(assistant, state_flags, reason=decision.reason or f"{phase}_window_expired")
     return False
 
 
@@ -605,33 +602,33 @@ def _handle_ignored_active_transcript(assistant: CoreAssistant, state_flags: Mai
     phase = _active_phase(state_flags)
     attempt_number = state_flags.record_ignored_capture()
     remaining = assistant.voice_session.active_window_remaining_seconds()
+    decision = _COMMAND_WINDOW_POLICY_SERVICE.decide_after_ignored_transcript(
+        assistant,
+        phase=phase,
+        attempt_number=attempt_number,
+        remaining_seconds=remaining,
+    )
 
-    if phase == PHASE_FOLLOW_UP:
-        retry_limit = FOLLOW_UP_IGNORE_RETRY_LIMIT
-    elif phase == PHASE_GRACE:
-        retry_limit = GRACE_IGNORE_RETRY_LIMIT
-    else:
-        retry_limit = COMMAND_IGNORE_RETRY_LIMIT
-
-    if remaining > 0.35 and attempt_number <= retry_limit:
+    if decision.action == "retry":
         assistant.voice_session.transition_to_listening(
-            detail=f"{phase}_ignored_transcript",
+            detail=decision.detail,
             phase=_voice_phase_for_active_phase(phase),
             input_owner=VOICE_INPUT_OWNER_VOICE_INPUT,
         )
         return True
 
-    _return_to_wake_gate(assistant, state_flags, reason=f"{phase}_ignored_transcript")
+    _return_to_wake_gate(assistant, state_flags, reason=decision.reason or f"{phase}_ignored_transcript")
     return False
 
 
 def _prime_command_window_after_wake(assistant: CoreAssistant, state_flags: MainLoopRuntimeState) -> None:
     _wait_for_input_ready(assistant)
+    decision = _COMMAND_WINDOW_POLICY_SERVICE.initial_window_decision(assistant)
     assistant.voice_session.open_active_window(
-        seconds=_initial_command_window_seconds(assistant),
+        seconds=decision.window_seconds,
         phase=VOICE_PHASE_COMMAND,
         input_owner=VOICE_INPUT_OWNER_VOICE_INPUT,
-        detail="awaiting_command_after_wake",
+        detail=decision.detail or "awaiting_command_after_wake",
     )
     _set_active_phase(state_flags, PHASE_COMMAND)
     state_flags.hide_standby_banner()
