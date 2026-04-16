@@ -72,6 +72,34 @@ class _FakeAssistant:
             },
         }
 
+    def _audio_runtime_snapshot(self):
+        return {
+            "state": "listening",
+            "detail": "active_window:command",
+            "interaction_phase": "command",
+            "input_owner": "voice_input",
+            "active_window_open": True,
+            "active_window_remaining_seconds": 2.4,
+            "active_window_generation": 3,
+            "state_age_seconds": 0.5,
+            "last_capture_handoff": {
+                "applied_owner": "voice_input",
+                "wake_backend_label": "runtime.wake_gate",
+            },
+            "last_resume_policy": {
+                "action": "grace",
+                "reason": "response_delivered",
+            },
+            "last_command_window_policy": {
+                "action": "retry",
+                "reason": "empty_capture",
+            },
+            "lines": [
+                "phase:command owner:voice_input",
+                "resume:grace cmd:retry",
+            ],
+        }
+
     def deliver_response_plan(self, plan, *, source, remember=True, extra_metadata=None):
         self._last_plan = plan
         self._last_source = source
@@ -143,6 +171,8 @@ class SystemStatusMetricsTests(unittest.TestCase):
         self.assertAlmostEqual(metadata["last_turn_ms"], 910.0)
         self.assertAlmostEqual(metadata["avg_response_first_audio_ms"], 145.0)
         self.assertAlmostEqual(metadata["avg_llm_first_chunk_ms"], 82.0)
+        self.assertEqual(metadata["audio_runtime_snapshot"]["interaction_phase"], "command")
+        self.assertEqual(metadata["audio_runtime_snapshot"]["input_owner"], "voice_input")
 
     def test_debug_status_exposes_technical_snapshot(self) -> None:
         probe = _Probe()
@@ -177,6 +207,10 @@ class SystemStatusMetricsTests(unittest.TestCase):
 
         spoken = probe.assistant._last_plan.chunks[0].text
         self.assertIn("technical debug status", spoken.lower())
+        self.assertIn("audio phase is command", spoken.lower())
+        self.assertIn("input owner is voice_input", spoken.lower())
+        self.assertIn("latest resume action is grace", spoken.lower())
+        self.assertIn("latest command window action is retry", spoken.lower())
         self.assertIn("latest result is conversation_route", spoken.lower())
         self.assertIn("debug overlay contains 2 lines", spoken.lower())
 
@@ -186,6 +220,10 @@ class SystemStatusMetricsTests(unittest.TestCase):
         self.assertEqual(metadata["llm_backend"], "hailo")
         self.assertTrue(metadata["overlay_lines"])
         self.assertTrue(metadata["debug_lines"])
+        self.assertEqual(metadata["audio_runtime_snapshot"]["interaction_phase"], "command")
+        self.assertEqual(metadata["audio_runtime_snapshot"]["input_owner"], "voice_input")
+        self.assertTrue(metadata["audio_lines"])
+        self.assertEqual(metadata["audio_lines"][0], "phase: command")
 
 
 if __name__ == "__main__":

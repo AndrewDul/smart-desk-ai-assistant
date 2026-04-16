@@ -18,6 +18,7 @@ from modules.presentation.response_streamer import ResponseStreamer
 from modules.presentation.thinking_ack import ThinkingAckService
 from modules.presentation.wake_ack import WakeAcknowledgementService
 
+from modules.runtime.audio_runtime_snapshot import AudioRuntimeSnapshotService
 from modules.runtime.builder import RuntimeBuilder
 from modules.runtime.contracts import StreamMode
 from modules.runtime.product import RuntimeProductService
@@ -92,6 +93,10 @@ class CoreAssistant(
         self._last_response_stream_report = None
         self._last_response_delivery_snapshot = None
         self._last_input_capture: dict[str, Any] = {}
+        self._last_capture_handoff: dict[str, Any] = {}
+        self._last_resume_policy_snapshot: dict[str, Any] = {}
+        self._last_command_window_policy_snapshot: dict[str, Any] = {}
+        self._last_audio_runtime_snapshot: dict[str, Any] = {}
 
         self.turn_benchmark_service = TurnBenchmarkService(
             enabled=bool(benchmark_cfg.get("enabled", True)),
@@ -116,6 +121,9 @@ class CoreAssistant(
         )
 
         self.wake_ack_service: WakeAcknowledgementService | None = None
+        self.audio_runtime_snapshot_service = AudioRuntimeSnapshotService(
+            voice_session=self.voice_session,
+        )
 
         self.state_store = JsonStore(
             path=SESSION_STATE_PATH,

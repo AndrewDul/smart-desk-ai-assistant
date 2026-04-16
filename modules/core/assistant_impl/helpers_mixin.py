@@ -176,6 +176,28 @@ class CoreAssistantHelpersMixin:
 
         return dict(snapshot) if isinstance(snapshot, dict) else {}
 
+
+    def _audio_runtime_snapshot(self) -> dict[str, Any]:
+        service = getattr(self, "audio_runtime_snapshot_service", None)
+        if service is None:
+            return dict(getattr(self, "_last_audio_runtime_snapshot", {}) or {})
+
+        snapshot_method = getattr(service, "snapshot", None)
+        if not callable(snapshot_method):
+            return dict(getattr(self, "_last_audio_runtime_snapshot", {}) or {})
+
+        try:
+            snapshot = snapshot_method(assistant=self)
+        except Exception as error:
+            log_exception("Failed to read audio runtime snapshot", error)
+            return dict(getattr(self, "_last_audio_runtime_snapshot", {}) or {})
+
+        payload = dict(snapshot or {}) if isinstance(snapshot, dict) else {}
+        self._last_audio_runtime_snapshot = payload
+        return payload
+
+
+
     def _runtime_overlay_lines(self) -> list[str]:
         snapshot = self._runtime_status_snapshot()
         startup_mode = str(snapshot.get("startup_mode", "") or "").strip().lower()

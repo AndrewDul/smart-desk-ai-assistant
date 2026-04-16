@@ -30,7 +30,20 @@ class ActionSystemActionsMixin:
                 return {}
 
         return {}
+    def _audio_runtime_snapshot(self) -> dict[str, Any]:
+        assistant = getattr(self, "assistant", None)
 
+        snapshot_method = getattr(assistant, "_audio_runtime_snapshot", None)
+        if callable(snapshot_method):
+            try:
+                snapshot = snapshot_method()
+                return dict(snapshot or {}) if isinstance(snapshot, dict) else {}
+            except Exception:
+                return {}
+
+        payload = getattr(assistant, "_last_audio_runtime_snapshot", {}) or {}
+        return dict(payload or {}) if isinstance(payload, dict) else {}
+    
     def _benchmark_snapshot(self) -> dict[str, Any]:
         assistant = getattr(self, "assistant", None)
         service = getattr(assistant, "turn_benchmark_service", None)
@@ -100,7 +113,69 @@ class ActionSystemActionsMixin:
 
         normalized = aliases.get(raw, raw or "n/a")
         return normalized[:14]
+    @staticmethod
+    def _audio_token(value: Any, max_chars: int = 14) -> str:
+        compact = " ".join(str(value or "n/a").split()).strip().lower() or "n/a"
+        return compact[:max_chars]
 
+    def _audio_debug_lines(self, language: str, audio_snapshot: dict[str, Any]) -> list[str]:
+        phase = self._audio_token(audio_snapshot.get("interaction_phase", "n/a"))
+        owner = self._audio_token(audio_snapshot.get("input_owner", "n/a"))
+        resume_action = self._audio_token(
+            dict(audio_snapshot.get("last_resume_policy", {}) or {}).get("action", "n/a"),
+            10,
+        )
+        command_action = self._audio_token(
+            dict(audio_snapshot.get("last_command_window_policy", {}) or {}).get("action", "n/a"),
+            10,
+        )
+        handoff_owner = self._audio_token(
+            dict(audio_snapshot.get("last_capture_handoff", {}) or {}).get("applied_owner", "n/a"),
+            14,
+        )
+
+        return self._localized_lines(
+            language,
+            [
+                f"faza: {phase}",
+                f"owner: {owner}",
+                f"resume: {resume_action}",
+                f"cmd: {command_action}",
+                f"handoff: {handoff_owner}",
+            ],
+            [
+                f"phase: {phase}",
+                f"owner: {owner}",
+                f"resume: {resume_action}",
+                f"cmd: {command_action}",
+                f"handoff: {handoff_owner}",
+            ],
+        )
+
+    def _audio_debug_phrase(self, language: str, audio_snapshot: dict[str, Any]) -> str:
+        phase = self._audio_token(audio_snapshot.get("interaction_phase", "n/a"))
+        owner = self._audio_token(audio_snapshot.get("input_owner", "n/a"))
+        resume_action = self._audio_token(
+            dict(audio_snapshot.get("last_resume_policy", {}) or {}).get("action", "n/a"),
+            10,
+        )
+        command_action = self._audio_token(
+            dict(audio_snapshot.get("last_command_window_policy", {}) or {}).get("action", "n/a"),
+            10,
+        )
+
+        if language == "pl":
+            return (
+                f"Audio phase to {phase}, input owner to {owner}, "
+                f"ostatnia decyzja resume to {resume_action}, "
+                f"a ostatnia decyzja command window to {command_action}."
+            )
+        return (
+            f"The audio phase is {phase}, the input owner is {owner}, "
+            f"the latest resume action is {resume_action}, "
+            f"and the latest command window action is {command_action}."
+        )
+    
     @staticmethod
     def _safe_metric_float(value: Any) -> float | None:
         if value is None or value == "":
@@ -1276,6 +1351,8 @@ class ActionSystemActionsMixin:
                 f"run: {'YES' if timer_running else 'NO'}",
             ]
 
+        audio_snapshot = self._audio_runtime_snapshot()
+
         spoken = f"{runtime_spoken} {feature_spoken}".strip()
         display_lines = runtime_lines[:3] + feature_lines[:3]
 
@@ -1293,6 +1370,7 @@ class ActionSystemActionsMixin:
                 "memory_count": memory_count,
                 "reminder_count": reminder_count,
                 "current_timer": str(current_timer),
+                "audio_runtime_snapshot": audio_snapshot,
                 **runtime_metadata,
             },
         )
@@ -1311,7 +1389,9 @@ class ActionSystemActionsMixin:
         del route, payload
 
         runtime_spoken, _, runtime_metadata = self._build_runtime_benchmark_summary(language)
-        debug_lines = self._debug_status_lines(language, runtime_metadata)
+        audio_snapshot = self._audio_runtime_snapshot()
+        audio_lines = self._audio_debug_lines(language, audio_snapshot)
+        debug_lines = self._debug_status_lines(language, runtime_metadata) + audio_lines
         benchmark_snapshot = dict(runtime_metadata.get("benchmark_snapshot", {}) or {})
         overlay_lines = [
             str(item).strip()
@@ -1320,15 +1400,19 @@ class ActionSystemActionsMixin:
         ]
         latest_sample = dict(benchmark_snapshot.get("latest_sample", {}) or {})
 
+        audio_phrase = self._audio_debug_phrase(language, audio_snapshot)
+
         if language == "pl":
             spoken = (
                 f"To jest techniczny status debug. {runtime_spoken} "
+                f"{audio_phrase} "
                 f"Ostatni wynik to {str(latest_sample.get('result', 'brak') or 'brak')}. "
                 f"Debug overlay ma {len(overlay_lines)} linie."
             )
         else:
             spoken = (
                 f"This is the technical debug status. {runtime_spoken} "
+                f"{audio_phrase} "
                 f"The latest result is {str(latest_sample.get('result', 'n/a') or 'n/a')}. "
                 f"The debug overlay contains {len(overlay_lines)} lines."
             )
@@ -1348,6 +1432,8 @@ class ActionSystemActionsMixin:
                 **runtime_metadata,
                 "overlay_lines": overlay_lines,
                 "debug_lines": debug_lines,
+                "audio_runtime_snapshot": audio_snapshot,
+                "audio_lines": audio_lines,
             },
         )
 
