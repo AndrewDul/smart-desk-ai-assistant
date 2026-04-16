@@ -374,7 +374,7 @@ class CoreAssistantInteractionMixin:
             f"{response_part}"
             f"{benchmark_part}"
         )
-
+        self._refresh_developer_overlay(reason="turn_finished")
         self._last_response_stream_report = None
         self._last_response_delivery_snapshot = None
 

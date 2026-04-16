@@ -12,8 +12,12 @@ from modules.core.flows.pending_flow import PendingFlowOrchestrator
 from modules.core.session.fast_command_lane import FastCommandLane
 from modules.core.session.interrupt_controller import InteractionInterruptController
 from modules.core.session.voice_session import VoiceSessionController
+
+from modules.presentation.developer_overlay import DeveloperOverlayService
 from modules.presentation.response_streamer import ResponseStreamer
 from modules.presentation.thinking_ack import ThinkingAckService
+from modules.presentation.wake_ack import WakeAcknowledgementService
+
 from modules.runtime.builder import RuntimeBuilder
 from modules.runtime.contracts import StreamMode
 from modules.runtime.product import RuntimeProductService
@@ -65,6 +69,7 @@ class CoreAssistant(
         user_cfg = self.settings.get("user", {})
         runtime_product_cfg = self.settings.get("runtime_product", {})
         benchmark_cfg = self.settings.get("benchmarks", {})
+        developer_overlay_cfg = display_cfg.get("developer_overlay", {})
 
         self.project_name = str(project_cfg.get("name", self.ASSISTANT_NAME))
         self.default_user_name = str(user_cfg.get("name", "Andrzej"))
@@ -87,6 +92,7 @@ class CoreAssistant(
         self._last_response_stream_report = None
         self._last_response_delivery_snapshot = None
         self._last_input_capture: dict[str, Any] = {}
+
         self.turn_benchmark_service = TurnBenchmarkService(
             enabled=bool(benchmark_cfg.get("enabled", True)),
             persist_turns=bool(benchmark_cfg.get("persist_turns", True)),
@@ -108,6 +114,8 @@ class CoreAssistant(
             ),
             thinking_ack_seconds=float(voice_input_cfg.get("thinking_ack_seconds", 1.2)),
         )
+
+        self.wake_ack_service: WakeAcknowledgementService | None = None
 
         self.state_store = JsonStore(
             path=SESSION_STATE_PATH,
@@ -133,6 +141,13 @@ class CoreAssistant(
         self.voice_out = self.runtime.voice_output
         self.wake_gate = self.runtime.wake_gate
         self.display = self.runtime.display
+
+        self.wake_ack_service = WakeAcknowledgementService(
+            voice_output=self.voice_out,
+            phrase_builder=self.voice_session.build_wake_acknowledgement,
+            phrase_inventory=self.voice_session.wake_acknowledgements,
+            prefetch_on_boot=bool(voice_input_cfg.get("wake_ack_prefetch_on_boot", True)),
+        )
         self.memory = self.runtime.memory
         self.reminders = self.runtime.reminders
         self.timer = self.runtime.timer
@@ -161,6 +176,18 @@ class CoreAssistant(
         )
         self.runtime_product.bind_runtime(runtime=self.runtime, dialogue=self.dialogue)
         self._runtime_startup_snapshot: dict[str, Any] = self.runtime_product.snapshot()
+
+        self.developer_overlay = DeveloperOverlayService(
+            display=self.display,
+            runtime_snapshot_provider=self._runtime_status_snapshot,
+            benchmark_snapshot_provider=self.turn_benchmark_service.latest_snapshot,
+            enabled=bool(developer_overlay_cfg.get("enabled", True)),
+            title=str(developer_overlay_cfg.get("title", "DEV")),
+            refresh_on_boot=bool(developer_overlay_cfg.get("refresh_on_boot", True)),
+            refresh_on_turn_finish=bool(
+                developer_overlay_cfg.get("refresh_on_turn_finish", True)
+            ),
+        )
 
         self.response_streamer = ResponseStreamer(
             voice_output=self.voice_out,

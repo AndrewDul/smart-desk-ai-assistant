@@ -104,7 +104,12 @@ class DisplayBackend(Protocol):
 
     def close(self) -> None:
         ...
+    
+    def set_developer_overlay(self, title: str, lines: list[str]) -> None:
+        ...
 
+    def clear_developer_overlay(self) -> None:
+        ...
 
 __all__ = [
     "DisplayBackend",

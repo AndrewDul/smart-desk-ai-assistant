@@ -41,6 +41,8 @@ class FakeVoiceOutput:
 class FakeDisplay:
     def __init__(self) -> None:
         self.blocks: list[dict[str, Any]] = []
+        self.developer_overlays: list[dict[str, Any]] = []
+        self.clear_developer_overlay_calls = 0
 
     def show_block(self, title: str, lines: list[str], duration: float | None = None) -> None:
         self.blocks.append(
@@ -51,6 +53,17 @@ class FakeDisplay:
             }
         )
 
+    def set_developer_overlay(self, title: str, lines: list[str]) -> None:
+        self.developer_overlays.append(
+            {
+                "title": str(title),
+                "lines": list(lines),
+            }
+        )
+
+    def clear_developer_overlay(self) -> None:
+        self.clear_developer_overlay_calls += 1
+
 
 @dataclass(slots=True)
 class FakeCoordinatorSnapshot:
@@ -58,10 +71,19 @@ class FakeCoordinatorSnapshot:
 
 
 class FakeAudioCoordinator:
-    def __init__(self, *, active_output: bool = False, blocked: bool = False, output_age_seconds: float = 1.0) -> None:
+    def __init__(
+        self,
+        *,
+        active_output: bool = False,
+        blocked: bool = False,
+        output_age_seconds: float = 1.0,
+    ) -> None:
         self._active_output = bool(active_output)
         self._blocked = bool(blocked)
-        self._last_output_started_monotonic = time.monotonic() - max(0.0, float(output_age_seconds))
+        self._last_output_started_monotonic = time.monotonic() - max(
+            0.0,
+            float(output_age_seconds),
+        )
         self.post_speech_hold_seconds = 0.32
         self.listen_resume_poll_seconds = 0.01
 

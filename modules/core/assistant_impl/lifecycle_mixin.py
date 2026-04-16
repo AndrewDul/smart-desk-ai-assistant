@@ -141,6 +141,7 @@ class CoreAssistantLifecycleMixin:
         )
 
     def boot(self) -> None:
+        self._refresh_developer_overlay(reason="boot")
         self.shutdown_requested = False
         self.last_language = "en"
         self._clear_interaction_context(close_active_window=True)
@@ -154,13 +155,29 @@ class CoreAssistantLifecycleMixin:
 
         if not self._reminder_thread.is_alive():
             self._reminder_thread.start()
-
+        self._clear_developer_overlay()
         self.display.show_block(
             self.ASSISTANT_NAME,
             self._runtime_overlay_lines(),
             duration=self.boot_overlay_seconds,
         )
         append_log("Assistant boot sequence started.")
+
+        wake_ack_service = getattr(self, "wake_ack_service", None)
+        prefetched_wake_ack_phrases: tuple[str, ...] = tuple()
+        if wake_ack_service is not None:
+            try:
+                prefetched_wake_ack_phrases = tuple(
+                    wake_ack_service.prefetch_boot_inventory(languages=("en", "pl"))
+                )
+            except Exception as error:
+                log_exception("Failed to prefetch wake acknowledgement inventory", error)
+
+        if prefetched_wake_ack_phrases:
+            append_log(
+                "Wake acknowledgement inventory prefetched during boot: "
+                f"count={len(prefetched_wake_ack_phrases)}"
+            )
 
         overlay_started_at = time.perf_counter()
         warmup_result = self._warmup_local_llm_backend()

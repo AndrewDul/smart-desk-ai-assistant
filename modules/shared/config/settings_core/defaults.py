@@ -34,6 +34,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "timeout_seconds": 7,
         "active_listen_window_seconds": 6.0,
         "thinking_ack_seconds": 1.2,
+        "wake_ack_prefetch_on_boot": True,
         "debug": False,
         "sample_rate": 16000,
         "max_record_seconds": 6.5,
@@ -94,6 +95,12 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "spi_device": 0,
         "default_overlay_seconds": 8,
         "boot_overlay_seconds": 2.4,
+        "developer_overlay": {
+            "enabled": True,
+            "title": "DEV",
+            "refresh_on_boot": True,
+            "refresh_on_turn_finish": True,
+},
     },
     "timers": {
         "default_focus_minutes": 25,

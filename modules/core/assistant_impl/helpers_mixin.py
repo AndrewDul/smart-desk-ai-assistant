@@ -1,12 +1,44 @@
 from __future__ import annotations
 
+from curses import error
 from typing import Any
+
+from typer import clear
 
 from modules.runtime.contracts import RouteKind, StreamMode, normalize_text
 from modules.shared.logging.logger import log_exception
 
 
 class CoreAssistantHelpersMixin:
+
+    def _refresh_developer_overlay(self, *, reason: str) -> None:
+        overlay_service = getattr(self, "developer_overlay", None)
+        if overlay_service is None:
+            return
+
+        refresh = getattr(overlay_service, "refresh", None)
+        if not callable(refresh):
+            return
+
+        try:
+           refresh(reason=reason)
+        except Exception as error:
+            log_exception("Failed to refresh developer overlay", error)
+
+    def _clear_developer_overlay(self) -> None:
+        overlay_service = getattr(self, "developer_overlay", None)
+        if overlay_service is None:
+            return
+
+        clear = getattr(overlay_service, "clear", None)
+        if not callable(clear):
+            return
+
+        try:
+            clear()
+        except Exception as error:
+            log_exception("Failed to clear developer overlay", error)
+    
     def _detect_language(self, text: str) -> str:
         lowered = normalize_text(text)
         tokens = set(lowered.split())

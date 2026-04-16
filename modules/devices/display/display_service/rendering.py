@@ -25,6 +25,9 @@ class DisplayServiceRendering(DisplayServiceUtils):
     _overlay_lines: list[str]
     _overlay_until: float
     _overlay_style: str
+    _developer_overlay_title: str
+    _developer_overlay_lines: list[str]
+    _developer_overlay_enabled: bool
     _last_frame_signature: bytes | None
 
     def _render_loop(self) -> None:
@@ -40,11 +43,18 @@ class DisplayServiceRendering(DisplayServiceUtils):
                     title = self._overlay_title
                     lines = list(self._overlay_lines)
                     style = self._overlay_style
+                    developer_title = self._developer_overlay_title
+                    developer_lines = list(self._developer_overlay_lines)
+                    developer_active = self._developer_overlay_enabled
 
                 if overlay_active:
                     self._render_block(title, lines, style)
                 else:
-                    self._render_eyes(now)
+                    self._render_eyes(
+                        now,
+                        developer_title=developer_title if developer_active else "",
+                        developer_lines=developer_lines if developer_active else [],
+                    )
             except Exception as error:
                 LOGGER.warning("Display render loop warning: %s", error)
 

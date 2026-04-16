@@ -231,13 +231,26 @@ def _note_turn_benchmark_speech_finalized(
 def _acknowledge_wake(assistant: CoreAssistant) -> None:
     assistant.voice_session.transition_to_wake_detected(detail="wake_phrase_detected")
 
-    wake_builder = getattr(assistant.voice_session, "build_wake_acknowledgement", None)
-    wake_ack = wake_builder() if callable(wake_builder) else "I'm listening."
+    language = getattr(assistant, "last_language", "en")
+    wake_ack_service = getattr(assistant, "wake_ack_service", None)
+    wake_ack = "I'm listening."
+    spoken = False
 
-    assistant.voice_out.speak(
-        wake_ack,
-        language=getattr(assistant, "last_language", "en"),
-    )
+    if wake_ack_service is not None:
+        try:
+            result = wake_ack_service.speak(language=language)
+            wake_ack = result.text or wake_ack
+            spoken = bool(result.spoken)
+        except Exception as error:
+            append_log(f"Wake acknowledgement service failed: {error}")
+
+    if not spoken:
+        wake_builder = getattr(assistant.voice_session, "build_wake_acknowledgement", None)
+        wake_ack = wake_builder() if callable(wake_builder) else wake_ack
+        assistant.voice_out.speak(
+            wake_ack,
+            language=language,
+        )
 
     append_log(f"Wake phrase detected. Acknowledgement spoken: {wake_ack}")
     print("Wake phrase detected. Waiting for command...")

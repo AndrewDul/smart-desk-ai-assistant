@@ -1346,6 +1346,7 @@ class ActionSystemActionsMixin:
             extra_metadata={
                 "resolved_source": resolved.source,
                 **runtime_metadata,
+                "overlay_lines": overlay_lines,
                 "debug_lines": debug_lines,
             },
         )

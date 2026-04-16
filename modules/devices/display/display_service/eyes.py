@@ -23,9 +23,18 @@ class DisplayServiceEyes:
     _blink_index: int
     _next_blink: float
 
-    def _render_eyes(self, now: float) -> None:
+    def _render_eyes(
+        self,
+        now: float,
+        *,
+        developer_title: str = "",
+        developer_lines: list[str] | None = None,
+    ) -> None:
         if self.device is None:
             return
+
+        overlay_lines = [str(line) for line in (developer_lines or []) if str(line).strip()]
+        developer_active = bool(str(developer_title).strip()) and bool(overlay_lines)
 
         if now >= self._next_gaze_change:
             self._gaze_index = (self._gaze_index + 1) % len(self._gaze_pattern)
@@ -49,11 +58,27 @@ class DisplayServiceEyes:
             from luma.core.render import canvas
 
             with canvas(self.device) as draw:
-                draw.rectangle((0, 0, self.width - 1, self.height - 1), outline="black", fill="black")
-                self._draw_eye_oled(draw, 14, 18, 50, 46, pupil_offset, blink)
-                self._draw_eye_oled(draw, 78, 18, 114, 46, pupil_offset, blink)
-                draw.line((12, 14, 52, 12), fill="white")
-                draw.line((76, 12, 116, 14), fill="white")
+                draw.rectangle(
+                    (0, 0, self.width - 1, self.height - 1),
+                    outline="black",
+                    fill="black",
+                )
+
+                if developer_active:
+                    self._draw_eye_oled(draw, 14, 8, 50, 28, pupil_offset, blink)
+                    self._draw_eye_oled(draw, 78, 8, 114, 28, pupil_offset, blink)
+                    draw.line((12, 6, 52, 4), fill="white")
+                    draw.line((76, 4, 116, 6), fill="white")
+                    self._draw_oled_developer_overlay(
+                        draw,
+                        str(developer_title),
+                        overlay_lines,
+                    )
+                else:
+                    self._draw_eye_oled(draw, 14, 18, 50, 46, pupil_offset, blink)
+                    self._draw_eye_oled(draw, 78, 18, 114, 46, pupil_offset, blink)
+                    draw.line((12, 14, 52, 12), fill="white")
+                    draw.line((76, 12, 116, 14), fill="white")
             return
 
         image = Image.new("RGB", (self.device_width, self.device_height), (10, 14, 24))
@@ -62,16 +87,70 @@ class DisplayServiceEyes:
         draw.text((16, 14), "Smart Desk AI", font=self.font_body, fill=(230, 236, 242))
         draw.text((16, 38), "Animated eyes", font=self.font_small, fill=(170, 180, 190))
 
-        self._draw_eye_color(draw, 55, 78, 125, 156, pupil_offset, blink)
-        self._draw_eye_color(draw, 195, 78, 265, 156, pupil_offset, blink)
+        if developer_active:
+            self._draw_eye_color(draw, 55, 68, 125, 146, pupil_offset, blink)
+            self._draw_eye_color(draw, 195, 68, 265, 146, pupil_offset, blink)
+            draw.line((48, 54, 130, 44), fill=(245, 247, 250), width=4)
+            draw.line((190, 44, 272, 54), fill=(245, 247, 250), width=4)
+            self._draw_color_developer_overlay(draw, str(developer_title), overlay_lines)
+        else:
+            self._draw_eye_color(draw, 55, 78, 125, 156, pupil_offset, blink)
+            self._draw_eye_color(draw, 195, 78, 265, 156, pupil_offset, blink)
+            draw.line((48, 62, 130, 52), fill=(245, 247, 250), width=4)
+            draw.line((190, 52, 272, 62), fill=(245, 247, 250), width=4)
 
-        draw.line((48, 62, 130, 52), fill=(245, 247, 250), width=4)
-        draw.line((190, 52, 272, 62), fill=(245, 247, 250), width=4)
-
-        bar_x = 20 + (int(now * 10) * 6) % max(1, (self.device_width - 80))
-        draw.rounded_rectangle((bar_x, 185, bar_x + 50, 205), radius=6, fill=(80, 220, 255))
+            bar_x = 20 + (int(now * 10) * 6) % max(1, (self.device_width - 80))
+            draw.rounded_rectangle((bar_x, 185, bar_x + 50, 205), radius=6, fill=(80, 220, 255))
 
         self._show_image(image)
+
+    def _draw_color_developer_overlay(
+        self,
+        draw: ImageDraw.ImageDraw,
+        title: str,
+        lines: list[str],
+    ) -> None:
+        panel_top = max(172, self.device_height - 58)
+        panel_bottom = self.device_height - 10
+
+        draw.rounded_rectangle(
+            (12, panel_top, self.device_width - 12, panel_bottom),
+            radius=10,
+            outline=(80, 220, 255),
+            fill=(18, 24, 36),
+            width=2,
+        )
+
+        draw.rounded_rectangle(
+            (20, panel_top + 8, 78, panel_top + 30),
+            radius=6,
+            fill=(80, 220, 255),
+        )
+        draw.text((28, panel_top + 11), title[:10], font=self.font_small, fill=(0, 0, 0))
+
+        y = panel_top + 10
+        for line in lines[:2]:
+            draw.text((92, y), line, font=self.font_small, fill=(230, 236, 242))
+            y += 18
+
+    def _draw_oled_developer_overlay(
+        self,
+        draw: ImageDraw.ImageDraw,
+        title: str,
+        lines: list[str],
+    ) -> None:
+        top = max(34, self.height - 30)
+
+        draw.rectangle((0, top, self.width - 1, self.height - 1), outline="white", fill="black")
+        draw.rectangle((0, top, self.width - 1, top + 8), outline="white", fill="white")
+
+        safe_title = str(title or "DEV")[:10]
+        draw.text((2, top + 1), safe_title, font=self.font_small, fill="black")
+
+        if len(lines) > 0:
+            draw.text((2, top + 11), lines[0], font=self.font_small, fill="white")
+        if len(lines) > 1:
+            draw.text((2, top + 20), lines[1], font=self.font_small, fill="white")
 
     def _draw_eye_color(
         self,
@@ -166,12 +245,24 @@ class DisplayServiceEyes:
             outline="black",
             fill="black",
         )
-        draw.ellipse((pupil_x - 1, pupil_y - 1, pupil_x, pupil_y), outline="white", fill="white")
+        draw.ellipse(
+            (pupil_x - 1, pupil_y - 1, pupil_x, pupil_y),
+            outline="white",
+            fill="white",
+        )
 
         cover = int(((1.0 - openness) * eye_height) / 2)
         if cover > 0:
-            draw.rectangle((x1 - 1, y1 - 1, x2 + 1, y1 + cover), outline="black", fill="black")
-            draw.rectangle((x1 - 1, y2 - cover, x2 + 1, y2 + 1), outline="black", fill="black")
+            draw.rectangle(
+                (x1 - 1, y1 - 1, x2 + 1, y1 + cover),
+                outline="black",
+                fill="black",
+            )
+            draw.rectangle(
+                (x1 - 1, y2 - cover, x2 + 1, y2 + 1),
+                outline="black",
+                fill="black",
+            )
             draw.line((x1 + 2, y1 + cover, x2 - 2, y1 + cover), fill="white")
             draw.line((x1 + 2, y2 - cover, x2 - 2, y2 - cover), fill="white")
 

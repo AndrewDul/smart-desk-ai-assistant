@@ -22,6 +22,12 @@ class RuntimeBuilderDisplayMixin:
                     ok=True,
                     selected_backend="null_display",
                     detail="Display disabled in config. Using null display backend.",
+                    capabilities=(
+                        "show_block",
+                        "show_status",
+                        "set_developer_overlay",
+                        "clear_developer_overlay",
+                    ),
                 ),
             )
 
@@ -51,6 +57,12 @@ class RuntimeBuilderDisplayMixin:
                     ok=True,
                     selected_backend=str(config.get("driver", "ssd1306")),
                     detail="Display backend loaded successfully.",
+                    capabilities=(
+                        "show_block",
+                        "show_status",
+                        "set_developer_overlay",
+                        "clear_developer_overlay",
+                    ),
                 ),
             )
         except Exception as error:
@@ -62,6 +74,12 @@ class RuntimeBuilderDisplayMixin:
                     selected_backend="null_display",
                     detail=f"Display backend failed. Using null display. Error: {error}",
                     fallback_used=True,
+                    capabilities=(
+                        "show_block",
+                        "show_status",
+                        "set_developer_overlay",
+                        "clear_developer_overlay",
+                    ),
                 ),
             )
 

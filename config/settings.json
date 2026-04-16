@@ -30,6 +30,7 @@
   "timeout_seconds": 7,
   "active_listen_window_seconds": 6.0,
   "thinking_ack_seconds": 1.2,
+  "wake_ack_prefetch_on_boot": true,
   "debug": false,
   "sample_rate": 16000,
   "max_record_seconds": 6.5,
@@ -91,7 +92,13 @@
     "spi_port": 0,
     "spi_device": 0,
     "default_overlay_seconds": 6,
-    "boot_overlay_seconds": 2.2
+    "boot_overlay_seconds": 2.2,
+    "developer_overlay": {
+      "enabled": true,
+      "title": "DEV",
+      "refresh_on_boot": true,
+      "refresh_on_turn_finish": true
+}
   },
   "timers": {
     "default_focus_minutes": 25,

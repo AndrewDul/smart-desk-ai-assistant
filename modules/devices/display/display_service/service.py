@@ -69,6 +69,10 @@ class DisplayService(
         self._overlay_until = 0.0
         self._overlay_style = "standard"
 
+        self._developer_overlay_title = ""
+        self._developer_overlay_lines: list[str] = []
+        self._developer_overlay_enabled = False
+
         self._gaze_pattern = [0, -10, 0, 10, 0, -5, 5, 0]
         self._gaze_index = 0
         self._next_gaze_change = time.time() + 2.0

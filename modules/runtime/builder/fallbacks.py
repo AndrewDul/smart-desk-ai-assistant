@@ -55,6 +55,7 @@ class NullDisplay:
 
     def __init__(self) -> None:
         self.blocks: list[dict[str, Any]] = []
+        self.developer_overlays: list[dict[str, Any]] = []
         self.closed = False
 
     def show_block(self, title: str, lines: list[str], duration: float = 10.0) -> None:
@@ -85,7 +86,18 @@ class NullDisplay:
             }
         )
 
+    def set_developer_overlay(self, title: str, lines: list[str]) -> None:
+        self.developer_overlays.append(
+            {
+                "title": str(title),
+                "lines": [str(line) for line in lines],
+            }
+        )
+
     def clear_overlay(self) -> None:
+        return None
+
+    def clear_developer_overlay(self) -> None:
         return None
 
     def close(self) -> None:
@@ -127,6 +139,7 @@ class NullVisionBackend:
     def close(self) -> None:
         return None
 
+
 class NullPanTiltBackend:
     """Placeholder backend until the pan/tilt stack is enabled."""
 
@@ -138,7 +151,8 @@ class NullPanTiltBackend:
 
     def close(self) -> None:
         return None
-    
+
+
 class NullMobilityBackend:
     """
     Placeholder backend until the mobile base stack is fully enabled.
