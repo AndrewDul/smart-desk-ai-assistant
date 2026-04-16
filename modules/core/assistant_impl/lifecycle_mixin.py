@@ -141,7 +141,6 @@ class CoreAssistantLifecycleMixin:
         )
 
     def boot(self) -> None:
-        self._refresh_developer_overlay(reason="boot")
         self.shutdown_requested = False
         self.last_language = "en"
         self._clear_interaction_context(close_active_window=True)
@@ -155,6 +154,7 @@ class CoreAssistantLifecycleMixin:
 
         if not self._reminder_thread.is_alive():
             self._reminder_thread.start()
+
         self._clear_developer_overlay()
         self.display.show_block(
             self.ASSISTANT_NAME,
@@ -213,6 +213,7 @@ class CoreAssistantLifecycleMixin:
             self._mark_runtime_state("mark_degraded", reason)
 
         self.voice_session.set_state(VOICE_STATE_STANDBY, detail="startup_complete")
+        self._refresh_developer_overlay(reason="boot")
         append_log("Assistant booted.")
 
     def shutdown(self) -> None:
@@ -236,6 +237,8 @@ class CoreAssistantLifecycleMixin:
         self.state["break_mode"] = False
         self.state["current_timer"] = None
         self._save_state()
+
+        self._clear_developer_overlay()
 
         shutdown_text = self._localized(
             self.last_language,
