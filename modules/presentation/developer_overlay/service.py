@@ -10,7 +10,7 @@ LOGGER = logging.getLogger(__name__)
 
 class DeveloperOverlayService:
     """
-    Compose a compact developer HUD from runtime and benchmark snapshots.
+    Compose a compact developer HUD from runtime, audio, and benchmark snapshots.
 
     The service is presentation-only. It does not own telemetry collection and it
     does not know how the physical display renders the overlay. Its role is to
@@ -24,6 +24,7 @@ class DeveloperOverlayService:
         display: Any,
         runtime_snapshot_provider: Callable[[], dict[str, Any]] | None,
         benchmark_snapshot_provider: Callable[[], dict[str, Any]] | None,
+        audio_snapshot_provider: Callable[[], dict[str, Any]] | None = None,
         enabled: bool = True,
         title: str = "DEV",
         refresh_on_boot: bool = True,
@@ -32,6 +33,7 @@ class DeveloperOverlayService:
         self.display = display
         self.runtime_snapshot_provider = runtime_snapshot_provider
         self.benchmark_snapshot_provider = benchmark_snapshot_provider
+        self.audio_snapshot_provider = audio_snapshot_provider
         self.enabled = bool(enabled)
         self.title = str(title or "DEV").strip() or "DEV"
         self.refresh_on_boot = bool(refresh_on_boot)
@@ -52,6 +54,7 @@ class DeveloperOverlayService:
         payload = self._build_payload(
             runtime_snapshot=self._safe_snapshot(self.runtime_snapshot_provider),
             benchmark_snapshot=self._safe_snapshot(self.benchmark_snapshot_provider),
+            audio_snapshot=self._safe_snapshot(self.audio_snapshot_provider),
         )
         self._last_payload = payload
 
@@ -88,6 +91,7 @@ class DeveloperOverlayService:
         *,
         runtime_snapshot: dict[str, Any],
         benchmark_snapshot: dict[str, Any],
+        audio_snapshot: dict[str, Any],
     ) -> DeveloperOverlayPayload:
         runtime_label = self._runtime_label(runtime_snapshot)
         llm_label = self._llm_label(runtime_snapshot)
@@ -98,9 +102,15 @@ class DeveloperOverlayService:
             for item in list(benchmark_snapshot.get("overlay_lines", []) or [])
             if self._compact_line(item)
         ]
+        audio_line = self._build_audio_line(audio_snapshot)
 
         lines = [runtime_line]
-        lines.extend(benchmark_lines[:2])
+        if benchmark_lines:
+            lines.append(benchmark_lines[0])
+        if audio_line:
+            lines.append(audio_line)
+        elif len(benchmark_lines) > 1:
+            lines.append(benchmark_lines[1])
 
         return DeveloperOverlayPayload(
             title=self.title,
@@ -108,6 +118,8 @@ class DeveloperOverlayService:
             runtime_label=runtime_label,
             llm_label=llm_label,
             benchmark_available=bool(benchmark_lines),
+            audio_available=bool(audio_line),
+            audio_line=audio_line,
         )
 
     @staticmethod
@@ -131,6 +143,37 @@ class DeveloperOverlayService:
         if len(compact) <= max_chars:
             return compact
         return f"{compact[: max_chars - 3].rstrip()}..."
+
+    def _build_audio_line(self, snapshot: dict[str, Any]) -> str:
+        if not snapshot:
+            return ""
+
+        phase = self._audio_token(snapshot.get("interaction_phase"), fallback="n/a", max_chars=8)
+        owner = self._audio_token(snapshot.get("input_owner"), fallback="n/a", max_chars=8)
+
+        resume_snapshot = dict(snapshot.get("last_resume_policy", {}) or {})
+        resume = self._audio_token(resume_snapshot.get("action"), fallback="n/a", max_chars=6)
+
+        command_snapshot = dict(snapshot.get("last_command_window_policy", {}) or {})
+        command = self._audio_token(command_snapshot.get("action"), fallback="n/a", max_chars=6)
+
+        remaining = snapshot.get("active_window_remaining_seconds", 0.0)
+        try:
+            remaining_value = max(0.0, float(remaining or 0.0))
+        except (TypeError, ValueError):
+            remaining_value = 0.0
+
+        return self._compact_line(
+            f"ph:{phase} own:{owner} rs:{resume} cw:{command} w:{remaining_value:.1f}s",
+            max_chars=34,
+        )
+
+    @staticmethod
+    def _audio_token(value: Any, *, fallback: str, max_chars: int) -> str:
+        compact = " ".join(str(value or fallback).split()).strip().lower() or fallback
+        if len(compact) <= max_chars:
+            return compact
+        return compact[:max_chars]
 
     @staticmethod
     def _runtime_label(snapshot: dict[str, Any]) -> str:

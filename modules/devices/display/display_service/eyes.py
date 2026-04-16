@@ -110,7 +110,7 @@ class DisplayServiceEyes:
         title: str,
         lines: list[str],
     ) -> None:
-        panel_top = max(172, self.device_height - 58)
+        panel_top = max(160, self.device_height - 74)
         panel_bottom = self.device_height - 10
 
         draw.rounded_rectangle(
@@ -128,10 +128,10 @@ class DisplayServiceEyes:
         )
         draw.text((28, panel_top + 11), title[:10], font=self.font_small, fill=(0, 0, 0))
 
-        y = panel_top + 10
-        for line in lines[:2]:
+        y = panel_top + 8
+        for line in lines[:3]:
             draw.text((92, y), line, font=self.font_small, fill=(230, 236, 242))
-            y += 18
+            y += 14
 
     def _draw_oled_developer_overlay(
         self,

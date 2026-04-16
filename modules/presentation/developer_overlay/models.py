@@ -13,6 +13,8 @@ class DeveloperOverlayPayload:
     runtime_label: str = ""
     llm_label: str = ""
     benchmark_available: bool = False
+    audio_available: bool = False
+    audio_line: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -21,6 +23,8 @@ class DeveloperOverlayPayload:
             "runtime_label": self.runtime_label,
             "llm_label": self.llm_label,
             "benchmark_available": self.benchmark_available,
+            "audio_available": self.audio_available,
+            "audio_line": self.audio_line,
         }
 
 

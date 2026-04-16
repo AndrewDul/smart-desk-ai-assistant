@@ -189,6 +189,7 @@ class CoreAssistant(
             display=self.display,
             runtime_snapshot_provider=self._runtime_status_snapshot,
             benchmark_snapshot_provider=self.turn_benchmark_service.latest_snapshot,
+            audio_snapshot_provider=self._audio_runtime_snapshot,
             enabled=bool(developer_overlay_cfg.get("enabled", True)),
             title=str(developer_overlay_cfg.get("title", "DEV")),
             refresh_on_boot=bool(developer_overlay_cfg.get("refresh_on_boot", True)),

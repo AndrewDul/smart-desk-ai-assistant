@@ -23,7 +23,7 @@ class _FakeDisplay:
 
 
 class DeveloperOverlayServiceTests(unittest.TestCase):
-    def test_refresh_builds_runtime_and_benchmark_lines(self) -> None:
+    def test_refresh_builds_runtime_benchmark_and_audio_lines(self) -> None:
         display = _FakeDisplay()
         service = DeveloperOverlayService(
             display=display,
@@ -38,6 +38,13 @@ class DeveloperOverlayServiceTests(unittest.TestCase):
                     "llm:95ms result:action",
                 ]
             },
+            audio_snapshot_provider=lambda: {
+                "interaction_phase": "command",
+                "input_owner": "voice_input",
+                "active_window_remaining_seconds": 2.4,
+                "last_resume_policy": {"action": "grace"},
+                "last_command_window_policy": {"action": "retry"},
+            },
             enabled=True,
             title="DEV",
         )
@@ -48,6 +55,39 @@ class DeveloperOverlayServiceTests(unittest.TestCase):
         self.assertEqual(len(display.calls), 1)
         payload = display.calls[0]
         self.assertEqual(payload["title"], "DEV")
+        self.assertEqual(
+            payload["lines"],
+            [
+                "rt:premium llm:ready",
+                "turn:780ms audio:140ms",
+                "ph:command own:voice_in rs:grac...",
+            ],
+        )
+
+    def test_refresh_falls_back_to_second_benchmark_line_without_audio_snapshot(self) -> None:
+        display = _FakeDisplay()
+        service = DeveloperOverlayService(
+            display=display,
+            runtime_snapshot_provider=lambda: {
+                "premium_ready": True,
+                "llm_enabled": True,
+                "llm_warmup_ready": True,
+            },
+            benchmark_snapshot_provider=lambda: {
+                "overlay_lines": [
+                    "turn:780ms audio:140ms",
+                    "llm:95ms result:action",
+                ]
+            },
+            audio_snapshot_provider=lambda: {},
+            enabled=True,
+            title="DEV",
+        )
+
+        refreshed = service.refresh(reason="turn_finished")
+
+        self.assertTrue(refreshed)
+        payload = display.calls[0]
         self.assertEqual(
             payload["lines"],
             [
