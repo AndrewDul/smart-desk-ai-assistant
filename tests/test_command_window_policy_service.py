@@ -31,11 +31,26 @@ class _VoiceSessionProbe:
     active_listen_window_seconds = 7.5
 
 
+class _BenchmarkProbe:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def annotate_last_completed_turn(self, *, resume_policy=None, command_window_policy=None) -> bool:
+        self.calls.append(
+            {
+                "resume_policy": dict(resume_policy or {}),
+                "command_window_policy": dict(command_window_policy or {}),
+            }
+        )
+        return True
+
+
 class _AssistantProbe:
     def __init__(self) -> None:
         self.settings = {"voice_input": {"active_window_retry_min_remaining_seconds": 0.35}}
         self.voice_session = _VoiceSessionProbe()
         self._last_command_window_policy_snapshot: dict[str, object] = {}
+        self.turn_benchmark_service = _BenchmarkProbe()
 
 
 class CommandWindowPolicyServiceTests(unittest.TestCase):
@@ -52,6 +67,13 @@ class CommandWindowPolicyServiceTests(unittest.TestCase):
         self.assertEqual(decision.window_seconds, 6.5)
         self.assertEqual(assistant._last_command_window_policy_snapshot["action"], "open_initial")
 
+    def test_initial_window_decision_does_not_annotate_last_completed_turn(self) -> None:
+        assistant = _AssistantProbe()
+
+        self.service.initial_window_decision(assistant)
+
+        self.assertEqual(assistant.turn_benchmark_service.calls, [])
+
     def test_empty_capture_retry_allowed_when_time_and_attempt_budget_remain(self) -> None:
         assistant = _AssistantProbe()
 
@@ -65,6 +87,10 @@ class CommandWindowPolicyServiceTests(unittest.TestCase):
         self.assertEqual(decision.action, "retry")
         self.assertEqual(decision.detail, "awaiting_followup_after_silence")
         self.assertEqual(decision.retry_limit, 3)
+        self.assertEqual(
+            assistant.turn_benchmark_service.calls[-1]["command_window_policy"]["phase"],
+            "follow_up",
+        )
 
     def test_ignored_transcript_standby_when_attempt_budget_is_exceeded(self) -> None:
         assistant = _AssistantProbe()
@@ -79,6 +105,10 @@ class CommandWindowPolicyServiceTests(unittest.TestCase):
         self.assertEqual(decision.action, "standby")
         self.assertEqual(decision.reason, "grace_ignored_transcript")
         self.assertEqual(decision.retry_limit, 1)
+        self.assertEqual(
+            assistant.turn_benchmark_service.calls[-1]["command_window_policy"]["action"],
+            "standby",
+        )
 
 
 if __name__ == "__main__":

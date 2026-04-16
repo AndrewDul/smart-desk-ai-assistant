@@ -27,6 +27,20 @@ spec.loader.exec_module(_module)
 ResumePolicyService = _module.ResumePolicyService
 
 
+class _BenchmarkProbe:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def annotate_last_completed_turn(self, *, resume_policy=None, command_window_policy=None) -> bool:
+        self.calls.append(
+            {
+                "resume_policy": dict(resume_policy or {}),
+                "command_window_policy": dict(command_window_policy or {}),
+            }
+        )
+        return True
+
+
 class _AssistantProbe:
     def __init__(self) -> None:
         self.shutdown_requested = False
@@ -34,6 +48,7 @@ class _AssistantProbe:
         self.pending_follow_up = None
         self._last_response_delivery_snapshot: dict[str, object] | None = None
         self._last_resume_policy_snapshot: dict[str, object] = {}
+        self.turn_benchmark_service = _BenchmarkProbe()
 
 
 class ResumePolicyServiceTests(unittest.TestCase):
@@ -56,6 +71,10 @@ class ResumePolicyServiceTests(unittest.TestCase):
         self.assertEqual(decision.reason, "pending_follow_up")
         self.assertTrue(decision.follow_up_required)
         self.assertEqual(assistant._last_resume_policy_snapshot["action"], "follow_up")
+        self.assertEqual(
+            assistant.turn_benchmark_service.calls[-1]["resume_policy"]["action"],
+            "follow_up",
+        )
 
     def test_grace_used_after_delivered_response_without_pending_follow_up(self) -> None:
         assistant = _AssistantProbe()
@@ -72,6 +91,10 @@ class ResumePolicyServiceTests(unittest.TestCase):
         self.assertEqual(decision.reason, "response_delivered")
         self.assertTrue(decision.response_delivered)
         self.assertEqual(assistant._last_resume_policy_snapshot["action"], "grace")
+        self.assertEqual(
+            assistant.turn_benchmark_service.calls[-1]["resume_policy"]["action"],
+            "grace",
+        )
 
     def test_standby_used_after_silent_non_delivered_response(self) -> None:
         assistant = _AssistantProbe()
@@ -88,6 +111,10 @@ class ResumePolicyServiceTests(unittest.TestCase):
         self.assertEqual(decision.reason, "no_delivered_response")
         self.assertFalse(decision.response_delivered)
         self.assertEqual(assistant._last_resume_policy_snapshot["action"], "standby")
+        self.assertEqual(
+            assistant.turn_benchmark_service.calls[-1]["resume_policy"]["action"],
+            "standby",
+        )
 
 
 if __name__ == "__main__":

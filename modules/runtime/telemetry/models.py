@@ -16,6 +16,16 @@ class TurnBenchmarkTrace:
     input_source: str = "voice"
     language: str = ""
     wake_source: str = ""
+    wake_input_source: str = "voice"
+    wake_latency_ms: float = 0.0
+    wake_backend_label: str = ""
+    speech_input_source: str = "voice"
+    speech_language: str = ""
+    speech_latency_ms: float = 0.0
+    speech_audio_duration_ms: float = 0.0
+    speech_backend_label: str = ""
+    speech_mode: str = ""
+    speech_confidence: float = 0.0
     active_phase: str = ""
     route_kind: str = ""
     primary_intent: str = ""

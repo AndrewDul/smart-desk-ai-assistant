@@ -20,10 +20,25 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
                 summary_window=5,
             )
 
-            service.note_wake_detected(source="wake_gate")
+            service.note_wake_detected(
+                source="wake_gate",
+                input_source="wake_word",
+                latency_ms=35.0,
+                backend_label="openwakeword",
+            )
             turn_id = service.begin_turn(user_text="what time is it", language="en")
             service.note_listening_started(phase="command")
-            service.note_speech_finalized(text="what time is it", phase="command")
+            service.note_speech_finalized(
+                text="what time is it",
+                phase="command",
+                language="en",
+                input_source="voice",
+                latency_ms=180.0,
+                audio_duration_ms=1450.0,
+                backend_label="faster-whisper",
+                mode="command",
+                confidence=0.91,
+            )
             service.note_route_resolved(
                 route_kind="action",
                 primary_intent="time_query",
@@ -74,6 +89,12 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
             self.assertAlmostEqual(sample["total_turn_ms"], 950.0)
             self.assertAlmostEqual(sample["response_first_audio_ms"], 120.0)
             self.assertAlmostEqual(sample["llm_first_chunk_ms"], 85.0)
+            self.assertEqual(sample["wake_input_source"], "wake_word")
+            self.assertAlmostEqual(sample["wake_latency_ms"], 35.0)
+            self.assertEqual(sample["wake_backend_label"], "openwakeword")
+            self.assertEqual(sample["stt_backend_label"], "faster-whisper")
+            self.assertEqual(sample["stt_mode"], "command")
+            self.assertAlmostEqual(sample["stt_confidence"], 0.91)
 
             latest_sample = service.latest_sample()
             latest_summary = service.latest_summary()
@@ -89,6 +110,51 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
             self.assertEqual(len(payload["samples"]), 1)
             self.assertEqual(payload["summary"]["sample_count"], 1)
             self.assertEqual(payload["summary"]["last_turn_id"], turn_id)
+
+    def test_annotate_last_completed_turn_updates_latest_sample_and_store(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "annotated_benchmarks.json"
+            service = TurnBenchmarkService(
+                enabled=True,
+                persist_turns=True,
+                path=path,
+                max_samples=10,
+                summary_window=5,
+            )
+
+            service.note_wake_detected(source="wake_gate")
+            turn_id = service.begin_turn(user_text="hello", language="en")
+            service.note_listening_started(phase="command")
+            service.note_speech_finalized(text="hello", phase="command")
+            service.note_route_resolved(
+                route_kind="conversation",
+                primary_intent="smalltalk",
+                confidence=0.8,
+            )
+            service.finish_turn(
+                telemetry={
+                    "benchmark_turn_id": turn_id,
+                    "total_ms": 700.0,
+                    "result": "conversation_route",
+                    "handled": True,
+                },
+                llm_snapshot=None,
+                response_report=None,
+            )
+
+            updated = service.annotate_last_completed_turn(
+                resume_policy={"action": "grace", "reason": "response_delivered"},
+                command_window_policy={"action": "retry", "phase": "grace"},
+            )
+
+            self.assertTrue(updated)
+            latest_sample = service.latest_sample()
+            self.assertEqual(latest_sample["resume_policy"]["action"], "grace")
+            self.assertEqual(latest_sample["command_window_policy"]["phase"], "grace")
+
+            payload = service._store.read()
+            self.assertEqual(payload["samples"][-1]["resume_policy"]["action"], "grace")
+            self.assertEqual(payload["samples"][-1]["command_window_policy"]["action"], "retry")
 
     def test_max_samples_trims_old_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

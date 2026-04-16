@@ -185,6 +185,16 @@ class CommandWindowPolicyService:
             "detail": decision.detail,
             "window_seconds": decision.window_seconds,
         }
+
+        if decision.phase in {PHASE_FOLLOW_UP, PHASE_GRACE}:
+            benchmark_service = getattr(assistant, "turn_benchmark_service", None)
+            annotate = getattr(benchmark_service, "annotate_last_completed_turn", None)
+            if callable(annotate):
+                try:
+                    annotate(command_window_policy=dict(assistant._last_command_window_policy_snapshot))
+                except Exception:
+                    pass
+
         append_log(
             "Command window policy decided: "
             f"action={decision.action}, "

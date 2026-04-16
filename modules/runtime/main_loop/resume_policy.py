@@ -123,6 +123,15 @@ class ResumePolicyService:
             "route_kind": decision.route_kind,
             "response_source": decision.response_source,
         }
+
+        benchmark_service = getattr(assistant, "turn_benchmark_service", None)
+        annotate = getattr(benchmark_service, "annotate_last_completed_turn", None)
+        if callable(annotate):
+            try:
+                annotate(resume_policy=dict(assistant._last_resume_policy_snapshot))
+            except Exception:
+                pass
+
         append_log(
             "Resume policy decided: "
             f"action={decision.action}, "

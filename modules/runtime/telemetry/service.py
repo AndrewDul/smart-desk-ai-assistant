@@ -79,7 +79,14 @@ class TurnBenchmarkService:
 
             return trace.turn_id
 
-    def note_wake_detected(self, *, source: str) -> None:
+    def note_wake_detected(
+        self,
+        *,
+        source: str,
+        input_source: str = "voice",
+        latency_ms: float = 0.0,
+        backend_label: str = "",
+    ) -> None:
         if not self.enabled:
             return
 
@@ -87,7 +94,10 @@ class TurnBenchmarkService:
             self._active_trace = self._new_trace_locked()
             self._active_trace.wake_detected_at_monotonic = time.perf_counter()
             self._active_trace.wake_source = str(source or "wake_gate").strip() or "wake_gate"
-            self._active_trace.input_source = "voice"
+            self._active_trace.input_source = str(input_source or "voice").strip() or "voice"
+            self._active_trace.wake_input_source = self._active_trace.input_source
+            self._active_trace.wake_latency_ms = max(0.0, self._safe_float(latency_ms))
+            self._active_trace.wake_backend_label = str(backend_label or source or "").strip()
 
     def note_listening_started(self, *, phase: str) -> None:
         if not self.enabled:
@@ -99,7 +109,19 @@ class TurnBenchmarkService:
                 trace.listening_started_at_monotonic = time.perf_counter()
             trace.active_phase = str(phase or trace.active_phase or "command").strip() or "command"
 
-    def note_speech_finalized(self, *, text: str, phase: str) -> None:
+    def note_speech_finalized(
+        self,
+        *,
+        text: str,
+        phase: str,
+        language: str = "",
+        input_source: str = "voice",
+        latency_ms: float = 0.0,
+        audio_duration_ms: float = 0.0,
+        backend_label: str = "",
+        mode: str = "",
+        confidence: float = 0.0,
+    ) -> None:
         if not self.enabled:
             return
 
@@ -113,6 +135,16 @@ class TurnBenchmarkService:
 
             if phase:
                 trace.active_phase = str(phase).strip() or trace.active_phase
+
+            trace.speech_language = str(language or trace.language or "").strip().lower()
+            if trace.speech_language and not trace.language:
+                trace.language = trace.speech_language
+            trace.speech_input_source = str(input_source or trace.input_source or "voice").strip() or "voice"
+            trace.speech_latency_ms = max(0.0, self._safe_float(latency_ms))
+            trace.speech_audio_duration_ms = max(0.0, self._safe_float(audio_duration_ms))
+            trace.speech_backend_label = str(backend_label or "").strip()
+            trace.speech_mode = str(mode or phase or trace.speech_mode or "").strip()
+            trace.speech_confidence = max(0.0, self._safe_float(confidence))
 
     def note_route_resolved(
         self,
@@ -196,6 +228,9 @@ class TurnBenchmarkService:
                 ).strip(),
                 "topics": list(telemetry.get("topics", []) or []),
                 "wake_source": str(trace.wake_source or "").strip(),
+                "wake_input_source": str(trace.wake_input_source or trace.input_source or "voice").strip() or "voice",
+                "wake_latency_ms": self._safe_float(trace.wake_latency_ms) or None,
+                "wake_backend_label": str(trace.wake_backend_label or "").strip(),
                 "active_phase": str(trace.active_phase or "").strip(),
                 "wake_to_listen_ms": self._delta_ms(
                     trace.wake_detected_at_monotonic,
@@ -238,6 +273,15 @@ class TurnBenchmarkService:
                 "response_chunk_kinds": list(
                     getattr(response_report, "chunk_kinds", []) or []
                 ),
+                "stt_input_source": str(trace.speech_input_source or trace.input_source or "voice").strip() or "voice",
+                "stt_language": str(trace.speech_language or trace.language or "").strip().lower(),
+                "stt_latency_ms": self._safe_float(trace.speech_latency_ms) or None,
+                "stt_audio_duration_ms": self._safe_float(trace.speech_audio_duration_ms) or None,
+                "stt_backend_label": str(trace.speech_backend_label or "").strip(),
+                "stt_mode": str(trace.speech_mode or trace.active_phase or "").strip(),
+                "stt_confidence": self._safe_float(trace.speech_confidence) or None,
+                "resume_policy": {},
+                "command_window_policy": {},
                 "total_turn_ms": total_turn_ms or None,
             }
 
@@ -250,6 +294,43 @@ class TurnBenchmarkService:
 
             self._active_trace = TurnBenchmarkTrace()
             return dict(sample)
+
+
+    def annotate_last_completed_turn(
+        self,
+        *,
+        resume_policy: dict[str, Any] | None = None,
+        command_window_policy: dict[str, Any] | None = None,
+    ) -> bool:
+        if not self.enabled:
+            return False
+
+        updated = False
+        with self._lock:
+            if not self._latest_sample_cache:
+                return False
+
+            sample = dict(self._latest_sample_cache)
+            if isinstance(resume_policy, dict) and resume_policy:
+                sample["resume_policy"] = dict(resume_policy)
+                updated = True
+            if isinstance(command_window_policy, dict) and command_window_policy:
+                sample["command_window_policy"] = dict(command_window_policy)
+                updated = True
+
+            if not updated:
+                return False
+
+            self._latest_sample_cache = dict(sample)
+            if self._recent_samples:
+                self._recent_samples[-1] = dict(sample)
+            if self.persist_turns:
+                self._store.update(
+                    lambda payload: self._update_last_sample_payload(payload, sample)
+                )
+            self._latest_summary_cache = self._build_summary(self._recent_samples)
+            return True
+
 
     def latest_sample(self) -> dict[str, Any]:
         if not self.enabled:
@@ -332,6 +413,34 @@ class TurnBenchmarkService:
             }
         )
         return data
+
+    def _update_last_sample_payload(
+        self,
+        payload: dict[str, Any] | None,
+        sample: dict[str, Any],
+    ) -> dict[str, Any]:
+        data = dict(payload or {})
+        samples = [dict(item) for item in list(data.get("samples", []) or []) if isinstance(item, dict)]
+        if samples:
+            samples[-1] = dict(sample)
+        else:
+            samples.append(dict(sample))
+
+        if len(samples) > self.max_samples:
+            samples = samples[-self.max_samples :]
+
+        data.update(
+            {
+                "version": 1,
+                "updated_at_iso": self._now_iso(),
+                "samples": samples,
+                "summary": self._build_summary(samples),
+            }
+        )
+        return data
+
+
+
 
     def _build_summary(self, samples: list[dict[str, Any]]) -> dict[str, Any]:
         window = samples[-self.summary_window :] if samples else []
