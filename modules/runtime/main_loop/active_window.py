@@ -25,10 +25,10 @@ from .backend_helpers import (
     _prepare_for_active_capture,
     _prepare_for_standby_capture,
     _resolve_wake_backend,
-    _session_requires_follow_up,
     _wait_for_input_ready,
 )
 from .capture_adapters import capture_transcript, detect_wake_event
+from .resume_policy import ResumePolicyService
 from .constants import (
     COMMAND_EMPTY_RETRY_LIMIT,
     COMMAND_IGNORE_RETRY_LIMIT,
@@ -57,6 +57,9 @@ from .text_gate import (
 
 if TYPE_CHECKING:
     from modules.core.assistant import CoreAssistant
+
+
+_RESUME_POLICY_SERVICE = ResumePolicyService()
 
 
 _PHASE_TO_SESSION_PHASE = {
@@ -558,10 +561,17 @@ def _start_grace_window(assistant: CoreAssistant, state_flags: MainLoopRuntimeSt
 
 
 def _rearm_after_command(assistant: CoreAssistant, state_flags: MainLoopRuntimeState) -> None:
-    if _session_requires_follow_up(assistant):
+    decision = _RESUME_POLICY_SERVICE.decide(assistant)
+
+    if decision.action == "follow_up":
         _start_follow_up_window(assistant, state_flags)
         return
-    _start_grace_window(assistant, state_flags)
+
+    if decision.action == "grace":
+        _start_grace_window(assistant, state_flags)
+        return
+
+    _return_to_wake_gate(assistant, state_flags, reason=decision.reason or "resume_policy_standby")
 
 
 def _handle_no_speech_capture(assistant: CoreAssistant, state_flags: MainLoopRuntimeState) -> bool:
