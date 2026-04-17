@@ -48,6 +48,32 @@ class StatusDebugPresenterServiceTests(unittest.TestCase):
             ],
         )
 
+    def test_build_status_metadata_merges_expected_fields(self) -> None:
+        metadata = self.service.build_status_metadata(
+            resolved_source="route.primary_intent",
+            timer_running=True,
+            focus_mode=True,
+            break_mode=False,
+            memory_count=1,
+            reminder_count=2,
+            current_timer="focus",
+            audio_runtime_snapshot={"interaction_phase": "command"},
+            runtime_debug_snapshot={"wake_backend": "oww"},
+            runtime_status_metadata={"runtime_primary_ready": True},
+            runtime_metadata={"last_turn_ms": 910.0},
+            presentation_metadata={"feature_lines": ["focus: ON"]},
+        )
+
+        self.assertEqual(metadata["resolved_source"], "route.primary_intent")
+        self.assertTrue(metadata["timer_running"])
+        self.assertTrue(metadata["focus_mode"])
+        self.assertEqual(metadata["memory_count"], 1)
+        self.assertEqual(metadata["audio_runtime_snapshot"]["interaction_phase"], "command")
+        self.assertEqual(metadata["runtime_debug_snapshot"]["wake_backend"], "oww")
+        self.assertTrue(metadata["runtime_primary_ready"])
+        self.assertAlmostEqual(metadata["last_turn_ms"], 910.0)
+        self.assertEqual(metadata["feature_lines"], ["focus: ON"])
+
     def test_build_debug_status_presentation_prefers_overlay_lines(self) -> None:
         presentation = self.service.build_debug_status_presentation(
             language="en",
@@ -108,6 +134,22 @@ class StatusDebugPresenterServiceTests(unittest.TestCase):
             presentation.metadata["audio_lines"][0],
             "phase: command",
         )
+
+    def test_build_debug_status_metadata_merges_expected_fields(self) -> None:
+        metadata = self.service.build_debug_status_metadata(
+            resolved_source="route.primary_intent",
+            audio_runtime_snapshot={"interaction_phase": "command"},
+            runtime_debug_snapshot={"developer_overlay_lines": ["rt:premium llm:ready"]},
+            runtime_status_metadata={"runtime_primary_ready": True},
+            runtime_metadata={"wake_backend": "oww"},
+            presentation_metadata={"debug_lines": ["mode: premium"]},
+        )
+
+        self.assertEqual(metadata["resolved_source"], "route.primary_intent")
+        self.assertEqual(metadata["audio_runtime_snapshot"]["interaction_phase"], "command")
+        self.assertTrue(metadata["runtime_primary_ready"])
+        self.assertEqual(metadata["wake_backend"], "oww")
+        self.assertEqual(metadata["debug_lines"], ["mode: premium"])
 
 
 if __name__ == "__main__":

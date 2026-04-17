@@ -796,20 +796,20 @@ class ActionSystemActionsMixin:
             spoken_text=presentation.spoken_text,
             display_title="STATUS",
             display_lines=presentation.display_lines,
-            extra_metadata={
-                "resolved_source": resolved.source,
-                "timer_running": timer_running,
-                "focus_mode": focus_on,
-                "break_mode": break_on,
-                "memory_count": memory_count,
-                "reminder_count": reminder_count,
-                "current_timer": str(current_timer),
-                "audio_runtime_snapshot": audio_snapshot,
-                "runtime_debug_snapshot": debug_snapshot,
-                **runtime_status_metadata,
-                **runtime_metadata,
-                **presentation.metadata,
-            },
+            extra_metadata=self._status_debug_presenter().build_status_metadata(
+                resolved_source=resolved.source,
+                timer_running=timer_running,
+                focus_mode=focus_on,
+                break_mode=break_on,
+                memory_count=memory_count,
+                reminder_count=reminder_count,
+                current_timer=str(current_timer),
+                audio_runtime_snapshot=audio_snapshot,
+                runtime_debug_snapshot=debug_snapshot,
+                runtime_status_metadata=runtime_status_metadata,
+                runtime_metadata=runtime_metadata,
+                presentation_metadata=presentation.metadata,
+            ),
         )
 
     def _handle_debug_status(
@@ -844,14 +844,14 @@ class ActionSystemActionsMixin:
             spoken_text=presentation.spoken_text,
             display_title="DEBUG STATUS",
             display_lines=presentation.display_lines,
-            extra_metadata={
-                "resolved_source": resolved.source,
-                **runtime_status_metadata,
-                **runtime_metadata,
-                "audio_runtime_snapshot": audio_snapshot,
-                "runtime_debug_snapshot": debug_snapshot,
-                **presentation.metadata,
-            },
+            extra_metadata=self._status_debug_presenter().build_debug_status_metadata(
+                resolved_source=resolved.source,
+                audio_runtime_snapshot=audio_snapshot,
+                runtime_debug_snapshot=debug_snapshot,
+                runtime_status_metadata=runtime_status_metadata,
+                runtime_metadata=runtime_metadata,
+                presentation_metadata=presentation.metadata,
+            ),
         )
 
     def _handle_introduce_self(

@@ -113,6 +113,58 @@ class StatusDebugPresenterService:
             },
         )
 
+    def build_status_metadata(
+        self,
+        *,
+        resolved_source: str,
+        timer_running: bool,
+        focus_mode: bool,
+        break_mode: bool,
+        memory_count: int,
+        reminder_count: int,
+        current_timer: str,
+        audio_runtime_snapshot: dict[str, Any],
+        runtime_debug_snapshot: dict[str, Any],
+        runtime_status_metadata: dict[str, Any],
+        runtime_metadata: dict[str, Any],
+        presentation_metadata: dict[str, Any],
+    ) -> dict[str, Any]:
+        metadata: dict[str, Any] = {
+            "resolved_source": resolved_source,
+            "timer_running": timer_running,
+            "focus_mode": focus_mode,
+            "break_mode": break_mode,
+            "memory_count": memory_count,
+            "reminder_count": reminder_count,
+            "current_timer": str(current_timer),
+            "audio_runtime_snapshot": dict(audio_runtime_snapshot or {}),
+            "runtime_debug_snapshot": dict(runtime_debug_snapshot or {}),
+        }
+        metadata.update(dict(runtime_status_metadata or {}))
+        metadata.update(dict(runtime_metadata or {}))
+        metadata.update(dict(presentation_metadata or {}))
+        return metadata
+
+    def build_debug_status_metadata(
+        self,
+        *,
+        resolved_source: str,
+        audio_runtime_snapshot: dict[str, Any],
+        runtime_debug_snapshot: dict[str, Any],
+        runtime_status_metadata: dict[str, Any],
+        runtime_metadata: dict[str, Any],
+        presentation_metadata: dict[str, Any],
+    ) -> dict[str, Any]:
+        metadata: dict[str, Any] = {
+            "resolved_source": resolved_source,
+            "audio_runtime_snapshot": dict(audio_runtime_snapshot or {}),
+            "runtime_debug_snapshot": dict(runtime_debug_snapshot or {}),
+        }
+        metadata.update(dict(runtime_status_metadata or {}))
+        metadata.update(dict(runtime_metadata or {}))
+        metadata.update(dict(presentation_metadata or {}))
+        return metadata
+
     def audio_debug_lines(self, language: str, audio_snapshot: dict[str, Any]) -> list[str]:
         phase = self._audio_token(audio_snapshot.get("interaction_phase", "n/a"))
         owner = self._audio_token(audio_snapshot.get("input_owner", "n/a"))
