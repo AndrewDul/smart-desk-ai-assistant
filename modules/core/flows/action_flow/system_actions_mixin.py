@@ -8,7 +8,6 @@ from .models import ResolvedAction
 
 
 class ActionSystemActionsMixin:
-
     def _runtime_snapshot(self) -> dict[str, Any]:
         assistant = getattr(self, "assistant", None)
 
@@ -30,6 +29,7 @@ class ActionSystemActionsMixin:
                 return {}
 
         return {}
+
     def _audio_runtime_snapshot(self) -> dict[str, Any]:
         assistant = getattr(self, "assistant", None)
 
@@ -43,7 +43,7 @@ class ActionSystemActionsMixin:
 
         payload = getattr(assistant, "_last_audio_runtime_snapshot", {}) or {}
         return dict(payload or {}) if isinstance(payload, dict) else {}
-    
+
     def _benchmark_snapshot(self) -> dict[str, Any]:
         assistant = getattr(self, "assistant", None)
         service = getattr(assistant, "turn_benchmark_service", None)
@@ -70,6 +70,36 @@ class ActionSystemActionsMixin:
 
         return {}
 
+    def _benchmark_summary(self) -> dict[str, Any]:
+        assistant = getattr(self, "assistant", None)
+        service = getattr(assistant, "turn_benchmark_service", None)
+        latest_summary = getattr(service, "latest_summary", None)
+        if not callable(latest_summary):
+            return {}
+
+        try:
+            payload = latest_summary()
+        except Exception:
+            return {}
+
+        return dict(payload or {}) if isinstance(payload, dict) else {}
+
+    def _last_llm_generation_snapshot(self) -> dict[str, Any]:
+        assistant = getattr(self, "assistant", None)
+        dialogue = getattr(assistant, "dialogue", None)
+        local_llm = getattr(dialogue, "local_llm", None)
+
+        snapshot_method = getattr(local_llm, "last_generation_snapshot", None)
+        if not callable(snapshot_method):
+            return {}
+
+        try:
+            payload = snapshot_method()
+        except Exception:
+            return {}
+
+        return dict(payload or {}) if isinstance(payload, dict) else {}
+
     @staticmethod
     def _runtime_service_payload(snapshot: dict[str, Any], component: str) -> dict[str, Any]:
         services = snapshot.get("services", {})
@@ -78,6 +108,41 @@ class ActionSystemActionsMixin:
 
         payload = services.get(component, {})
         return dict(payload or {}) if isinstance(payload, dict) else {}
+
+    @staticmethod
+    def _runtime_named_components(
+        snapshot: dict[str, Any],
+        key: str,
+        *,
+        fallback_states: tuple[str, ...] = (),
+        compatibility_only: bool = False,
+    ) -> list[str]:
+        direct = [
+            str(item).strip()
+            for item in snapshot.get(key, [])
+            if str(item).strip()
+        ]
+        if direct:
+            return direct
+
+        services = snapshot.get("services", {})
+        if not isinstance(services, dict):
+            return []
+
+        names: list[str] = []
+        for name, payload in services.items():
+            if not isinstance(payload, dict):
+                continue
+
+            if compatibility_only and bool(payload.get("compatibility_mode", False)):
+                names.append(str(name))
+                continue
+
+            state = str(payload.get("state", "") or "").strip().lower()
+            if fallback_states and state in fallback_states:
+                names.append(str(name))
+
+        return names
 
     def _fallback_backend_name(self, component: str) -> str:
         assistant = getattr(self, "assistant", None)
@@ -103,16 +168,67 @@ class ActionSystemActionsMixin:
         aliases = {
             "compatibility_voice_input": "compat",
             "faster_whisper": "faster",
+            "whisper_cpp": "whisper",
             "openwakeword": "oww",
             "hailo-ollama": "hailo",
             "llama-cli": "llama-cli",
             "text_input": "text",
             "disabled": "off",
             "unknown": "n/a",
+            "waveshare_2inch": "waveshare",
         }
 
         normalized = aliases.get(raw, raw or "n/a")
         return normalized[:14]
+
+    @staticmethod
+    def _safe_metric_float(value: Any) -> float | None:
+        if value is None or value == "":
+            return None
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return None
+        if parsed <= 0.0:
+            return None
+        return parsed
+
+    def _metric_phrase(self, value_ms: float | None, language: str) -> str:
+        if value_ms is None:
+            return "brak" if language == "pl" else "n/a"
+
+        rounded = int(round(float(value_ms)))
+        if language == "pl":
+            return f"{rounded} milisekund"
+        return f"{rounded} milliseconds"
+
+    def _metric_display(self, value_ms: float | None) -> str:
+        if value_ms is None:
+            return "n/a"
+        return f"{int(round(float(value_ms)))}ms"
+
+    def _runtime_state_phrase(self, snapshot: dict[str, Any], language: str) -> str:
+        ready = bool(snapshot.get("ready", False))
+        degraded = bool(snapshot.get("degraded", False))
+        lifecycle = str(snapshot.get("lifecycle_state", "") or "").strip().lower()
+
+        if language == "pl":
+            if ready:
+                return "gotowy"
+            if degraded or lifecycle == "degraded":
+                return "ograniczony"
+            if lifecycle == "booting":
+                return "uruchamiany"
+            return "pośredni"
+
+        if ready:
+            return "ready"
+        if degraded or lifecycle == "degraded":
+            return "limited"
+        if lifecycle == "booting":
+            return "booting"
+        return "intermediate"
+
     @staticmethod
     def _audio_token(value: Any, max_chars: int = 14) -> str:
         compact = " ".join(str(value or "n/a").split()).strip().lower() or "n/a"
@@ -175,522 +291,6 @@ class ActionSystemActionsMixin:
             f"the latest resume action is {resume_action}, "
             f"and the latest command window action is {command_action}."
         )
-    
-    @staticmethod
-    def _safe_metric_float(value: Any) -> float | None:
-        if value is None or value == "":
-            return None
-        try:
-            parsed = float(value)
-        except (TypeError, ValueError):
-            return None
-        if parsed <= 0.0:
-            return None
-        return parsed
-
-    def _metric_phrase(self, value_ms: float | None, language: str) -> str:
-        if value_ms is None:
-            return "brak" if language == "pl" else "n/a"
-
-        rounded = int(round(float(value_ms)))
-        if language == "pl":
-            return f"{rounded} milisekund"
-        return f"{rounded} milliseconds"
-
-    def _runtime_state_phrase(self, snapshot: dict[str, Any], language: str) -> str:
-        ready = bool(snapshot.get("ready", False))
-        degraded = bool(snapshot.get("degraded", False))
-        lifecycle = str(snapshot.get("lifecycle_state", "") or "").strip().lower()
-
-        if language == "pl":
-            if ready:
-                return "gotowy"
-            if degraded or lifecycle == "degraded":
-                return "ograniczony"
-            if lifecycle == "booting":
-                return "uruchamiany"
-            return "pośredni"
-
-        if ready:
-            return "ready"
-        if degraded or lifecycle == "degraded":
-            return "limited"
-        if lifecycle == "booting":
-            return "booting"
-        return "intermediate"
-
-    def _build_runtime_benchmark_summary(
-        self,
-        language: str,
-    ) -> tuple[str, list[str], dict[str, Any]]:
-        runtime_snapshot = self._runtime_snapshot()
-        benchmark_snapshot = self._benchmark_snapshot()
-        latest_sample = dict(benchmark_snapshot.get("latest_sample", {}) or {})
-        summary = dict(benchmark_snapshot.get("summary", {}) or {})
-        overlay_lines = [
-            str(item).strip()
-            for item in benchmark_snapshot.get("overlay_lines", [])
-            if str(item).strip()
-        ]
-
-        runtime_state = self._runtime_state_phrase(runtime_snapshot, language)
-        wake_token = self._backend_token(runtime_snapshot, "wake_gate")
-        stt_token = self._backend_token(runtime_snapshot, "voice_input")
-        llm_token = self._backend_token(runtime_snapshot, "llm")
-
-        last_turn_ms = self._safe_metric_float(latest_sample.get("total_turn_ms"))
-        avg_audio_ms = self._safe_metric_float(summary.get("avg_response_first_audio_ms"))
-        avg_llm_first_chunk_ms = self._safe_metric_float(summary.get("avg_llm_first_chunk_ms"))
-
-        if language == "pl":
-            runtime_part = (
-                f"Runtime jest {runtime_state}. "
-                f"Wake używa {wake_token}, STT używa {stt_token}, a LLM używa {llm_token}."
-            )
-            benchmark_part = (
-                f" Ostatni pełny turn trwał {self._metric_phrase(last_turn_ms, language)}. "
-                f"Średni start głosu to {self._metric_phrase(avg_audio_ms, language)}, "
-                f"a średni pierwszy chunk LLM to {self._metric_phrase(avg_llm_first_chunk_ms, language)}."
-            )
-        else:
-            runtime_part = (
-                f"The runtime is {runtime_state}. "
-                f"Wake uses {wake_token}, STT uses {stt_token}, and LLM uses {llm_token}."
-            )
-            benchmark_part = (
-                f" The latest full turn took {self._metric_phrase(last_turn_ms, language)}. "
-                f"Average voice start is {self._metric_phrase(avg_audio_ms, language)}, "
-                f"and average LLM first chunk is {self._metric_phrase(avg_llm_first_chunk_ms, language)}."
-            )
-
-        lines = self._localized_lines(
-            language,
-            [
-                f"runtime: {runtime_state}",
-                f"wake: {wake_token}",
-                f"stt: {stt_token}",
-                f"llm: {llm_token}",
-                f"turn: {int(round(last_turn_ms))}ms" if last_turn_ms is not None else "turn: n/a",
-                f"audio: {int(round(avg_audio_ms))}ms" if avg_audio_ms is not None else "audio: n/a",
-            ],
-            [
-                f"runtime: {runtime_state}",
-                f"wake: {wake_token}",
-                f"stt: {stt_token}",
-                f"llm: {llm_token}",
-                f"turn: {int(round(last_turn_ms))}ms" if last_turn_ms is not None else "turn: n/a",
-                f"audio: {int(round(avg_audio_ms))}ms" if avg_audio_ms is not None else "audio: n/a",
-            ],
-        )
-
-        metadata = {
-            "runtime_snapshot": runtime_snapshot,
-            "benchmark_snapshot": benchmark_snapshot,
-            "runtime_state": runtime_state,
-            "wake_backend": wake_token,
-            "stt_backend": stt_token,
-            "llm_backend": llm_token,
-            "last_turn_ms": last_turn_ms,
-            "avg_response_first_audio_ms": avg_audio_ms,
-            "avg_llm_first_chunk_ms": avg_llm_first_chunk_ms,
-            "overlay_lines": overlay_lines,
-        }
-
-        return f"{runtime_part}{benchmark_part}".strip(), lines, metadata
-
-    def _debug_status_lines(self, language: str, metadata: dict[str, Any]) -> list[str]:
-        latest_sample = dict(metadata.get("benchmark_snapshot", {}).get("latest_sample", {}) or {})
-        summary = dict(metadata.get("benchmark_snapshot", {}).get("summary", {}) or {})
-        runtime_snapshot = dict(metadata.get("runtime_snapshot", {}) or {})
-
-        route_kind = str(latest_sample.get("route_kind", "") or "n/a")[:12]
-        result = str(latest_sample.get("result", "") or "n/a")[:12]
-        startup_mode = str(runtime_snapshot.get("startup_mode", "") or runtime_snapshot.get("lifecycle_state", "n/a"))[:12]
-        avg_audio_ms = metadata.get("avg_response_first_audio_ms")
-        avg_llm_ms = metadata.get("avg_llm_first_chunk_ms")
-        avg_total_turn_ms = self._safe_metric_float(summary.get("avg_total_turn_ms"))
-
-        return self._localized_lines(
-            language,
-            [
-                f"mode: {startup_mode}",
-                f"route: {route_kind}",
-                f"wynik: {result}",
-                f"turn: {int(round(avg_total_turn_ms))}ms" if avg_total_turn_ms is not None else "turn: n/a",
-                f"audio: {int(round(avg_audio_ms))}ms" if avg_audio_ms is not None else "audio: n/a",
-                f"llm: {int(round(avg_llm_ms))}ms" if avg_llm_ms is not None else "llm: n/a",
-            ],
-            [
-                f"mode: {startup_mode}",
-                f"route: {route_kind}",
-                f"result: {result}",
-                f"turn: {int(round(avg_total_turn_ms))}ms" if avg_total_turn_ms is not None else "turn: n/a",
-                f"audio: {int(round(avg_audio_ms))}ms" if avg_audio_ms is not None else "audio: n/a",
-                f"llm: {int(round(avg_llm_ms))}ms" if avg_llm_ms is not None else "llm: n/a",
-            ],
-        )
-
-
-
-    def _runtime_snapshot(self) -> dict[str, Any]:
-        assistant = getattr(self, "assistant", None)
-
-        snapshot_method = getattr(assistant, "_runtime_status_snapshot", None)
-        if callable(snapshot_method):
-            try:
-                snapshot = snapshot_method()
-                return dict(snapshot or {}) if isinstance(snapshot, dict) else {}
-            except Exception:
-                return {}
-
-        runtime_product = getattr(assistant, "runtime_product", None)
-        snapshot_method = getattr(runtime_product, "snapshot", None)
-        if callable(snapshot_method):
-            try:
-                snapshot = snapshot_method()
-                return dict(snapshot or {}) if isinstance(snapshot, dict) else {}
-            except Exception:
-                return {}
-
-        return {}
-
-    def _benchmark_snapshot(self) -> dict[str, Any]:
-        assistant = getattr(self, "assistant", None)
-        service = getattr(assistant, "turn_benchmark_service", None)
-
-        latest_snapshot = getattr(service, "latest_snapshot", None)
-        if callable(latest_snapshot):
-            try:
-                payload = latest_snapshot()
-                return dict(payload or {}) if isinstance(payload, dict) else {}
-            except Exception:
-                return {}
-
-        latest_summary = getattr(service, "latest_summary", None)
-        if callable(latest_summary):
-            try:
-                summary = latest_summary()
-            except Exception:
-                summary = {}
-            return {
-                "latest_sample": {},
-                "summary": dict(summary or {}) if isinstance(summary, dict) else {},
-                "overlay_lines": [],
-            }
-
-        return {}
-
-    @staticmethod
-    def _runtime_service_payload(snapshot: dict[str, Any], component: str) -> dict[str, Any]:
-        services = snapshot.get("services", {})
-        if not isinstance(services, dict):
-            return {}
-
-        payload = services.get(component, {})
-        return dict(payload or {}) if isinstance(payload, dict) else {}
-
-    def _fallback_backend_name(self, component: str) -> str:
-        assistant = getattr(self, "assistant", None)
-        backend_statuses = getattr(assistant, "backend_statuses", {}) or {}
-        payload = backend_statuses.get(component)
-        if payload is None:
-            return "n/a"
-
-        selected = str(getattr(payload, "selected_backend", "") or "").strip()
-        return selected or "n/a"
-
-    def _backend_token(self, snapshot: dict[str, Any], component: str) -> str:
-        payload = self._runtime_service_payload(snapshot, component)
-
-        raw = str(
-            payload.get("backend")
-            or payload.get("selected_backend")
-            or payload.get("requested_backend")
-            or self._fallback_backend_name(component)
-            or "n/a"
-        ).strip().lower()
-
-        aliases = {
-            "compatibility_voice_input": "compat",
-            "faster_whisper": "faster",
-            "openwakeword": "oww",
-            "hailo-ollama": "hailo",
-            "llama-cli": "llama-cli",
-            "text_input": "text",
-            "disabled": "off",
-            "unknown": "n/a",
-        }
-
-        normalized = aliases.get(raw, raw or "n/a")
-        return normalized[:14]
-
-    @staticmethod
-    def _safe_metric_float(value: Any) -> float | None:
-        if value is None or value == "":
-            return None
-        try:
-            parsed = float(value)
-        except (TypeError, ValueError):
-            return None
-        if parsed <= 0.0:
-            return None
-        return parsed
-
-    def _metric_phrase(self, value_ms: float | None, language: str) -> str:
-        if value_ms is None:
-            return "brak" if language == "pl" else "n/a"
-
-        rounded = int(round(float(value_ms)))
-        if language == "pl":
-            return f"{rounded} milisekund"
-        return f"{rounded} milliseconds"
-
-    def _runtime_state_phrase(self, snapshot: dict[str, Any], language: str) -> str:
-        ready = bool(snapshot.get("ready", False))
-        degraded = bool(snapshot.get("degraded", False))
-        lifecycle = str(snapshot.get("lifecycle_state", "") or "").strip().lower()
-
-        if language == "pl":
-            if ready:
-                return "gotowy"
-            if degraded or lifecycle == "degraded":
-                return "ograniczony"
-            if lifecycle == "booting":
-                return "uruchamiany"
-            return "pośredni"
-
-        if ready:
-            return "ready"
-        if degraded or lifecycle == "degraded":
-            return "limited"
-        if lifecycle == "booting":
-            return "booting"
-        return "intermediate"
-
-    def _build_runtime_benchmark_summary(
-        self,
-        language: str,
-    ) -> tuple[str, list[str], dict[str, Any]]:
-        runtime_snapshot = self._runtime_snapshot()
-        benchmark_snapshot = self._benchmark_snapshot()
-        latest_sample = dict(benchmark_snapshot.get("latest_sample", {}) or {})
-        summary = dict(benchmark_snapshot.get("summary", {}) or {})
-
-        runtime_state = self._runtime_state_phrase(runtime_snapshot, language)
-        wake_token = self._backend_token(runtime_snapshot, "wake_gate")
-        stt_token = self._backend_token(runtime_snapshot, "voice_input")
-        llm_token = self._backend_token(runtime_snapshot, "llm")
-
-        last_turn_ms = self._safe_metric_float(latest_sample.get("total_turn_ms"))
-        avg_audio_ms = self._safe_metric_float(summary.get("avg_response_first_audio_ms"))
-        avg_llm_first_chunk_ms = self._safe_metric_float(summary.get("avg_llm_first_chunk_ms"))
-        completed_turn_trace = self._completed_turn_trace(latest_sample)
-        completed_turn_phrase = self._completed_turn_trace_phrase(language, completed_turn_trace)
-        completed_turn_lines = self._completed_turn_trace_lines(language, completed_turn_trace)
-
-        if language == "pl":
-            runtime_part = (
-                f"Runtime jest {runtime_state}. "
-                f"Wake używa {wake_token}, STT używa {stt_token}, a LLM używa {llm_token}."
-            )
-            benchmark_part = (
-                f" Ostatni pełny turn trwał {self._metric_phrase(last_turn_ms, language)}. "
-                f"Średni start głosu to {self._metric_phrase(avg_audio_ms, language)}, "
-                f"a średni pierwszy chunk LLM to {self._metric_phrase(avg_llm_first_chunk_ms, language)}. "
-                f"{completed_turn_phrase}"
-            )
-        else:
-            runtime_part = (
-                f"The runtime is {runtime_state}. "
-                f"Wake uses {wake_token}, STT uses {stt_token}, and LLM uses {llm_token}."
-            )
-            benchmark_part = (
-                f" The latest full turn took {self._metric_phrase(last_turn_ms, language)}. "
-                f"Average voice start is {self._metric_phrase(avg_audio_ms, language)}, "
-                f"and average LLM first chunk is {self._metric_phrase(avg_llm_first_chunk_ms, language)}. "
-                f"{completed_turn_phrase}"
-            )
-
-        lines = self._localized_lines(
-            language,
-            [
-                f"runtime: {runtime_state}",
-                f"wake: {wake_token}",
-                f"stt: {stt_token}",
-                f"llm: {llm_token}",
-                f"turn: {int(round(last_turn_ms))}ms" if last_turn_ms is not None else "turn: n/a",
-                f"audio: {int(round(avg_audio_ms))}ms" if avg_audio_ms is not None else "audio: n/a",
-            ],
-            [
-                f"runtime: {runtime_state}",
-                f"wake: {wake_token}",
-                f"stt: {stt_token}",
-                f"llm: {llm_token}",
-                f"turn: {int(round(last_turn_ms))}ms" if last_turn_ms is not None else "turn: n/a",
-                f"audio: {int(round(avg_audio_ms))}ms" if avg_audio_ms is not None else "audio: n/a",
-            ],
-        )
-
-        metadata = {
-            "runtime_snapshot": runtime_snapshot,
-            "benchmark_snapshot": benchmark_snapshot,
-            "runtime_state": runtime_state,
-            "wake_backend": wake_token,
-            "stt_backend": stt_token,
-            "llm_backend": llm_token,
-            "last_turn_ms": last_turn_ms,
-            "avg_response_first_audio_ms": avg_audio_ms,
-            "avg_llm_first_chunk_ms": avg_llm_first_chunk_ms,
-            "completed_turn_trace": completed_turn_trace,
-            "completed_turn_lines": completed_turn_lines,
-        }
-
-        return f"{runtime_part}{benchmark_part}".strip(), lines, metadata
-
-
-    def _runtime_snapshot(self) -> dict[str, Any]:
-        assistant = getattr(self, "assistant", None)
-
-        snapshot_method = getattr(assistant, "_runtime_status_snapshot", None)
-        if callable(snapshot_method):
-            try:
-                snapshot = snapshot_method()
-                return dict(snapshot or {}) if isinstance(snapshot, dict) else {}
-            except Exception:
-                return {}
-
-        runtime_product = getattr(assistant, "runtime_product", None)
-        snapshot_method = getattr(runtime_product, "snapshot", None)
-        if callable(snapshot_method):
-            try:
-                snapshot = snapshot_method()
-                return dict(snapshot or {}) if isinstance(snapshot, dict) else {}
-            except Exception:
-                return {}
-
-        return {}
-
-    def _benchmark_summary(self) -> dict[str, Any]:
-        assistant = getattr(self, "assistant", None)
-        service = getattr(assistant, "turn_benchmark_service", None)
-        latest_summary = getattr(service, "latest_summary", None)
-        if not callable(latest_summary):
-            return {}
-
-        try:
-            payload = latest_summary()
-        except Exception:
-            return {}
-
-        return dict(payload or {}) if isinstance(payload, dict) else {}
-
-    def _last_llm_generation_snapshot(self) -> dict[str, Any]:
-        assistant = getattr(self, "assistant", None)
-        dialogue = getattr(assistant, "dialogue", None)
-        local_llm = getattr(dialogue, "local_llm", None)
-
-        snapshot_method = getattr(local_llm, "last_generation_snapshot", None)
-        if not callable(snapshot_method):
-            return {}
-
-        try:
-            payload = snapshot_method()
-        except Exception:
-            return {}
-
-        return dict(payload or {}) if isinstance(payload, dict) else {}
-
-    @staticmethod
-    def _safe_metric_float(value: Any) -> float | None:
-        if value is None or value == "":
-            return None
-        try:
-            parsed = float(value)
-        except (TypeError, ValueError):
-            return None
-        if parsed <= 0.0:
-            return None
-        return parsed
-
-    @staticmethod
-    def _runtime_service_payload(snapshot: dict[str, Any], component: str) -> dict[str, Any]:
-        services = snapshot.get("services", {})
-        if not isinstance(services, dict):
-            return {}
-
-        payload = services.get(component, {})
-        return dict(payload or {}) if isinstance(payload, dict) else {}
-
-    def _fallback_backend_name(self, component: str) -> str:
-        assistant = getattr(self, "assistant", None)
-        backend_statuses = getattr(assistant, "backend_statuses", {}) or {}
-        payload = backend_statuses.get(component)
-        if payload is None:
-            return "n/a"
-
-        selected = str(getattr(payload, "selected_backend", "") or "").strip()
-        return selected or "n/a"
-
-    def _backend_token(self, snapshot: dict[str, Any], component: str) -> str:
-        payload = self._runtime_service_payload(snapshot, component)
-
-        raw = str(
-            payload.get("backend")
-            or payload.get("selected_backend")
-            or payload.get("requested_backend")
-            or self._fallback_backend_name(component)
-            or "n/a"
-        ).strip().lower()
-
-        aliases = {
-            "compatibility_voice_input": "compat",
-            "faster_whisper": "faster",
-            "whisper_cpp": "whisper",
-            "openwakeword": "oww",
-            "hailo-ollama": "hailo",
-            "llama-cli": "llama-cli",
-            "text_input": "text",
-            "disabled": "off",
-            "unknown": "n/a",
-        }
-
-        normalized = aliases.get(raw, raw or "n/a")
-        return normalized[:14]
-
-    def _runtime_state_phrase(self, snapshot: dict[str, Any], language: str) -> str:
-        ready = bool(snapshot.get("ready", False))
-        degraded = bool(snapshot.get("degraded", False))
-        lifecycle = str(snapshot.get("lifecycle_state", "") or "").strip().lower()
-
-        if language == "pl":
-            if ready:
-                return "gotowy"
-            if degraded or lifecycle == "degraded":
-                return "ograniczony"
-            if lifecycle == "booting":
-                return "uruchamiany"
-            return "pośredni"
-        if ready:
-            return "ready"
-        if degraded or lifecycle == "degraded":
-            return "limited"
-        if lifecycle == "booting":
-            return "booting"
-        return "intermediate"
-
-    def _metric_phrase(self, value_ms: float | None, language: str) -> str:
-        if value_ms is None:
-            return "brak" if language == "pl" else "n/a"
-
-        rounded = int(round(float(value_ms)))
-        if language == "pl":
-            return f"{rounded} milisekund"
-        return f"{rounded} milliseconds"
-
-    def _metric_display(self, value_ms: float | None) -> str:
-        if value_ms is None:
-            return "n/a"
-        return f"{int(round(float(value_ms)))}ms"
 
     def _completed_turn_trace(self, latest_sample: dict[str, Any]) -> dict[str, Any]:
         sample = dict(latest_sample or {})
@@ -773,7 +373,11 @@ class ActionSystemActionsMixin:
             str(completed_turn_trace.get(key, "") or "").strip()
             for key in ("route_kind", "result", "resume_action", "command_action")
         )
-        trace_phrase = self._completed_turn_trace_phrase(language, completed_turn_trace) if trace_available else ""
+        trace_phrase = (
+            self._completed_turn_trace_phrase(language, completed_turn_trace)
+            if trace_available
+            else ""
+        )
 
         if language == "pl":
             phrase = (
@@ -792,6 +396,121 @@ class ActionSystemActionsMixin:
             phrase = f"{phrase} {trace_phrase}"
         return phrase.strip()
 
+    def _debug_status_lines(self, language: str, metadata: dict[str, Any]) -> list[str]:
+        latest_sample = dict(metadata.get("benchmark_snapshot", {}).get("latest_sample", {}) or {})
+        summary = dict(metadata.get("benchmark_snapshot", {}).get("summary", {}) or {})
+        runtime_snapshot = dict(metadata.get("runtime_snapshot", {}) or {})
+
+        route_kind = str(latest_sample.get("route_kind", "") or "n/a")[:12]
+        result = str(latest_sample.get("result", "") or "n/a")[:12]
+        startup_mode = str(
+            runtime_snapshot.get("startup_mode", "")
+            or runtime_snapshot.get("lifecycle_state", "n/a")
+        )[:12]
+        avg_audio_ms = metadata.get("avg_response_first_audio_ms")
+        avg_llm_ms = metadata.get("avg_llm_first_chunk_ms")
+        avg_total_turn_ms = self._safe_metric_float(summary.get("avg_total_turn_ms"))
+
+        return self._localized_lines(
+            language,
+            [
+                f"mode: {startup_mode}",
+                f"route: {route_kind}",
+                f"wynik: {result}",
+                f"turn: {int(round(avg_total_turn_ms))}ms" if avg_total_turn_ms is not None else "turn: n/a",
+                f"audio: {int(round(avg_audio_ms))}ms" if avg_audio_ms is not None else "audio: n/a",
+                f"llm: {int(round(avg_llm_ms))}ms" if avg_llm_ms is not None else "llm: n/a",
+            ],
+            [
+                f"mode: {startup_mode}",
+                f"route: {route_kind}",
+                f"result: {result}",
+                f"turn: {int(round(avg_total_turn_ms))}ms" if avg_total_turn_ms is not None else "turn: n/a",
+                f"audio: {int(round(avg_audio_ms))}ms" if avg_audio_ms is not None else "audio: n/a",
+                f"llm: {int(round(avg_llm_ms))}ms" if avg_llm_ms is not None else "llm: n/a",
+            ],
+        )
+
+    def _build_runtime_benchmark_summary(
+        self,
+        language: str,
+    ) -> tuple[str, list[str], dict[str, Any]]:
+        runtime_snapshot = self._runtime_snapshot()
+        benchmark_snapshot = self._benchmark_snapshot()
+        latest_sample = dict(benchmark_snapshot.get("latest_sample", {}) or {})
+        summary = dict(benchmark_snapshot.get("summary", {}) or {})
+
+        runtime_state = self._runtime_state_phrase(runtime_snapshot, language)
+        wake_token = self._backend_token(runtime_snapshot, "wake_gate")
+        stt_token = self._backend_token(runtime_snapshot, "voice_input")
+        llm_token = self._backend_token(runtime_snapshot, "llm")
+
+        last_turn_ms = self._safe_metric_float(latest_sample.get("total_turn_ms"))
+        avg_audio_ms = self._safe_metric_float(summary.get("avg_response_first_audio_ms"))
+        avg_llm_first_chunk_ms = self._safe_metric_float(summary.get("avg_llm_first_chunk_ms"))
+        completed_turn_trace = self._completed_turn_trace(latest_sample)
+        completed_turn_phrase = self._completed_turn_trace_phrase(language, completed_turn_trace)
+        completed_turn_lines = self._completed_turn_trace_lines(language, completed_turn_trace)
+
+        if language == "pl":
+            runtime_part = (
+                f"Runtime jest {runtime_state}. "
+                f"Wake używa {wake_token}, STT używa {stt_token}, a LLM używa {llm_token}."
+            )
+            benchmark_part = (
+                f" Ostatni pełny turn trwał {self._metric_phrase(last_turn_ms, language)}. "
+                f"Średni start głosu to {self._metric_phrase(avg_audio_ms, language)}, "
+                f"a średni pierwszy chunk LLM to {self._metric_phrase(avg_llm_first_chunk_ms, language)}. "
+                f"{completed_turn_phrase}"
+            )
+        else:
+            runtime_part = (
+                f"The runtime is {runtime_state}. "
+                f"Wake uses {wake_token}, STT uses {stt_token}, and LLM uses {llm_token}."
+            )
+            benchmark_part = (
+                f" The latest full turn took {self._metric_phrase(last_turn_ms, language)}. "
+                f"Average voice start is {self._metric_phrase(avg_audio_ms, language)}, "
+                f"and average LLM first chunk is {self._metric_phrase(avg_llm_first_chunk_ms, language)}. "
+                f"{completed_turn_phrase}"
+            )
+
+        lines = self._localized_lines(
+            language,
+            [
+                f"runtime: {runtime_state}",
+                f"wake: {wake_token}",
+                f"stt: {stt_token}",
+                f"llm: {llm_token}",
+                f"turn: {int(round(last_turn_ms))}ms" if last_turn_ms is not None else "turn: n/a",
+                f"audio: {int(round(avg_audio_ms))}ms" if avg_audio_ms is not None else "audio: n/a",
+            ],
+            [
+                f"runtime: {runtime_state}",
+                f"wake: {wake_token}",
+                f"stt: {stt_token}",
+                f"llm: {llm_token}",
+                f"turn: {int(round(last_turn_ms))}ms" if last_turn_ms is not None else "turn: n/a",
+                f"audio: {int(round(avg_audio_ms))}ms" if avg_audio_ms is not None else "audio: n/a",
+            ],
+        )
+
+        metadata = {
+            "runtime_snapshot": runtime_snapshot,
+            "benchmark_snapshot": benchmark_snapshot,
+            "runtime_state": runtime_state,
+            "wake_backend": wake_token,
+            "stt_backend": stt_token,
+            "llm_backend": llm_token,
+            "last_turn_ms": last_turn_ms,
+            "avg_response_first_audio_ms": avg_audio_ms,
+            "avg_llm_first_chunk_ms": avg_llm_first_chunk_ms,
+            "completed_turn_trace": completed_turn_trace,
+            "completed_turn_lines": completed_turn_lines,
+        }
+
+        return f"{runtime_part}{benchmark_part}".strip(), lines, metadata
+
     def _build_runtime_metrics_summary(
         self,
         language: str,
@@ -805,9 +524,7 @@ class ActionSystemActionsMixin:
         stt_token = self._backend_token(snapshot, "voice_input")
         llm_token = self._backend_token(snapshot, "llm")
 
-        llm_first_chunk_ms = self._safe_metric_float(
-            benchmark.get("avg_llm_first_chunk_ms")
-        )
+        llm_first_chunk_ms = self._safe_metric_float(benchmark.get("avg_llm_first_chunk_ms"))
         response_first_audio_ms = self._safe_metric_float(
             benchmark.get("avg_response_first_audio_ms")
         )
@@ -823,11 +540,14 @@ class ActionSystemActionsMixin:
                 f"Wake używa {wake_token}, STT używa {stt_token}, a LLM używa {llm_token}."
             )
 
-            if any(value is not None for value in (
-                llm_first_chunk_ms,
-                response_first_audio_ms,
-                response_first_sentence_ms,
-            )):
+            if any(
+                value is not None
+                for value in (
+                    llm_first_chunk_ms,
+                    response_first_audio_ms,
+                    response_first_sentence_ms,
+                )
+            ):
                 metrics_spoken = (
                     " Średnie metryki odpowiedzi są następujące: "
                     f"pierwszy chunk LLM {self._metric_phrase(llm_first_chunk_ms, language)}, "
@@ -845,11 +565,14 @@ class ActionSystemActionsMixin:
                 f"Wake uses {wake_token}, STT uses {stt_token}, and LLM uses {llm_token}."
             )
 
-            if any(value is not None for value in (
-                llm_first_chunk_ms,
-                response_first_audio_ms,
-                response_first_sentence_ms,
-            )):
+            if any(
+                value is not None
+                for value in (
+                    llm_first_chunk_ms,
+                    response_first_audio_ms,
+                    response_first_sentence_ms,
+                )
+            ):
                 metrics_spoken = (
                     " Average response metrics are: "
                     f"LLM first chunk {self._metric_phrase(llm_first_chunk_ms, language)}, "
@@ -896,345 +619,6 @@ class ActionSystemActionsMixin:
         }
 
         return f"{runtime_spoken}{metrics_spoken}".strip(), lines, metadata
-
-
-    def _runtime_snapshot(self) -> dict[str, Any]:
-        assistant = getattr(self, "assistant", None)
-
-        snapshot_method = getattr(assistant, "_runtime_status_snapshot", None)
-        if callable(snapshot_method):
-            try:
-                snapshot = snapshot_method()
-                return dict(snapshot or {}) if isinstance(snapshot, dict) else {}
-            except Exception:
-                return {}
-
-        runtime_product = getattr(assistant, "runtime_product", None)
-        snapshot_method = getattr(runtime_product, "snapshot", None)
-        if callable(snapshot_method):
-            try:
-                snapshot = snapshot_method()
-                return dict(snapshot or {}) if isinstance(snapshot, dict) else {}
-            except Exception:
-                return {}
-
-        return {}
-
-    def _benchmark_summary(self) -> dict[str, Any]:
-        assistant = getattr(self, "assistant", None)
-        service = getattr(assistant, "turn_benchmark_service", None)
-        latest_summary = getattr(service, "latest_summary", None)
-        if not callable(latest_summary):
-            return {}
-
-        try:
-            payload = latest_summary()
-        except Exception:
-            return {}
-
-        return dict(payload or {}) if isinstance(payload, dict) else {}
-
-    def _last_llm_generation_snapshot(self) -> dict[str, Any]:
-        assistant = getattr(self, "assistant", None)
-        dialogue = getattr(assistant, "dialogue", None)
-        local_llm = getattr(dialogue, "local_llm", None)
-
-        snapshot_method = getattr(local_llm, "last_generation_snapshot", None)
-        if not callable(snapshot_method):
-            return {}
-
-        try:
-            payload = snapshot_method()
-        except Exception:
-            return {}
-
-        return dict(payload or {}) if isinstance(payload, dict) else {}
-
-    @staticmethod
-    def _safe_metric_float(value: Any) -> float | None:
-        if value is None or value == "":
-            return None
-        try:
-            parsed = float(value)
-        except (TypeError, ValueError):
-            return None
-        if parsed <= 0.0:
-            return None
-        return parsed
-
-    @staticmethod
-    def _runtime_service_payload(snapshot: dict[str, Any], component: str) -> dict[str, Any]:
-        services = snapshot.get("services", {})
-        if not isinstance(services, dict):
-            return {}
-
-        payload = services.get(component, {})
-        return dict(payload or {}) if isinstance(payload, dict) else {}
-
-    def _fallback_backend_name(self, component: str) -> str:
-        assistant = getattr(self, "assistant", None)
-        backend_statuses = getattr(assistant, "backend_statuses", {}) or {}
-        payload = backend_statuses.get(component)
-        if payload is None:
-            return "n/a"
-
-        selected = str(getattr(payload, "selected_backend", "") or "").strip()
-        return selected or "n/a"
-
-    def _backend_token(self, snapshot: dict[str, Any], component: str) -> str:
-        payload = self._runtime_service_payload(snapshot, component)
-
-        raw = str(
-            payload.get("backend")
-            or payload.get("selected_backend")
-            or payload.get("requested_backend")
-            or self._fallback_backend_name(component)
-            or "n/a"
-        ).strip().lower()
-
-        aliases = {
-            "compatibility_voice_input": "compat",
-            "faster_whisper": "faster",
-            "whisper_cpp": "whisper",
-            "openwakeword": "oww",
-            "hailo-ollama": "hailo",
-            "llama-cli": "llama-cli",
-            "text_input": "text",
-            "disabled": "off",
-            "unknown": "n/a",
-        }
-
-        normalized = aliases.get(raw, raw or "n/a")
-        return normalized[:14]
-
-    def _runtime_state_phrase(self, snapshot: dict[str, Any], language: str) -> str:
-        ready = bool(snapshot.get("ready", False))
-        degraded = bool(snapshot.get("degraded", False))
-        lifecycle = str(snapshot.get("lifecycle_state", "") or "").strip().lower()
-
-        if language == "pl":
-            if ready:
-                return "gotowy"
-            if degraded or lifecycle == "degraded":
-                return "ograniczony"
-            if lifecycle == "booting":
-                return "uruchamiany"
-            return "pośredni"
-        if ready:
-            return "ready"
-        if degraded or lifecycle == "degraded":
-            return "limited"
-        if lifecycle == "booting":
-            return "booting"
-        return "intermediate"
-
-    def _metric_phrase(self, value_ms: float | None, language: str) -> str:
-        if value_ms is None:
-            return "brak" if language == "pl" else "n/a"
-
-        rounded = int(round(float(value_ms)))
-        if language == "pl":
-            return f"{rounded} milisekund"
-        return f"{rounded} milliseconds"
-
-    def _metric_display(self, value_ms: float | None) -> str:
-        if value_ms is None:
-            return "n/a"
-        return f"{int(round(float(value_ms)))}ms"
-
-    def _build_runtime_metrics_summary(
-        self,
-        language: str,
-    ) -> tuple[str, list[str], dict[str, Any]]:
-        snapshot = self._runtime_snapshot()
-        benchmark = self._benchmark_summary()
-        llm_last = self._last_llm_generation_snapshot()
-
-        runtime_state = self._runtime_state_phrase(snapshot, language)
-        wake_token = self._backend_token(snapshot, "wake_gate")
-        stt_token = self._backend_token(snapshot, "voice_input")
-        llm_token = self._backend_token(snapshot, "llm")
-
-        llm_first_chunk_ms = self._safe_metric_float(
-            benchmark.get("avg_llm_first_chunk_ms")
-        )
-        response_first_audio_ms = self._safe_metric_float(
-            benchmark.get("avg_response_first_audio_ms")
-        )
-        response_first_sentence_ms = self._safe_metric_float(
-            benchmark.get("avg_response_first_sentence_ms")
-        )
-
-        status_message = str(snapshot.get("status_message", "") or "").strip()
-
-        if language == "pl":
-            runtime_spoken = (
-                f"Runtime jest {runtime_state}. "
-                f"Wake używa {wake_token}, STT używa {stt_token}, a LLM używa {llm_token}."
-            )
-
-            if any(value is not None for value in (
-                llm_first_chunk_ms,
-                response_first_audio_ms,
-                response_first_sentence_ms,
-            )):
-                metrics_spoken = (
-                    " Średnie metryki odpowiedzi są następujące: "
-                    f"pierwszy chunk LLM {self._metric_phrase(llm_first_chunk_ms, language)}, "
-                    f"start głosu {self._metric_phrase(response_first_audio_ms, language)}, "
-                    f"pierwsze zdanie {self._metric_phrase(response_first_sentence_ms, language)}."
-                )
-            else:
-                metrics_spoken = " Nie mam jeszcze pełnych metryk odpowiedzi."
-
-            if status_message:
-                runtime_spoken = f"{runtime_spoken} {status_message}."
-        else:
-            runtime_spoken = (
-                f"The runtime is {runtime_state}. "
-                f"Wake uses {wake_token}, STT uses {stt_token}, and LLM uses {llm_token}."
-            )
-
-            if any(value is not None for value in (
-                llm_first_chunk_ms,
-                response_first_audio_ms,
-                response_first_sentence_ms,
-            )):
-                metrics_spoken = (
-                    " Average response metrics are: "
-                    f"LLM first chunk {self._metric_phrase(llm_first_chunk_ms, language)}, "
-                    f"voice start {self._metric_phrase(response_first_audio_ms, language)}, "
-                    f"first sentence {self._metric_phrase(response_first_sentence_ms, language)}."
-                )
-            else:
-                metrics_spoken = " I do not have full response metrics yet."
-
-            if status_message:
-                runtime_spoken = f"{runtime_spoken} {status_message}."
-
-        lines = self._localized_lines(
-            language,
-            [
-                f"runtime: {runtime_state}",
-                f"wake: {wake_token}",
-                f"stt: {stt_token}",
-                f"llm: {llm_token}",
-                f"ttft: {self._metric_display(llm_first_chunk_ms)}",
-                f"voice: {self._metric_display(response_first_audio_ms)}",
-            ],
-            [
-                f"runtime: {runtime_state}",
-                f"wake: {wake_token}",
-                f"stt: {stt_token}",
-                f"llm: {llm_token}",
-                f"ttft: {self._metric_display(llm_first_chunk_ms)}",
-                f"voice: {self._metric_display(response_first_audio_ms)}",
-            ],
-        )
-
-        metadata = {
-            "runtime_snapshot": snapshot,
-            "benchmark_summary": benchmark,
-            "llm_last_generation": llm_last,
-            "runtime_state": runtime_state,
-            "wake_backend": wake_token,
-            "stt_backend": stt_token,
-            "llm_backend": llm_token,
-            "avg_llm_first_chunk_ms": llm_first_chunk_ms,
-            "avg_response_first_audio_ms": response_first_audio_ms,
-            "avg_response_first_sentence_ms": response_first_sentence_ms,
-        }
-
-        return f"{runtime_spoken}{metrics_spoken}".strip(), lines, metadata
-    def _runtime_snapshot(self) -> dict[str, Any]:
-        assistant = getattr(self, "assistant", None)
-
-        snapshot_method = getattr(assistant, "_runtime_status_snapshot", None)
-        if callable(snapshot_method):
-            try:
-                snapshot = snapshot_method()
-                return dict(snapshot or {}) if isinstance(snapshot, dict) else {}
-            except Exception:
-                return {}
-
-        runtime_product = getattr(assistant, "runtime_product", None)
-        snapshot_method = getattr(runtime_product, "snapshot", None)
-        if callable(snapshot_method):
-            try:
-                snapshot = snapshot_method()
-                return dict(snapshot or {}) if isinstance(snapshot, dict) else {}
-            except Exception:
-                return {}
-
-        return {}
-
-    @staticmethod
-    def _runtime_service_payload(
-        snapshot: dict[str, Any],
-        component: str,
-    ) -> dict[str, Any]:
-        services = snapshot.get("services", {})
-        if not isinstance(services, dict):
-            return {}
-
-        payload = services.get(component, {})
-        return dict(payload or {}) if isinstance(payload, dict) else {}
-
-    @staticmethod
-    def _runtime_named_components(
-        snapshot: dict[str, Any],
-        key: str,
-        *,
-        fallback_states: tuple[str, ...] = (),
-        compatibility_only: bool = False,
-    ) -> list[str]:
-        direct = [
-            str(item).strip()
-            for item in snapshot.get(key, [])
-            if str(item).strip()
-        ]
-        if direct:
-            return direct
-
-        services = snapshot.get("services", {})
-        if not isinstance(services, dict):
-            return []
-
-        names: list[str] = []
-        for name, payload in services.items():
-            if not isinstance(payload, dict):
-                continue
-
-            if compatibility_only and bool(payload.get("compatibility_mode", False)):
-                names.append(str(name))
-                continue
-
-            state = str(payload.get("state", "") or "").strip().lower()
-            if fallback_states and state in fallback_states:
-                names.append(str(name))
-
-        return names
-
-    @staticmethod
-    def _runtime_backend_token(payload: dict[str, Any]) -> str:
-        raw = str(
-            payload.get("backend")
-            or payload.get("selected_backend")
-            or payload.get("requested_backend")
-            or "n/a"
-        ).strip().lower()
-
-        aliases = {
-            "compatibility_voice_input": "compat",
-            "faster_whisper": "faster",
-            "openwakeword": "oww",
-            "hailo-ollama": "hailo",
-            "text_input": "text",
-            "disabled": "off",
-            "waveshare_2inch": "waveshare",
-        }
-        normalized = aliases.get(raw, raw or "n/a")
-        return normalized[:14]
 
     def _build_runtime_status_summary(
         self,
@@ -1275,13 +659,9 @@ class ActionSystemActionsMixin:
             fallback_states=("failed",),
         )
 
-        voice_input = self._runtime_service_payload(snapshot, "voice_input")
-        wake_gate = self._runtime_service_payload(snapshot, "wake_gate")
-        llm = self._runtime_service_payload(snapshot, "llm")
-
-        voice_token = self._runtime_backend_token(voice_input)
-        wake_token = self._runtime_backend_token(wake_gate)
-        llm_token = self._runtime_backend_token(llm)
+        voice_token = self._backend_token(snapshot, "voice_input")
+        wake_token = self._backend_token(snapshot, "wake_gate")
+        llm_token = self._backend_token(snapshot, "llm")
 
         if language == "pl":
             if premium_ready:
@@ -1380,6 +760,7 @@ class ActionSystemActionsMixin:
         }
 
         return f"{runtime_sentence} {backend_sentence}".strip(), lines, metadata
+
     def _handle_help(
         self,
         *,
@@ -1425,7 +806,7 @@ class ActionSystemActionsMixin:
         break_on = bool(self.assistant.state.get("break_mode"))
         timer_running = bool(timer_status.get("running"))
 
-        runtime_spoken, runtime_lines, runtime_metadata = self._build_runtime_benchmark_summary(language)
+        _, _, runtime_metadata = self._build_runtime_benchmark_summary(language)
         runtime_status_spoken, runtime_status_lines, runtime_status_metadata = self._build_runtime_status_summary(language)
         benchmark_spoken = self._benchmark_overview_phrase(language, runtime_metadata)
 
@@ -1488,9 +869,6 @@ class ActionSystemActionsMixin:
             },
         )
 
-
-
-
     def _handle_debug_status(
         self,
         *,
@@ -1501,7 +879,7 @@ class ActionSystemActionsMixin:
     ) -> bool:
         del route, payload
 
-        runtime_spoken, _, runtime_metadata = self._build_runtime_benchmark_summary(language)
+        _, _, runtime_metadata = self._build_runtime_benchmark_summary(language)
         runtime_status_spoken, _, runtime_status_metadata = self._build_runtime_status_summary(language)
         benchmark_spoken = self._benchmark_overview_phrase(language, runtime_metadata)
         audio_snapshot = self._audio_runtime_snapshot()
@@ -1559,7 +937,6 @@ class ActionSystemActionsMixin:
                 "completed_turn_lines": completed_turn_lines,
             },
         )
-
 
     def _handle_introduce_self(
         self,
@@ -1754,7 +1131,11 @@ class ActionSystemActionsMixin:
                     "System shutdown is currently disabled in settings.",
                 ),
                 display_title="SHUTDOWN DISABLED",
-                display_lines=self._localized_lines(language, ["sprawdz ustawienia"], ["check settings"]),
+                display_lines=self._localized_lines(
+                    language,
+                    ["sprawdz ustawienia"],
+                    ["check settings"],
+                ),
                 extra_metadata={"resolved_source": resolved.source, "phase": "blocked_by_config"},
             )
 
