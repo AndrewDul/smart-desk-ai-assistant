@@ -484,6 +484,9 @@ class ActionSystemActionsMixin:
         last_turn_ms = self._safe_metric_float(latest_sample.get("total_turn_ms"))
         avg_audio_ms = self._safe_metric_float(summary.get("avg_response_first_audio_ms"))
         avg_llm_first_chunk_ms = self._safe_metric_float(summary.get("avg_llm_first_chunk_ms"))
+        completed_turn_trace = self._completed_turn_trace(latest_sample)
+        completed_turn_phrase = self._completed_turn_trace_phrase(language, completed_turn_trace)
+        completed_turn_lines = self._completed_turn_trace_lines(language, completed_turn_trace)
 
         if language == "pl":
             runtime_part = (
@@ -493,7 +496,8 @@ class ActionSystemActionsMixin:
             benchmark_part = (
                 f" Ostatni pełny turn trwał {self._metric_phrase(last_turn_ms, language)}. "
                 f"Średni start głosu to {self._metric_phrase(avg_audio_ms, language)}, "
-                f"a średni pierwszy chunk LLM to {self._metric_phrase(avg_llm_first_chunk_ms, language)}."
+                f"a średni pierwszy chunk LLM to {self._metric_phrase(avg_llm_first_chunk_ms, language)}. "
+                f"{completed_turn_phrase}"
             )
         else:
             runtime_part = (
@@ -503,7 +507,8 @@ class ActionSystemActionsMixin:
             benchmark_part = (
                 f" The latest full turn took {self._metric_phrase(last_turn_ms, language)}. "
                 f"Average voice start is {self._metric_phrase(avg_audio_ms, language)}, "
-                f"and average LLM first chunk is {self._metric_phrase(avg_llm_first_chunk_ms, language)}."
+                f"and average LLM first chunk is {self._metric_phrase(avg_llm_first_chunk_ms, language)}. "
+                f"{completed_turn_phrase}"
             )
 
         lines = self._localized_lines(
@@ -536,9 +541,13 @@ class ActionSystemActionsMixin:
             "last_turn_ms": last_turn_ms,
             "avg_response_first_audio_ms": avg_audio_ms,
             "avg_llm_first_chunk_ms": avg_llm_first_chunk_ms,
+            "completed_turn_trace": completed_turn_trace,
+            "completed_turn_lines": completed_turn_lines,
         }
 
         return f"{runtime_part}{benchmark_part}".strip(), lines, metadata
+
+
     def _runtime_snapshot(self) -> dict[str, Any]:
         assistant = getattr(self, "assistant", None)
 
@@ -682,6 +691,106 @@ class ActionSystemActionsMixin:
         if value_ms is None:
             return "n/a"
         return f"{int(round(float(value_ms)))}ms"
+
+    def _completed_turn_trace(self, latest_sample: dict[str, Any]) -> dict[str, Any]:
+        sample = dict(latest_sample or {})
+        resume_policy = dict(sample.get("resume_policy", {}) or {})
+        command_window_policy = dict(sample.get("command_window_policy", {}) or {})
+        return {
+            "route_kind": str(sample.get("route_kind", "") or "").strip(),
+            "result": str(sample.get("result", "") or "").strip(),
+            "resume_action": str(resume_policy.get("action", "") or "").strip(),
+            "resume_reason": str(resume_policy.get("reason", "") or "").strip(),
+            "command_action": str(command_window_policy.get("action", "") or "").strip(),
+            "command_reason": str(command_window_policy.get("reason", "") or "").strip(),
+            "command_phase": str(command_window_policy.get("phase", "") or "").strip(),
+            "stt_mode": str(sample.get("stt_mode", "") or "").strip(),
+            "stt_latency_ms": self._safe_metric_float(sample.get("stt_latency_ms")),
+            "wake_latency_ms": self._safe_metric_float(sample.get("wake_latency_ms")),
+        }
+
+    def _completed_turn_trace_phrase(self, language: str, trace: dict[str, Any]) -> str:
+        route_kind = str(trace.get("route_kind", "") or "n/a")[:14]
+        result = str(trace.get("result", "") or "n/a")[:24]
+        resume_action = str(trace.get("resume_action", "") or "n/a")[:14]
+        command_action = str(trace.get("command_action", "") or "n/a")[:14]
+
+        if language == "pl":
+            return (
+                f"Ostatni zakończony turn zakończył się wynikiem {result} "
+                f"na ścieżce {route_kind}, z decyzją resume {resume_action} "
+                f"i command window {command_action}."
+            )
+        return (
+            f"The latest completed turn ended with result {result} "
+            f"on the {route_kind} route, with resume {resume_action} "
+            f"and command window {command_action}."
+        )
+
+    def _completed_turn_trace_lines(self, language: str, trace: dict[str, Any]) -> list[str]:
+        route_kind = str(trace.get("route_kind", "") or "n/a")[:12]
+        result = str(trace.get("result", "") or "n/a")[:16]
+        resume_action = str(trace.get("resume_action", "") or "n/a")[:12]
+        command_action = str(trace.get("command_action", "") or "n/a")[:12]
+        command_phase = str(trace.get("command_phase", "") or "n/a")[:12]
+
+        return self._localized_lines(
+            language,
+            [
+                f"trace: {route_kind}",
+                f"wynik: {result}",
+                f"resume: {resume_action}",
+                f"cmd: {command_action}",
+                f"faza: {command_phase}",
+            ],
+            [
+                f"trace: {route_kind}",
+                f"result: {result}",
+                f"resume: {resume_action}",
+                f"cmd: {command_action}",
+                f"phase: {command_phase}",
+            ],
+        )
+
+    def _benchmark_overview_phrase(self, language: str, metadata: dict[str, Any]) -> str:
+        benchmark_snapshot = dict(metadata.get("benchmark_snapshot", {}) or {})
+        latest_sample = dict(benchmark_snapshot.get("latest_sample", {}) or {})
+        summary = dict(benchmark_snapshot.get("summary", {}) or {})
+
+        if not latest_sample and not summary:
+            return self._localized(
+                language,
+                "Nie mam jeszcze benchmarków ostatnich turnów.",
+                "I do not have benchmark data for recent turns yet.",
+            )
+
+        last_turn_ms = self._safe_metric_float(latest_sample.get("total_turn_ms"))
+        avg_audio_ms = self._safe_metric_float(summary.get("avg_response_first_audio_ms"))
+        avg_llm_first_chunk_ms = self._safe_metric_float(summary.get("avg_llm_first_chunk_ms"))
+        completed_turn_trace = dict(metadata.get("completed_turn_trace", {}) or {})
+
+        trace_available = any(
+            str(completed_turn_trace.get(key, "") or "").strip()
+            for key in ("route_kind", "result", "resume_action", "command_action")
+        )
+        trace_phrase = self._completed_turn_trace_phrase(language, completed_turn_trace) if trace_available else ""
+
+        if language == "pl":
+            phrase = (
+                f"Ostatni pełny turn trwał {self._metric_phrase(last_turn_ms, language)}. "
+                f"Średni start głosu to {self._metric_phrase(avg_audio_ms, language)}, "
+                f"a średni pierwszy chunk LLM to {self._metric_phrase(avg_llm_first_chunk_ms, language)}."
+            )
+        else:
+            phrase = (
+                f"The latest full turn took {self._metric_phrase(last_turn_ms, language)}. "
+                f"Average voice start is {self._metric_phrase(avg_audio_ms, language)}, "
+                f"and average LLM first chunk is {self._metric_phrase(avg_llm_first_chunk_ms, language)}."
+            )
+
+        if trace_phrase:
+            phrase = f"{phrase} {trace_phrase}"
+        return phrase.strip()
 
     def _build_runtime_metrics_summary(
         self,
@@ -1317,6 +1426,8 @@ class ActionSystemActionsMixin:
         timer_running = bool(timer_status.get("running"))
 
         runtime_spoken, runtime_lines, runtime_metadata = self._build_runtime_benchmark_summary(language)
+        runtime_status_spoken, runtime_status_lines, runtime_status_metadata = self._build_runtime_status_summary(language)
+        benchmark_spoken = self._benchmark_overview_phrase(language, runtime_metadata)
 
         if language == "pl":
             feature_spoken = (
@@ -1353,8 +1464,9 @@ class ActionSystemActionsMixin:
 
         audio_snapshot = self._audio_runtime_snapshot()
 
-        spoken = f"{runtime_spoken} {feature_spoken}".strip()
-        display_lines = runtime_lines[:3] + feature_lines[:3]
+        spoken = f"{runtime_status_spoken} {benchmark_spoken} {feature_spoken}".strip()
+        completed_turn_lines = list(runtime_metadata.get("completed_turn_lines", []) or [])
+        display_lines = runtime_status_lines[:2] + completed_turn_lines[:1] + feature_lines[:3]
 
         return self._deliver_simple_action_response(
             language=language,
@@ -1371,6 +1483,7 @@ class ActionSystemActionsMixin:
                 "reminder_count": reminder_count,
                 "current_timer": str(current_timer),
                 "audio_runtime_snapshot": audio_snapshot,
+                **runtime_status_metadata,
                 **runtime_metadata,
             },
         )
@@ -1389,6 +1502,8 @@ class ActionSystemActionsMixin:
         del route, payload
 
         runtime_spoken, _, runtime_metadata = self._build_runtime_benchmark_summary(language)
+        runtime_status_spoken, _, runtime_status_metadata = self._build_runtime_status_summary(language)
+        benchmark_spoken = self._benchmark_overview_phrase(language, runtime_metadata)
         audio_snapshot = self._audio_runtime_snapshot()
         audio_lines = self._audio_debug_lines(language, audio_snapshot)
         debug_lines = self._debug_status_lines(language, runtime_metadata) + audio_lines
@@ -1401,23 +1516,28 @@ class ActionSystemActionsMixin:
         latest_sample = dict(benchmark_snapshot.get("latest_sample", {}) or {})
 
         audio_phrase = self._audio_debug_phrase(language, audio_snapshot)
+        completed_turn_trace = dict(runtime_metadata.get("completed_turn_trace", {}) or {})
+        completed_turn_phrase = self._completed_turn_trace_phrase(language, completed_turn_trace)
+        completed_turn_lines = list(runtime_metadata.get("completed_turn_lines", []) or [])
 
         if language == "pl":
             spoken = (
-                f"To jest techniczny status debug. {runtime_spoken} "
+                f"To jest techniczny status debug. {runtime_status_spoken} {benchmark_spoken} "
                 f"{audio_phrase} "
+                f"{completed_turn_phrase} "
                 f"Ostatni wynik to {str(latest_sample.get('result', 'brak') or 'brak')}. "
                 f"Debug overlay ma {len(overlay_lines)} linie."
             )
         else:
             spoken = (
-                f"This is the technical debug status. {runtime_spoken} "
+                f"This is the technical debug status. {runtime_status_spoken} {benchmark_spoken} "
                 f"{audio_phrase} "
+                f"{completed_turn_phrase} "
                 f"The latest result is {str(latest_sample.get('result', 'n/a') or 'n/a')}. "
                 f"The debug overlay contains {len(overlay_lines)} lines."
             )
 
-        display_lines = overlay_lines[:2] if overlay_lines else debug_lines[:2]
+        display_lines = overlay_lines[:2] if overlay_lines else (completed_turn_lines[:2] or debug_lines[:2])
         while len(display_lines) < 2 and len(debug_lines) > len(display_lines):
             display_lines.append(debug_lines[len(display_lines)])
 
@@ -1429,11 +1549,14 @@ class ActionSystemActionsMixin:
             display_lines=display_lines[:2],
             extra_metadata={
                 "resolved_source": resolved.source,
+                **runtime_status_metadata,
                 **runtime_metadata,
                 "overlay_lines": overlay_lines,
                 "debug_lines": debug_lines,
                 "audio_runtime_snapshot": audio_snapshot,
                 "audio_lines": audio_lines,
+                "completed_turn_trace": completed_turn_trace,
+                "completed_turn_lines": completed_turn_lines,
             },
         )
 

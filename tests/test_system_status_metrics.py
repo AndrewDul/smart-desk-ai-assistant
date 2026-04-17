@@ -30,6 +30,18 @@ class _FakeBenchmarkService:
                 "total_turn_ms": 910.0,
                 "result": "conversation_route",
                 "route_kind": "conversation",
+                "stt_mode": "conversation",
+                "stt_latency_ms": 180.0,
+                "wake_latency_ms": 34.0,
+                "resume_policy": {
+                    "action": "grace",
+                    "reason": "response_delivered",
+                },
+                "command_window_policy": {
+                    "action": "retry",
+                    "reason": "empty_capture",
+                    "phase": "grace",
+                },
             },
             "summary": {
                 "avg_total_turn_ms": 930.0,
@@ -173,6 +185,9 @@ class SystemStatusMetricsTests(unittest.TestCase):
         self.assertAlmostEqual(metadata["avg_llm_first_chunk_ms"], 82.0)
         self.assertEqual(metadata["audio_runtime_snapshot"]["interaction_phase"], "command")
         self.assertEqual(metadata["audio_runtime_snapshot"]["input_owner"], "voice_input")
+        self.assertEqual(metadata["completed_turn_trace"]["resume_action"], "grace")
+        self.assertEqual(metadata["completed_turn_trace"]["command_action"], "retry")
+        self.assertEqual(metadata["completed_turn_trace"]["command_phase"], "grace")
 
     def test_debug_status_exposes_technical_snapshot(self) -> None:
         probe = _Probe()
@@ -211,6 +226,8 @@ class SystemStatusMetricsTests(unittest.TestCase):
         self.assertIn("input owner is voice_input", spoken.lower())
         self.assertIn("latest resume action is grace", spoken.lower())
         self.assertIn("latest command window action is retry", spoken.lower())
+        self.assertIn("latest completed turn ended with result conversation_route", spoken.lower())
+        self.assertIn("with resume grace and command window retry", spoken.lower())
         self.assertIn("latest result is conversation_route", spoken.lower())
         self.assertIn("debug overlay contains 2 lines", spoken.lower())
 
@@ -224,6 +241,10 @@ class SystemStatusMetricsTests(unittest.TestCase):
         self.assertEqual(metadata["audio_runtime_snapshot"]["input_owner"], "voice_input")
         self.assertTrue(metadata["audio_lines"])
         self.assertEqual(metadata["audio_lines"][0], "phase: command")
+        self.assertEqual(metadata["completed_turn_trace"]["resume_action"], "grace")
+        self.assertEqual(metadata["completed_turn_trace"]["command_action"], "retry")
+        self.assertTrue(metadata["completed_turn_lines"])
+        self.assertEqual(metadata["completed_turn_lines"][0], "trace: conversation")
 
 
 if __name__ == "__main__":
