@@ -64,6 +64,42 @@ class DeveloperOverlayServiceTests(unittest.TestCase):
             ],
         )
 
+    def test_refresh_prefers_unified_debug_snapshot_provider(self) -> None:
+        display = _FakeDisplay()
+        service = DeveloperOverlayService(
+            display=display,
+            runtime_snapshot_provider=lambda: {},
+            benchmark_snapshot_provider=lambda: {},
+            audio_snapshot_provider=lambda: {},
+            debug_snapshot_provider=lambda: {
+                "runtime_label": "premium",
+                "llm_label": "ready",
+                "audio_overlay_line": "ph:command own:voice_in rs:grac...",
+                "benchmark_snapshot": {"overlay_lines": ["turn:910ms audio:145ms"]},
+                "developer_overlay_lines": [
+                    "rt:premium llm:ready",
+                    "turn:910ms audio:145ms",
+                    "ph:command own:voice_in rs:grac...",
+                ],
+            },
+            enabled=True,
+            title="DEV",
+        )
+
+        refreshed = service.refresh(reason="turn_finished")
+
+        self.assertTrue(refreshed)
+        self.assertEqual(len(display.calls), 1)
+        payload = display.calls[0]
+        self.assertEqual(
+            payload["lines"],
+            [
+                "rt:premium llm:ready",
+                "turn:910ms audio:145ms",
+                "ph:command own:voice_in rs:grac...",
+            ],
+        )
+
     def test_refresh_falls_back_to_second_benchmark_line_without_audio_snapshot(self) -> None:
         display = _FakeDisplay()
         service = DeveloperOverlayService(

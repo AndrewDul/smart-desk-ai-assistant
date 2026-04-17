@@ -43,7 +43,51 @@ class ActionSystemActionsMixin:
 
         payload = getattr(assistant, "_last_audio_runtime_snapshot", {}) or {}
         return dict(payload or {}) if isinstance(payload, dict) else {}
+    def _runtime_debug_snapshot(self) -> dict[str, Any]:
+        assistant = getattr(self, "assistant", None)
+        service = getattr(assistant, "runtime_debug_snapshot_service", None)
 
+        snapshot_method = getattr(service, "snapshot", None)
+        if callable(snapshot_method):
+            try:
+                payload = snapshot_method()
+                return dict(payload or {}) if isinstance(payload, dict) else {}
+            except Exception:
+                pass
+
+        runtime_snapshot = self._runtime_snapshot()
+        benchmark_snapshot = self._benchmark_snapshot()
+        audio_snapshot = self._audio_runtime_snapshot()
+        latest_sample = dict(benchmark_snapshot.get("latest_sample", {}) or {})
+        summary = dict(benchmark_snapshot.get("summary", {}) or {})
+        completed_turn_trace = self._completed_turn_trace(latest_sample)
+
+        return {
+            "runtime_snapshot": runtime_snapshot,
+            "benchmark_snapshot": benchmark_snapshot,
+            "audio_runtime_snapshot": audio_snapshot,
+            "runtime_label": "",
+            "llm_label": "",
+            "wake_backend": self._backend_token(runtime_snapshot, "wake_gate"),
+            "stt_backend": self._backend_token(runtime_snapshot, "voice_input"),
+            "llm_backend": self._backend_token(runtime_snapshot, "llm"),
+            "last_turn_ms": self._safe_metric_float(latest_sample.get("total_turn_ms")),
+            "avg_response_first_audio_ms": self._safe_metric_float(
+                summary.get("avg_response_first_audio_ms")
+            ),
+            "avg_llm_first_chunk_ms": self._safe_metric_float(
+                summary.get("avg_llm_first_chunk_ms")
+            ),
+            "completed_turn_trace": completed_turn_trace,
+            "completed_turn_lines": self._completed_turn_trace_lines("en", completed_turn_trace),
+            "audio_lines": self._audio_debug_lines("en", audio_snapshot),
+            "audio_overlay_line": "",
+            "developer_overlay_lines": [
+                str(item).strip()
+                for item in benchmark_snapshot.get("overlay_lines", [])
+                if str(item).strip()
+            ],
+        }
     def _benchmark_snapshot(self) -> dict[str, Any]:
         assistant = getattr(self, "assistant", None)
         service = getattr(assistant, "turn_benchmark_service", None)
@@ -435,22 +479,52 @@ class ActionSystemActionsMixin:
         self,
         language: str,
     ) -> tuple[str, list[str], dict[str, Any]]:
-        runtime_snapshot = self._runtime_snapshot()
-        benchmark_snapshot = self._benchmark_snapshot()
+        debug_snapshot = self._runtime_debug_snapshot()
+        runtime_snapshot = dict(debug_snapshot.get("runtime_snapshot", {}) or {})
+        benchmark_snapshot = dict(debug_snapshot.get("benchmark_snapshot", {}) or {})
         latest_sample = dict(benchmark_snapshot.get("latest_sample", {}) or {})
         summary = dict(benchmark_snapshot.get("summary", {}) or {})
 
         runtime_state = self._runtime_state_phrase(runtime_snapshot, language)
-        wake_token = self._backend_token(runtime_snapshot, "wake_gate")
-        stt_token = self._backend_token(runtime_snapshot, "voice_input")
-        llm_token = self._backend_token(runtime_snapshot, "llm")
+        wake_token = str(
+            debug_snapshot.get("wake_backend")
+            or self._backend_token(runtime_snapshot, "wake_gate")
+        )
+        stt_token = str(
+            debug_snapshot.get("stt_backend")
+            or self._backend_token(runtime_snapshot, "voice_input")
+        )
+        llm_token = str(
+            debug_snapshot.get("llm_backend")
+            or self._backend_token(runtime_snapshot, "llm")
+        )
 
-        last_turn_ms = self._safe_metric_float(latest_sample.get("total_turn_ms"))
-        avg_audio_ms = self._safe_metric_float(summary.get("avg_response_first_audio_ms"))
-        avg_llm_first_chunk_ms = self._safe_metric_float(summary.get("avg_llm_first_chunk_ms"))
-        completed_turn_trace = self._completed_turn_trace(latest_sample)
+        last_turn_ms = self._safe_metric_float(debug_snapshot.get("last_turn_ms"))
+        if last_turn_ms is None:
+            last_turn_ms = self._safe_metric_float(latest_sample.get("total_turn_ms"))
+
+        avg_audio_ms = self._safe_metric_float(
+            debug_snapshot.get("avg_response_first_audio_ms")
+        )
+        if avg_audio_ms is None:
+            avg_audio_ms = self._safe_metric_float(summary.get("avg_response_first_audio_ms"))
+
+        avg_llm_first_chunk_ms = self._safe_metric_float(
+            debug_snapshot.get("avg_llm_first_chunk_ms")
+        )
+        if avg_llm_first_chunk_ms is None:
+            avg_llm_first_chunk_ms = self._safe_metric_float(
+                summary.get("avg_llm_first_chunk_ms")
+            )
+
+        completed_turn_trace = dict(
+            debug_snapshot.get("completed_turn_trace", {}) or self._completed_turn_trace(latest_sample)
+        )
         completed_turn_phrase = self._completed_turn_trace_phrase(language, completed_turn_trace)
-        completed_turn_lines = self._completed_turn_trace_lines(language, completed_turn_trace)
+        completed_turn_lines = list(
+            debug_snapshot.get("completed_turn_lines", [])
+            or self._completed_turn_trace_lines(language, completed_turn_trace)
+        )
 
         if language == "pl":
             runtime_part = (
@@ -507,6 +581,7 @@ class ActionSystemActionsMixin:
             "avg_llm_first_chunk_ms": avg_llm_first_chunk_ms,
             "completed_turn_trace": completed_turn_trace,
             "completed_turn_lines": completed_turn_lines,
+            "runtime_debug_snapshot": debug_snapshot,
         }
 
         return f"{runtime_part}{benchmark_part}".strip(), lines, metadata
@@ -806,6 +881,7 @@ class ActionSystemActionsMixin:
         break_on = bool(self.assistant.state.get("break_mode"))
         timer_running = bool(timer_status.get("running"))
 
+        debug_snapshot = self._runtime_debug_snapshot()
         _, _, runtime_metadata = self._build_runtime_benchmark_summary(language)
         runtime_status_spoken, runtime_status_lines, runtime_status_metadata = self._build_runtime_status_summary(language)
         benchmark_spoken = self._benchmark_overview_phrase(language, runtime_metadata)
@@ -843,7 +919,9 @@ class ActionSystemActionsMixin:
                 f"run: {'YES' if timer_running else 'NO'}",
             ]
 
-        audio_snapshot = self._audio_runtime_snapshot()
+        audio_snapshot = dict(
+            debug_snapshot.get("audio_runtime_snapshot", {}) or self._audio_runtime_snapshot()
+        )
 
         spoken = f"{runtime_status_spoken} {benchmark_spoken} {feature_spoken}".strip()
         completed_turn_lines = list(runtime_metadata.get("completed_turn_lines", []) or [])
@@ -864,6 +942,7 @@ class ActionSystemActionsMixin:
                 "reminder_count": reminder_count,
                 "current_timer": str(current_timer),
                 "audio_runtime_snapshot": audio_snapshot,
+                "runtime_debug_snapshot": debug_snapshot,
                 **runtime_status_metadata,
                 **runtime_metadata,
             },
@@ -879,18 +958,27 @@ class ActionSystemActionsMixin:
     ) -> bool:
         del route, payload
 
+        debug_snapshot = self._runtime_debug_snapshot()
         _, _, runtime_metadata = self._build_runtime_benchmark_summary(language)
         runtime_status_spoken, _, runtime_status_metadata = self._build_runtime_status_summary(language)
         benchmark_spoken = self._benchmark_overview_phrase(language, runtime_metadata)
-        audio_snapshot = self._audio_runtime_snapshot()
+        audio_snapshot = dict(
+            debug_snapshot.get("audio_runtime_snapshot", {}) or self._audio_runtime_snapshot()
+        )
         audio_lines = self._audio_debug_lines(language, audio_snapshot)
         debug_lines = self._debug_status_lines(language, runtime_metadata) + audio_lines
         benchmark_snapshot = dict(runtime_metadata.get("benchmark_snapshot", {}) or {})
         overlay_lines = [
             str(item).strip()
-            for item in benchmark_snapshot.get("overlay_lines", [])
+            for item in debug_snapshot.get("developer_overlay_lines", [])
             if str(item).strip()
         ]
+        if not overlay_lines:
+            overlay_lines = [
+                str(item).strip()
+                for item in benchmark_snapshot.get("overlay_lines", [])
+                if str(item).strip()
+            ]
         latest_sample = dict(benchmark_snapshot.get("latest_sample", {}) or {})
 
         audio_phrase = self._audio_debug_phrase(language, audio_snapshot)
@@ -934,6 +1022,7 @@ class ActionSystemActionsMixin:
                 "audio_runtime_snapshot": audio_snapshot,
                 "audio_lines": audio_lines,
                 "completed_turn_trace": completed_turn_trace,
+                "runtime_debug_snapshot": debug_snapshot,
                 "completed_turn_lines": completed_turn_lines,
             },
         )

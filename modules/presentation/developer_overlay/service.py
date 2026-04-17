@@ -25,6 +25,7 @@ class DeveloperOverlayService:
         runtime_snapshot_provider: Callable[[], dict[str, Any]] | None,
         benchmark_snapshot_provider: Callable[[], dict[str, Any]] | None,
         audio_snapshot_provider: Callable[[], dict[str, Any]] | None = None,
+        debug_snapshot_provider: Callable[[], dict[str, Any]] | None = None,
         enabled: bool = True,
         title: str = "DEV",
         refresh_on_boot: bool = True,
@@ -34,6 +35,7 @@ class DeveloperOverlayService:
         self.runtime_snapshot_provider = runtime_snapshot_provider
         self.benchmark_snapshot_provider = benchmark_snapshot_provider
         self.audio_snapshot_provider = audio_snapshot_provider
+        self.debug_snapshot_provider = debug_snapshot_provider
         self.enabled = bool(enabled)
         self.title = str(title or "DEV").strip() or "DEV"
         self.refresh_on_boot = bool(refresh_on_boot)
@@ -51,11 +53,16 @@ class DeveloperOverlayService:
         if reason_key == "turn_finished" and not self.refresh_on_turn_finish:
             return False
 
-        payload = self._build_payload(
-            runtime_snapshot=self._safe_snapshot(self.runtime_snapshot_provider),
-            benchmark_snapshot=self._safe_snapshot(self.benchmark_snapshot_provider),
-            audio_snapshot=self._safe_snapshot(self.audio_snapshot_provider),
+        payload = self._build_payload_from_debug_snapshot(
+            self._safe_snapshot(self.debug_snapshot_provider)
         )
+        if payload is None:
+            payload = self._build_payload(
+                runtime_snapshot=self._safe_snapshot(self.runtime_snapshot_provider),
+                benchmark_snapshot=self._safe_snapshot(self.benchmark_snapshot_provider),
+                audio_snapshot=self._safe_snapshot(self.audio_snapshot_provider),
+            )
+
         self._last_payload = payload
 
         setter = getattr(self.display, "set_developer_overlay", None)
@@ -85,6 +92,36 @@ class DeveloperOverlayService:
 
     def snapshot(self) -> dict[str, Any]:
         return self._last_payload.to_dict()
+
+    def _build_payload_from_debug_snapshot(
+        self,
+        debug_snapshot: dict[str, Any],
+    ) -> DeveloperOverlayPayload | None:
+        if not debug_snapshot:
+            return None
+
+        lines = [
+            self._compact_line(item, max_chars=34)
+            for item in list(debug_snapshot.get("developer_overlay_lines", []) or [])
+            if self._compact_line(item, max_chars=34)
+        ]
+        if not lines:
+            return None
+
+        audio_line = self._compact_line(
+            debug_snapshot.get("audio_overlay_line", ""),
+            max_chars=34,
+        )
+
+        return DeveloperOverlayPayload(
+            title=self.title,
+            lines=lines[:3],
+            runtime_label=str(debug_snapshot.get("runtime_label", "") or "").strip(),
+            llm_label=str(debug_snapshot.get("llm_label", "") or "").strip(),
+            benchmark_available=bool(debug_snapshot.get("benchmark_snapshot", {})),
+            audio_available=bool(audio_line),
+            audio_line=audio_line,
+        )
 
     def _build_payload(
         self,

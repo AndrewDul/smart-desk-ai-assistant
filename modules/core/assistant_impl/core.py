@@ -15,6 +15,7 @@ from modules.core.session.voice_session import VoiceSessionController
 
 from modules.presentation.developer_overlay import DeveloperOverlayService
 from modules.presentation.response_streamer import ResponseStreamer
+from modules.presentation.runtime_debug_snapshot import RuntimeDebugSnapshotService
 from modules.presentation.thinking_ack import ThinkingAckService
 from modules.presentation.wake_ack import WakeAcknowledgementService
 
@@ -185,11 +186,18 @@ class CoreAssistant(
         self.runtime_product.bind_runtime(runtime=self.runtime, dialogue=self.dialogue)
         self._runtime_startup_snapshot: dict[str, Any] = self.runtime_product.snapshot()
 
+        self.runtime_debug_snapshot_service = RuntimeDebugSnapshotService(
+            runtime_snapshot_provider=self._runtime_status_snapshot,
+            benchmark_snapshot_provider=self.turn_benchmark_service.latest_snapshot,
+            audio_snapshot_provider=self._audio_runtime_snapshot,
+        )
+
         self.developer_overlay = DeveloperOverlayService(
             display=self.display,
             runtime_snapshot_provider=self._runtime_status_snapshot,
             benchmark_snapshot_provider=self.turn_benchmark_service.latest_snapshot,
             audio_snapshot_provider=self._audio_runtime_snapshot,
+            debug_snapshot_provider=self.runtime_debug_snapshot_service.snapshot,
             enabled=bool(developer_overlay_cfg.get("enabled", True)),
             title=str(developer_overlay_cfg.get("title", "DEV")),
             refresh_on_boot=bool(developer_overlay_cfg.get("refresh_on_boot", True)),
