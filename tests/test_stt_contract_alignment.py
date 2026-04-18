@@ -91,7 +91,15 @@ class STTContractAlignmentTests(unittest.TestCase):
 
         backend.LOGGER = _Logger()
         backend._record_until_silence = lambda timeout=8.0, debug=False: np.ones(8000, dtype=np.float32)
-        backend._transcribe_audio = lambda audio, debug=False: "hello from whisper cpp"
+        backend._transcribe_audio_candidate = lambda audio, debug=False: {
+            "text": "hello from whisper cpp",
+            "language": "en",
+            "language_probability": 0.0,
+            "elapsed": 0.27,
+            "forced_language": "",
+            "path": "primary",
+            "engine": "whisper_cpp",
+        }
 
         result = WhisperCppInputBackend.transcribe(
             backend,
@@ -107,9 +115,16 @@ class STTContractAlignmentTests(unittest.TestCase):
         self.assertIsInstance(result, TranscriptResult)
         assert result is not None
         self.assertEqual(result.text, "hello from whisper cpp")
+        self.assertEqual(result.language, "en")
+        self.assertAlmostEqual(result.confidence, 0.0)
         self.assertEqual(result.source, InputSource.VOICE)
         self.assertEqual(result.metadata["mode"], "command")
         self.assertEqual(result.metadata["backend_label"], "whisper_cpp")
+        self.assertEqual(result.metadata["detected_language"], "en")
+        self.assertAlmostEqual(result.metadata["transcription_elapsed_seconds"], 0.27)
+        self.assertEqual(result.metadata["transcription_path"], "primary")
+        self.assertFalse(result.metadata["rescue_used"])
+        self.assertFalse(result.metadata["retry_used"])
         self.assertGreater(result.metadata["audio_duration_seconds"], 0.0)
 
 

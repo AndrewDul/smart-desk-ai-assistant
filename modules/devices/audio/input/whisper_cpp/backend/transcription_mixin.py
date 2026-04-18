@@ -7,7 +7,11 @@ import numpy as np
 
 
 class WhisperCppTranscriptionMixin:
-    def _transcribe_audio(self, audio: np.ndarray, debug: bool = False) -> str | None:
+    def _transcribe_audio_candidate(
+        self,
+        audio: np.ndarray,
+        debug: bool = False,
+    ) -> dict[str, Any] | None:
         if audio.size == 0:
             return None
 
@@ -22,7 +26,9 @@ class WhisperCppTranscriptionMixin:
             debug=debug,
         )
         if self._accept_candidate(auto_candidate):
-            return str(auto_candidate.get("text") or "").strip() or None
+            candidate = dict(auto_candidate)
+            candidate["path"] = "primary"
+            return candidate
 
         rescue_candidates: list[dict[str, Any]] = []
         for forced_language in self._preferred_rescue_languages(auto_candidate):
@@ -48,9 +54,17 @@ class WhisperCppTranscriptionMixin:
                 best,
                 primary_language=str(auto_candidate.get("language") or "") or None,
             ) > 0.0:
-                return str(best.get("text") or "").strip() or None
+                candidate = dict(best)
+                candidate["path"] = "rescue"
+                return candidate
 
         return None
+
+    def _transcribe_audio(self, audio: np.ndarray, debug: bool = False) -> str | None:
+        candidate = self._transcribe_audio_candidate(audio, debug=debug)
+        if candidate is None:
+            return None
+        return str(candidate.get("text") or "").strip() or None
 
     def _transcribe_candidate(
         self,
