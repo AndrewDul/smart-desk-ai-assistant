@@ -133,10 +133,24 @@ class ActionResponseHelpersMixin:
                 }
             )
 
+        skill_request = getattr(self, "_active_skill_request", None)
+        if skill_request is not None:
+            metadata.update(
+                {
+                    "skill_request_turn_id": str(getattr(skill_request, "turn_id", "") or "").strip(),
+                    "skill_request_action": str(getattr(skill_request, "action", "") or "").strip(),
+                    "skill_request_source": str(getattr(skill_request, "source", "") or "").strip(),
+                    "skill_request_confidence": float(getattr(skill_request, "confidence", 0.0) or 0.0),
+                    "skill_request_capture_phase": str(getattr(skill_request, "capture_phase", "") or "").strip(),
+                    "skill_request_capture_mode": str(getattr(skill_request, "capture_mode", "") or "").strip(),
+                    "skill_request_capture_backend": str(getattr(skill_request, "capture_backend", "") or "").strip(),
+                }
+            )
+
         if extra_metadata:
             metadata.update(dict(extra_metadata))
 
-        return metadata    
+        return metadata   
 
 
     def _deliver_simple_action_response(

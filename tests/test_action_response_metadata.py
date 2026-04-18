@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from modules.core.flows.action_flow.models import ResolvedAction
+from modules.core.flows.action_flow.models import ResolvedAction, SkillRequest
 from modules.core.flows.action_flow.response_helpers_mixin import ActionResponseHelpersMixin
 from modules.runtime.contracts import RouteDecision, RouteKind
 
@@ -12,10 +12,11 @@ class _ActionResponseMetadataProbe(ActionResponseHelpersMixin):
         self.assistant = object()
         self._active_route = None
         self._active_resolved_action = None
+        self._active_skill_request = None
 
 
 class ActionResponseMetadataTests(unittest.TestCase):
-    def test_current_action_response_metadata_includes_route_and_action_context(self) -> None:
+    def test_current_action_response_metadata_includes_route_action_and_skill_request_context(self) -> None:
         probe = _ActionResponseMetadataProbe()
         probe._active_route = RouteDecision(
             turn_id="turn-action-meta",
@@ -46,6 +47,11 @@ class ActionResponseMetadataTests(unittest.TestCase):
             route_notes=("capture_phase:inline_command_after_wake", "explicit_action"),
             route_metadata={"capture_phase": "inline_command_after_wake"},
         )
+        probe._active_skill_request = SkillRequest.from_route(
+            route=probe._active_route,
+            resolved=probe._active_resolved_action,
+            language="en",
+        )
 
         metadata = probe._current_action_response_metadata(
             language="en",
@@ -60,6 +66,14 @@ class ActionResponseMetadataTests(unittest.TestCase):
         self.assertEqual(metadata["capture_backend"], "wake_inline_command")
         self.assertEqual(metadata["action_source"], "route.primary_intent")
         self.assertAlmostEqual(metadata["action_confidence"], 0.94)
+
+        self.assertEqual(metadata["skill_request_turn_id"], "turn-action-meta")
+        self.assertEqual(metadata["skill_request_action"], "ask_time")
+        self.assertEqual(metadata["skill_request_source"], "route.primary_intent")
+        self.assertAlmostEqual(metadata["skill_request_confidence"], 0.94)
+        self.assertEqual(metadata["skill_request_capture_phase"], "inline_command_after_wake")
+        self.assertEqual(metadata["skill_request_capture_backend"], "wake_inline_command")
+
         self.assertEqual(metadata["phase"], "unit_test")
 
 

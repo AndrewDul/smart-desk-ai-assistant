@@ -12,7 +12,7 @@ from modules.runtime.contracts import (
 from modules.shared.logging.logger import get_logger
 
 from .memory_actions_mixin import ActionMemoryActionsMixin
-from .models import ResolvedAction
+from .models import ResolvedAction, SkillRequest, SkillResult
 from .pan_tilt_actions_mixin import ActionPanTiltActionsMixin
 from .reminder_actions_mixin import ActionReminderActionsMixin
 from .resolver_mixin import ActionResolverMixin
@@ -146,6 +146,8 @@ class ActionFlowOrchestrator(
         self.assistant = assistant
         self._active_route: RouteDecision | None = None
         self._active_resolved_action: ResolvedAction | None = None
+        self._active_skill_request: SkillRequest | None = None
+        self._last_skill_result: SkillResult | None = None
         self._display_chars_per_line = int(
             assistant.settings.get("streaming", {}).get("max_display_chars_per_line", 20)
         )
@@ -180,38 +182,53 @@ class ActionFlowOrchestrator(
 
         lang = self.assistant._normalize_lang(language)
         resolved = self._resolve_action(route)
+        request = SkillRequest.from_route(
+            route=route,
+            resolved=resolved,
+            language=lang,
+        )
 
+        self._last_skill_result = None
         self._active_route = route
         self._active_resolved_action = resolved
+        self._active_skill_request = request
 
         self.LOGGER.info(
             "Action flow executing: action=%s source=%s route_kind=%s capture_phase=%s capture_backend=%s confidence=%.3f payload_keys=%s",
-            resolved.name,
-            resolved.source,
-            getattr(route.kind, "value", str(route.kind)),
-            str(route.metadata.get("capture_phase", "") or ""),
-            str(route.metadata.get("capture_backend", "") or ""),
-            resolved.confidence,
-            sorted(resolved.payload.keys()),
+            request.action,
+            request.source,
+            request.route_kind,
+            request.capture_phase,
+            request.capture_backend,
+            request.confidence,
+            sorted(request.payload.keys()),
         )
 
         try:
             handler = getattr(self, f"_handle_{resolved.name}", None)
             if not callable(handler):
-                return self._handle_unknown(route=route, language=lang, resolved=resolved)
+                handler_result = self._handle_unknown(route=route, language=lang, resolved=resolved)
+                self._last_skill_result = self._coerce_skill_result(
+                    request=request,
+                    result=handler_result,
+                )
+                return bool(self._last_skill_result)
 
             try:
-                return bool(
-                    handler(
-                        route=route,
-                        language=lang,
-                        payload=resolved.payload,
-                        resolved=resolved,
-                    )
+                handler_result = handler(
+                    route=route,
+                    language=lang,
+                    payload=resolved.payload,
+                    resolved=resolved,
                 )
+                self._last_skill_result = self._coerce_skill_result(
+                    request=request,
+                    result=handler_result,
+                )
+                return bool(self._last_skill_result)
             except Exception as error:
                 self.LOGGER.exception("Action flow handler failed: action=%s error=%s", resolved.name, error)
-                return self._deliver_simple_action_response(
+                delivered = self._deliver_simple_action_response(
                     language=lang,
                     action=resolved.name,
                     spoken_text=self._localized(
@@ -228,9 +245,23 @@ class ActionFlowOrchestrator(
                         "error": str(error),
                     },
                 )
+                self._last_skill_result = SkillResult(
+                    action=request.action,
+                    handled=True,
+                    response_delivered=bool(delivered),
+                    status="error",
+                    metadata={
+                        "error": str(error),
+                        "source": request.source,
+                        "capture_phase": request.capture_phase,
+                        "capture_backend": request.capture_backend,
+                    },
+                )
+                return bool(self._last_skill_result)
         finally:
             self._active_route = None
             self._active_resolved_action = None
+            self._active_skill_request = None
 
     def execute_route_action(self, route: RouteDecision, language: str) -> bool:
         return self.execute(route=route, language=language)
@@ -290,5 +321,59 @@ class ActionFlowOrchestrator(
         )
         return self.execute(route=route, language=language)
 
+    def _coerce_skill_result(
+        self,
+        *,
+        request: SkillRequest,
+        result: Any,
+    ) -> SkillResult:
+        base_metadata = {
+            "turn_id": request.turn_id,
+            "source": request.source,
+            "route_kind": request.route_kind,
+            "primary_intent": request.primary_intent,
+            "capture_phase": request.capture_phase,
+            "capture_mode": request.capture_mode,
+            "capture_backend": request.capture_backend,
+        }
 
-__all__ = ["ActionFlowOrchestrator", "ResolvedAction"]
+        if isinstance(result, SkillResult):
+            merged_metadata = {
+                **base_metadata,
+                **dict(result.metadata or {}),
+            }
+            return SkillResult(
+                action=str(result.action or request.action).strip() or request.action,
+                handled=bool(result.handled),
+                response_delivered=bool(result.response_delivered),
+                status=str(result.status or "completed").strip() or "completed",
+                metadata=merged_metadata,
+            )
+
+        if isinstance(result, dict):
+            handled = bool(result.get("handled", bool(result)))
+            response_delivered = bool(result.get("response_delivered", handled))
+            status = str(result.get("status") or ("completed" if handled else "not_handled")).strip()
+            merged_metadata = {
+                **base_metadata,
+                **dict(result.get("metadata", {}) or {}),
+            }
+            return SkillResult(
+                action=str(result.get("action") or request.action).strip() or request.action,
+                handled=handled,
+                response_delivered=response_delivered,
+                status=status or "completed",
+                metadata=merged_metadata,
+            )
+
+        handled = bool(result)
+        return SkillResult(
+            action=request.action,
+            handled=handled,
+            response_delivered=handled,
+            status="completed" if handled else "not_handled",
+            metadata=base_metadata,
+        )
+
+
+__all__ = ["ActionFlowOrchestrator", "ResolvedAction", "SkillRequest", "SkillResult"]
