@@ -23,6 +23,7 @@ from modules.runtime.audio_runtime_snapshot import AudioRuntimeSnapshotService
 from modules.runtime.builder import RuntimeBuilder
 from modules.runtime.contracts import StreamMode
 from modules.runtime.product import RuntimeProductService
+from modules.runtime.stt import SpeechRecognitionService
 from modules.shared.config.settings import load_settings
 from modules.shared.persistence.json_store import JsonStore
 from modules.shared.persistence.paths import SESSION_STATE_PATH, USER_PROFILE_PATH
@@ -150,6 +151,14 @@ class CoreAssistant(
         self.voice_out = self.runtime.voice_output
         self.wake_gate = self.runtime.wake_gate
         self.display = self.runtime.display
+
+        voice_input_status = self.runtime.backend_statuses.get("voice_input")
+        self.speech_recognition = SpeechRecognitionService(
+            backend=self.voice_in,
+            backend_label=str(
+                getattr(voice_input_status, "selected_backend", "") or ""
+            ).strip(),
+        )
 
         self.wake_ack_service = WakeAcknowledgementService(
             voice_output=self.voice_out,

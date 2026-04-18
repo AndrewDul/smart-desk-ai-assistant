@@ -15,7 +15,7 @@ from modules.core.session.voice_session import (
     VOICE_PHASE_WAKE_GATE,
     VOICE_STATE_STANDBY,
 )
-from modules.runtime.contracts import TranscriptResult, WakeDetectionResult
+from modules.runtime.contracts import InputSource, TranscriptRequest, TranscriptResult, WakeDetectionResult
 from modules.shared.logging.logger import append_log
 
 from .backend_helpers import (
@@ -283,6 +283,75 @@ def _wake_rearm_remaining_seconds(state_flags: MainLoopRuntimeState) -> float:
     return state_flags.wake_rearm_remaining_seconds()
 
 
+def _speech_request_source(assistant: CoreAssistant) -> InputSource:
+    voice_in = getattr(assistant, "voice_in", None)
+    class_name = getattr(getattr(voice_in, "__class__", None), "__name__", "").lower()
+    if "textinput" in class_name:
+        return InputSource.TEXT
+    return InputSource.VOICE
+
+
+def _capture_transcript_with_speech_service(
+    assistant: CoreAssistant,
+    *,
+    timeout: float,
+    debug: bool,
+    mode: str,
+) -> TranscriptResult | None:
+    speech_recognition = getattr(assistant, "speech_recognition", None)
+    transcribe = getattr(speech_recognition, "transcribe", None)
+    if not callable(transcribe):
+        return None
+
+    try:
+        request = TranscriptRequest(
+            timeout_seconds=float(timeout),
+            debug=bool(debug),
+            source=_speech_request_source(assistant),
+            mode=str(mode or "command").strip() or "command",
+            metadata={
+                "adapter": "active_window",
+                "capture_mode": str(mode or "command").strip() or "command",
+            },
+        )
+        result = transcribe(request)
+    except Exception as error:
+        append_log(f"SpeechRecognitionService capture failed: {error}")
+        return None
+
+    if not isinstance(result, TranscriptResult):
+        return None
+
+    if not str(result.text or "").strip():
+        return None
+
+    return result
+
+
+def _capture_transcript_for_assistant(
+    assistant: CoreAssistant,
+    *,
+    timeout: float,
+    debug: bool,
+    mode: str,
+) -> TranscriptResult | None:
+    transcript = _capture_transcript_with_speech_service(
+        assistant,
+        timeout=timeout,
+        debug=debug,
+        mode=mode,
+    )
+    if transcript is not None:
+        return transcript
+
+    return capture_transcript(
+        assistant.voice_in,
+        timeout=timeout,
+        debug=debug,
+        mode=mode,
+    )
+
+
 def _listen_with_backend_fallback(
     assistant: CoreAssistant,
     *,
@@ -334,8 +403,8 @@ def _listen_for_wake_via_stt_fallback(
     state_flags: MainLoopRuntimeState,
 ) -> bool:
     state_flags.mark_stt_wake_fallback_attempt()
-    transcript = capture_transcript(
-        assistant.voice_in,
+    transcript = _capture_transcript_for_assistant(
+        assistant,
         timeout=WAKE_STT_FALLBACK_TIMEOUT_SECONDS,
         debug=False,
         mode="wake_fallback",
@@ -508,8 +577,8 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
     )
     print("\nListening for your request...")
 
-    transcript = capture_transcript(
-        assistant.voice_in,
+    transcript = _capture_transcript_for_assistant(
+        assistant,
         timeout=_active_command_timeout(assistant),
         debug=bool(getattr(assistant, "voice_debug", False)),
         mode=active_phase,
