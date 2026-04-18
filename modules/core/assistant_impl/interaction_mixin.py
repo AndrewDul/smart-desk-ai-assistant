@@ -289,6 +289,25 @@ class CoreAssistantInteractionMixin:
                 response_meta.get("action_confidence", 0.0)
             )
 
+        skill_snapshot = self._collect_skill_result_snapshot()
+        if skill_snapshot:
+            telemetry["skill_action"] = str(skill_snapshot.get("action", "") or "").strip()
+            telemetry["skill_status"] = str(skill_snapshot.get("status", "") or "").strip()
+            telemetry["skill_handled"] = bool(skill_snapshot.get("handled", False))
+            telemetry["skill_response_delivered"] = bool(
+                skill_snapshot.get("response_delivered", False)
+            )
+            telemetry["skill_source"] = str(skill_snapshot.get("source", "") or "").strip()
+
+        dialogue_snapshot = self._collect_dialogue_result_snapshot()
+        if dialogue_snapshot:
+            telemetry["dialogue_status"] = str(dialogue_snapshot.get("status", "") or "").strip()
+            telemetry["dialogue_delivered"] = bool(dialogue_snapshot.get("delivered", False))
+            telemetry["dialogue_source"] = str(dialogue_snapshot.get("source", "") or "").strip()
+            telemetry["dialogue_reply_mode"] = str(
+                dialogue_snapshot.get("reply_mode", "") or ""
+            ).strip()
+
         llm_part = ""
         if llm_snapshot:
             llm_part = (
@@ -425,6 +444,33 @@ class CoreAssistantInteractionMixin:
     def _collect_response_delivery_snapshot(self) -> dict[str, Any]:
         snapshot = getattr(self, "_last_response_delivery_snapshot", None)
         return dict(snapshot or {})
+
+    def _collect_skill_result_snapshot(self) -> dict[str, Any]:
+        action_flow = getattr(self, "action_flow", None)
+        snapshot = getattr(action_flow, "_last_skill_result", None)
+        if snapshot is None:
+            return {}
+        return {
+            "action": str(getattr(snapshot, "action", "") or "").strip(),
+            "handled": bool(getattr(snapshot, "handled", False)),
+            "response_delivered": bool(getattr(snapshot, "response_delivered", False)),
+            "status": str(getattr(snapshot, "status", "") or "").strip(),
+            "source": str(getattr(snapshot, "metadata", {}).get("source", "") or "").strip(),
+        }
+
+    def _collect_dialogue_result_snapshot(self) -> dict[str, Any]:
+        dialogue_flow = getattr(self, "dialogue_flow", None)
+        snapshot = getattr(dialogue_flow, "_last_dialogue_result", None)
+        if snapshot is None:
+            return {}
+        metadata = dict(getattr(snapshot, "metadata", {}) or {})
+        return {
+            "handled": bool(getattr(snapshot, "handled", False)),
+            "delivered": bool(getattr(snapshot, "delivered", False)),
+            "status": str(getattr(snapshot, "status", "") or "").strip(),
+            "source": str(getattr(snapshot, "source", "") or "").strip(),
+            "reply_mode": str(metadata.get("reply_mode", "") or "").strip(),
+        }
     
     @staticmethod
     def _elapsed_ms(started_at: float) -> float:
