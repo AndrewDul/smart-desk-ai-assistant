@@ -12,7 +12,7 @@ from modules.runtime.contracts import (
 )
 from modules.shared.logging.logger import get_logger
 
-from .models import DialogueRouteBridge
+from .models import DialogueRequest
 
 LOGGER = get_logger(__name__)
 
@@ -26,7 +26,7 @@ class DialogueFlowPlanning:
         self,
         *,
         route: RouteDecision,
-        route_bridge: DialogueRouteBridge,
+        request: DialogueRequest,
         user_profile: dict[str, Any],
         language: str,
     ) -> ResponsePlan:
@@ -36,13 +36,13 @@ class DialogueFlowPlanning:
         if callable(build_response_plan):
             try:
                 return build_response_plan(
-                    route_bridge,
+                    request,
                     user_profile,
                     stream_mode=self.assistant.stream_mode,
                 )
             except TypeError:
                 try:
-                    return build_response_plan(route_bridge, user_profile)
+                    return build_response_plan(request, user_profile)
                 except TypeError:
                     try:
                         return build_response_plan(
@@ -60,7 +60,7 @@ class DialogueFlowPlanning:
             reply = self._build_dialogue_reply(
                 build_reply=build_reply,
                 route=route,
-                route_bridge=route_bridge,
+                request=request,
                 user_profile=user_profile,
             )
             return self._reply_to_plan(
@@ -73,7 +73,7 @@ class DialogueFlowPlanning:
             reply = self._build_dialogue_reply(
                 build_reply=build_reply,
                 route=route,
-                route_bridge=route_bridge,
+                request=request,
                 user_profile=user_profile,
             )
             return self._reply_to_generic_plan(
@@ -96,17 +96,17 @@ class DialogueFlowPlanning:
         *,
         build_reply: Any,
         route: RouteDecision,
-        route_bridge: DialogueRouteBridge,
+        request: DialogueRequest,
         user_profile: dict[str, Any],
     ) -> Any:
         try:
-            return build_reply(route_bridge, user_profile)
+            return build_reply(request, user_profile)
         except TypeError:
             try:
                 return build_reply(route, user_profile)
             except TypeError:
                 try:
-                    return build_reply(route_bridge)
+                    return build_reply(request)
                 except TypeError:
                     return build_reply(route)
 

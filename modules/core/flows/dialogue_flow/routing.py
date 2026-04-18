@@ -4,7 +4,7 @@ from typing import Any
 
 from modules.runtime.contracts import RouteDecision, RouteKind, ToolInvocation
 
-from .models import DialogueRouteBridge
+from .models import DialogueRequest
 
 
 class DialogueFlowRouting:
@@ -14,28 +14,21 @@ class DialogueFlowRouting:
         self,
         route: RouteDecision,
         language: str,
-    ) -> DialogueRouteBridge:
+    ) -> DialogueRequest:
         suggested_actions = self._suggested_action_names(route)
-        action_result = None
-
         immediate_invocations = self._immediate_tool_invocations(route)
-        if immediate_invocations:
-            action_result = self._payload_from_invocation(
-                immediate_invocations[0],
-                route.normalized_text,
-            )
+        immediate_actions = [
+            self._action_name_from_tool(invocation.tool_name)
+            for invocation in immediate_invocations
+            if self._action_name_from_tool(invocation.tool_name)
+        ]
 
-        return DialogueRouteBridge(
-            kind=route.kind.value,
-            reply_mode=self._reply_mode_for_route(route),
+        return DialogueRequest.from_route(
+            route=route,
             language=language,
-            raw_text=route.raw_text,
-            normalized_text=route.normalized_text,
-            action_result=action_result,
-            confidence=float(route.confidence),
-            conversation_topics=list(route.conversation_topics),
+            reply_mode=self._reply_mode_for_route(route),
             suggested_actions=suggested_actions,
-            notes=list(route.notes),
+            immediate_actions=immediate_actions,
         )
 
     def _reply_mode_for_route(self, route: RouteDecision) -> str:

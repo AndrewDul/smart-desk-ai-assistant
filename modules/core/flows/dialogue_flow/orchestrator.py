@@ -6,6 +6,7 @@ from modules.runtime.contracts import RouteDecision, RouteKind
 from modules.shared.logging.logger import get_logger
 
 from .actions import DialogueFlowActions
+from .models import DialogueResult
 from .planning import DialogueFlowPlanning
 from .routing import DialogueFlowRouting
 from .unclear import DialogueFlowUnclear
@@ -31,6 +32,8 @@ class DialogueFlowOrchestrator(
 
     def __init__(self, assistant: Any) -> None:
         self.assistant = assistant
+        self._active_dialogue_request = None
+        self._last_dialogue_result: DialogueResult | None = None
 
     # ------------------------------------------------------------------
     # Public entry points
@@ -41,7 +44,9 @@ class DialogueFlowOrchestrator(
         lang = assistant._commit_language(language)
 
         dialogue_profile = assistant._build_dialogue_user_profile(preferred_language=lang)
-        route_bridge = self._build_dialogue_route_bridge(route, lang)
+        request = self._build_dialogue_route_bridge(route, lang)
+        self._active_dialogue_request = request
+        self._last_dialogue_result = None
 
         assistant.voice_session.set_state(
             "routing",
@@ -52,7 +57,7 @@ class DialogueFlowOrchestrator(
         try:
             plan = self._build_dialogue_plan(
                 route=route,
-                route_bridge=route_bridge,
+                request=request,
                 user_profile=dialogue_profile,
                 language=lang,
             )
@@ -74,6 +79,21 @@ class DialogueFlowOrchestrator(
                 extra_metadata=self._route_memory_metadata(route, lang, source="dialogue_flow"),
             )
         )
+        self._last_dialogue_result = DialogueResult(
+            handled=True,
+            delivered=delivered,
+            status="completed" if delivered else "delivery_failed",
+            source="dialogue_flow",
+            metadata={
+                "turn_id": request.turn_id,
+                "route_kind": request.kind.value,
+                "primary_intent": request.primary_intent,
+                "capture_phase": request.capture_phase,
+                "capture_mode": request.capture_mode,
+                "capture_backend": request.capture_backend,
+                "reply_mode": request.reply_mode,
+            },
+        )
 
         if not delivered:
             LOGGER.error(
@@ -82,8 +102,10 @@ class DialogueFlowOrchestrator(
                 route.turn_id,
                 route.kind.value,
             )
+            self._active_dialogue_request = None
             return True
 
+        self._active_dialogue_request = None
         return True
 
     def handle_conversation_route(self, *, route: RouteDecision, language: str) -> bool:
