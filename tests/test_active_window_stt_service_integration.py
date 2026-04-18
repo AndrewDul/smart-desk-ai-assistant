@@ -53,6 +53,7 @@ class _SpeechRecognitionProbe:
                 "backend_label": "faster_whisper",
                 "mode": request.mode,
                 "adapter": "service_rich_contract",
+                "engine": "faster_whisper",
             },
         )
 
@@ -129,7 +130,7 @@ class ActiveWindowSTTServiceIntegrationTests(unittest.TestCase):
         original_note_finalized = _module._note_turn_benchmark_speech_finalized
 
         remembered: list[str] = []
-        finalized: list[str] = []
+        finalized: list[dict[str, object]] = []
 
         try:
             _module._prepare_for_active_capture = lambda assistant_obj: None
@@ -138,7 +139,15 @@ class ActiveWindowSTTServiceIntegrationTests(unittest.TestCase):
                 lambda assistant_obj, transcript, phase: remembered.append(transcript.text)
             )
             _module._note_turn_benchmark_speech_finalized = (
-                lambda assistant_obj, text, phase, transcript=None: finalized.append(text)
+                lambda assistant_obj, text, phase, transcript=None: finalized.append(
+                    {
+                        "text": text,
+                        "phase": phase,
+                        "backend_label": dict(getattr(transcript, "metadata", {}) or {}).get("backend_label", ""),
+                        "mode": dict(getattr(transcript, "metadata", {}) or {}).get("mode", ""),
+                        "confidence": float(getattr(transcript, "confidence", 0.0) or 0.0),
+                    }
+                )
             )
 
             result = _listen_for_active_command(assistant, state_flags)
@@ -150,7 +159,12 @@ class ActiveWindowSTTServiceIntegrationTests(unittest.TestCase):
 
         self.assertEqual(result, "hello via service")
         self.assertEqual(remembered, ["hello via service"])
-        self.assertEqual(finalized, ["hello via service"])
+        self.assertEqual(len(finalized), 1)
+        self.assertEqual(finalized[0]["text"], "hello via service")
+        self.assertEqual(finalized[0]["phase"], "command")
+        self.assertEqual(finalized[0]["backend_label"], "faster_whisper")
+        self.assertEqual(finalized[0]["mode"], "command")
+        self.assertAlmostEqual(finalized[0]["confidence"], 0.88)
         self.assertEqual(
             assistant.speech_recognition.requests[0].mode,
             "command",
