@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import inspect
 from typing import Any
-import inspect
+
 from modules.runtime.contracts import (
     EntityValue,
     IntentMatch,
@@ -12,6 +12,7 @@ from modules.runtime.contracts import (
 )
 from modules.shared.logging.logger import get_logger
 
+from .executors import MemorySkillExecutor, ReminderSkillExecutor, TimerSkillExecutor
 from .memory_actions_mixin import ActionMemoryActionsMixin
 from .models import ResolvedAction, SkillRequest, SkillResult
 from .pan_tilt_actions_mixin import ActionPanTiltActionsMixin
@@ -149,6 +150,9 @@ class ActionFlowOrchestrator(
         self._active_resolved_action: ResolvedAction | None = None
         self._active_skill_request: SkillRequest | None = None
         self._last_skill_result: SkillResult | None = None
+        self._timer_skill_executor: TimerSkillExecutor | None = None
+        self._memory_skill_executor: MemorySkillExecutor | None = None
+        self._reminder_skill_executor: ReminderSkillExecutor | None = None
         self._display_chars_per_line = int(
             assistant.settings.get("streaming", {}).get("max_display_chars_per_line", 20)
         )
@@ -265,31 +269,21 @@ class ActionFlowOrchestrator(
             self._active_skill_request = None
 
 
-    def _invoke_action_handler(
-        self,
-        *,
-        handler: Any,
-        route: RouteDecision,
-        language: str,
-        resolved: ResolvedAction,
-        request: SkillRequest,
-    ) -> Any:
-        kwargs = {
-            "route": route,
-            "language": language,
-            "payload": resolved.payload,
-            "resolved": resolved,
-        }
 
-        try:
-            parameters = inspect.signature(handler).parameters
-        except (TypeError, ValueError):
-            parameters = {}
+    def _get_timer_skill_executor(self) -> TimerSkillExecutor:
+        if self._timer_skill_executor is None:
+            self._timer_skill_executor = TimerSkillExecutor(assistant=self.assistant)
+        return self._timer_skill_executor
 
-        if "request" in parameters:
-            kwargs["request"] = request
+    def _get_memory_skill_executor(self) -> MemorySkillExecutor:
+        if self._memory_skill_executor is None:
+            self._memory_skill_executor = MemorySkillExecutor(assistant=self.assistant)
+        return self._memory_skill_executor
 
-        return handler(**kwargs)
+    def _get_reminder_skill_executor(self) -> ReminderSkillExecutor:
+        if self._reminder_skill_executor is None:
+            self._reminder_skill_executor = ReminderSkillExecutor(assistant=self.assistant)
+        return self._reminder_skill_executor
 
     def _invoke_action_handler(
         self,

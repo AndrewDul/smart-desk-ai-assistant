@@ -15,11 +15,16 @@ class ActionReminderActionsMixin:
         language: str,
         payload: dict[str, Any],
         resolved: ResolvedAction,
+        request: SkillRequest | None = None,
     ) -> bool:
         del route, payload
-        items = self._reminder_items()
-        pending_count = len([item for item in items if str(item.get("status", "pending")) == "pending"])
+        outcome = self._get_reminder_skill_executor().list_items()
+        if outcome.status == "unavailable":
+            return self._deliver_feature_unavailable(language=language, action="reminders_list")
 
+        items = list(outcome.data.get("items", []) or [])
+        pending_count = int(outcome.data.get("pending_count", 0) or 0)
+        count = int(outcome.data.get("count", len(items)) or 0)
         if not items:
             return self._deliver_simple_action_response(
                 language=language,
@@ -31,11 +36,15 @@ class ActionReminderActionsMixin:
                 ),
                 display_title="REMINDERS",
                 display_lines=self._localized_lines(language, ["brak przypomnien"], ["no reminders"]),
-                extra_metadata={"resolved_source": resolved.source, "count": 0},
+                extra_metadata={
+                    **dict(outcome.metadata or {}),
+                    "resolved_source": resolved.source,
+                    "count": 0,
+                },
             )
 
         lines = [
-            self._localized(language, f"razem: {len(items)}", f"total: {len(items)}"),
+            self._localized(language, f"razem: {count}", f"total: {count}"),
             self._localized(language, f"oczekuje: {pending_count}", f"pending: {pending_count}"),
         ]
         for reminder in items[:2]:
@@ -43,18 +52,19 @@ class ActionReminderActionsMixin:
 
         spoken = self._localized(
             language,
-            f"Mam zapisane {len(items)} przypomnień. Oczekujących jest {pending_count}.",
-            f"I have {len(items)} saved reminders. {pending_count} are still pending.",
+            f"Mam zapisane {count} przypomnień. Oczekujących jest {pending_count}.",
+            f"I have {count} saved reminders. {pending_count} are still pending.",
         )
         return self._deliver_simple_action_response(
             language=language,
-            action="reminders_list",
+            action=request.action if request is not None else "reminders_list",
             spoken_text=spoken,
             display_title="REMINDERS",
             display_lines=lines[:4],
             extra_metadata={
+                **dict(outcome.metadata or {}),
                 "resolved_source": resolved.source,
-                "count": len(items),
+                "count": count,
                 "pending_count": pending_count,
             },
         )
@@ -94,12 +104,18 @@ class ActionReminderActionsMixin:
         language: str,
         payload: dict[str, Any],
         resolved: ResolvedAction,
+        request: SkillRequest | None = None,
     ) -> bool:
         del route
         seconds = self._resolve_reminder_seconds(payload)
         message = self._first_present(payload, "message", "content", "text", "value")
+        outcome = self._get_reminder_skill_executor().create(
+            seconds=seconds,
+            message=message,
+            language=language,
+        )
 
-        if seconds is None or not message:
+        if outcome.status == "missing_fields":
             return self._deliver_simple_action_response(
                 language=language,
                 action="reminder_create",
@@ -114,33 +130,32 @@ class ActionReminderActionsMixin:
                     ["brak czasu", "lub tresci"],
                     ["missing time", "or message"],
                 ),
-                extra_metadata={"resolved_source": resolved.source, "phase": "missing_fields"},
+                extra_metadata={
+                    **dict(outcome.metadata or {}),
+                    "resolved_source": resolved.source,
+                    "phase": "missing_fields",
+                },
             )
 
-        add_method = self._first_callable(
-            self.assistant.reminders,
-            "add_after_seconds",
-            "add_in_seconds",
-            "create_after_seconds",
-        )
-        if add_method is None:
+        if outcome.status == "unavailable":
             return self._deliver_feature_unavailable(language=language, action="reminder_create")
 
-        reminder = add_method(seconds=int(seconds), message=str(message), language=language)
-        reminder_id = str(reminder.get("id", "")).strip() if isinstance(reminder, dict) else ""
+        reminder_id = str(outcome.data.get("reminder_id", "")).strip()
+        reminder_message = str(outcome.data.get("message", message or "")).strip()
+        reminder_seconds = int(outcome.data.get("seconds", seconds or 0) or 0)
 
         spoken = self._localized(
             language,
-            f"Dobrze. Ustawiłam przypomnienie za {self._duration_text(int(seconds), language)}.",
-            f"Okay. I set a reminder for {self._duration_text(int(seconds), language)}.",
+            f"Dobrze. Ustawiłam przypomnienie za {self._duration_text(reminder_seconds, language)}.",
+            f"Okay. I set a reminder for {self._duration_text(reminder_seconds, language)}.",
         )
 
         lines = [
-            self._trim_text(str(message), 22),
+            self._trim_text(reminder_message, 22),
             self._localized(
                 language,
-                f"za {self._duration_text(int(seconds), language)}",
-                f"in {self._duration_text(int(seconds), language)}",
+                f"za {self._duration_text(reminder_seconds, language)}",
+                f"in {self._duration_text(reminder_seconds, language)}",
             ),
         ]
         if reminder_id:
@@ -148,13 +163,14 @@ class ActionReminderActionsMixin:
 
         return self._deliver_simple_action_response(
             language=language,
-            action="reminder_create",
+            action=request.action if request is not None else "reminder_create",
             spoken_text=spoken,
             display_title="REMINDER SAVED",
             display_lines=lines[:3],
             extra_metadata={
+                **dict(outcome.metadata or {}),
                 "resolved_source": resolved.source,
-                "seconds": int(seconds),
+                "seconds": reminder_seconds,
                 "reminder_id": reminder_id,
             },
         )
@@ -169,39 +185,14 @@ class ActionReminderActionsMixin:
         request: SkillRequest | None = None,
     ) -> bool:
         del route
-
         reminder_id = self._first_present(payload, "id", "reminder_id")
         message = self._first_present(payload, "message", "query", "content", "text")
+        outcome = self._get_reminder_skill_executor().resolve_delete_target(
+            reminder_id=reminder_id,
+            message=message,
+        )
 
-        target_id = ""
-        target_message = ""
-
-        if reminder_id:
-            finder = self._first_callable(self.assistant.reminders, "find_by_id")
-            if callable(finder):
-                found = finder(str(reminder_id))
-                if isinstance(found, dict):
-                    target_id = str(found.get("id", "")).strip() or str(reminder_id)
-                    target_message = str(found.get("message", "")).strip()
-            if not target_id:
-                target_id = str(reminder_id)
-
-        elif message:
-            finder = self._first_callable(self.assistant.reminders, "find_by_message")
-            if finder is None:
-                finder = self._first_callable(self.assistant.reminders, "match_by_message")
-            if finder is not None:
-                found = finder(str(message))
-                if isinstance(found, dict):
-                    target_id = str(found.get("id", "")).strip()
-                    target_message = str(found.get("message", "")).strip()
-                else:
-                    reminder = getattr(found, "reminder", None)
-                    if isinstance(reminder, dict):
-                        target_id = str(reminder.get("id", "")).strip()
-                        target_message = str(reminder.get("message", "")).strip()
-
-        if not target_id and not target_message:
+        if not outcome.ok:
             return self._deliver_simple_action_response(
                 language=language,
                 action="reminder_delete",
@@ -212,14 +203,20 @@ class ActionReminderActionsMixin:
                 ),
                 display_title="REMINDERS",
                 display_lines=self._localized_lines(language, ["nie znaleziono"], ["not found"]),
-                extra_metadata={"resolved_source": resolved.source, "phase": "not_found"},
+                extra_metadata={
+                    **dict(outcome.metadata or {}),
+                    "resolved_source": resolved.source,
+                    "phase": outcome.status or "not_found",
+                },
             )
 
+        target_id = str(outcome.data.get("reminder_id", "")).strip()
+        target_message = str(outcome.data.get("message", message or target_id)).strip()
         self.assistant.pending_follow_up = {
             "type": "confirm_reminder_delete",
             "language": language,
             "reminder_id": target_id,
-            "message": target_message or message or target_id,
+            "message": target_message,
         }
 
         spoken = self._localized(
@@ -234,6 +231,7 @@ class ActionReminderActionsMixin:
             source="action_reminder_delete_confirmation",
             follow_up_type="confirm_reminder_delete",
             extra_metadata={
+                **dict(outcome.metadata or {}),
                 "resolved_source": resolved.source,
                 "reminder_id": target_id,
             },

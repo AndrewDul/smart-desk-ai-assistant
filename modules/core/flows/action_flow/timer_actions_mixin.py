@@ -81,24 +81,21 @@ class ActionTimerActionsMixin:
         request: SkillRequest | None = None,
     ) -> bool:
         del route, payload
-        stop_method = self._first_callable(self.assistant.timer, "stop", "cancel", "stop_timer")
-        if stop_method is None:
+        outcome = self._get_timer_skill_executor().stop()
+        if outcome.status == "unavailable":
             return self._deliver_feature_unavailable(language=language, action="timer_stop")
 
-        result = stop_method()
-        ok = self._result_ok(result)
-
-        if ok:
-            self.LOGGER.info("Timer stop accepted by timer service.")
+        if outcome.ok:
+            self.LOGGER.info("Timer stop accepted by timer executor.")
             return self._accepted_action_result(
                 action=request.action if request is not None else "timer_stop",
                 extra_metadata={
-                    "source": "timer_service.stop",
+                    **dict(outcome.metadata or {}),
                     "resolved_source": resolved.source,
                 },
             )
 
-        error_text = self._result_message(result) or self._localized(
+        error_text = outcome.message or self._localized(
             language,
             "Nie ma teraz aktywnego timera.",
             "There is no active timer right now.",
@@ -109,7 +106,11 @@ class ActionTimerActionsMixin:
             spoken_text=error_text,
             display_title="TIMER",
             display_lines=self._display_lines(error_text),
-            extra_metadata={"resolved_source": resolved.source, "phase": "stop_failed"},
+            extra_metadata={
+                **dict(outcome.metadata or {}),
+                "resolved_source": resolved.source,
+                "phase": outcome.status or "stop_failed",
+            },
         )
 
     def _start_timer_mode(
@@ -121,26 +122,23 @@ class ActionTimerActionsMixin:
         resolved: ResolvedAction,
         request: SkillRequest | None = None,
     ) -> bool:
-        start_method = self._first_callable(self.assistant.timer, "start", "start_timer")
-        if start_method is None:
+        outcome = self._get_timer_skill_executor().start(mode=mode, minutes=float(minutes))
+        if outcome.status == "unavailable":
             return self._deliver_feature_unavailable(language=language, action=f"{mode}_start")
 
-        result = start_method(float(minutes), mode)
-        ok = self._result_ok(result)
-
-        if ok:
-            self.LOGGER.info("Timer start accepted: mode=%s minutes=%s", mode, minutes)
+        if outcome.ok:
+            self.LOGGER.info("Timer start accepted by timer executor: mode=%s minutes=%s", mode, minutes)
             return self._accepted_action_result(
                 action=request.action if request is not None else f"{mode}_start",
                 extra_metadata={
-                    "source": "timer_service.start",
+                    **dict(outcome.metadata or {}),
                     "resolved_source": resolved.source,
                     "mode": mode,
                     "minutes": float(minutes),
                 },
             )
 
-        error_text = self._result_message(result) or self._localized(
+        error_text = outcome.message or self._localized(
             language,
             "Nie mogę teraz uruchomić timera.",
             "I cannot start the timer right now.",
@@ -152,8 +150,9 @@ class ActionTimerActionsMixin:
             display_title="TIMER",
             display_lines=self._display_lines(error_text),
             extra_metadata={
+                **dict(outcome.metadata or {}),
                 "resolved_source": resolved.source,
-                "phase": "start_failed",
+                "phase": outcome.status or "start_failed",
                 "minutes": float(minutes),
                 "mode": mode,
             },
