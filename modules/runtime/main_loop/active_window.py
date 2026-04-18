@@ -641,6 +641,16 @@ def _store_session_continuity_snapshot(
         "command_window_policy": command_snapshot,
     }
 
+    benchmark_service = getattr(assistant, "turn_benchmark_service", None)
+    annotate = getattr(benchmark_service, "annotate_last_completed_turn", None)
+    if callable(annotate):
+        try:
+            annotate(continuity_snapshot=dict(assistant._last_session_continuity_snapshot))
+        except TypeError:
+            pass
+        except Exception:
+            pass
+
 
 def _start_follow_up_window(assistant: CoreAssistant, state_flags: MainLoopRuntimeState) -> None:
     window_seconds = _follow_up_window_seconds(assistant)

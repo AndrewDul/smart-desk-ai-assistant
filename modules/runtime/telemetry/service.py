@@ -311,8 +311,14 @@ class TurnBenchmarkService:
                 "stt_backend_label": str(trace.speech_backend_label or "").strip(),
                 "stt_mode": str(trace.speech_mode or trace.active_phase or "").strip(),
                 "stt_confidence": self._safe_float(trace.speech_confidence) or None,
-                "resume_policy": {},
+ "resume_policy": {},
                 "command_window_policy": {},
+                "session_continuity": {},
+                "session_continuity_action": "",
+                "session_continuity_phase": "",
+                "session_continuity_reason": "",
+                "session_continuity_detail": "",
+                "session_continuity_window_seconds": None,
                 "total_turn_ms": total_turn_ms or None,
             }
 
@@ -333,6 +339,7 @@ class TurnBenchmarkService:
         resume_policy: dict[str, Any] | None = None,
         command_window_policy: dict[str, Any] | None = None,
         interrupt_snapshot: dict[str, Any] | None = None,
+        continuity_snapshot: dict[str, Any] | None = None,
     ) -> bool:
         if not self.enabled:
             return False
@@ -366,6 +373,25 @@ class TurnBenchmarkService:
                 sample["interrupt_metadata"] = dict(
                     interrupt_snapshot.get("metadata", {}) or {}
                 )
+                updated = True
+
+            if isinstance(continuity_snapshot, dict) and continuity_snapshot:
+                continuity = dict(continuity_snapshot)
+                sample["session_continuity"] = continuity
+                sample["session_continuity_action"] = str(
+                    continuity.get("action", "") or ""
+                ).strip()
+                sample["session_continuity_phase"] = str(
+                    continuity.get("phase", "") or ""
+                ).strip()
+                sample["session_continuity_reason"] = str(
+                    continuity.get("reason", "") or ""
+                ).strip()
+                sample["session_continuity_detail"] = str(
+                    continuity.get("detail", "") or ""
+                ).strip()
+                window_seconds = self._safe_float(continuity.get("window_seconds", 0.0))
+                sample["session_continuity_window_seconds"] = window_seconds
                 updated = True
 
             if not updated:
