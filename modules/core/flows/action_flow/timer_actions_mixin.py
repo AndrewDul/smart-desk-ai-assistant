@@ -4,7 +4,7 @@ from typing import Any
 
 from modules.runtime.contracts import RouteDecision
 
-from .models import ResolvedAction
+from .models import ResolvedAction, SkillRequest
 
 
 class ActionTimerActionsMixin:
@@ -15,6 +15,7 @@ class ActionTimerActionsMixin:
         language: str,
         payload: dict[str, Any],
         resolved: ResolvedAction,
+        request: SkillRequest | None = None,
     ) -> bool:
         del route
         minutes = self._resolve_minutes(payload, fallback=10.0)
@@ -23,6 +24,7 @@ class ActionTimerActionsMixin:
             minutes=minutes,
             language=language,
             resolved=resolved,
+            request=request,
         )
 
     def _handle_focus_start(
@@ -32,6 +34,7 @@ class ActionTimerActionsMixin:
         language: str,
         payload: dict[str, Any],
         resolved: ResolvedAction,
+        request: SkillRequest | None = None,
     ) -> bool:
         del route
         minutes = self._resolve_minutes(
@@ -43,6 +46,7 @@ class ActionTimerActionsMixin:
             minutes=minutes,
             language=language,
             resolved=resolved,
+            request=request,
         )
 
     def _handle_break_start(
@@ -52,6 +56,7 @@ class ActionTimerActionsMixin:
         language: str,
         payload: dict[str, Any],
         resolved: ResolvedAction,
+        request: SkillRequest | None = None,
     ) -> bool:
         del route
         minutes = self._resolve_minutes(
@@ -63,6 +68,7 @@ class ActionTimerActionsMixin:
             minutes=minutes,
             language=language,
             resolved=resolved,
+            request=request,
         )
 
     def _handle_timer_stop(
@@ -72,6 +78,7 @@ class ActionTimerActionsMixin:
         language: str,
         payload: dict[str, Any],
         resolved: ResolvedAction,
+        request: SkillRequest | None = None,
     ) -> bool:
         del route, payload
         stop_method = self._first_callable(self.assistant.timer, "stop", "cancel", "stop_timer")
@@ -83,7 +90,13 @@ class ActionTimerActionsMixin:
 
         if ok:
             self.LOGGER.info("Timer stop accepted by timer service.")
-            return True
+            return self._accepted_action_result(
+                action=request.action if request is not None else "timer_stop",
+                extra_metadata={
+                    "source": "timer_service.stop",
+                    "resolved_source": resolved.source,
+                },
+            )
 
         error_text = self._result_message(result) or self._localized(
             language,
@@ -106,6 +119,7 @@ class ActionTimerActionsMixin:
         minutes: float,
         language: str,
         resolved: ResolvedAction,
+        request: SkillRequest | None = None,
     ) -> bool:
         start_method = self._first_callable(self.assistant.timer, "start", "start_timer")
         if start_method is None:
@@ -116,7 +130,15 @@ class ActionTimerActionsMixin:
 
         if ok:
             self.LOGGER.info("Timer start accepted: mode=%s minutes=%s", mode, minutes)
-            return True
+            return self._accepted_action_result(
+                action=request.action if request is not None else f"{mode}_start",
+                extra_metadata={
+                    "source": "timer_service.start",
+                    "resolved_source": resolved.source,
+                    "mode": mode,
+                    "minutes": float(minutes),
+                },
+            )
 
         error_text = self._result_message(result) or self._localized(
             language,

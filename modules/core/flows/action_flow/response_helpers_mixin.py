@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
-
+from .models import SkillResult
 from modules.runtime.contracts import (
     AssistantChunk,
     ChunkKind,
@@ -150,8 +150,67 @@ class ActionResponseHelpersMixin:
         if extra_metadata:
             metadata.update(dict(extra_metadata))
 
-        return metadata   
+        return metadata
 
+    def _accepted_action_result(
+        self,
+        *,
+        action: str,
+        status: str = "accepted",
+        extra_metadata: dict[str, Any] | None = None,
+    ) -> SkillResult:
+        metadata = {
+            "source": "action_flow",
+        }
+        if extra_metadata:
+            metadata.update(dict(extra_metadata))
+
+        return SkillResult(
+            action=str(action or "").strip() or "unknown",
+            handled=True,
+            response_delivered=False,
+            status=str(status or "accepted").strip() or "accepted",
+            metadata=metadata,
+        )
+
+    def _deliver_action_follow_up_prompt(
+        self,
+        *,
+        language: str,
+        action: str,
+        spoken_text: str,
+        source: str,
+        follow_up_type: str,
+        extra_metadata: dict[str, Any] | None = None,
+    ) -> SkillResult:
+        metadata = self._current_action_response_metadata(
+            language=language,
+            action=action,
+            extra_metadata={
+                "follow_up_type": str(follow_up_type or "").strip(),
+                **dict(extra_metadata or {}),
+            },
+        )
+        delivered = bool(
+            self.assistant.deliver_text_response(
+                spoken_text,
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source=str(source or "action_follow_up_prompt").strip() or "action_follow_up_prompt",
+                metadata=metadata,
+            )
+        )
+        return SkillResult(
+            action=str(action or "").strip() or "unknown",
+            handled=True,
+            response_delivered=delivered,
+            status="awaiting_confirmation",
+            metadata={
+                "source": str(source or "action_follow_up_prompt").strip() or "action_follow_up_prompt",
+                "follow_up_type": str(follow_up_type or "").strip(),
+                **dict(extra_metadata or {}),
+            },
+        )
 
     def _deliver_simple_action_response(
         self,

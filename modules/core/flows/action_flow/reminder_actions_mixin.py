@@ -66,6 +66,7 @@ class ActionReminderActionsMixin:
         language: str,
         payload: dict[str, Any],
         resolved: ResolvedAction,
+        request: SkillRequest | None = None,
     ) -> bool:
         del route, payload
         self.assistant.pending_follow_up = {
@@ -77,12 +78,13 @@ class ActionReminderActionsMixin:
             "Czy na pewno chcesz usunąć wszystkie przypomnienia?",
             "Are you sure you want to delete all reminders?",
         )
-        return self.assistant.deliver_text_response(
-            spoken,
+        return self._deliver_action_follow_up_prompt(
             language=language,
-            route_kind=RouteKind.CONVERSATION,
+            action=request.action if request is not None else "reminders_clear",
+            spoken_text=spoken,
             source="action_reminders_clear_confirmation",
-            metadata={"resolved_source": resolved.source, "follow_up_type": "confirm_reminders_clear"},
+            follow_up_type="confirm_reminders_clear",
+            extra_metadata={"resolved_source": resolved.source},
         )
 
     def _handle_reminder_create(
@@ -164,6 +166,7 @@ class ActionReminderActionsMixin:
         language: str,
         payload: dict[str, Any],
         resolved: ResolvedAction,
+        request: SkillRequest | None = None,
     ) -> bool:
         del route
 
@@ -224,14 +227,14 @@ class ActionReminderActionsMixin:
             "Czy na pewno chcesz usunąć to przypomnienie?",
             "Are you sure you want to delete this reminder?",
         )
-        return self.assistant.deliver_text_response(
-            spoken,
+        return self._deliver_action_follow_up_prompt(
             language=language,
-            route_kind=RouteKind.CONVERSATION,
+            action=request.action if request is not None else "reminder_delete",
+            spoken_text=spoken,
             source="action_reminder_delete_confirmation",
-            metadata={
+            follow_up_type="confirm_reminder_delete",
+            extra_metadata={
                 "resolved_source": resolved.source,
-                "follow_up_type": "confirm_reminder_delete",
                 "reminder_id": target_id,
             },
         )

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
-
+import inspect
 from modules.runtime.contracts import (
     EntityValue,
     IntentMatch,
@@ -215,11 +215,12 @@ class ActionFlowOrchestrator(
                 return bool(self._last_skill_result)
 
             try:
-                handler_result = handler(
+                handler_result = self._invoke_action_handler(
+                    handler=handler,
                     route=route,
                     language=lang,
-                    payload=resolved.payload,
                     resolved=resolved,
+                    request=request,
                 )
                 self._last_skill_result = self._coerce_skill_result(
                     request=request,
@@ -262,6 +263,36 @@ class ActionFlowOrchestrator(
             self._active_route = None
             self._active_resolved_action = None
             self._active_skill_request = None
+
+
+    def _invoke_action_handler(
+        self,
+        *,
+        handler: Any,
+        route: RouteDecision,
+        language: str,
+        resolved: ResolvedAction,
+        request: SkillRequest,
+    ) -> Any:
+        kwargs = {
+            "route": route,
+            "language": language,
+            "payload": resolved.payload,
+            "resolved": resolved,
+        }
+
+        try:
+            parameters = inspect.signature(handler).parameters
+        except (TypeError, ValueError):
+            parameters = {}
+
+        if "request" in parameters:
+            kwargs["request"] = request
+
+        return handler(**kwargs)
+
+
+
 
     def execute_route_action(self, route: RouteDecision, language: str) -> bool:
         return self.execute(route=route, language=language)

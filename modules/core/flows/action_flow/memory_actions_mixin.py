@@ -241,6 +241,7 @@ class ActionMemoryActionsMixin:
         language: str,
         payload: dict[str, Any],
         resolved: ResolvedAction,
+        request: SkillRequest | None = None,
     ) -> bool:
         del route, payload
         self.assistant.pending_follow_up = {
@@ -252,12 +253,13 @@ class ActionMemoryActionsMixin:
             "Czy na pewno chcesz wyczyścić całą pamięć?",
             "Are you sure you want to clear all memory?",
         )
-        return self.assistant.deliver_text_response(
-            spoken,
+        return self._deliver_action_follow_up_prompt(
             language=language,
-            route_kind=self._route_kind_conversation(),
+            action=request.action if request is not None else "memory_clear",
+            spoken_text=spoken,
             source="action_memory_clear_confirmation",
-            metadata={"resolved_source": resolved.source, "follow_up_type": "confirm_memory_clear"},
+            follow_up_type="confirm_memory_clear",
+            extra_metadata={"resolved_source": resolved.source},
         )
 
     @staticmethod

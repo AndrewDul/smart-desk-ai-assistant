@@ -1010,6 +1010,7 @@ class ActionSystemActionsMixin:
         language: str,
         payload: dict[str, Any],
         resolved: ResolvedAction,
+        request: SkillRequest | None = None,
     ) -> bool:
         del route, payload
         self.assistant.pending_follow_up = {"type": "confirm_exit", "lang": language}
@@ -1018,12 +1019,13 @@ class ActionSystemActionsMixin:
             "Czy chcesz, żebym zamknęła asystenta?",
             "Do you want me to close the assistant?",
         )
-        return self.assistant.deliver_text_response(
-            spoken,
+        return self._deliver_action_follow_up_prompt(
             language=language,
-            route_kind=RouteKind.CONVERSATION,
+            action=request.action if request is not None else "exit",
+            spoken_text=spoken,
             source="action_exit_confirmation",
-            metadata={"resolved_source": resolved.source, "follow_up_type": "confirm_exit"},
+            follow_up_type="confirm_exit",
+            extra_metadata={"resolved_source": resolved.source},
         )
 
     def _handle_shutdown(
@@ -1033,6 +1035,7 @@ class ActionSystemActionsMixin:
         language: str,
         payload: dict[str, Any],
         resolved: ResolvedAction,
+        request: SkillRequest | None = None,
     ) -> bool:
         del route, payload
 
@@ -1061,12 +1064,13 @@ class ActionSystemActionsMixin:
             "Czy chcesz, żebym wyłączyła system?",
             "Do you want me to shut down the system?",
         )
-        return self.assistant.deliver_text_response(
-            spoken,
+        return self._deliver_action_follow_up_prompt(
             language=language,
-            route_kind=RouteKind.CONVERSATION,
+            action=request.action if request is not None else "shutdown",
+            spoken_text=spoken,
             source="action_shutdown_confirmation",
-            metadata={"resolved_source": resolved.source, "follow_up_type": "confirm_shutdown"},
+            follow_up_type="confirm_shutdown",
+            extra_metadata={"resolved_source": resolved.source},
         )
 
     def _handle_confirm_yes(
