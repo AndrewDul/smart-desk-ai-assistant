@@ -11,6 +11,7 @@ from modules.shared.logging.logger import append_log, log_exception
 class CoreAssistantInteractionMixin:
     def handle_command(self, text: str) -> bool:
         self.interrupt_controller.clear()
+        self._last_interrupt_snapshot = {}
 
         cleaned = str(text or "").strip()
         if not cleaned:
@@ -183,11 +184,32 @@ class CoreAssistantInteractionMixin:
         source: str = "assistant",
         metadata: dict | None = None,
     ) -> None:
-        self.interrupt_controller.request(
+        interrupt_metadata = dict(metadata or {})
+        snapshot = self.interrupt_controller.request(
             reason=reason,
             source=source,
-            metadata=metadata,
+            metadata=interrupt_metadata,
         )
+        self._last_interrupt_snapshot = {
+            "requested": bool(getattr(snapshot, "requested", True)),
+            "generation": int(getattr(snapshot, "generation", 0) or 0),
+            "reason": str(getattr(snapshot, "reason", reason) or reason).strip(),
+            "source": str(getattr(snapshot, "source", source) or source).strip(),
+            "kind": str(interrupt_metadata.get("interrupt_kind", "manual")).strip() or "manual",
+            "requested_at_monotonic": float(
+                getattr(snapshot, "requested_at_monotonic", 0.0) or 0.0
+            ),
+            "metadata": interrupt_metadata,
+        }
+
+        benchmark_service = getattr(self, "turn_benchmark_service", None)
+        annotate = getattr(benchmark_service, "annotate_last_completed_turn", None)
+        if callable(annotate):
+            try:
+                annotate(interrupt_snapshot=dict(self._last_interrupt_snapshot))
+            except Exception:
+                pass
+
         mark_interrupt_requested = getattr(self.voice_session, "mark_interrupt_requested", None)
         if callable(mark_interrupt_requested):
             try:
@@ -324,6 +346,26 @@ class CoreAssistantInteractionMixin:
             telemetry["pending_metadata"] = dict(
                 pending_snapshot.get("metadata", {}) or {}
             )
+
+        interrupt_snapshot = self._collect_interrupt_snapshot()
+        if interrupt_snapshot:
+            telemetry["interrupt_requested"] = bool(interrupt_snapshot.get("requested", False))
+            telemetry["interrupt_generation"] = int(
+                self._safe_metric_float(interrupt_snapshot.get("generation", 0.0))
+            )
+            telemetry["interrupt_reason"] = str(
+                interrupt_snapshot.get("reason", "") or ""
+            ).strip()
+            telemetry["interrupt_source"] = str(
+                interrupt_snapshot.get("source", "") or ""
+            ).strip()
+            telemetry["interrupt_kind"] = str(
+                interrupt_snapshot.get("kind", "") or ""
+            ).strip()
+            telemetry["interrupt_metadata"] = dict(
+                interrupt_snapshot.get("metadata", {}) or {}
+            )
+
         dialogue_snapshot = self._collect_dialogue_result_snapshot()
         if dialogue_snapshot:
             telemetry["dialogue_status"] = str(dialogue_snapshot.get("status", "") or "").strip()
@@ -432,6 +474,9 @@ class CoreAssistantInteractionMixin:
         snapshot = getattr(self, "_last_pending_flow_snapshot", None)
         return dict(snapshot or {})
 
+    def _collect_interrupt_snapshot(self) -> dict[str, Any]:
+        snapshot = getattr(self, "_last_interrupt_snapshot", None)
+        return dict(snapshot or {})
 
     def _collect_llm_snapshot(self) -> dict[str, Any]:
         dialogue = getattr(self, "dialogue", None)

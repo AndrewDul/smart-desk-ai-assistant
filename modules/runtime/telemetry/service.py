@@ -297,6 +297,12 @@ class TurnBenchmarkService:
                 "pending_language": str(telemetry.get("pending_language", "") or "").strip().lower(),
                 "pending_keeps_state": bool(telemetry.get("pending_keeps_state", False)),
                 "pending_metadata": dict(telemetry.get("pending_metadata", {}) or {}),
+                "interrupt_requested": bool(telemetry.get("interrupt_requested", False)),
+                "interrupt_generation": int(self._safe_float(telemetry.get("interrupt_generation", 0.0))),
+                "interrupt_reason": str(telemetry.get("interrupt_reason", "") or "").strip(),
+                "interrupt_source": str(telemetry.get("interrupt_source", "") or "").strip(),
+                "interrupt_kind": str(telemetry.get("interrupt_kind", "") or "").strip(),
+                "interrupt_metadata": dict(telemetry.get("interrupt_metadata", {}) or {}),
                 "route_notes": list(telemetry.get("route_notes", []) or []),
                 "stt_input_source": str(trace.speech_input_source or trace.input_source or "voice").strip() or "voice",
                 "stt_language": str(trace.speech_language or trace.language or "").strip().lower(),
@@ -326,6 +332,7 @@ class TurnBenchmarkService:
         *,
         resume_policy: dict[str, Any] | None = None,
         command_window_policy: dict[str, Any] | None = None,
+        interrupt_snapshot: dict[str, Any] | None = None,
     ) -> bool:
         if not self.enabled:
             return False
@@ -341,6 +348,24 @@ class TurnBenchmarkService:
                 updated = True
             if isinstance(command_window_policy, dict) and command_window_policy:
                 sample["command_window_policy"] = dict(command_window_policy)
+                updated = True
+            if isinstance(interrupt_snapshot, dict) and interrupt_snapshot:
+                sample["interrupt_requested"] = bool(interrupt_snapshot.get("requested", False))
+                sample["interrupt_generation"] = int(
+                    self._safe_float(interrupt_snapshot.get("generation", 0.0))
+                )
+                sample["interrupt_reason"] = str(
+                    interrupt_snapshot.get("reason", "") or ""
+                ).strip()
+                sample["interrupt_source"] = str(
+                    interrupt_snapshot.get("source", "") or ""
+                ).strip()
+                sample["interrupt_kind"] = str(
+                    interrupt_snapshot.get("kind", "") or ""
+                ).strip()
+                sample["interrupt_metadata"] = dict(
+                    interrupt_snapshot.get("metadata", {}) or {}
+                )
                 updated = True
 
             if not updated:

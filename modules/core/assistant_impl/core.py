@@ -99,6 +99,7 @@ class CoreAssistant(
         self._last_resume_policy_snapshot: dict[str, Any] = {}
         self._last_command_window_policy_snapshot: dict[str, Any] = {}
         self._last_session_continuity_snapshot: dict[str, Any] = {}
+        self._last_interrupt_snapshot: dict[str, Any] = {}
         self._last_audio_runtime_snapshot: dict[str, Any] = {}
 
         self.turn_benchmark_service = TurnBenchmarkService(

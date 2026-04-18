@@ -18,6 +18,7 @@ class AudioRuntimeSnapshot:
     last_resume_policy: dict[str, Any]
     last_command_window_policy: dict[str, Any]
     last_session_continuity: dict[str, Any]
+    last_interrupt: dict[str, Any]
     lines: tuple[str, ...]
 
     def to_dict(self) -> dict[str, Any]:
@@ -34,6 +35,7 @@ class AudioRuntimeSnapshot:
             "last_resume_policy": dict(self.last_resume_policy),
             "last_command_window_policy": dict(self.last_command_window_policy),
             "last_session_continuity": dict(self.last_session_continuity),
+            "last_interrupt": dict(self.last_interrupt),
             "lines": list(self.lines),
         }
 
@@ -84,6 +86,7 @@ class AudioRuntimeSnapshotService:
         last_session_continuity = dict(
             getattr(assistant, "_last_session_continuity_snapshot", {}) or {}
         )
+        last_interrupt = dict(getattr(assistant, "_last_interrupt_snapshot", {}) or {})
 
         lines = (
             f"phase:{self._token(interaction_phase, 14)} owner:{self._token(input_owner, 14)}",
@@ -91,6 +94,8 @@ class AudioRuntimeSnapshotService:
             f"cmd:{self._token(last_command_window_policy.get('action', 'n/a'), 10)}",
             f"cont:{self._token(last_session_continuity.get('action', 'n/a'), 12)} "
             f"{self._token(last_session_continuity.get('phase', 'n/a'), 10)}",
+            f"intr:{self._token(last_interrupt.get('kind', last_interrupt.get('reason', 'n/a')), 12)} "
+            f"{self._token(last_interrupt.get('source', 'n/a'), 10)}",
             f"handoff:{self._token(last_capture_handoff.get('applied_owner', 'n/a'), 14)}",
             f"win:{active_window_remaining_seconds:.2f}s state:{self._token(state, 12)}",
         )
@@ -108,6 +113,7 @@ class AudioRuntimeSnapshotService:
             last_resume_policy=last_resume_policy,
             last_command_window_policy=last_command_window_policy,
             last_session_continuity=last_session_continuity,
+            last_interrupt=last_interrupt,
             lines=lines,
         )
         return payload.to_dict()

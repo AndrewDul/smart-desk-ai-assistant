@@ -28,6 +28,57 @@ if TYPE_CHECKING:
     from .session_state import MainLoopRuntimeState
 
 
+def _store_barge_in_interrupt_snapshot(
+    assistant: CoreAssistant,
+    *,
+    backend_label: str,
+    heard_wake: str | None,
+    output_age_seconds: float,
+    reopened_command_window: bool,
+) -> None:
+    current_snapshot = dict(getattr(assistant, "_last_interrupt_snapshot", {}) or {})
+    interrupt_controller = getattr(assistant, "interrupt_controller", None)
+    generation = 0
+    requested_generation = getattr(interrupt_controller, "requested_generation", None)
+    if callable(requested_generation):
+        try:
+            generation = int(requested_generation() or 0)
+        except Exception:
+            generation = 0
+
+    metadata = dict(current_snapshot.get("metadata", {}) or {})
+    metadata.update(
+        {
+            "interrupt_kind": "barge_in",
+            "backend": backend_label,
+            "heard": str(heard_wake or "").strip(),
+            "output_age_seconds": max(0.0, float(output_age_seconds or 0.0)),
+            "reopened_command_window": bool(reopened_command_window),
+        }
+    )
+
+    snapshot = {
+        "requested": True,
+        "generation": generation or int(current_snapshot.get("generation", 0) or 0),
+        "reason": "wake_barge_in",
+        "source": "wake_gate",
+        "kind": "barge_in",
+        "requested_at_monotonic": float(
+            current_snapshot.get("requested_at_monotonic", 0.0) or 0.0
+        ),
+        "metadata": metadata,
+    }
+    assistant._last_interrupt_snapshot = snapshot
+
+    benchmark_service = getattr(assistant, "turn_benchmark_service", None)
+    annotate = getattr(benchmark_service, "annotate_last_completed_turn", None)
+    if callable(annotate):
+        try:
+            annotate(interrupt_snapshot=dict(snapshot))
+        except Exception:
+            pass
+
+
 def wake_barge_in_status(assistant: CoreAssistant) -> tuple[bool, str]:
     voice_input_cfg = assistant.settings.get("voice_input", {})
     if not bool(voice_input_cfg.get("wake_barge_in_enabled", True)):
@@ -168,6 +219,7 @@ def try_handle_barge_in_during_output(
                 reason="wake_barge_in",
                 source="wake_gate",
                 metadata={
+                    "interrupt_kind": "barge_in",
                     "heard": heard_wake,
                     "backend": backend_label,
                     "output_age_seconds": output_age_seconds,
@@ -208,6 +260,13 @@ def try_handle_barge_in_during_output(
         detail="awaiting_command_after_barge_in",
         phase=VOICE_PHASE_COMMAND,
         input_owner=VOICE_INPUT_OWNER_VOICE_INPUT,
+    )
+    _store_barge_in_interrupt_snapshot(
+        assistant,
+        backend_label=backend_label,
+        heard_wake=heard_wake,
+        output_age_seconds=output_age_seconds,
+        reopened_command_window=True,
     )
 
     print("\nBarge-in accepted. Listening for command...")
