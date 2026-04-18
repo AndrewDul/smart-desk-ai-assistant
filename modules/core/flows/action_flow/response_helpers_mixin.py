@@ -170,6 +170,7 @@ class ActionResponseHelpersMixin:
     ) -> SkillResult:
         metadata = {
             "source": "action_flow",
+            "response_kind": "accepted_only",
         }
         if extra_metadata:
             metadata.update(dict(extra_metadata))
@@ -250,6 +251,7 @@ class ActionResponseHelpersMixin:
             metadata={
                 "source": str(source or "action_follow_up_prompt").strip() or "action_follow_up_prompt",
                 "follow_up_type": str(follow_up_type or "").strip(),
+                "response_kind": "follow_up_prompt",
                 **dict(extra_metadata or {}),
             },
         )

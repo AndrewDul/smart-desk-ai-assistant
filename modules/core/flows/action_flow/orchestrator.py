@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import time
 from typing import Any
 
 from modules.runtime.contracts import (
@@ -209,13 +210,18 @@ class ActionFlowOrchestrator(
             sorted(request.payload.keys()),
         )
 
+        execution_started_at = time.perf_counter()
         try:
             handler = getattr(self, f"_handle_{resolved.name}", None)
             if not callable(handler):
                 handler_result = self._handle_unknown(route=route, language=lang, resolved=resolved)
-                self._last_skill_result = self._coerce_skill_result(
+                self._last_skill_result = self._finalize_skill_result(
                     request=request,
-                    result=handler_result,
+                    result=self._coerce_skill_result(
+                        request=request,
+                        result=handler_result,
+                    ),
+                    started_at=execution_started_at,
                 )
                 return bool(self._last_skill_result)
             try:
@@ -226,9 +232,13 @@ class ActionFlowOrchestrator(
                     resolved=resolved,
                     request=request,
                 )
-                self._last_skill_result = self._coerce_skill_result(
+                self._last_skill_result = self._finalize_skill_result(
                     request=request,
-                    result=handler_result,
+                    result=self._coerce_skill_result(
+                        request=request,
+                        result=handler_result,
+                    ),
+                    started_at=execution_started_at,
                 )
                 return bool(self._last_skill_result)
             except Exception as error:
@@ -250,17 +260,22 @@ class ActionFlowOrchestrator(
                         "error": str(error),
                     },
                 )
-                self._last_skill_result = SkillResult(
-                    action=request.action,
-                    handled=True,
-                    response_delivered=bool(delivered),
-                    status="error",
-                    metadata={
-                        "error": str(error),
-                        "source": request.source,
-                        "capture_phase": request.capture_phase,
-                        "capture_backend": request.capture_backend,
-                    },
+                self._last_skill_result = self._finalize_skill_result(
+                    request=request,
+                    result=SkillResult(
+                        action=request.action,
+                        handled=True,
+                        response_delivered=bool(delivered),
+                        status="error",
+                        metadata={
+                            "error": str(error),
+                            "source": request.source,
+                            "capture_phase": request.capture_phase,
+                            "capture_backend": request.capture_backend,
+                            "response_kind": "direct_response" if bool(delivered) else "accepted_only",
+                        },
+                    ),
+                    started_at=execution_started_at,
                 )
                 return bool(self._last_skill_result)
         finally:
@@ -310,6 +325,41 @@ class ActionFlowOrchestrator(
             kwargs["request"] = request
 
         return handler(**kwargs)
+
+
+
+    def _finalize_skill_result(
+        self,
+        *,
+        request: SkillRequest,
+        result: SkillResult,
+        started_at: float,
+    ) -> SkillResult:
+        metadata = dict(result.metadata or {})
+        response_kind = str(metadata.get("response_kind", "") or "").strip()
+        if not response_kind:
+            if result.response_delivered:
+                response_kind = "direct_response"
+            elif result.handled:
+                response_kind = "accepted_only"
+            else:
+                response_kind = "not_handled"
+
+        metadata.update(
+            {
+                "turn_id": request.turn_id,
+                "latency_ms": max(0.0, (time.perf_counter() - float(started_at)) * 1000.0),
+                "response_kind": response_kind,
+            }
+        )
+        return SkillResult(
+            action=result.action,
+            handled=result.handled,
+            response_delivered=result.response_delivered,
+            status=result.status,
+            metadata=metadata,
+        )
+
 
 
     def execute_route_action(self, route: RouteDecision, language: str) -> bool:

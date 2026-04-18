@@ -298,6 +298,12 @@ class CoreAssistantInteractionMixin:
                 skill_snapshot.get("response_delivered", False)
             )
             telemetry["skill_source"] = str(skill_snapshot.get("source", "") or "").strip()
+            telemetry["skill_latency_ms"] = self._safe_metric_float(
+                skill_snapshot.get("latency_ms", 0.0)
+            )
+            telemetry["skill_response_kind"] = str(
+                skill_snapshot.get("response_kind", "") or ""
+            ).strip()
 
         dialogue_snapshot = self._collect_dialogue_result_snapshot()
         if dialogue_snapshot:
@@ -450,12 +456,15 @@ class CoreAssistantInteractionMixin:
         snapshot = getattr(action_flow, "_last_skill_result", None)
         if snapshot is None:
             return {}
+        metadata = dict(getattr(snapshot, "metadata", {}) or {})
         return {
             "action": str(getattr(snapshot, "action", "") or "").strip(),
             "handled": bool(getattr(snapshot, "handled", False)),
             "response_delivered": bool(getattr(snapshot, "response_delivered", False)),
             "status": str(getattr(snapshot, "status", "") or "").strip(),
-            "source": str(getattr(snapshot, "metadata", {}).get("source", "") or "").strip(),
+            "source": str(metadata.get("source", "") or "").strip(),
+            "latency_ms": self._safe_metric_float(metadata.get("latency_ms", 0.0)),
+            "response_kind": str(metadata.get("response_kind", "") or "").strip(),
         }
 
     def _collect_dialogue_result_snapshot(self) -> dict[str, Any]:

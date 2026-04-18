@@ -285,6 +285,8 @@ class TurnBenchmarkService:
                 "skill_handled": bool(telemetry.get("skill_handled", False)),
                 "skill_response_delivered": bool(telemetry.get("skill_response_delivered", False)),
                 "skill_source": str(telemetry.get("skill_source", "") or "").strip(),
+                "skill_latency_ms": self._safe_float(telemetry.get("skill_latency_ms", 0.0)) or None,
+                "skill_response_kind": str(telemetry.get("skill_response_kind", "") or "").strip(),
                 "dialogue_status": str(telemetry.get("dialogue_status", "") or "").strip(),
                 "dialogue_delivered": bool(telemetry.get("dialogue_delivered", False)),
                 "dialogue_source": str(telemetry.get("dialogue_source", "") or "").strip(),
