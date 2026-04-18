@@ -3,8 +3,11 @@ from __future__ import annotations
 import logging
 import queue
 import tempfile
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from modules.runtime.contracts import InputSource, TranscriptRequest, TranscriptResult
 
 import numpy as np
 import sounddevice as sd
@@ -300,6 +303,56 @@ class FasterWhisperInputBackend(
 
     def listen_for_command(self, timeout: float = 8.0, debug: bool = False) -> str | None:
         return self.listen(timeout=timeout, debug=debug)
+
+
+    def transcribe(self, request: TranscriptRequest) -> TranscriptResult | None:
+        started_at = time.monotonic()
+        timeout = max(0.1, float(request.timeout_seconds))
+        debug = bool(request.debug)
+        mode = str(request.mode or "command").strip().lower() or "command"
+
+        try:
+            audio = self._record_until_silence(timeout=timeout, debug=debug)
+            if audio is None or audio.size == 0:
+                return None
+        except Exception as error:
+            self.LOGGER.warning("FasterWhisper rich transcribe capture failed: %s", error)
+            return None
+
+        transcript = self._transcribe_audio(audio, debug=debug)
+        if transcript is None:
+            return None
+
+        cleaned = self._cleanup_transcript(transcript)
+        if cleaned is None or self._looks_like_blank_or_garbage(cleaned):
+            return None
+
+        ended_at = time.monotonic()
+        audio_duration_seconds = 0.0
+        try:
+            audio_duration_seconds = max(0.0, float(audio.size) / float(self.sample_rate))
+        except Exception:
+            audio_duration_seconds = 0.0
+
+        metadata = dict(request.metadata or {})
+        metadata.setdefault("mode", mode)
+        metadata.setdefault("backend_label", "faster_whisper")
+        metadata.setdefault("adapter", "backend_native")
+        metadata.setdefault("audio_duration_seconds", audio_duration_seconds)
+
+        language = self.language if str(self.language or "").strip() else "auto"
+
+        return TranscriptResult(
+            text=cleaned,
+            language=language,
+            confidence=0.0,
+            is_final=True,
+            source=request.source if isinstance(request.source, InputSource) else InputSource.VOICE,
+            started_at=started_at,
+            ended_at=ended_at,
+            metadata=metadata,
+        )
+
 
     def listen_for_wake_phrase(
         self,

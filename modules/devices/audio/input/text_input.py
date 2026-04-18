@@ -8,6 +8,8 @@ import time
 import unicodedata
 from typing import TYPE_CHECKING
 
+from modules.runtime.contracts import InputSource, TranscriptRequest, TranscriptResult
+
 if TYPE_CHECKING:
     from modules.devices.audio.coordination import AssistantAudioCoordinator
 
@@ -188,6 +190,37 @@ class TextInput:
         debug: bool = False,
     ) -> str | None:
         return self.listen(timeout=timeout, debug=debug)
+
+
+    def transcribe(self, request: TranscriptRequest) -> TranscriptResult | None:
+        started_at = time.monotonic()
+
+        text = self.listen(
+            timeout=float(request.timeout_seconds),
+            debug=bool(request.debug),
+        )
+        if not text:
+            return None
+
+        ended_at = time.monotonic()
+        metadata = dict(request.metadata or {})
+        metadata.setdefault("mode", str(request.mode or "command").strip() or "command")
+        metadata.setdefault("backend_label", "text_input")
+        metadata.setdefault("adapter", "backend_native")
+        metadata.setdefault("audio_duration_seconds", 0.0)
+
+        return TranscriptResult(
+            text=text,
+            language="en",
+            confidence=1.0,
+            is_final=True,
+            source=InputSource.TEXT,
+            started_at=started_at,
+            ended_at=ended_at,
+            metadata=metadata,
+        )
+
+
 
     def listen_for_wake_phrase(
         self,
