@@ -304,7 +304,26 @@ class CoreAssistantInteractionMixin:
             telemetry["skill_response_kind"] = str(
                 skill_snapshot.get("response_kind", "") or ""
             ).strip()
-
+        pending_snapshot = self._collect_pending_flow_snapshot()
+        if pending_snapshot:
+            telemetry["pending_consumed_by"] = str(
+                pending_snapshot.get("consumed_by", "") or ""
+            ).strip()
+            telemetry["pending_kind"] = str(
+                pending_snapshot.get("pending_kind", "") or ""
+            ).strip()
+            telemetry["pending_type"] = str(
+                pending_snapshot.get("pending_type", "") or ""
+            ).strip()
+            telemetry["pending_language"] = str(
+                pending_snapshot.get("language", "") or ""
+            ).strip()
+            telemetry["pending_keeps_state"] = bool(
+                pending_snapshot.get("keeps_pending_state", False)
+            )
+            telemetry["pending_metadata"] = dict(
+                pending_snapshot.get("metadata", {}) or {}
+            )
         dialogue_snapshot = self._collect_dialogue_result_snapshot()
         if dialogue_snapshot:
             telemetry["dialogue_status"] = str(dialogue_snapshot.get("status", "") or "").strip()
@@ -401,11 +420,18 @@ class CoreAssistantInteractionMixin:
         self._refresh_developer_overlay(reason="turn_finished")
         self._last_response_stream_report = None
         self._last_response_delivery_snapshot = None
+        self._last_pending_flow_snapshot = {}
 
     def _consume_last_input_capture(self) -> dict[str, Any]:
         capture = dict(getattr(self, "_last_input_capture", {}) or {})
         self._last_input_capture = {}
         return capture
+
+
+    def _collect_pending_flow_snapshot(self) -> dict[str, Any]:
+        snapshot = getattr(self, "_last_pending_flow_snapshot", None)
+        return dict(snapshot or {})
+
 
     def _collect_llm_snapshot(self) -> dict[str, Any]:
         dialogue = getattr(self, "dialogue", None)

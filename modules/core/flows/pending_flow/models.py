@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -9,6 +9,11 @@ class PendingFlowDecision:
     handled: bool
     response: bool | None = None
     consumed_by: str = ""
+    pending_kind: str = ""
+    pending_type: str = ""
+    language: str = ""
+    keeps_pending_state: bool = False
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
