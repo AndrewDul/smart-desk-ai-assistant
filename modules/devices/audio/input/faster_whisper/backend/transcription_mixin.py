@@ -6,7 +6,11 @@ import numpy as np
 
 
 class FasterWhisperTranscriptionMixin:
-    def _transcribe_audio(self, audio: np.ndarray, debug: bool = False) -> str | None:
+    def _transcribe_audio_candidate(
+        self,
+        audio: np.ndarray,
+        debug: bool = False,
+    ) -> dict[str, Any] | None:
         self._ensure_faster_whisper_runtime()
         if self._fw_model is None or audio.size == 0:
             return None
@@ -29,7 +33,9 @@ class FasterWhisperTranscriptionMixin:
         )
 
         if self._accept_candidate(primary_candidate):
-            return str(primary_candidate.get("text") or "").strip() or None
+            candidate = dict(primary_candidate)
+            candidate["path"] = "primary"
+            return candidate
 
         rescue_candidate = self._rescue_bilingual_candidate(
             prepared_primary,
@@ -37,7 +43,9 @@ class FasterWhisperTranscriptionMixin:
             debug=debug,
         )
         if rescue_candidate is not None:
-            return str(rescue_candidate.get("text") or "").strip() or None
+            candidate = dict(rescue_candidate)
+            candidate["path"] = "rescue"
+            return candidate
 
         primary_duration = len(prepared_primary) / float(self.MODEL_SAMPLE_RATE)
         if primary_duration < self.retry_min_seconds:
@@ -58,7 +66,9 @@ class FasterWhisperTranscriptionMixin:
             forced_language=None,
         )
         if self._accept_candidate(retry_candidate):
-            return str(retry_candidate.get("text") or "").strip() or None
+            candidate = dict(retry_candidate)
+            candidate["path"] = "retry"
+            return candidate
 
         retry_rescue_candidate = self._rescue_bilingual_candidate(
             prepared_retry,
@@ -66,9 +76,17 @@ class FasterWhisperTranscriptionMixin:
             debug=debug,
         )
         if retry_rescue_candidate is not None:
-            return str(retry_rescue_candidate.get("text") or "").strip() or None
+            candidate = dict(retry_rescue_candidate)
+            candidate["path"] = "retry_rescue"
+            return candidate
 
         return None
+
+    def _transcribe_audio(self, audio: np.ndarray, debug: bool = False) -> str | None:
+        candidate = self._transcribe_audio_candidate(audio, debug=debug)
+        if candidate is None:
+            return None
+        return str(candidate.get("text") or "").strip() or None
 
     def _transcribe_single_audio(
         self,

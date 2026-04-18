@@ -43,9 +43,15 @@ class STTContractAlignmentTests(unittest.TestCase):
 
         backend.LOGGER = _Logger()
         backend._record_until_silence = lambda timeout=8.0, debug=False: np.ones(16000, dtype=np.float32)
-        backend._transcribe_audio = lambda audio, debug=False: "hello from faster whisper"
-        backend._cleanup_transcript = lambda text: text
-        backend._looks_like_blank_or_garbage = lambda text: False
+        backend._transcribe_audio_candidate = lambda audio, debug=False: {
+            "text": "hello from faster whisper",
+            "language": "en",
+            "language_probability": 0.83,
+            "elapsed": 0.31,
+            "forced_language": "",
+            "path": "primary",
+            "engine": "faster_whisper",
+        }
 
         result = FasterWhisperInputBackend.transcribe(
             backend,
@@ -61,9 +67,17 @@ class STTContractAlignmentTests(unittest.TestCase):
         self.assertIsInstance(result, TranscriptResult)
         assert result is not None
         self.assertEqual(result.text, "hello from faster whisper")
+        self.assertEqual(result.language, "en")
+        self.assertAlmostEqual(result.confidence, 0.83)
         self.assertEqual(result.source, InputSource.VOICE)
         self.assertEqual(result.metadata["mode"], "conversation")
         self.assertEqual(result.metadata["backend_label"], "faster_whisper")
+        self.assertEqual(result.metadata["detected_language"], "en")
+        self.assertAlmostEqual(result.metadata["language_probability"], 0.83)
+        self.assertAlmostEqual(result.metadata["transcription_elapsed_seconds"], 0.31)
+        self.assertEqual(result.metadata["transcription_path"], "primary")
+        self.assertFalse(result.metadata["rescue_used"])
+        self.assertFalse(result.metadata["retry_used"])
         self.assertGreater(result.metadata["audio_duration_seconds"], 0.0)
 
     def test_whisper_cpp_transcribe_returns_transcript_result(self) -> None:

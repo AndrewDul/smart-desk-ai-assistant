@@ -319,12 +319,12 @@ class FasterWhisperInputBackend(
             self.LOGGER.warning("FasterWhisper rich transcribe capture failed: %s", error)
             return None
 
-        transcript = self._transcribe_audio(audio, debug=debug)
-        if transcript is None:
+        candidate = self._transcribe_audio_candidate(audio, debug=debug)
+        if candidate is None:
             return None
 
-        cleaned = self._cleanup_transcript(transcript)
-        if cleaned is None or self._looks_like_blank_or_garbage(cleaned):
+        cleaned = str(candidate.get("text") or "").strip()
+        if not cleaned:
             return None
 
         ended_at = time.monotonic()
@@ -334,18 +334,41 @@ class FasterWhisperInputBackend(
         except Exception:
             audio_duration_seconds = 0.0
 
+        language = str(candidate.get("language") or "auto").strip().lower() or "auto"
+
+        try:
+            language_probability = float(candidate.get("language_probability") or 0.0)
+        except (TypeError, ValueError):
+            language_probability = 0.0
+        language_probability = max(0.0, min(1.0, language_probability))
+
+        try:
+            transcription_elapsed_seconds = float(candidate.get("elapsed") or 0.0)
+        except (TypeError, ValueError):
+            transcription_elapsed_seconds = 0.0
+        transcription_elapsed_seconds = max(0.0, transcription_elapsed_seconds)
+
+        forced_language = str(candidate.get("forced_language") or "").strip().lower()
+        transcription_path = str(candidate.get("path") or "primary").strip().lower() or "primary"
+
         metadata = dict(request.metadata or {})
         metadata.setdefault("mode", mode)
         metadata.setdefault("backend_label", "faster_whisper")
         metadata.setdefault("adapter", "backend_native")
         metadata.setdefault("audio_duration_seconds", audio_duration_seconds)
-
-        language = self.language if str(self.language or "").strip() else "auto"
+        metadata.setdefault("detected_language", language)
+        metadata.setdefault("language_probability", language_probability)
+        metadata.setdefault("transcription_elapsed_seconds", transcription_elapsed_seconds)
+        metadata.setdefault("forced_language", forced_language)
+        metadata.setdefault("transcription_path", transcription_path)
+        metadata.setdefault("rescue_used", transcription_path in {"rescue", "retry_rescue"})
+        metadata.setdefault("retry_used", transcription_path in {"retry", "retry_rescue"})
+        metadata.setdefault("engine", str(candidate.get("engine") or "faster_whisper"))
 
         return TranscriptResult(
             text=cleaned,
             language=language,
-            confidence=0.0,
+            confidence=language_probability,
             is_final=True,
             source=request.source if isinstance(request.source, InputSource) else InputSource.VOICE,
             started_at=started_at,
