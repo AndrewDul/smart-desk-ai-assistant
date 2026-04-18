@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
-from .models import SkillResult
+
 from modules.runtime.contracts import (
     AssistantChunk,
     ChunkKind,
@@ -12,6 +12,8 @@ from modules.runtime.contracts import (
     StreamMode,
     create_turn_id,
 )
+
+from .models import SkillResult
 
 
 class ActionResponseHelpersMixin:

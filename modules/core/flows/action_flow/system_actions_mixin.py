@@ -5,7 +5,7 @@ from typing import Any
 from modules.presentation.status_debug_presenter.service import StatusDebugPresenterService
 from modules.runtime.contracts import RouteDecision, RouteKind
 
-from .models import ResolvedAction
+from .models import ResolvedAction, SkillRequest
 
 
 class ActionSystemActionsMixin:

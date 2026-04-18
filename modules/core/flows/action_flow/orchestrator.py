@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from typing import Any
 import inspect
 from modules.runtime.contracts import (
@@ -213,7 +214,6 @@ class ActionFlowOrchestrator(
                     result=handler_result,
                 )
                 return bool(self._last_skill_result)
-
             try:
                 handler_result = self._invoke_action_handler(
                     handler=handler,
@@ -291,7 +291,31 @@ class ActionFlowOrchestrator(
 
         return handler(**kwargs)
 
+    def _invoke_action_handler(
+        self,
+        *,
+        handler: Any,
+        route: RouteDecision,
+        language: str,
+        resolved: ResolvedAction,
+        request: SkillRequest,
+    ) -> Any:
+        kwargs = {
+            "route": route,
+            "language": language,
+            "payload": resolved.payload,
+            "resolved": resolved,
+        }
 
+        try:
+            parameters = inspect.signature(handler).parameters
+        except (TypeError, ValueError):
+            parameters = {}
+
+        if "request" in parameters:
+            kwargs["request"] = request
+
+        return handler(**kwargs)
 
 
     def execute_route_action(self, route: RouteDecision, language: str) -> bool:

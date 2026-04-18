@@ -4,7 +4,7 @@ from typing import Any
 
 from modules.runtime.contracts import RouteDecision
 
-from .models import ResolvedAction
+from .models import ResolvedAction, SkillRequest
 
 
 class ActionMemoryActionsMixin:
