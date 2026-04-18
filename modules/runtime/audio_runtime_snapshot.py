@@ -17,6 +17,7 @@ class AudioRuntimeSnapshot:
     last_capture_handoff: dict[str, Any]
     last_resume_policy: dict[str, Any]
     last_command_window_policy: dict[str, Any]
+    last_session_continuity: dict[str, Any]
     lines: tuple[str, ...]
 
     def to_dict(self) -> dict[str, Any]:
@@ -32,6 +33,7 @@ class AudioRuntimeSnapshot:
             "last_capture_handoff": dict(self.last_capture_handoff),
             "last_resume_policy": dict(self.last_resume_policy),
             "last_command_window_policy": dict(self.last_command_window_policy),
+            "last_session_continuity": dict(self.last_session_continuity),
             "lines": list(self.lines),
         }
 
@@ -79,11 +81,16 @@ class AudioRuntimeSnapshotService:
         last_command_window_policy = dict(
             getattr(assistant, "_last_command_window_policy_snapshot", {}) or {}
         )
+        last_session_continuity = dict(
+            getattr(assistant, "_last_session_continuity_snapshot", {}) or {}
+        )
 
         lines = (
             f"phase:{self._token(interaction_phase, 14)} owner:{self._token(input_owner, 14)}",
             f"resume:{self._token(last_resume_policy.get('action', 'n/a'), 10)} "
             f"cmd:{self._token(last_command_window_policy.get('action', 'n/a'), 10)}",
+            f"cont:{self._token(last_session_continuity.get('action', 'n/a'), 12)} "
+            f"{self._token(last_session_continuity.get('phase', 'n/a'), 10)}",
             f"handoff:{self._token(last_capture_handoff.get('applied_owner', 'n/a'), 14)}",
             f"win:{active_window_remaining_seconds:.2f}s state:{self._token(state, 12)}",
         )
@@ -100,6 +107,7 @@ class AudioRuntimeSnapshotService:
             last_capture_handoff=last_capture_handoff,
             last_resume_policy=last_resume_policy,
             last_command_window_policy=last_command_window_policy,
+            last_session_continuity=last_session_continuity,
             lines=lines,
         )
         return payload.to_dict()

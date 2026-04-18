@@ -34,6 +34,13 @@ class _AssistantProbe:
             "action": "retry",
             "reason": "empty_capture",
         }
+        self._last_session_continuity_snapshot = {
+            "action": "grace",
+            "phase": "grace",
+            "reason": "response_delivered",
+            "detail": "grace_after_response",
+            "window_seconds": 2.5,
+        }
 
 
 class AudioRuntimeSnapshotServiceTests(unittest.TestCase):
@@ -52,8 +59,10 @@ class AudioRuntimeSnapshotServiceTests(unittest.TestCase):
         self.assertEqual(snapshot["last_capture_handoff"]["applied_owner"], "voice_input")
         self.assertEqual(snapshot["last_resume_policy"]["action"], "grace")
         self.assertEqual(snapshot["last_command_window_policy"]["action"], "retry")
+        self.assertEqual(snapshot["last_session_continuity"]["action"], "grace")
         self.assertTrue(snapshot["lines"])
         self.assertIn("phase:command", snapshot["lines"][0])
+        self.assertIn("cont:grace", snapshot["lines"][2])
 
 
 if __name__ == "__main__":

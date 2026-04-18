@@ -277,6 +277,14 @@ def _return_to_wake_gate(
     state_flags.clear_prefetched_command()
     state_flags.arm_wake_rearm(WAKE_REARM_SETTLE_SECONDS)
     _set_active_phase(state_flags, PHASE_COMMAND)
+    _store_session_continuity_snapshot(
+        assistant,
+        action="standby",
+        phase=VOICE_PHASE_WAKE_GATE,
+        reason=reason,
+        detail=reason,
+        window_seconds=0.0,
+    )
 
 
 def _wake_rearm_remaining_seconds(state_flags: MainLoopRuntimeState) -> float:
@@ -608,26 +616,70 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
     return cleaned or None
 
 
+def _store_session_continuity_snapshot(
+    assistant: CoreAssistant,
+    *,
+    action: str,
+    phase: str,
+    reason: str,
+    detail: str,
+    window_seconds: float,
+) -> None:
+    resume_snapshot = dict(getattr(assistant, "_last_resume_policy_snapshot", {}) or {})
+    command_snapshot = dict(getattr(assistant, "_last_command_window_policy_snapshot", {}) or {})
+
+    assistant._last_session_continuity_snapshot = {
+        "action": str(action or "").strip(),
+        "phase": str(phase or "").strip(),
+        "reason": str(reason or "").strip(),
+        "detail": str(detail or "").strip(),
+        "window_seconds": max(0.0, float(window_seconds or 0.0)),
+        "pending_kind": str(resume_snapshot.get("pending_kind", "") or "").strip(),
+        "pending_type": str(resume_snapshot.get("pending_type", "") or "").strip(),
+        "pending_language": str(resume_snapshot.get("pending_language", "") or "").strip().lower(),
+        "resume_policy": resume_snapshot,
+        "command_window_policy": command_snapshot,
+    }
+
+
 def _start_follow_up_window(assistant: CoreAssistant, state_flags: MainLoopRuntimeState) -> None:
+    window_seconds = _follow_up_window_seconds(assistant)
     assistant.voice_session.open_active_window(
-        seconds=_follow_up_window_seconds(assistant),
+        seconds=window_seconds,
         phase=VOICE_PHASE_FOLLOW_UP,
         input_owner=VOICE_INPUT_OWNER_VOICE_INPUT,
         detail="awaiting_follow_up",
     )
     _set_active_phase(state_flags, PHASE_FOLLOW_UP)
     state_flags.hide_standby_banner()
+    _store_session_continuity_snapshot(
+        assistant,
+        action="follow_up",
+        phase=PHASE_FOLLOW_UP,
+        reason=str(getattr(assistant, "_last_resume_policy_snapshot", {}).get("reason", "") or "pending_follow_up"),
+        detail="awaiting_follow_up",
+        window_seconds=window_seconds,
+    )
 
 
 def _start_grace_window(assistant: CoreAssistant, state_flags: MainLoopRuntimeState) -> None:
+    window_seconds = _grace_window_seconds(assistant)
     assistant.voice_session.open_active_window(
-        seconds=_grace_window_seconds(assistant),
+        seconds=window_seconds,
         phase=VOICE_PHASE_GRACE,
         input_owner=VOICE_INPUT_OWNER_VOICE_INPUT,
         detail="grace_after_response",
     )
     _set_active_phase(state_flags, PHASE_GRACE)
     state_flags.hide_standby_banner()
+    _store_session_continuity_snapshot(
+        assistant,
+        action="grace",
+        phase=PHASE_GRACE,
+        reason=str(getattr(assistant, "_last_resume_policy_snapshot", {}).get("reason", "") or "response_delivered"),
+        detail="grace_after_response",
+        window_seconds=window_seconds,
+    )
 
 
 def _rearm_after_command(assistant: CoreAssistant, state_flags: MainLoopRuntimeState) -> None:
@@ -689,15 +741,28 @@ def _handle_ignored_active_transcript(assistant: CoreAssistant, state_flags: Mai
     _return_to_wake_gate(assistant, state_flags, reason=decision.reason or f"{phase}_ignored_transcript")
     return False
 
-
 def _prime_command_window_after_wake(assistant: CoreAssistant, state_flags: MainLoopRuntimeState) -> None:
     _wait_for_input_ready(assistant)
     decision = _COMMAND_WINDOW_POLICY_SERVICE.initial_window_decision(assistant)
+
+    window_seconds = float(getattr(decision, "window_seconds", 0.0) or 0.0)
+    detail = str(getattr(decision, "detail", "") or "awaiting_command_after_wake")
+    reason = str(getattr(decision, "reason", "") or "wake_accepted")
+
     assistant.voice_session.open_active_window(
-        seconds=decision.window_seconds,
+        seconds=window_seconds,
         phase=VOICE_PHASE_COMMAND,
         input_owner=VOICE_INPUT_OWNER_VOICE_INPUT,
-        detail=decision.detail or "awaiting_command_after_wake",
+        detail=detail,
     )
     _set_active_phase(state_flags, PHASE_COMMAND)
     state_flags.hide_standby_banner()
+
+    _store_session_continuity_snapshot(
+        assistant,
+        action="command_window_open",
+        phase=PHASE_COMMAND,
+        reason=reason,
+        detail=detail,
+        window_seconds=window_seconds,
+    )

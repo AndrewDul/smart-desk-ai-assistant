@@ -18,6 +18,9 @@ class ResumeWindowDecision:
     full_text_chars: int
     route_kind: str = ""
     response_source: str = ""
+    pending_kind: str = ""
+    pending_type: str = ""
+    pending_language: str = ""
 
 
 class ResumePolicyService:
@@ -42,19 +45,20 @@ class ResumePolicyService:
             self._store_last_decision(assistant, decision)
             return decision
 
-        follow_up_required = bool(
-            getattr(assistant, "pending_confirmation", None)
-            or getattr(assistant, "pending_follow_up", None)
-        )
+        pending_kind, pending_type, pending_language = self._pending_context(assistant)
+        follow_up_required = bool(pending_kind)
         if follow_up_required:
             decision = ResumeWindowDecision(
                 action="follow_up",
-                reason="pending_follow_up",
+                reason="pending_confirmation" if pending_kind == "confirmation" else "pending_follow_up",
                 response_delivered=self._response_delivered(assistant),
                 follow_up_required=True,
                 full_text_chars=self._full_text_chars(assistant),
                 route_kind=self._route_kind(assistant),
                 response_source=self._response_source(assistant),
+                pending_kind=pending_kind,
+                pending_type=pending_type,
+                pending_language=pending_language,
             )
             self._store_last_decision(assistant, decision)
             return decision
@@ -85,6 +89,22 @@ class ResumePolicyService:
         )
         self._store_last_decision(assistant, decision)
         return decision
+
+    def _pending_context(self, assistant: CoreAssistant) -> tuple[str, str, str]:
+        pending_confirmation = getattr(assistant, "pending_confirmation", None)
+        if pending_confirmation:
+            language = str(pending_confirmation.get("language", "") or "").strip().lower()
+            return "confirmation", "suggestion_confirmation", language
+
+        pending_follow_up = getattr(assistant, "pending_follow_up", None)
+        if isinstance(pending_follow_up, dict) and pending_follow_up:
+            pending_type = str(pending_follow_up.get("type", "") or "").strip()
+            language = str(
+                pending_follow_up.get("lang", pending_follow_up.get("language", "")) or ""
+            ).strip().lower()
+            return "follow_up", pending_type, language
+
+        return "", "", ""
 
     def _response_snapshot(self, assistant: CoreAssistant) -> dict[str, Any]:
         snapshot = getattr(assistant, "_last_response_delivery_snapshot", None)
@@ -122,6 +142,9 @@ class ResumePolicyService:
             "full_text_chars": decision.full_text_chars,
             "route_kind": decision.route_kind,
             "response_source": decision.response_source,
+            "pending_kind": decision.pending_kind,
+            "pending_type": decision.pending_type,
+            "pending_language": decision.pending_language,
         }
 
         benchmark_service = getattr(assistant, "turn_benchmark_service", None)
@@ -140,7 +163,9 @@ class ResumePolicyService:
             f"follow_up_required={decision.follow_up_required}, "
             f"chars={decision.full_text_chars}, "
             f"route_kind={decision.route_kind or '-'}, "
-            f"source={decision.response_source or '-'}"
+            f"source={decision.response_source or '-'}, "
+            f"pending_kind={decision.pending_kind or '-'}, "
+            f"pending_type={decision.pending_type or '-'}"
         )
 
 

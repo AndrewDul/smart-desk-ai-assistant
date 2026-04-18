@@ -57,7 +57,7 @@ class ResumePolicyServiceTests(unittest.TestCase):
 
     def test_follow_up_wins_when_pending_follow_up_exists(self) -> None:
         assistant = _AssistantProbe()
-        assistant.pending_follow_up = {"topic": "timer"}
+        assistant.pending_follow_up = {"type": "capture_name", "lang": "en"}
         assistant._last_response_delivery_snapshot = {
             "delivered": True,
             "full_text_chars": 24,
@@ -70,11 +70,32 @@ class ResumePolicyServiceTests(unittest.TestCase):
         self.assertEqual(decision.action, "follow_up")
         self.assertEqual(decision.reason, "pending_follow_up")
         self.assertTrue(decision.follow_up_required)
+        self.assertEqual(decision.pending_kind, "follow_up")
+        self.assertEqual(decision.pending_type, "capture_name")
+        self.assertEqual(decision.pending_language, "en")
         self.assertEqual(assistant._last_resume_policy_snapshot["action"], "follow_up")
         self.assertEqual(
             assistant.turn_benchmark_service.calls[-1]["resume_policy"]["action"],
             "follow_up",
         )
+
+    def test_follow_up_uses_confirmation_reason_when_pending_confirmation_exists(self) -> None:
+        assistant = _AssistantProbe()
+        assistant.pending_confirmation = {"language": "pl"}
+        assistant._last_response_delivery_snapshot = {
+            "delivered": True,
+            "full_text_chars": 12,
+            "route_kind": "action",
+            "source": "action_flow",
+        }
+
+        decision = self.service.decide(assistant)
+
+        self.assertEqual(decision.action, "follow_up")
+        self.assertEqual(decision.reason, "pending_confirmation")
+        self.assertEqual(decision.pending_kind, "confirmation")
+        self.assertEqual(decision.pending_type, "suggestion_confirmation")
+        self.assertEqual(decision.pending_language, "pl")
 
     def test_grace_used_after_delivered_response_without_pending_follow_up(self) -> None:
         assistant = _AssistantProbe()
