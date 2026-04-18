@@ -13,6 +13,13 @@ from modules.runtime.contracts import (
     create_turn_id,
 )
 
+from .builders import (
+    ActionFollowUpPromptSpec,
+    ActionResponseSpec,
+    MemorySkillResponseBuilder,
+    ReminderSkillResponseBuilder,
+    TimerSkillResponseBuilder,
+)
 from .models import SkillResult
 
 
@@ -174,6 +181,39 @@ class ActionResponseHelpersMixin:
             status=str(status or "accepted").strip() or "accepted",
             metadata=metadata,
         )
+
+
+    def _deliver_action_response_spec(
+        self,
+        *,
+        language: str,
+        spec: ActionResponseSpec,
+    ) -> bool:
+        return self._deliver_simple_action_response(
+            language=language,
+            action=spec.action,
+            spoken_text=spec.spoken_text,
+            display_title=spec.display_title,
+            display_lines=list(spec.display_lines or []),
+            extra_metadata=dict(spec.extra_metadata or {}),
+            chunk_kind=spec.chunk_kind,
+        )
+
+    def _deliver_action_follow_up_prompt_spec(
+        self,
+        *,
+        language: str,
+        spec: ActionFollowUpPromptSpec,
+    ) -> SkillResult:
+        return self._deliver_action_follow_up_prompt(
+            language=language,
+            action=spec.action,
+            spoken_text=spec.spoken_text,
+            source=spec.source,
+            follow_up_type=spec.follow_up_type,
+            extra_metadata=dict(spec.extra_metadata or {}),
+        )
+
 
     def _deliver_action_follow_up_prompt(
         self,
@@ -456,6 +496,48 @@ class ActionResponseHelpersMixin:
                 suggestion["payload"] = dict(payload)
             coerced.append(suggestion)
         return coerced
+
+
+    def _get_timer_response_builder(self) -> TimerSkillResponseBuilder:
+        builder = getattr(self, "_timer_response_builder", None)
+        if builder is None:
+            builder = TimerSkillResponseBuilder(
+                localize_text=self._localized,
+                localize_lines=self._localized_lines,
+                display_lines=self._display_lines,
+                trim_text=self._trim_text,
+                duration_text=self._duration_text,
+            )
+            self._timer_response_builder = builder
+        return builder
+
+    def _get_memory_response_builder(self) -> MemorySkillResponseBuilder:
+        builder = getattr(self, "_memory_response_builder", None)
+        if builder is None:
+            builder = MemorySkillResponseBuilder(
+                localize_text=self._localized,
+                localize_lines=self._localized_lines,
+                display_lines=self._display_lines,
+                trim_text=self._trim_text,
+                duration_text=self._duration_text,
+            )
+            self._memory_response_builder = builder
+        return builder
+
+    def _get_reminder_response_builder(self) -> ReminderSkillResponseBuilder:
+        builder = getattr(self, "_reminder_response_builder", None)
+        if builder is None:
+            builder = ReminderSkillResponseBuilder(
+                localize_text=self._localized,
+                localize_lines=self._localized_lines,
+                display_lines=self._display_lines,
+                trim_text=self._trim_text,
+                duration_text=self._duration_text,
+            )
+            self._reminder_response_builder = builder
+        return builder
+
+
 
     def _action_label(
         self,

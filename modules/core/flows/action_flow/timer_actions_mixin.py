@@ -95,23 +95,15 @@ class ActionTimerActionsMixin:
                 },
             )
 
-        error_text = outcome.message or self._localized(
-            language,
-            "Nie ma teraz aktywnego timera.",
-            "There is no active timer right now.",
-        )
-        return self._deliver_simple_action_response(
+        spec = self._get_timer_response_builder().build_stop_failure(
             language=language,
             action="timer_stop",
-            spoken_text=error_text,
-            display_title="TIMER",
-            display_lines=self._display_lines(error_text),
-            extra_metadata={
-                **dict(outcome.metadata or {}),
-                "resolved_source": resolved.source,
-                "phase": outcome.status or "stop_failed",
-            },
+            outcome_message=outcome.message,
+            resolved_source=resolved.source,
+            phase=outcome.status or "stop_failed",
+            metadata=dict(outcome.metadata or {}),
         )
+        return self._deliver_action_response_spec(language=language, spec=spec)
 
     def _start_timer_mode(
         self,
@@ -138,22 +130,14 @@ class ActionTimerActionsMixin:
                 },
             )
 
-        error_text = outcome.message or self._localized(
-            language,
-            "Nie mogę teraz uruchomić timera.",
-            "I cannot start the timer right now.",
-        )
-        return self._deliver_simple_action_response(
+        spec = self._get_timer_response_builder().build_start_failure(
             language=language,
             action=f"{mode}_start",
-            spoken_text=error_text,
-            display_title="TIMER",
-            display_lines=self._display_lines(error_text),
-            extra_metadata={
-                **dict(outcome.metadata or {}),
-                "resolved_source": resolved.source,
-                "phase": outcome.status or "start_failed",
-                "minutes": float(minutes),
-                "mode": mode,
-            },
+            outcome_message=outcome.message,
+            resolved_source=resolved.source,
+            phase=outcome.status or "start_failed",
+            minutes=float(minutes),
+            mode=mode,
+            metadata=dict(outcome.metadata or {}),
         )
+        return self._deliver_action_response_spec(language=language, spec=spec)
