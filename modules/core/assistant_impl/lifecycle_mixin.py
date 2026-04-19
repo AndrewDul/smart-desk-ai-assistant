@@ -7,6 +7,7 @@ from modules.core.session.voice_session import (
     VOICE_STATE_SHUTDOWN,
     VOICE_STATE_STANDBY,
 )
+from modules.runtime.startup_gate import StartupGateService
 from modules.shared.logging.logger import append_log, log_exception
 
 
@@ -121,7 +122,7 @@ class CoreAssistantLifecycleMixin:
             return
 
         self._runtime_startup_snapshot = dict(snapshot or {}) if isinstance(snapshot, dict) else {}
-        self._boot_report_ok = bool(self._runtime_startup_snapshot.get("ready", False))
+        self._boot_report_ok = StartupGateService().is_boot_ready(self._runtime_startup_snapshot)
 
         llm_snapshot = dict(warmup_result or {})
         llm_health = dict(llm_snapshot.get("snapshot", {}) or {})
@@ -203,14 +204,9 @@ class CoreAssistantLifecycleMixin:
             },
         )
 
-        if self._boot_report_ok:
-            self._mark_runtime_state("mark_ready", "assistant boot completed")
-        else:
-            snapshot = self._runtime_status_snapshot()
-            reason = str(
-                snapshot.get("status_message", "") or "assistant boot completed in degraded mode"
-            ).strip()
-            self._mark_runtime_state("mark_degraded", reason)
+        snapshot = self._runtime_status_snapshot()
+        lifecycle_decision = StartupGateService().decide_post_boot_lifecycle(snapshot)
+        self._mark_runtime_state(lifecycle_decision.method_name, lifecycle_decision.reason)
 
         self.voice_session.set_state(VOICE_STATE_STANDBY, detail="startup_complete")
         self._refresh_developer_overlay(reason="boot")

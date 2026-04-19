@@ -6,6 +6,7 @@ import subprocess
 from typing import TYPE_CHECKING, Any
 
 from modules.runtime.health import RuntimeHealthChecker
+from modules.runtime.startup_gate import StartupGateService
 from modules.shared.logging.logger import append_log
 
 from .backend_helpers import (
@@ -17,6 +18,21 @@ from .backend_helpers import (
 
 if TYPE_CHECKING:
     from modules.core.assistant import CoreAssistant
+
+
+def _mark_runtime_failed(assistant: CoreAssistant, reason: str) -> None:
+    runtime_product = getattr(assistant, "runtime_product", None)
+    if runtime_product is None:
+        return
+
+    mark_failed = getattr(runtime_product, "mark_failed", None)
+    if not callable(mark_failed):
+        return
+
+    try:
+        mark_failed(reason=reason)
+    except Exception as error:
+        append_log(f"Runtime product mark_failed failed: {error}")
 
 
 def _collect_runtime_warnings(assistant: CoreAssistant) -> list[str]:
@@ -206,32 +222,37 @@ def _run_startup_sequence(assistant: CoreAssistant) -> None:
         runtime_warnings=runtime_warnings,
     )
 
+    startup_gate_service = StartupGateService()
+
     assistant._runtime_startup_allowed = bool(report.startup_allowed)
     assistant._runtime_startup_runtime_warnings = list(runtime_warnings)
     assistant._runtime_startup_snapshot = runtime_snapshot
-    assistant._boot_report_ok = bool(
-        runtime_snapshot.get("ready", report.startup_allowed and not runtime_warnings)
-    )
+    assistant._boot_report_ok = startup_gate_service.is_boot_ready(runtime_snapshot)
 
     _log_startup_summary(report, assistant, runtime_warnings, runtime_snapshot)
 
     runtime_mode = str(os.getenv("NEXA_RUNTIME_MODE", "") or "").strip().lower()
-    blockers = [
-        str(item).strip()
-        for item in runtime_snapshot.get("blockers", [])
-        if str(item).strip()
-    ]
+    gate_decision = startup_gate_service.decide_startup_gate(
+        snapshot=runtime_snapshot,
+        runtime_mode=runtime_mode,
+        startup_allowed_default=bool(report.startup_allowed),
+    )
+    assistant._runtime_startup_gate = gate_decision.to_dict()
 
-    if runtime_mode == "systemd" and blockers:
-        blocker_text = ", ".join(blockers)
-        append_log(
-            "Systemd startup aborted because required runtime components are unavailable: "
-            f"{blocker_text}"
-        )
-        raise RuntimeError(
-            "Required runtime components unavailable during systemd startup: "
-            f"{blocker_text}"
-        )
+    append_log(
+        "Startup gate decision: "
+        f"mode={gate_decision.runtime_mode}, "
+        f"startup_allowed={gate_decision.startup_allowed}, "
+        f"primary_ready={gate_decision.primary_ready}, "
+        f"premium_ready={gate_decision.premium_ready}, "
+        f"abort={gate_decision.abort_startup}, "
+        f"reason={gate_decision.reason}"
+    )
+
+    if gate_decision.abort_startup:
+        _mark_runtime_failed(assistant, gate_decision.reason)
+        append_log(f"Startup aborted by startup gate: {gate_decision.reason}")
+        raise RuntimeError(gate_decision.reason)
 
     assistant.boot()
 

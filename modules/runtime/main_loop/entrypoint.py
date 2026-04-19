@@ -29,9 +29,20 @@ def _mark_runtime_state(assistant: CoreAssistant, method_name: str, reason: str)
 
 
 def main() -> None:
-    assistant = CoreAssistant()
-    _run_startup_sequence(assistant)
-    _log_runtime_mode(assistant)
+    assistant: CoreAssistant | None = None
+
+    try:
+        assistant = CoreAssistant()
+        _run_startup_sequence(assistant)
+        _log_runtime_mode(assistant)
+    except Exception as startup_error:
+        append_log(f"Fatal startup error: {startup_error}")
+        append_log(traceback.format_exc())
+        if assistant is not None:
+            _mark_runtime_state(assistant, "mark_failed", f"startup error: {startup_error}")
+        print("\nFatal startup error:")
+        traceback.print_exc()
+        return
 
     gate_log_times: dict[str, float] = {}
     state_flags = build_main_loop_state_flags()
