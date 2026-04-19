@@ -226,10 +226,10 @@ class SystemdDeploymentService:
 
     def describe_remaining_scope(self) -> list[str]:
         return [
-            "real Raspberry Pi deployment verification with generated systemd units",
-            "acceptance run on hardware and latency tuning based on benchmark data",
-            "operational docs: install, update, rollback, logs, recovery",
-            "final production checklist for LLM backend, audio devices, and boot behavior",
+            "premium validation on Raspberry Pi under real desk conditions",
+            "latency benchmarks for wake, built-in commands, and first spoken sentence",
+            "stress testing for uptime, audio stability, and repeated interactions",
+            "release checklist for premium voice UX and production readiness",
         ]
 
     def _build_app_unit_spec(self) -> SystemdUnitSpec:
