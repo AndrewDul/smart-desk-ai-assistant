@@ -5,20 +5,25 @@ import os
 import shlex
 import shutil
 import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from modules.shared.config.settings import load_settings
-from modules.shared.persistence.paths import (
-    APP_ROOT,
-    ensure_runtime_directories,
-)
+from modules.shared.persistence.paths import APP_ROOT, ensure_runtime_directories
 
-from .models import DeploymentRenderResult, SystemdUnitSpec
+from .models import (
+    DeploymentBackupRecord,
+    DeploymentInstallResult,
+    DeploymentRenderResult,
+    DeploymentRollbackResult,
+    DeploymentUninstallResult,
+    SystemdUnitSpec,
+)
 
 
 class SystemdDeploymentService:
-    """Render and optionally install systemd units for NeXa."""
+    """Render, install, rollback and remove systemd units for NeXa."""
 
     def __init__(self, settings: dict[str, Any] | None = None) -> None:
         self.settings = settings or load_settings()
@@ -41,10 +46,7 @@ class SystemdDeploymentService:
         if llm_spec is not None:
             rendered_units[llm_spec.unit_name] = self._render_unit_text(llm_spec)
 
-        unit_paths = {
-            name: str((output_dir / name).resolve())
-            for name in rendered_units
-        }
+        unit_paths = {name: str((output_dir / name).resolve()) for name in rendered_units}
         return DeploymentRenderResult(
             output_dir=str(output_dir),
             rendered_units=rendered_units,
@@ -69,15 +71,37 @@ class SystemdDeploymentService:
         system_dir: str = "/etc/systemd/system",
         enable: bool = True,
         start: bool = False,
-    ) -> DeploymentRenderResult:
+        backup_existing: bool = True,
+        backup_dir: str | None = None,
+    ) -> DeploymentInstallResult:
         result = self.write_units()
         target_dir = Path(system_dir).expanduser().resolve()
         target_dir.mkdir(parents=True, exist_ok=True)
 
-        for unit_name in result.rendered_units:
+        installed_unit_paths: dict[str, str] = {}
+        backup_records: list[DeploymentBackupRecord] = []
+        backup_session_dir: Path | None = None
+
+        for unit_name in self._ordered_unit_names(result):
             source_path = Path(result.unit_paths[unit_name]).resolve()
             target_path = (target_dir / unit_name).resolve()
+
+            if backup_existing and target_path.exists():
+                if backup_session_dir is None:
+                    backup_session_dir = self._prepare_backup_dir(backup_dir)
+                backup_path = (backup_session_dir / unit_name).resolve()
+                backup_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(target_path, backup_path)
+                backup_records.append(
+                    DeploymentBackupRecord(
+                        unit_name=unit_name,
+                        source_path=str(target_path),
+                        backup_path=str(backup_path),
+                    )
+                )
+
             shutil.copy2(source_path, target_path)
+            installed_unit_paths[unit_name] = str(target_path)
 
         self._systemctl(["daemon-reload"])
 
@@ -90,7 +114,115 @@ class SystemdDeploymentService:
             for unit_name in ordered_units:
                 self._systemctl(["restart", unit_name])
 
-        return result
+        return DeploymentInstallResult(
+            output_dir=result.output_dir,
+            rendered_units=dict(result.rendered_units),
+            unit_paths=dict(result.unit_paths),
+            llm_unit_enabled=result.llm_unit_enabled,
+            system_dir=str(target_dir),
+            installed_unit_paths=installed_unit_paths,
+            backup_dir=str(backup_session_dir) if backup_session_dir is not None else "",
+            backup_records=backup_records,
+        )
+
+    def rollback_units(
+        self,
+        *,
+        system_dir: str = "/etc/systemd/system",
+        backup_dir: str,
+        enable: bool = True,
+        start: bool = False,
+        remove_units_not_in_backup: bool = True,
+    ) -> DeploymentRollbackResult:
+        target_dir = Path(system_dir).expanduser().resolve()
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        backup_path = Path(backup_dir).expanduser().resolve()
+        if not backup_path.exists() or not backup_path.is_dir():
+            raise FileNotFoundError(f"Systemd backup directory not found: {backup_path}")
+
+        configured_units = self._configured_unit_names(include_llm=True)
+        restored_unit_paths: dict[str, str] = {}
+        removed_unit_paths: list[str] = []
+
+        for unit_name in configured_units:
+            source_path = (backup_path / unit_name).resolve()
+            target_path = (target_dir / unit_name).resolve()
+
+            if source_path.exists():
+                shutil.copy2(source_path, target_path)
+                restored_unit_paths[unit_name] = str(target_path)
+                continue
+
+            if remove_units_not_in_backup and target_path.exists():
+                target_path.unlink()
+                removed_unit_paths.append(str(target_path))
+
+        self._systemctl(["daemon-reload"])
+
+        ordered_restored_units = [
+            unit_name for unit_name in self._ordered_configured_unit_names() if unit_name in restored_unit_paths
+        ]
+        if enable:
+            for unit_name in ordered_restored_units:
+                self._systemctl(["enable", unit_name])
+
+        if start:
+            for unit_name in ordered_restored_units:
+                self._systemctl(["restart", unit_name])
+
+        return DeploymentRollbackResult(
+            system_dir=str(target_dir),
+            backup_dir=str(backup_path),
+            restored_unit_paths=restored_unit_paths,
+            removed_unit_paths=removed_unit_paths,
+            restored_unit_names=ordered_restored_units,
+        )
+
+    def uninstall_units(
+        self,
+        *,
+        system_dir: str = "/etc/systemd/system",
+        disable: bool = True,
+        stop: bool = True,
+    ) -> DeploymentUninstallResult:
+        target_dir = Path(system_dir).expanduser().resolve()
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        ordered_units = self._ordered_configured_unit_names()
+        stop_disable_order = list(reversed(ordered_units))
+
+        stopped_unit_names: list[str] = []
+        if stop:
+            for unit_name in stop_disable_order:
+                self._systemctl(["stop", unit_name])
+                stopped_unit_names.append(unit_name)
+
+        disabled_unit_names: list[str] = []
+        if disable:
+            for unit_name in stop_disable_order:
+                self._systemctl(["disable", unit_name])
+                disabled_unit_names.append(unit_name)
+
+        removed_unit_paths: list[str] = []
+        missing_unit_names: list[str] = []
+        for unit_name in ordered_units:
+            target_path = (target_dir / unit_name).resolve()
+            if target_path.exists():
+                target_path.unlink()
+                removed_unit_paths.append(str(target_path))
+            else:
+                missing_unit_names.append(unit_name)
+
+        self._systemctl(["daemon-reload"])
+
+        return DeploymentUninstallResult(
+            system_dir=str(target_dir),
+            removed_unit_paths=removed_unit_paths,
+            missing_unit_names=missing_unit_names,
+            stopped_unit_names=stopped_unit_names,
+            disabled_unit_names=disabled_unit_names,
+        )
 
     def describe_remaining_scope(self) -> list[str]:
         return [
@@ -228,10 +360,36 @@ class SystemdDeploymentService:
 
         return ordered
 
+    def _ordered_configured_unit_names(self) -> list[str]:
+        unit_names = self._configured_unit_names(include_llm=True)
+        llm_unit_name = self._cfg_text("llm_unit_name", default="nexa-llm.service")
+        app_unit_name = self._cfg_text("app_unit_name", default="nexa.service")
+        ordered: list[str] = []
+
+        for item in (llm_unit_name, app_unit_name):
+            if item in unit_names and item not in ordered:
+                ordered.append(item)
+
+        for item in unit_names:
+            if item not in ordered:
+                ordered.append(item)
+
+        return ordered
+
+    def _configured_unit_names(self, *, include_llm: bool) -> list[str]:
+        unit_names = [self._cfg_text("app_unit_name", default="nexa.service")]
+        if include_llm:
+            unit_names.append(self._cfg_text("llm_unit_name", default="nexa-llm.service"))
+
+        ordered: list[str] = []
+        for item in unit_names:
+            cleaned = str(item or "").strip()
+            if cleaned and cleaned not in ordered:
+                ordered.append(cleaned)
+        return ordered
+
     def _resolve_output_dir(self) -> Path:
-        resolved = self._resolve_project_path(
-            self._cfg_text("unit_output_dir", default="deploy/systemd")
-        )
+        resolved = self._resolve_project_path(self._cfg_text("unit_output_dir", default="deploy/systemd"))
         if resolved is None:
             return (self.project_root / "deploy" / "systemd").resolve()
         return resolved
@@ -241,7 +399,7 @@ class SystemdDeploymentService:
         candidate = Path(configured).expanduser()
 
         if not candidate.is_absolute():
-            candidate = (self.project_root / candidate)
+            candidate = self.project_root / candidate
 
         if candidate.exists():
             return str(candidate)
@@ -264,6 +422,18 @@ class SystemdDeploymentService:
             return candidate.resolve()
 
         return (self.project_root / candidate).resolve()
+
+    def _default_backup_root(self) -> Path:
+        return (self.project_root / "deploy" / "systemd-backups").resolve()
+
+    def _prepare_backup_dir(self, configured_backup_dir: str | None) -> Path:
+        base_dir = self._resolve_project_path(configured_backup_dir) if configured_backup_dir else self._default_backup_root()
+        assert base_dir is not None
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        backup_dir = (base_dir / timestamp).resolve()
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        return backup_dir
+
     def _default_service_user(self) -> str:
         explicit = str(self.deployment_cfg.get("user", "") or "").strip()
         if explicit:
@@ -283,7 +453,7 @@ class SystemdDeploymentService:
         if explicit:
             return explicit
         return str(user_name or "").strip()
-    
+
     def _cfg_command(self, key: str) -> list[str]:
         value = self.deployment_cfg.get(key, [])
         if isinstance(value, list):

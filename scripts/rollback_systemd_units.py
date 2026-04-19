@@ -6,12 +6,12 @@ import sys
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Install NeXa systemd units.")
+    parser = argparse.ArgumentParser(description="Rollback NeXa systemd units from a backup directory.")
+    parser.add_argument("backup_dir")
     parser.add_argument("--system-dir", default="/etc/systemd/system")
     parser.add_argument("--no-enable", action="store_true")
     parser.add_argument("--start", action="store_true")
-    parser.add_argument("--no-backup", action="store_true")
-    parser.add_argument("--backup-dir", default="")
+    parser.add_argument("--keep-extra-units", action="store_true")
     args = parser.parse_args()
 
     project_root = pathlib.Path(__file__).resolve().parents[1]
@@ -20,20 +20,19 @@ def main() -> int:
     from modules.system.deployment import SystemdDeploymentService
 
     service = SystemdDeploymentService()
-    result = service.install_units(
+    result = service.rollback_units(
         system_dir=args.system_dir,
+        backup_dir=args.backup_dir,
         enable=not args.no_enable,
         start=args.start,
-        backup_existing=not args.no_backup,
-        backup_dir=args.backup_dir or None,
+        remove_units_not_in_backup=not args.keep_extra_units,
     )
 
-    print(f"Installed systemd units into: {args.system_dir}")
-    for unit_name in sorted(result.rendered_units):
-        print(f"- {unit_name}")
-
-    if result.backup_dir:
-        print(f"Backup created in: {result.backup_dir}")
+    print(f"Rolled back systemd units in: {args.system_dir}")
+    for unit_name in result.restored_unit_names:
+        print(f"- restored: {unit_name}")
+    for path in result.removed_unit_paths:
+        print(f"- removed: {path}")
 
     return 0
 

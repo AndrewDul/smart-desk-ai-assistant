@@ -14,7 +14,7 @@ class TestSystemdDeploymentService(unittest.TestCase):
         self.project_root = Path(self.temp_dir.name)
 
         (self.project_root / "main.py").write_text(
-            "print(\"boot\")\n",
+            'print("boot")\n',
             encoding="utf-8",
         )
 
@@ -147,12 +147,110 @@ class TestSystemdDeploymentService(unittest.TestCase):
             installed_path.read_text(encoding="utf-8"),
             result.rendered_units["nexa.service"],
         )
+        self.assertEqual(result.system_dir, str(install_dir.resolve()))
+        self.assertEqual(result.installed_unit_paths["nexa.service"], str(installed_path.resolve()))
+        self.assertEqual(result.backup_dir, "")
         self.assertEqual(
             calls,
             [
                 ["daemon-reload"],
                 ["enable", "nexa.service"],
                 ["restart", "nexa.service"],
+            ],
+        )
+
+    def test_install_units_creates_backup_before_overwriting_existing_unit(self) -> None:
+        settings = self._base_settings()
+        service = SystemdDeploymentService(settings=settings)
+        service.project_root = self.project_root
+        install_dir = self.project_root / "etc-systemd"
+        install_dir.mkdir(parents=True, exist_ok=True)
+        existing_path = install_dir / "nexa.service"
+        existing_path.write_text("OLD UNIT\n", encoding="utf-8")
+
+        calls: list[list[str]] = []
+
+        with patch("modules.system.deployment.service.getpass.getuser", return_value="tester"):
+            with patch.object(SystemdDeploymentService, "_systemctl", side_effect=lambda args: calls.append(list(args))):
+                result = service.install_units(
+                    system_dir=str(install_dir),
+                    enable=False,
+                    start=False,
+                    backup_existing=True,
+                    backup_dir=str(self.project_root / "deployment-backups"),
+                )
+
+        self.assertTrue(result.backup_dir)
+        self.assertEqual(len(result.backup_records), 1)
+        backup_record = result.backup_records[0]
+        backup_path = Path(backup_record.backup_path)
+        self.assertTrue(backup_path.exists())
+        self.assertEqual(backup_path.read_text(encoding="utf-8"), "OLD UNIT\n")
+        self.assertEqual(calls, [["daemon-reload"]])
+
+    def test_rollback_restores_backup_and_removes_unit_missing_from_backup(self) -> None:
+        settings = self._base_settings()
+        settings["deployment"]["llm_service_enabled"] = True
+        service = SystemdDeploymentService(settings=settings)
+        service.project_root = self.project_root
+
+        install_dir = self.project_root / "etc-systemd"
+        install_dir.mkdir(parents=True, exist_ok=True)
+        backup_dir = self.project_root / "backup-session"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+
+        (backup_dir / "nexa.service").write_text("RESTORED APP\n", encoding="utf-8")
+        (install_dir / "nexa.service").write_text("BROKEN APP\n", encoding="utf-8")
+        (install_dir / "nexa-llm.service").write_text("CURRENT LLM\n", encoding="utf-8")
+
+        calls: list[list[str]] = []
+
+        with patch.object(SystemdDeploymentService, "_systemctl", side_effect=lambda args: calls.append(list(args))):
+            result = service.rollback_units(
+                system_dir=str(install_dir),
+                backup_dir=str(backup_dir),
+                enable=True,
+                start=False,
+                remove_units_not_in_backup=True,
+            )
+
+        self.assertEqual((install_dir / "nexa.service").read_text(encoding="utf-8"), "RESTORED APP\n")
+        self.assertFalse((install_dir / "nexa-llm.service").exists())
+        self.assertEqual(result.restored_unit_names, ["nexa.service"])
+        self.assertEqual(calls, [["daemon-reload"], ["enable", "nexa.service"]])
+
+    def test_uninstall_stops_disables_and_removes_units_in_reverse_dependency_order(self) -> None:
+        settings = self._base_settings()
+        settings["deployment"]["llm_service_enabled"] = True
+        service = SystemdDeploymentService(settings=settings)
+        service.project_root = self.project_root
+
+        install_dir = self.project_root / "etc-systemd"
+        install_dir.mkdir(parents=True, exist_ok=True)
+        (install_dir / "nexa.service").write_text("APP\n", encoding="utf-8")
+        (install_dir / "nexa-llm.service").write_text("LLM\n", encoding="utf-8")
+
+        calls: list[list[str]] = []
+
+        with patch.object(SystemdDeploymentService, "_systemctl", side_effect=lambda args: calls.append(list(args))):
+            result = service.uninstall_units(
+                system_dir=str(install_dir),
+                disable=True,
+                stop=True,
+            )
+
+        self.assertFalse((install_dir / "nexa.service").exists())
+        self.assertFalse((install_dir / "nexa-llm.service").exists())
+        self.assertEqual(result.stopped_unit_names, ["nexa.service", "nexa-llm.service"])
+        self.assertEqual(result.disabled_unit_names, ["nexa.service", "nexa-llm.service"])
+        self.assertEqual(
+            calls,
+            [
+                ["stop", "nexa.service"],
+                ["stop", "nexa-llm.service"],
+                ["disable", "nexa.service"],
+                ["disable", "nexa-llm.service"],
+                ["daemon-reload"],
             ],
         )
 
