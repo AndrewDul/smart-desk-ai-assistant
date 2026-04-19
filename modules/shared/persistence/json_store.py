@@ -82,9 +82,11 @@ class JsonStore(Generic[T]):
         Read JSON safely and return metadata about the operation.
         """
         with self._lock:
+            default_value = self.make_default()
+
             if not self._path.exists():
                 return JsonReadResult(
-                    value=self.make_default(),
+                    value=default_value,
                     exists=False,
                     valid=False,
                     path=self._path,
@@ -95,16 +97,16 @@ class JsonStore(Generic[T]):
                     value = json.load(file)
             except (OSError, json.JSONDecodeError, TypeError, ValueError):
                 return JsonReadResult(
-                    value=self.make_default(),
+                    value=default_value,
                     exists=True,
                     valid=False,
                     path=self._path,
                 )
 
             return JsonReadResult(
-                value=cast_json_value(value, self.make_default()),
+                value=cast_json_value(value, default_value),
                 exists=True,
-                valid=True,
+                valid=matches_default_type(value, default_value),
                 path=self._path,
             )
 
@@ -197,6 +199,29 @@ class JsonStore(Generic[T]):
         return self._path.with_suffix(f"{self._path.suffix}.tmp")
 
 
+
+def matches_default_type(value: Any, default: T) -> bool:
+    """
+    Return True only when the loaded JSON value matches the expected container type.
+
+    This is stricter than JSON parsing validity and lets higher layers repair files
+    that contain syntactically valid JSON but the wrong payload shape.
+    """
+    if isinstance(default, dict):
+        return isinstance(value, dict)
+
+    if isinstance(default, list):
+        return isinstance(value, list)
+
+    if isinstance(default, set):
+        return isinstance(value, set)
+
+    if isinstance(default, tuple):
+        return isinstance(value, tuple)
+
+    return True
+
+
 def cast_json_value(value: Any, default: T) -> T:
     """
     Keep the loaded JSON value only when it matches the default container type.
@@ -239,9 +264,8 @@ def write_json_file(path: str | Path, data: T) -> T:
 
 
 __all__ = [
-    "JsonReadResult",
     "JsonStore",
+    "JsonReadResult",
+    "matches_default_type",
     "cast_json_value",
-    "read_json_file",
-    "write_json_file",
 ]

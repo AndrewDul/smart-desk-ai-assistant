@@ -43,7 +43,7 @@ class MemoryService:
         store: JsonStore[dict[str, str]] | MemoryRepository | None = None,
     ) -> None:
         self.store = store or MemoryRepository()
-        self.store.ensure_exists()
+        self.store.ensure_valid()
 
     # ------------------------------------------------------------------
     # Public API

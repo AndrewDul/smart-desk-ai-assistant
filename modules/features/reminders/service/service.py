@@ -38,7 +38,7 @@ class ReminderService(
         store: JsonStore[list[dict[str, Any]]] | ReminderRepository | None = None,
     ) -> None:
         self.store = store or ReminderRepository()
-        self.store.ensure_exists()
+        self.store.ensure_valid()
 
 
 __all__ = [

@@ -54,7 +54,7 @@ class RuntimeProductService:
         self._snapshot = self._default_snapshot_dict()
 
         if self.persist_enabled:
-            self._snapshot = self._repository.ensure_exists()
+            self._snapshot = self._repository.ensure_valid()
 
     def bind_runtime(self, *, runtime: Any, dialogue: Any | None = None) -> None:
         with self._lock:

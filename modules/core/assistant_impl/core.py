@@ -136,8 +136,8 @@ class CoreAssistant(
             default_user_name=self.default_user_name,
             project_name=self.project_name,
         )
-        self.state = self.state_store.ensure_exists()
-        self.user_profile = self.user_profile_store.ensure_exists()
+        self.state = self.state_store.ensure_valid()
+        self.user_profile = self.user_profile_store.ensure_valid()
 
         self.runtime = RuntimeBuilder(self.settings).build(
             on_timer_started=self._on_timer_started,
