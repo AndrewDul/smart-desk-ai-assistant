@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from modules.shared.persistence.json_store import JsonStore
-from modules.shared.persistence.paths import REMINDERS_PATH
+from modules.shared.persistence.repositories import ReminderRepository
 
 from .helpers import ReminderServiceHelpers
 from .mutations import ReminderServiceMutations
@@ -33,11 +33,11 @@ class ReminderService(
     - acknowledged_at?: str
     """
 
-    def __init__(self, store: JsonStore[list[dict[str, Any]]] | None = None) -> None:
-        self.store = store or JsonStore(
-            path=REMINDERS_PATH,
-            default_factory=list,
-        )
+    def __init__(
+        self,
+        store: JsonStore[list[dict[str, Any]]] | ReminderRepository | None = None,
+    ) -> None:
+        self.store = store or ReminderRepository()
         self.store.ensure_exists()
 
 

@@ -4,11 +4,10 @@ import re
 import unicodedata
 from dataclasses import dataclass
 from difflib import SequenceMatcher
-from typing import Any
 
 from modules.shared.logging.logger import append_log
 from modules.shared.persistence.json_store import JsonStore
-from modules.shared.persistence.paths import MEMORY_PATH
+from modules.shared.persistence.repositories import MemoryRepository
 
 
 @dataclass(slots=True)
@@ -39,11 +38,11 @@ class MemoryService:
     - get_all()
     """
 
-    def __init__(self, store: JsonStore[dict[str, str]] | None = None) -> None:
-        self.store = store or JsonStore(
-            path=MEMORY_PATH,
-            default_factory=dict,
-        )
+    def __init__(
+        self,
+        store: JsonStore[dict[str, str]] | MemoryRepository | None = None,
+    ) -> None:
+        self.store = store or MemoryRepository()
         self.store.ensure_exists()
 
     # ------------------------------------------------------------------

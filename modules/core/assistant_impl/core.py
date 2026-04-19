@@ -25,8 +25,10 @@ from modules.runtime.contracts import StreamMode
 from modules.runtime.product import RuntimeProductService
 from modules.runtime.stt import SpeechRecognitionService
 from modules.shared.config.settings import load_settings
-from modules.shared.persistence.json_store import JsonStore
-from modules.shared.persistence.paths import SESSION_STATE_PATH, USER_PROFILE_PATH
+from modules.shared.persistence.repositories import (
+    SessionStateRepository,
+    UserProfileRepository,
+)
 
 from .helpers_mixin import CoreAssistantHelpersMixin
 from .interaction_mixin import CoreAssistantInteractionMixin
@@ -129,13 +131,10 @@ class CoreAssistant(
             voice_session=self.voice_session,
         )
 
-        self.state_store = JsonStore(
-            path=SESSION_STATE_PATH,
-            default_factory=self._default_state_payload,
-        )
-        self.user_profile_store = JsonStore(
-            path=USER_PROFILE_PATH,
-            default_factory=self._default_user_profile_payload,
+        self.state_store = SessionStateRepository()
+        self.user_profile_store = UserProfileRepository(
+            default_user_name=self.default_user_name,
+            project_name=self.project_name,
         )
         self.state = self.state_store.ensure_exists()
         self.user_profile = self.user_profile_store.ensure_exists()
