@@ -32,12 +32,12 @@ class TestReminderManager(unittest.TestCase):
         self.assertEqual(reminder["message"], "drink water")
 
     def test_message_is_cleaned_in_polish(self) -> None:
-        reminder = self.manager.add_after_seconds(20, "  o zakupach  ")
+        reminder = self.manager.add_after_seconds(seconds=20, message="  o zakupach  ")
 
         self.assertEqual(reminder["message"], "zakupach")
 
     def test_add_uses_minimum_one_second(self) -> None:
-        reminder = self.manager.add_after_seconds(0, "test")
+        reminder = self.manager.add_after_seconds(seconds=0, message="test")
 
         created = datetime.fromisoformat(reminder["created_at"])
         due = datetime.fromisoformat(reminder["due_at"])
@@ -46,7 +46,7 @@ class TestReminderManager(unittest.TestCase):
 
     def test_list_all_sorts_pending_before_done(self) -> None:
         first = self.manager.add_after_seconds(seconds=5, message="first")
-        second = self.manager.add_after_seconds(10, "second")
+        second = self.manager.add_after_seconds(seconds=10, message="second")
 
         self.assertTrue(self.manager.mark_done(first["id"]))
 
@@ -59,7 +59,7 @@ class TestReminderManager(unittest.TestCase):
 
     def test_list_pending_returns_only_pending(self) -> None:
         first = self.manager.add_after_seconds(seconds=5, message="first")
-        second = self.manager.add_after_seconds(10, "second")
+        second = self.manager.add_after_seconds(seconds=10, message="second")
 
         self.manager.mark_done(first["id"])
         pending = self.manager.list_pending()
@@ -68,7 +68,7 @@ class TestReminderManager(unittest.TestCase):
         self.assertEqual(pending[0]["id"], second["id"])
 
     def test_check_due_reminders_marks_due_as_done(self) -> None:
-        reminder = self.manager.add_after_seconds(5, "call back")
+        reminder = self.manager.add_after_seconds(seconds=5, message="call back")
 
         items = self.manager._load_reminders()
         items[0]["due_at"] = (datetime.now() - timedelta(seconds=1)).isoformat()
@@ -82,7 +82,7 @@ class TestReminderManager(unittest.TestCase):
         self.assertIn("triggered_at", due[0])
 
     def test_check_due_reminders_ignores_future_items(self) -> None:
-        reminder = self.manager.add_after_seconds(60, "future task")
+        reminder = self.manager.add_after_seconds(seconds=60, message="future task")
 
         due = self.manager.check_due_reminders()
 
@@ -92,7 +92,7 @@ class TestReminderManager(unittest.TestCase):
         self.assertEqual(items[0]["status"], "pending")
 
     def test_mark_done_returns_true_for_existing_pending_reminder(self) -> None:
-        reminder = self.manager.add_after_seconds(15, "stretch")
+        reminder = self.manager.add_after_seconds(seconds=15, message="stretch")
 
         result = self.manager.mark_done(reminder["id"])
 
@@ -106,7 +106,7 @@ class TestReminderManager(unittest.TestCase):
         self.assertFalse(result)
 
     def test_delete_removes_reminder(self) -> None:
-        reminder = self.manager.add_after_seconds(15, "meeting")
+        reminder = self.manager.add_after_seconds(seconds=15, message="meeting")
 
         deleted = self.manager.delete(reminder["id"])
 
@@ -118,8 +118,8 @@ class TestReminderManager(unittest.TestCase):
         self.assertFalse(deleted)
 
     def test_clear_done_removes_only_completed_items(self) -> None:
-        first = self.manager.add_after_seconds(15, "first")
-        second = self.manager.add_after_seconds(30, "second")
+        first = self.manager.add_after_seconds(seconds=15, message="first")
+        second = self.manager.add_after_seconds(seconds=30, message="second")
 
         self.manager.mark_done(first["id"])
         removed = self.manager.clear_done()
@@ -147,7 +147,7 @@ class TestReminderManager(unittest.TestCase):
         self.assertEqual(loaded[0]["message"], "valid")
 
     def test_due_items_persist_as_done_after_check(self) -> None:
-        reminder = self.manager.add_after_seconds(5, "water plants")
+        reminder = self.manager.add_after_seconds(seconds=5, message="water plants")
 
         items = self.manager._load_reminders()
         items[0]["due_at"] = (datetime.now() - timedelta(seconds=2)).isoformat()

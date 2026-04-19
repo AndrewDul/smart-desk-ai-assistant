@@ -12,7 +12,6 @@ from modules.shared.config.settings import load_settings
 from modules.shared.persistence.paths import (
     APP_ROOT,
     ensure_runtime_directories,
-    resolve_optional_path,
 )
 
 from .models import DeploymentRenderResult, SystemdUnitSpec
@@ -230,7 +229,9 @@ class SystemdDeploymentService:
         return ordered
 
     def _resolve_output_dir(self) -> Path:
-        resolved = resolve_optional_path(self._cfg_text("unit_output_dir", default="deploy/systemd"))
+        resolved = self._resolve_project_path(
+            self._cfg_text("unit_output_dir", default="deploy/systemd")
+        )
         if resolved is None:
             return (self.project_root / "deploy" / "systemd").resolve()
         return resolved
@@ -251,8 +252,18 @@ class SystemdDeploymentService:
         configured = self._cfg_text(key, default="")
         if not configured:
             return ""
-        resolved = resolve_optional_path(configured)
+        resolved = self._resolve_project_path(configured)
         return str(resolved) if resolved is not None else configured
+
+    def _resolve_project_path(self, value: str | Path | None) -> Path | None:
+        if value is None:
+            return None
+
+        candidate = Path(value).expanduser()
+        if candidate.is_absolute():
+            return candidate.resolve()
+
+        return (self.project_root / candidate).resolve()
     def _default_service_user(self) -> str:
         explicit = str(self.deployment_cfg.get("user", "") or "").strip()
         if explicit:
