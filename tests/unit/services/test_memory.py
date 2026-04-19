@@ -4,7 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from modules.services.memory import SimpleMemory
+from modules.features.memory.service import MemoryService
+from modules.shared.persistence.repositories import MemoryRepository
 
 
 class TestSimpleMemory(unittest.TestCase):
@@ -12,8 +13,7 @@ class TestSimpleMemory(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.memory_file = Path(self.temp_dir.name) / "memory.json"
 
-        self.memory = SimpleMemory()
-        self.memory.path = self.memory_file
+        self.memory = MemoryService(store=MemoryRepository(path=str(self.memory_file)))
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
@@ -100,8 +100,8 @@ class TestSimpleMemory(unittest.TestCase):
 
         self.assertEqual(items, {})
 
-    def test_memory_file_is_created_on_first_save(self) -> None:
-        self.assertFalse(self.memory_file.exists())
+    def test_memory_file_is_ensured_by_repository_contract(self) -> None:
+        self.assertTrue(self.memory_file.exists())
 
         self.memory.remember("keys", "kitchen")
 

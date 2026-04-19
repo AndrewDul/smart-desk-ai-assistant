@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from modules.parsing.intent_parser import IntentParser
-
+from modules.understanding.parsing.parser import IntentParser
 
 class TestIntentParser(unittest.TestCase):
     def setUp(self) -> None:

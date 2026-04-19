@@ -5,7 +5,8 @@ import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from modules.services.reminders import ReminderManager
+from modules.features.reminders.service import ReminderService
+from modules.shared.persistence.repositories import ReminderRepository
 
 
 class TestReminderManager(unittest.TestCase):
@@ -13,21 +14,20 @@ class TestReminderManager(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.reminders_file = Path(self.temp_dir.name) / "reminders.json"
 
-        self.manager = ReminderManager()
-        self.manager.path = self.reminders_file
+        self.manager = ReminderService(store=ReminderRepository(path=str(self.reminders_file)))
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
     def test_add_after_seconds_creates_pending_reminder(self) -> None:
-        reminder = self.manager.add_after_seconds(30, "buy milk")
+        reminder = self.manager.add_after_seconds(seconds=30, message="buy milk")
 
         self.assertEqual(reminder["message"], "buy milk")
         self.assertEqual(reminder["status"], "pending")
         self.assertTrue(self.reminders_file.exists())
 
     def test_message_is_cleaned_on_add(self) -> None:
-        reminder = self.manager.add_after_seconds(20, "  to drink water  ")
+        reminder = self.manager.add_after_seconds(seconds=20, message="  to drink water  ")
 
         self.assertEqual(reminder["message"], "drink water")
 
@@ -45,7 +45,7 @@ class TestReminderManager(unittest.TestCase):
         self.assertGreaterEqual((due - created).total_seconds(), 1)
 
     def test_list_all_sorts_pending_before_done(self) -> None:
-        first = self.manager.add_after_seconds(5, "first")
+        first = self.manager.add_after_seconds(seconds=5, message="first")
         second = self.manager.add_after_seconds(10, "second")
 
         self.assertTrue(self.manager.mark_done(first["id"]))
@@ -58,7 +58,7 @@ class TestReminderManager(unittest.TestCase):
         self.assertEqual(items[1]["status"], "done")
 
     def test_list_pending_returns_only_pending(self) -> None:
-        first = self.manager.add_after_seconds(5, "first")
+        first = self.manager.add_after_seconds(seconds=5, message="first")
         second = self.manager.add_after_seconds(10, "second")
 
         self.manager.mark_done(first["id"])

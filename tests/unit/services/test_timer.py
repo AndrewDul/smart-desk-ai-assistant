@@ -4,7 +4,7 @@ import threading
 import time
 import unittest
 
-from modules.services.timer import SessionTimer
+from modules.features.timer.service import TimerService
 
 
 class TestSessionTimer(unittest.TestCase):
@@ -16,7 +16,7 @@ class TestSessionTimer(unittest.TestCase):
         self.finished_signal = threading.Event()
         self.stopped_signal = threading.Event()
 
-        self.timer = SessionTimer(
+        self.timer = TimerService(
             on_started=self._on_started,
             on_finished=self._on_finished,
             on_stopped=self._on_stopped,

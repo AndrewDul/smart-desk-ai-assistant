@@ -252,8 +252,9 @@ def normalize_text(text: str) -> str:
     normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
     normalized = normalized.replace("ł", "l")
     normalized = normalized.replace("’", "'")
+    normalized = normalized.replace("'", " ")
     normalized = normalized.replace("_", " ")
-    normalized = re.sub(r"[^a-z0-9\s'-]", " ", normalized)
+    normalized = re.sub(r"[^a-z0-9\s-]", " ", normalized)
     normalized = re.sub(r"\s+", " ", normalized).strip()
     return normalized
 
@@ -451,16 +452,21 @@ def parse_spoken_number(text: str) -> int | None:
     if not tokens:
         return None
 
-    for token in tokens:
-        if token in _SPOKEN_NUMBERS:
-            return _SPOKEN_NUMBERS[token]
+    index = 0
+    while index < len(tokens):
+        current = tokens[index]
+        current_value = _SPOKEN_NUMBERS.get(current)
+        if current_value is None:
+            index += 1
+            continue
 
-    for left, right in zip(tokens, tokens[1:]):
-        if left in _SPOKEN_NUMBERS and right in _SPOKEN_NUMBERS:
-            left_value = _SPOKEN_NUMBERS[left]
-            right_value = _SPOKEN_NUMBERS[right]
-            if left_value >= 20 and right_value < 10:
-                return left_value + right_value
+        if index + 1 < len(tokens):
+            next_token = tokens[index + 1]
+            next_value = _SPOKEN_NUMBERS.get(next_token)
+            if next_value is not None and current_value >= 20 and next_value < 10:
+                return current_value + next_value
+
+        return current_value
 
     return None
 
