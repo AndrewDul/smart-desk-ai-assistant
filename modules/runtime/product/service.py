@@ -4,7 +4,7 @@ import threading
 from datetime import datetime, timezone
 from typing import Any
 
-from modules.shared.persistence.json_store import JsonStore
+from modules.shared.persistence.repositories import RuntimeStatusRepository
 
 from .models import ProductRuntimeSnapshot, ProductServiceStatus
 
@@ -47,11 +47,14 @@ class RuntimeProductService:
         self._lock = threading.RLock()
         self._runtime: Any | None = None
         self._dialogue: Any | None = None
-        self._store = JsonStore(path=path, default_factory=self._default_snapshot_dict)
+        self._repository = RuntimeStatusRepository(
+            path=path,
+            default_factory=self._default_snapshot_dict,
+        )
         self._snapshot = self._default_snapshot_dict()
 
         if self.persist_enabled:
-            self._snapshot = self._store.ensure_exists()
+            self._snapshot = self._repository.ensure_exists()
 
     def bind_runtime(self, *, runtime: Any, dialogue: Any | None = None) -> None:
         with self._lock:
@@ -144,7 +147,7 @@ class RuntimeProductService:
                 if bool(getattr(status, "required", False))
             )
 
-            primary_ready = bool(startup_allowed) and not blockers and all(
+            required_primary_ready = bool(startup_allowed) and not compatibility_components and all(
                 self._is_primary_service_status(status)
                 for name, status in services.items()
                 if bool(getattr(status, "required", False))
@@ -182,6 +185,8 @@ class RuntimeProductService:
             blockers = self._unique_texts(blockers)
             degraded_components = self._unique_texts(degraded_components)
             premium_blockers = self._unique_texts(premium_blockers)
+
+            primary_ready = required_primary_ready and not blockers
 
             premium_ready = (
                 primary_ready
@@ -300,7 +305,7 @@ class RuntimeProductService:
             self._snapshot = snapshot
 
             if self.persist_enabled:
-                self._store.write(self._snapshot)
+                self._repository.write(self._snapshot)
 
             return dict(self._snapshot)
 
@@ -665,8 +670,7 @@ class RuntimeProductService:
             self._snapshot = snapshot.to_dict()
 
             if self.persist_enabled:
-                self._store.write(self._snapshot)
-
+                self._repository.write(self._snapshot)
             return dict(self._snapshot)
 
 
