@@ -224,6 +224,7 @@ class CoreAssistantInteractionMixin:
         started_at = time.perf_counter()
         benchmark_turn_id = ""
         capture = self._consume_last_input_capture()
+        capture_handoff = dict(getattr(self, "_last_capture_handoff", {}) or {})
 
         input_source = str(capture.get("input_source") or "voice").strip().lower() or "voice"
         capture_language = str(capture.get("language") or self.last_language or "").strip().lower()
@@ -278,6 +279,7 @@ class CoreAssistantInteractionMixin:
             "stt_phase": stt_phase,
             "capture_phase": stt_phase,
             "capture_metadata": dict(capture.get("metadata") or {}),
+            "capture_handoff": capture_handoff,
             "stt_latency_ms": stt_latency_ms,
             "stt_audio_duration_ms": stt_audio_duration_ms,
             "stt_confidence": stt_confidence,

@@ -85,6 +85,21 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
                         "capture_min_speech_seconds": 0.12,
                         "capture_pre_roll_seconds": 0.18,
                     },
+                    "capture_handoff": {
+                        "target_owner": "voice_input",
+                        "applied_owner": "voice_input",
+                        "wake_backend_label": "runtime.wake_gate",
+                        "wake_backend_released": True,
+                        "voice_input_released": False,
+                        "blocked_observed": True,
+                        "wait_completed": True,
+                        "wait_elapsed_ms": 58.0,
+                        "settle_seconds": 0.04,
+                        "source_phase": "command",
+                        "strategy": "wake_prime_reuse",
+                        "reused": True,
+                        "reuse_age_ms": 34.0,
+                    },
                 },
                 llm_snapshot={
                     "ok": True,
@@ -117,6 +132,18 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
             self.assertAlmostEqual(sample["capture_end_silence_seconds"], 0.32)
             self.assertAlmostEqual(sample["capture_min_speech_seconds"], 0.12)
             self.assertAlmostEqual(sample["capture_pre_roll_seconds"], 0.18)
+            self.assertEqual(sample["capture_handoff_target_owner"], "voice_input")
+            self.assertEqual(sample["capture_handoff_applied_owner"], "voice_input")
+            self.assertEqual(sample["capture_handoff_wake_backend_label"], "runtime.wake_gate")
+            self.assertEqual(sample["capture_handoff_strategy"], "wake_prime_reuse")
+            self.assertEqual(sample["capture_handoff_source_phase"], "command")
+            self.assertTrue(sample["capture_handoff_reused"])
+            self.assertTrue(sample["capture_handoff_wait_completed"])
+            self.assertTrue(sample["capture_handoff_blocked_observed"])
+            self.assertTrue(sample["capture_handoff_wake_backend_released"])
+            self.assertAlmostEqual(sample["capture_handoff_wait_elapsed_ms"], 58.0)
+            self.assertAlmostEqual(sample["capture_handoff_settle_seconds"], 0.04)
+            self.assertAlmostEqual(sample["capture_handoff_reuse_age_ms"], 34.0)
             self.assertTrue(sample["voice_benchmark_ready"])
 
             latest_sample = service.latest_sample()

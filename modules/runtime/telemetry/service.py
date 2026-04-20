@@ -228,6 +228,7 @@ class TurnBenchmarkService:
             safe_llm = dict(llm_snapshot or {})
 
             capture_metadata = dict(telemetry.get("capture_metadata", {}) or {})
+            capture_handoff = dict(telemetry.get("capture_handoff", {}) or {})
             capture_profile = str(capture_metadata.get("capture_profile", "") or "").strip().lower()
             capture_timeout_seconds = self._safe_float(
                 capture_metadata.get("capture_timeout_seconds", 0.0)
@@ -382,6 +383,19 @@ class TurnBenchmarkService:
                 "capture_end_silence_seconds": capture_end_silence_seconds,
                 "capture_min_speech_seconds": capture_min_speech_seconds,
                 "capture_pre_roll_seconds": capture_pre_roll_seconds,
+                "capture_handoff_target_owner": str(capture_handoff.get("target_owner", "") or "").strip(),
+                "capture_handoff_applied_owner": str(capture_handoff.get("applied_owner", "") or "").strip(),
+                "capture_handoff_wake_backend_label": str(capture_handoff.get("wake_backend_label", "") or "").strip(),
+                "capture_handoff_strategy": str(capture_handoff.get("strategy", "") or "").strip(),
+                "capture_handoff_source_phase": str(capture_handoff.get("source_phase", "") or "").strip(),
+                "capture_handoff_reused": bool(capture_handoff.get("reused", False)),
+                "capture_handoff_wait_completed": bool(capture_handoff.get("wait_completed", False)),
+                "capture_handoff_blocked_observed": bool(capture_handoff.get("blocked_observed", False)),
+                "capture_handoff_wake_backend_released": bool(capture_handoff.get("wake_backend_released", False)),
+                "capture_handoff_voice_input_released": bool(capture_handoff.get("voice_input_released", False)),
+                "capture_handoff_wait_elapsed_ms": self._safe_float(capture_handoff.get("wait_elapsed_ms", 0.0)) or None,
+                "capture_handoff_settle_seconds": self._safe_float(capture_handoff.get("settle_seconds", 0.0)) or None,
+                "capture_handoff_reuse_age_ms": self._safe_float(capture_handoff.get("reuse_age_ms", 0.0)) or None,
                 "voice_benchmark_ready": voice_benchmark_ready,
                 "resume_policy": {},
                 "command_window_policy": {},

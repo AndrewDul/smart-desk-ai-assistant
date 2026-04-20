@@ -99,6 +99,9 @@ class _AssistantProbe:
         self.speech_recognition = _SpeechRecognitionProbe()
         self.voice_session = _VoiceSessionProbe()
         self._last_input_capture = None
+        self._last_capture_handoff: dict[str, object] = {}
+        self._primed_capture_handoff: dict[str, object] = {}
+        self.settings = {"voice_input": {}}
 
 
 class ActiveWindowSTTServiceIntegrationTests(unittest.TestCase):
@@ -178,6 +181,48 @@ class ActiveWindowSTTServiceIntegrationTests(unittest.TestCase):
             "speech_captured",
         )
 
+
+
+    def test_listen_for_active_command_reuses_primed_handoff_after_wake(self) -> None:
+        assistant = _AssistantProbe()
+        state_flags = _StateFlags()
+        assistant._primed_capture_handoff = {
+            "source_phase": "command",
+            "strategy": "wake_prime_prepare",
+            "target_owner": "voice_input",
+            "applied_owner": "voice_input",
+            "wait_completed": True,
+            "prepared_at_monotonic": _module.time.perf_counter(),
+        }
+
+        original_prepare = _module._prepare_for_active_capture
+        original_blocked = _module._assistant_output_blocks_input
+        original_note_listening = _module._note_turn_benchmark_listening_started
+        original_remember = _module._remember_capture_from_transcript
+        original_note_finalized = _module._note_turn_benchmark_speech_finalized
+
+        prepare_calls: list[object] = []
+
+        try:
+            _module._prepare_for_active_capture = lambda assistant_obj: prepare_calls.append(assistant_obj)
+            _module._assistant_output_blocks_input = lambda assistant_obj: False
+            _module._note_turn_benchmark_listening_started = lambda assistant_obj, phase: None
+            _module._remember_capture_from_transcript = lambda assistant_obj, transcript, phase: None
+            _module._note_turn_benchmark_speech_finalized = lambda assistant_obj, text, phase, transcript=None: None
+
+            result = _listen_for_active_command(assistant, state_flags)
+        finally:
+            _module._prepare_for_active_capture = original_prepare
+            _module._assistant_output_blocks_input = original_blocked
+            _module._note_turn_benchmark_listening_started = original_note_listening
+            _module._remember_capture_from_transcript = original_remember
+            _module._note_turn_benchmark_speech_finalized = original_note_finalized
+
+        self.assertEqual(result, "hello via service")
+        self.assertEqual(prepare_calls, [])
+        self.assertEqual(assistant._last_capture_handoff["strategy"], "wake_prime_reuse")
+        self.assertTrue(assistant._last_capture_handoff["reused"])
+        self.assertEqual(assistant._primed_capture_handoff, {})
 
 if __name__ == "__main__":
     unittest.main()

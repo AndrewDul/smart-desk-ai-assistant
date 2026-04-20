@@ -153,7 +153,7 @@ class SessionContinuitySnapshotTests(unittest.TestCase):
         state_flags = _StateFlags()
 
         original_service = _module._COMMAND_WINDOW_POLICY_SERVICE
-        original_wait = _module._wait_for_input_ready
+        original_prepare = _module._prepare_for_active_capture
 
         class _Decision:
             action = "open_initial"
@@ -167,11 +167,11 @@ class SessionContinuitySnapshotTests(unittest.TestCase):
 
         try:
             _module._COMMAND_WINDOW_POLICY_SERVICE = _Service()
-            _module._wait_for_input_ready = lambda *args, **kwargs: None
+            _module._prepare_for_active_capture = lambda *args, **kwargs: None
             _prime_command_window_after_wake(assistant, state_flags)
         finally:
             _module._COMMAND_WINDOW_POLICY_SERVICE = original_service
-            _module._wait_for_input_ready = original_wait
+            _module._prepare_for_active_capture = original_prepare
 
         snapshot = assistant._last_session_continuity_snapshot
         self.assertEqual(snapshot["action"], "command_window_open")

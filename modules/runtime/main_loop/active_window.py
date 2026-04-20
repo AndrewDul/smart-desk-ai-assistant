@@ -19,12 +19,12 @@ from modules.runtime.contracts import InputSource, TranscriptRequest, Transcript
 from modules.shared.logging.logger import append_log
 
 from .backend_helpers import (
+    _assistant_output_blocks_input,
     _follow_up_window_seconds,
     _grace_window_seconds,
     _prepare_for_active_capture,
     _prepare_for_standby_capture,
     _resolve_wake_backend,
-    _wait_for_input_ready,
 )
 from .capture_adapters import capture_transcript, detect_wake_event
 from .command_window_policy import CommandWindowPolicyService
@@ -94,10 +94,95 @@ def _banner_for_phase(phase: str) -> str:
     return "\nStandby. Waiting for command..."
 
 
+def _capture_handoff_reuse_enabled(assistant: CoreAssistant) -> bool:
+    voice_input_cfg = assistant.settings.get("voice_input", {})
+    configured = voice_input_cfg.get("wake_command_handoff_reuse_enabled")
+    if configured is None:
+        return True
+    return bool(configured)
+
+
+def _capture_handoff_reuse_max_age_seconds(assistant: CoreAssistant) -> float:
+    voice_input_cfg = assistant.settings.get("voice_input", {})
+    configured = voice_input_cfg.get("wake_command_handoff_reuse_max_age_seconds")
+    if configured is not None:
+        try:
+            return max(0.1, float(configured))
+        except (TypeError, ValueError):
+            pass
+    return 1.2
+
+
+def _store_primed_capture_handoff(
+    assistant: CoreAssistant,
+    *,
+    phase: str,
+    strategy: str,
+) -> dict[str, object]:
+    snapshot = dict(getattr(assistant, "_last_capture_handoff", {}) or {})
+    snapshot["source_phase"] = str(phase or "command").strip() or "command"
+    snapshot["strategy"] = str(strategy or "wake_prime_prepare").strip() or "wake_prime_prepare"
+    snapshot["reused"] = False
+    snapshot["prepared_at_monotonic"] = time.perf_counter()
+    assistant._last_capture_handoff = dict(snapshot)
+    assistant._primed_capture_handoff = dict(snapshot)
+    return dict(snapshot)
+
+
+def _consume_primed_capture_handoff(
+    assistant: CoreAssistant,
+    *,
+    phase: str,
+) -> dict[str, object] | None:
+    snapshot = dict(getattr(assistant, "_primed_capture_handoff", {}) or {})
+    assistant._primed_capture_handoff = {}
+    if not snapshot:
+        return None
+    if not _capture_handoff_reuse_enabled(assistant):
+        return None
+    if str(snapshot.get("source_phase", "") or "").strip() != str(phase or "").strip():
+        return None
+    prepared_at = float(snapshot.get("prepared_at_monotonic", 0.0) or 0.0)
+    if prepared_at <= 0.0:
+        return None
+    age_seconds = max(0.0, time.perf_counter() - prepared_at)
+    if age_seconds > _capture_handoff_reuse_max_age_seconds(assistant):
+        return None
+    if _assistant_output_blocks_input(assistant):
+        return None
+    if not bool(snapshot.get("wait_completed", True)):
+        return None
+
+    snapshot["strategy"] = "wake_prime_reuse"
+    snapshot["reused"] = True
+    snapshot["reuse_age_ms"] = age_seconds * 1000.0
+    assistant._last_capture_handoff = dict(snapshot)
+    return dict(snapshot)
+
+
 def _input_source_label(value: object) -> str:
     raw = getattr(value, "value", value)
     cleaned = str(raw or "voice").strip().lower()
     return cleaned or "voice"
+
+
+def _prepare_capture_handoff_for_phase(
+    assistant: CoreAssistant,
+    *,
+    phase: str,
+) -> dict[str, object]:
+    if str(phase or "").strip() == PHASE_COMMAND:
+        reused = _consume_primed_capture_handoff(assistant, phase=PHASE_COMMAND)
+        if reused is not None:
+            return reused
+
+    _prepare_for_active_capture(assistant)
+    snapshot = dict(getattr(assistant, "_last_capture_handoff", {}) or {})
+    snapshot["source_phase"] = str(phase or "command").strip() or "command"
+    snapshot["strategy"] = "active_prepare"
+    snapshot["reused"] = False
+    assistant._last_capture_handoff = dict(snapshot)
+    return dict(snapshot)
 
 
 def _remember_input_capture(
@@ -295,6 +380,7 @@ def _return_to_wake_gate(
     *,
     reason: str,
 ) -> None:
+    assistant._primed_capture_handoff = {}
     _prepare_for_standby_capture(assistant, state_flags)
     assistant.voice_session.transition_to_standby(
         detail=reason,
@@ -599,8 +685,8 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
         )
         return prefetched
 
-    _prepare_for_active_capture(assistant)
     active_phase = _active_phase(state_flags)
+    _prepare_capture_handoff_for_phase(assistant, phase=active_phase)
 
     _note_turn_benchmark_listening_started(
         assistant,
@@ -781,7 +867,8 @@ def _handle_ignored_active_transcript(assistant: CoreAssistant, state_flags: Mai
     return False
 
 def _prime_command_window_after_wake(assistant: CoreAssistant, state_flags: MainLoopRuntimeState) -> None:
-    _wait_for_input_ready(assistant)
+    _prepare_for_active_capture(assistant)
+    _store_primed_capture_handoff(assistant, phase=PHASE_COMMAND, strategy="wake_prime_prepare")
     decision = _COMMAND_WINDOW_POLICY_SERVICE.initial_window_decision(assistant)
 
     window_seconds = float(getattr(decision, "window_seconds", 0.0) or 0.0)

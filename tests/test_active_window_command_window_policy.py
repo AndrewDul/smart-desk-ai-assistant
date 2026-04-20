@@ -79,6 +79,12 @@ class _AssistantProbe:
         self.voice_session = _VoiceSessionProbe()
         self.settings = {"voice_input": {}}
         self._last_command_window_policy_snapshot: dict[str, object] = {}
+        self._last_capture_handoff: dict[str, object] = {
+            "target_owner": "voice_input",
+            "applied_owner": "voice_input",
+            "wait_completed": True,
+        }
+        self._primed_capture_handoff: dict[str, object] = {}
 
 
 class ActiveWindowCommandWindowPolicyTests(unittest.TestCase):
@@ -121,7 +127,7 @@ class ActiveWindowCommandWindowPolicyTests(unittest.TestCase):
         state_flags = _StateFlags()
 
         original_service = _module._COMMAND_WINDOW_POLICY_SERVICE
-        original_wait = _module._wait_for_input_ready
+        original_prepare = _module._prepare_for_active_capture
 
         class _Decision:
             window_seconds = 5.8
@@ -131,22 +137,24 @@ class ActiveWindowCommandWindowPolicyTests(unittest.TestCase):
             def initial_window_decision(self, assistant_obj):
                 return _Decision()
 
-        def _fake_wait(*args, **kwargs):
+        def _fake_prepare(*args, **kwargs):
             return None
 
         try:
             _module._COMMAND_WINDOW_POLICY_SERVICE = _Service()
-            _module._wait_for_input_ready = _fake_wait
+            _module._prepare_for_active_capture = _fake_prepare
             _prime_command_window_after_wake(assistant, state_flags)
         finally:
             _module._COMMAND_WINDOW_POLICY_SERVICE = original_service
-            _module._wait_for_input_ready = original_wait
+            _module._prepare_for_active_capture = original_prepare
 
         self.assertEqual(len(assistant.voice_session.open_calls), 1)
         self.assertEqual(assistant.voice_session.open_calls[0]["seconds"], 5.8)
         self.assertEqual(assistant.voice_session.open_calls[0]["detail"], "awaiting_command_after_wake")
         self.assertEqual(state_flags.active_phase, "command")
         self.assertEqual(state_flags.hide_calls, 1)
+        self.assertEqual(assistant._primed_capture_handoff["source_phase"], "command")
+        self.assertEqual(assistant._primed_capture_handoff["strategy"], "wake_prime_prepare")
 
 
 if __name__ == "__main__":

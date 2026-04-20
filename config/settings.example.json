@@ -32,6 +32,8 @@
   "wake_ack_prefer_fast_phrase": true,
   "wake_ack_fast_phrase_max_words": 2,
   "wake_ack_output_hold_seconds": 0.04,
+  "wake_command_handoff_reuse_enabled": true,
+  "wake_command_handoff_reuse_max_age_seconds": 1.2,
   "active_window_retry_min_remaining_seconds": 0.35,
   "debug": false,
   "sample_rate": 16000,
