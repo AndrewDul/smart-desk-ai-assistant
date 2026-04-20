@@ -189,6 +189,15 @@ class TTSPipelineCacheQueueMixin:
 
         return normalized_text, normalized_language
 
+    def _promote_pending_job(self, *, text: str, lang: str, priority: int) -> tuple[_SynthesisJob | None, bool]:
+        pending = self._get_pending_job(text=text, lang=lang)
+        if pending is None:
+            return None, False
+
+        previous_priority = int(getattr(pending, "priority", priority))
+        promoted = self._enqueue_synthesis(text, lang, priority=priority)
+        return promoted, int(priority) < previous_priority
+
     def _start_prefetch(self, text: str, lang: str) -> None:
         if not self.enabled:
             return

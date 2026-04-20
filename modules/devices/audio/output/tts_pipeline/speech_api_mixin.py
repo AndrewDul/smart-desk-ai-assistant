@@ -6,9 +6,6 @@ from modules.system.utils import append_log
 
 
 class TTSPipelineSpeechApiMixin:
-
-
-
     """
     Public speech API for prefetching and speaking text.
 
@@ -20,13 +17,11 @@ class TTSPipelineSpeechApiMixin:
     - reduce dead time after short or interrupted playback
     """
 
-
     def latest_speak_report(self) -> dict[str, object]:
         return dict(getattr(self, "_last_speak_report", {}) or {})
 
     def _store_speak_report(self, **values: object) -> None:
         self._last_speak_report = dict(values)
-
 
     def prepare_speech(self, text: str, language: str | None = None) -> None:
         cleaned_text = self._normalize_text_for_log(text)
@@ -146,64 +141,64 @@ class TTSPipelineSpeechApiMixin:
 
             if self.audio_coordinator is not None:
                 hold_seconds = self._resolve_output_hold_seconds(
-                interrupted=interrupted,
-                success=success,
-                spoken_text=tts_text,
-                output_hold_override=output_hold_seconds,
-            )
-            self.audio_coordinator.end_assistant_output(
-                coordinator_token,
-                hold_seconds=hold_seconds,
-            )
+                    interrupted=interrupted,
+                    success=success,
+                    spoken_text=tts_text,
+                    output_hold_override=output_hold_seconds,
+                )
+                self.audio_coordinator.end_assistant_output(
+                    coordinator_token,
+                    hold_seconds=hold_seconds,
+                )
 
-        first_audio_started_at = 0.0
-        first_audio_latency_ms = 0.0
-        try:
-            first_audio_started_at = max(
-                0.0,
-                float(playback_report.get("first_audio_started_at_monotonic", 0.0) or 0.0),
-            )
-        except (TypeError, ValueError):
             first_audio_started_at = 0.0
-        try:
-            first_audio_latency_ms = max(
-                0.0,
-                float(playback_report.get("first_audio_latency_ms", 0.0) or 0.0),
-            )
-        except (TypeError, ValueError):
             first_audio_latency_ms = 0.0
-        if first_audio_latency_ms <= 0.0 and first_audio_started_at > 0.0:
-            first_audio_latency_ms = max(
-                0.0,
-                (first_audio_started_at - started_at) * 1000.0,
+            try:
+                first_audio_started_at = max(
+                    0.0,
+                    float(playback_report.get("first_audio_started_at_monotonic", 0.0) or 0.0),
+                )
+            except (TypeError, ValueError):
+                first_audio_started_at = 0.0
+            try:
+                first_audio_latency_ms = max(
+                    0.0,
+                    float(playback_report.get("first_audio_latency_ms", 0.0) or 0.0),
+                )
+            except (TypeError, ValueError):
+                first_audio_latency_ms = 0.0
+            if first_audio_latency_ms <= 0.0 and first_audio_started_at > 0.0:
+                first_audio_latency_ms = max(
+                    0.0,
+                    (first_audio_started_at - started_at) * 1000.0,
+                )
+
+            self._store_speak_report(
+                text=cleaned_text,
+                language=lang,
+                started_at_monotonic=started_at,
+                first_audio_started_at_monotonic=first_audio_started_at,
+                first_audio_latency_ms=first_audio_latency_ms,
+                engine=str(playback_report.get("engine", used_engine) or used_engine),
+                success=success,
+                interrupted=interrupted,
+                prepare_next=has_prepare_next,
+                output_hold_seconds=output_hold_seconds,
+                elapsed_ms=max(0.0, (time.monotonic() - started_at) * 1000.0),
             )
 
-        self._store_speak_report(
-            text=cleaned_text,
-            language=lang,
-            started_at_monotonic=started_at,
-            first_audio_started_at_monotonic=first_audio_started_at,
-            first_audio_latency_ms=first_audio_latency_ms,
-            engine=str(playback_report.get("engine", used_engine) or used_engine),
-            success=success,
-            interrupted=interrupted,
-            prepare_next=has_prepare_next,
-            output_hold_seconds=output_hold_seconds,
-            elapsed_ms=max(0.0, (time.monotonic() - started_at) * 1000.0),
-        )
-
-        append_log(
-            "TTS speak finished: "
-            f"lang={lang}, "
-            f"chars={len(tts_text)}, "
-            f"engine={used_engine}, "
-            f"success={success}, "
-            f"interrupted={interrupted}, "
-            f"prepare_next={has_prepare_next}, "
-            f"output_hold_override={output_hold_seconds}, "
-            f"first_audio_ms={first_audio_latency_ms:.1f}, "
-            f"elapsed={time.monotonic() - started_at:.3f}s"
-        )
+            append_log(
+                "TTS speak finished: "
+                f"lang={lang}, "
+                f"chars={len(tts_text)}, "
+                f"engine={used_engine}, "
+                f"success={success}, "
+                f"interrupted={interrupted}, "
+                f"prepare_next={has_prepare_next}, "
+                f"output_hold_override={output_hold_seconds}, "
+                f"first_audio_ms={first_audio_latency_ms:.1f}, "
+                f"elapsed={time.monotonic() - started_at:.3f}s"
+            )
 
     @staticmethod
     def _log_spoken_text(cleaned_text: str, lang: str) -> None:

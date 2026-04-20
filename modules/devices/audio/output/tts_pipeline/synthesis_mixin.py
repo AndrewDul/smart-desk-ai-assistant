@@ -386,13 +386,17 @@ class TTSPipelineSynthesisMixin:
         if cache_hit and cache_path.exists():
             return True, "cache_hit"
 
-        existing_job = self._get_pending_job(text=text, lang=lang)
+        existing_job, promoted = self._promote_pending_job(
+            text=text,
+            lang=lang,
+            priority=self._PRIORITY_CURRENT,
+        )
         if existing_job is not None:
             ready = self._wait_for_job(
                 existing_job,
                 timeout_seconds=self._current_job_wait_seconds,
             )
-            return ready, "pending_job"
+            return ready, "pending_job_promoted" if promoted else "pending_job"
 
         if self._should_direct_synthesize_current(text=text, lang=lang):
             ok = self._synthesize_piper_to_wav(text, lang, cache_path)
