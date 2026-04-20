@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
 from modules.shared.config.settings import load_settings
+from modules.shared.persistence.paths import resolve_optional_path
 
 from .capture_models import (
     PremiumValidationCaptureSnapshot,
+    ValidationCaptureRuntimeStatusView,
     ValidationCaptureScenarioView,
     ValidationCaptureSegmentProgress,
     ValidationCaptureStageView,
@@ -30,6 +33,7 @@ class PremiumValidationCaptureService:
         self.settings = settings or load_settings()
         self.benchmark_cfg = self._cfg("benchmarks")
         self.validation_cfg = self._cfg("benchmark_validation")
+        self.runtime_product_cfg = self._cfg("runtime_product")
         self.validation_service = TurnBenchmarkValidationService(settings=self.settings)
         self.flow_service = PremiumValidationFlowService(settings=self.settings)
 
@@ -42,6 +46,13 @@ class PremiumValidationCaptureService:
             self._segment_progress(segment)
             for segment in validation_result.segments
         ]
+        benchmark_store_meta = self._benchmark_store_metadata(validation_result.path)
+        runtime_status = self._runtime_status_view()
+        activity_hints = self._build_activity_hints(
+            sample_count=validation_result.sample_count,
+            benchmark_file_age_seconds=benchmark_store_meta["file_age_seconds"],
+            runtime_status=runtime_status,
+        )
 
         return PremiumValidationCaptureSnapshot(
             benchmark_ok=validation_result.ok,
@@ -49,8 +60,12 @@ class PremiumValidationCaptureService:
             total_samples=validation_result.sample_count,
             window_samples=validation_result.window_sample_count,
             latest_turn_id=validation_result.latest_turn_id,
+            benchmark_updated_at_iso=benchmark_store_meta["updated_at_iso"],
+            benchmark_file_age_seconds=benchmark_store_meta["file_age_seconds"],
             priority_segments=list(flow.priority_segments),
             segment_progress=segment_progress,
+            runtime_status=runtime_status,
+            activity_hints=activity_hints,
             stage=selected_stage,
         )
 
@@ -82,10 +97,30 @@ class PremiumValidationCaptureService:
         lines.append(f"- total samples: {snapshot.total_samples}")
         lines.append(f"- window samples: {snapshot.window_samples}")
         lines.append(f"- latest turn: {snapshot.latest_turn_id or '-'}")
+        lines.append(f"- benchmark updated_at: {snapshot.benchmark_updated_at_iso or '-'}")
+        lines.append(
+            f"- benchmark file age: {self._age_text(snapshot.benchmark_file_age_seconds)}"
+        )
         lines.append(
             "- priority segments: "
             + (", ".join(snapshot.priority_segments) if snapshot.priority_segments else "-")
         )
+
+        if snapshot.runtime_status is not None:
+            runtime = snapshot.runtime_status
+            lines.append("Runtime status:")
+            lines.append(f"- path: {runtime.path}")
+            lines.append(f"- exists: {runtime.exists}")
+            lines.append(f"- lifecycle_state: {runtime.lifecycle_state or '-'}")
+            lines.append(f"- startup_mode: {runtime.startup_mode or '-'}")
+            lines.append(f"- primary_ready: {runtime.primary_ready}")
+            lines.append(f"- premium_ready: {runtime.premium_ready}")
+            lines.append(f"- updated_at: {runtime.updated_at_iso or '-'}")
+
+        if snapshot.activity_hints:
+            lines.append("Activity hints:")
+            for hint in snapshot.activity_hints:
+                lines.append(f"- {hint}")
 
         lines.append("\nSegment progress:")
         for segment in snapshot.segment_progress:
@@ -210,6 +245,108 @@ class PremiumValidationCaptureService:
             if str(stage.key or "").strip() != "preflight":
                 return stage
         return stages[0]
+
+    def _benchmark_store_metadata(self, benchmark_path: str) -> dict[str, Any]:
+        path = Path(benchmark_path)
+        updated_at_iso = ""
+        file_age_seconds: float | None = None
+
+        try:
+            if path.exists():
+                stat = path.stat()
+                file_age_seconds = max(0.0, time.time() - float(stat.st_mtime))
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(payload, dict):
+                    updated_at_iso = str(payload.get("updated_at_iso", "") or "").strip()
+        except Exception:
+            return {
+                "updated_at_iso": "",
+                "file_age_seconds": None,
+            }
+
+        return {
+            "updated_at_iso": updated_at_iso,
+            "file_age_seconds": file_age_seconds,
+        }
+
+    def _runtime_status_view(self) -> ValidationCaptureRuntimeStatusView | None:
+        configured_path = str(
+            self.runtime_product_cfg.get("status_path", "var/data/runtime_status.json") or ""
+        ).strip()
+        resolved_path = resolve_optional_path(configured_path or "var/data/runtime_status.json")
+        if resolved_path is None:
+            return None
+
+        path = Path(resolved_path)
+        if not path.exists():
+            return ValidationCaptureRuntimeStatusView(
+                path=str(path),
+                exists=False,
+            )
+
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return ValidationCaptureRuntimeStatusView(
+                path=str(path),
+                exists=False,
+            )
+
+        if not isinstance(payload, dict):
+            return ValidationCaptureRuntimeStatusView(
+                path=str(path),
+                exists=False,
+            )
+
+        return ValidationCaptureRuntimeStatusView(
+            path=str(path),
+            exists=True,
+            lifecycle_state=str(payload.get("lifecycle_state", "") or "").strip(),
+            startup_mode=str(payload.get("startup_mode", "") or "").strip(),
+            primary_ready=bool(payload.get("primary_ready", False)),
+            premium_ready=bool(payload.get("premium_ready", False)),
+            updated_at_iso=str(payload.get("updated_at_iso", "") or "").strip(),
+        )
+
+    def _build_activity_hints(
+        self,
+        *,
+        sample_count: int,
+        benchmark_file_age_seconds: float | None,
+        runtime_status: ValidationCaptureRuntimeStatusView | None,
+    ) -> list[str]:
+        hints: list[str] = []
+
+        if runtime_status is None or not runtime_status.exists:
+            hints.append(
+                "Runtime status snapshot is missing. Start NeXa with `python main.py` or through the product service before collecting samples."
+            )
+        elif not runtime_status.primary_ready or runtime_status.lifecycle_state not in {"ready", "running"}:
+            hints.append(
+                "Runtime is not ready yet. Wait until lifecycle_state is READY and primary_ready becomes true before trusting capture results."
+            )
+        elif sample_count == 0:
+            hints.append(
+                "Runtime looks ready, but no benchmark turns have been captured yet. Use real microphone turns while NeXa is actively running."
+            )
+
+        if sample_count == 0 and benchmark_file_age_seconds is not None and benchmark_file_age_seconds > 8.0:
+            hints.append(
+                "Benchmark file has not changed recently. Check whether the running NeXa instance is writing turns to the same project directory."
+            )
+
+        if sample_count > 0 and benchmark_file_age_seconds is not None and benchmark_file_age_seconds > 20.0:
+            hints.append(
+                "Benchmark file looks idle. If you are in watch mode, verify that the current runtime is still processing turns."
+            )
+
+        return hints
+
+    @staticmethod
+    def _age_text(value: float | None) -> str:
+        if value is None:
+            return "-"
+        return f"{value:.1f}s"
 
     def _cfg(self, key: str) -> dict[str, Any]:
         value = self.settings.get(key, {}) if isinstance(self.settings, dict) else {}
