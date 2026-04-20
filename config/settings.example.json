@@ -241,5 +241,32 @@
     "path": "var/data/turn_benchmarks.json",
     "max_samples": 300,
     "summary_window": 30
+  },
+  "benchmark_validation": {
+    "path": "var/data/turn_benchmarks.json",
+    "window_size": 30,
+    "min_completed_turns": 5,
+    "min_voice_samples": 5,
+    "min_skill_samples": 3,
+    "min_llm_samples": 3,
+    "max_avg_wake_latency_ms": 450.0,
+    "max_avg_stt_latency_ms": 1800.0,
+    "max_avg_skill_latency_ms": 350.0,
+    "max_avg_response_first_audio_ms": 1200.0,
+    "max_avg_route_to_first_audio_ms": 1600.0,
+    "max_avg_llm_first_chunk_ms": 1200.0,
+    "max_avg_llm_response_first_audio_ms": 1800.0,
+    "max_p95_skill_turn_ms": 3500.0,
+    "max_p95_llm_turn_ms": 20000.0,
+    "max_p95_total_turn_ms": 7000.0,
+    "max_error_rate": 0.15,
+    "min_llm_streaming_ratio": 0.8
+  },
+  "premium_validation": {
+    "voice_skill_turn_target": 8,
+    "llm_short_turn_target": 5,
+    "llm_long_turn_target": 3,
+    "barge_in_turn_target": 3,
+    "reminder_turn_target": 2
   }
 }
