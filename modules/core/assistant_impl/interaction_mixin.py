@@ -377,6 +377,9 @@ class CoreAssistantInteractionMixin:
                 dialogue_snapshot.get("reply_mode", "") or ""
             ).strip()
 
+        if not self._turn_used_llm(telemetry, llm_snapshot):
+            llm_snapshot = {}
+
         llm_part = ""
         if llm_snapshot:
             llm_part = (
@@ -401,6 +404,7 @@ class CoreAssistantInteractionMixin:
             )
 
         benchmark_part = ""
+        self._reset_llm_turn_snapshot()
         benchmark_service = getattr(self, "turn_benchmark_service", None)
         if benchmark_service is not None:
             finish_turn = getattr(benchmark_service, "finish_turn", None)
@@ -517,6 +521,53 @@ class CoreAssistantInteractionMixin:
                 log_exception("Failed to collect LLM backend description", error)
 
         return {}
+    
+
+    def _reset_llm_turn_snapshot(self) -> None:
+        dialogue = getattr(self, "dialogue", None)
+        local_llm = getattr(dialogue, "local_llm", None)
+        if local_llm is None:
+            return
+
+        reset_method = getattr(local_llm, "reset_generation_snapshot", None)
+        if callable(reset_method):
+            try:
+                reset_method()
+            except Exception as error:
+                log_exception("Failed to reset LLM generation snapshot", error)
+
+    def _turn_used_llm(self, telemetry: dict[str, Any], llm_snapshot: dict[str, Any]) -> bool:
+        if not llm_snapshot:
+            return False
+
+        llm_source = str(llm_snapshot.get("source", "") or "").strip().lower()
+        if not llm_source:
+            return False
+
+        reply_source = str(telemetry.get("response_reply_source", "") or "").strip().lower()
+        response_source = str(telemetry.get("response_source", "") or "").strip().lower()
+        dialogue_source = str(telemetry.get("dialogue_source", "") or "").strip().lower()
+        result = str(telemetry.get("result", "") or "").strip().lower()
+
+        if reply_source == llm_source:
+            return True
+
+        if reply_source in {"local_llm", "hailo-ollama", "openai-server", "llama-server"}:
+            return True
+
+        if response_source == "dialogue_flow" and dialogue_source == "dialogue_flow":
+            return True
+
+        if result in {"conversation_route", "mixed_route", "unclear_route"} and bool(
+            telemetry.get("dialogue_delivered", False)
+        ):
+            return True
+
+        return False
+
+
+
+
     def _collect_response_stream_report(self) -> Any:
         return getattr(self, "_last_response_stream_report", None)
 

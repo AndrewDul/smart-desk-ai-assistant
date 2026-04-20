@@ -172,6 +172,14 @@ class LocalLLMService(
             int(llm_cfg.get("stream_sentence_soft_max_chars", 120)),
             self.stream_sentence_min_chars + 8,
         )
+        self.stream_first_chunk_min_chars = max(
+            int(llm_cfg.get("stream_first_chunk_min_chars", self.stream_sentence_min_chars)),
+            8,
+        )
+        self.stream_first_chunk_soft_max_chars = max(
+            int(llm_cfg.get("stream_first_chunk_soft_max_chars", 36)),
+            self.stream_first_chunk_min_chars + 4,
+        )
 
         self.server_url = str(llm_cfg.get("server_url", "http://127.0.0.1:8000")).strip()
         self.server_chat_path = (
@@ -458,6 +466,8 @@ class LocalLLMService(
             "last_generation_streamed": self._last_generation_streamed,
             "stream_sentence_min_chars": self.stream_sentence_min_chars,
             "stream_sentence_soft_max_chars": self.stream_sentence_soft_max_chars,
+            "stream_first_chunk_min_chars": self.stream_first_chunk_min_chars,
+            "stream_first_chunk_soft_max_chars": self.stream_first_chunk_soft_max_chars,
             "last_generation_ok": self._last_generation_ok,
             "last_generation_source": self._last_generation_source,
             "last_generation_error": self._last_generation_error,
@@ -484,5 +494,15 @@ class LocalLLMService(
             "error": self._last_generation_error,
         }
 
+
+    def reset_generation_snapshot(self) -> None:
+        self._last_generation_started_at = 0.0
+        self._last_generation_finished_at = 0.0
+        self._last_generation_latency_ms = 0.0
+        self._last_first_chunk_latency_ms = 0.0
+        self._last_generation_streamed = False
+        self._last_generation_ok = False
+        self._last_generation_source = ""
+        self._last_generation_error = ""
 
 __all__ = ["LocalLLMService"]

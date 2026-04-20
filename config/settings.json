@@ -180,6 +180,8 @@
   "prefer_json": false,
   "stream_sentence_min_chars": 10,
   "stream_sentence_soft_max_chars": 56,
+  "stream_first_chunk_min_chars": 20,
+  "stream_first_chunk_soft_max_chars": 36,
   "server_url": "http://127.0.0.1:8000",
   "server_chat_path": "/api/chat",
   "server_health_path": "/hailo/v1/list",

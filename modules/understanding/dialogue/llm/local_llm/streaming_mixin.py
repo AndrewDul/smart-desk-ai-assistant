@@ -232,6 +232,7 @@ class LocalLLMStreamingMixin:
                         ready_chunks, pending_buffer = self._split_ready_stream_chunks(
                             pending_buffer,
                             language=language,
+                            emitted_count=emitted_count,
                         )
 
                         for ready_text in ready_chunks:
@@ -321,6 +322,7 @@ class LocalLLMStreamingMixin:
             cleaned_text,
             language=language,
             final_flush=True,
+            emitted_count=0,
         )
         final_chunks = [part for part in [*ready_chunks, tail] if str(part or "").strip()]
 
@@ -347,6 +349,7 @@ class LocalLLMStreamingMixin:
         *,
         language: str,
         final_flush: bool = False,
+        emitted_count: int = 0,
     ) -> tuple[list[str], str]:
         del language
 
@@ -377,6 +380,13 @@ class LocalLLMStreamingMixin:
         if final_flush and normalized_remainder:
             return ready, normalized_remainder
 
+        if not final_flush and not ready and emitted_count == 0:
+            fast_first_split = self._split_fast_first_stream_chunk(normalized_remainder)
+            if fast_first_split is not None:
+                head, tail = fast_first_split
+                ready.append(head)
+                return ready, tail
+
         if (
             not final_flush
             and len(normalized_remainder) >= self.stream_sentence_soft_max_chars
@@ -391,6 +401,45 @@ class LocalLLMStreamingMixin:
                     return ready, tail
 
         return ready, remainder
+
+
+    def _split_fast_first_stream_chunk(self, text: str) -> tuple[str, str] | None:
+        normalized = clean_response_text(text)
+        if not normalized:
+            return None
+
+        if len(normalized) < self.stream_first_chunk_soft_max_chars:
+            return None
+
+        split_at = -1
+        for marker in (",", ";", ":"):
+            marker_index = normalized.rfind(
+                marker,
+                self.stream_first_chunk_min_chars,
+                self.stream_first_chunk_soft_max_chars + 1,
+            )
+            if marker_index >= self.stream_first_chunk_min_chars:
+                split_at = max(split_at, marker_index + 1)
+
+        if split_at < self.stream_first_chunk_min_chars:
+            split_at = normalized.rfind(
+                " ",
+                self.stream_first_chunk_min_chars,
+                self.stream_first_chunk_soft_max_chars + 1,
+            )
+
+        if split_at < self.stream_first_chunk_min_chars:
+            return None
+
+        head = clean_response_text(normalized[:split_at])
+        tail = clean_response_text(normalized[split_at:])
+
+        if not head or not tail:
+            return None
+
+        return head, tail
+
+
 
     def _find_stream_boundary(self, text: str) -> int:
         cleaned = str(text or "")

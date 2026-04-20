@@ -229,6 +229,25 @@ class LocalLLMStreamingTests(unittest.TestCase):
 
         self.assertEqual(cleaned, "A black hole is a region of")
 
+
+
+    def test_split_ready_stream_chunks_emits_fast_first_chunk_without_sentence_boundary(self) -> None:
+        service = self._build_service()
+        service.stream_first_chunk_min_chars = 20
+        service.stream_first_chunk_soft_max_chars = 36
+
+        ready, tail = service._split_ready_stream_chunks(
+            "A black hole is a region in space, where gravity is so strong that light cannot escape",
+            language="en",
+            final_flush=False,
+            emitted_count=0,
+        )
+
+        self.assertEqual(ready, ["A black hole is a region in space,"])
+        self.assertTrue(tail.startswith("where gravity"))
+
+
+
     def test_warmup_backend_if_enabled_primes_server_with_short_non_stream_call(self) -> None:
         service = self._build_service()
         service.enabled = True

@@ -46,16 +46,14 @@ class ResponseStreamerLiveStream(ResponseStreamerHelpers):
         display_shown = False
         chunk_kinds: list[str] = []
 
-        def _track_spoken_chunk(chunk: AssistantChunk) -> None:
+        def _track_spoken_chunk(chunk: AssistantChunk, speak_call_started_at: float) -> None:
             nonlocal first_audio_latency_s
             nonlocal first_sentence_latency_s
             nonlocal first_chunk_latency_ms
             nonlocal first_chunk_started_at_monotonic
 
-            spoken_at = time.monotonic()
-
             if first_audio_latency_s is None:
-                first_audio_latency_s = spoken_at - response_started_at
+                first_audio_latency_s = max(0.0, speak_call_started_at - response_started_at)
 
             chunk_first_latency_ms = self._chunk_first_latency_ms(chunk)
             if first_chunk_latency_ms <= 0.0 and chunk_first_latency_ms > 0.0:
@@ -65,9 +63,10 @@ class ResponseStreamerLiveStream(ResponseStreamerHelpers):
                 )
 
             if first_sentence_latency_s is None and self._is_sentence_chunk_kind(chunk.kind):
-                first_sentence_latency_s = spoken_at - response_started_at
+                first_sentence_latency_s = max(0.0, speak_call_started_at - response_started_at)
 
         for chunk in prepared_chunks:
+            speak_call_started_at = time.monotonic()
             spoken_ok = self._speak_live_chunk(chunk)
             if not spoken_ok:
                 if self._interrupted():
@@ -81,7 +80,7 @@ class ResponseStreamerLiveStream(ResponseStreamerHelpers):
                 full_text_parts.append(cleaned)
                 self._extend_dynamic_display_pool(dynamic_display_pool, cleaned)
 
-            _track_spoken_chunk(chunk)
+            _track_spoken_chunk(chunk, speak_call_started_at)
 
             if not display_shown:
                 display_shown = self._show_display_block(
@@ -93,6 +92,7 @@ class ResponseStreamerLiveStream(ResponseStreamerHelpers):
             if self._interrupted():
                 break
 
+            speak_call_started_at = time.monotonic()
             spoken_ok = self._speak_live_chunk(chunk)
             if not spoken_ok:
                 if self._interrupted():
@@ -106,7 +106,7 @@ class ResponseStreamerLiveStream(ResponseStreamerHelpers):
                 full_text_parts.append(cleaned)
                 self._extend_dynamic_display_pool(dynamic_display_pool, cleaned)
 
-            _track_spoken_chunk(chunk)
+            _track_spoken_chunk(chunk, speak_call_started_at)
 
             if not display_shown:
                 display_shown = self._show_display_block(
