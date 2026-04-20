@@ -18,6 +18,7 @@ class CoreAssistantInteractionMixin:
             return True
 
         telemetry = self._start_turn_telemetry(cleaned)
+        self._last_fast_lane_route_snapshot = {}
 
         try:
             prepared_started = time.perf_counter()
@@ -83,6 +84,33 @@ class CoreAssistantInteractionMixin:
             telemetry["fast_lane_ms"] = self._elapsed_ms(fast_lane_started)
 
             if fast_lane_result is not None:
+                fast_lane_route = dict(getattr(self, "_last_fast_lane_route_snapshot", {}) or {})
+                telemetry["route_kind"] = str(fast_lane_route.get("route_kind", "") or "")
+                telemetry["route_confidence"] = float(
+                    fast_lane_route.get("route_confidence", 0.0) or 0.0
+                )
+                telemetry["primary_intent"] = str(
+                    fast_lane_route.get("primary_intent", "") or ""
+                )
+                telemetry["topics"] = list(fast_lane_route.get("topics", []) or [])
+                telemetry["route_notes"] = list(fast_lane_route.get("route_notes", []) or [])
+                telemetry["route_metadata"] = dict(
+                    fast_lane_route.get("route_metadata", {}) or {}
+                )
+
+                benchmark_service = getattr(self, "turn_benchmark_service", None)
+                if benchmark_service is not None and telemetry["route_kind"]:
+                    note_route_resolved = getattr(benchmark_service, "note_route_resolved", None)
+                    if callable(note_route_resolved):
+                        try:
+                            note_route_resolved(
+                                route_kind=telemetry["route_kind"],
+                                primary_intent=telemetry["primary_intent"],
+                                confidence=telemetry["route_confidence"],
+                            )
+                        except Exception as error:
+                            log_exception("Failed to note fast-lane route benchmark telemetry", error)
+
                 telemetry["result"] = "fast_lane"
                 return bool(fast_lane_result)
 
@@ -468,6 +496,7 @@ class CoreAssistantInteractionMixin:
         self._refresh_developer_overlay(reason="turn_finished")
         self._last_response_stream_report = None
         self._last_response_delivery_snapshot = None
+        self._last_fast_lane_route_snapshot = {}
         self._last_pending_flow_snapshot = {}
 
     def _consume_last_input_capture(self) -> dict[str, Any]:

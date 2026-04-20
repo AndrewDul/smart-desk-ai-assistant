@@ -77,6 +77,15 @@ class _FakeAssistant(CoreAssistantInteractionMixin):
         return None
 
     def _handle_fast_lane(self, prepared):
+        if self.fast_lane_result is not None:
+            self._last_fast_lane_route_snapshot = {
+                "route_kind": "action",
+                "route_confidence": 0.97,
+                "primary_intent": "ask_time",
+                "topics": ["time"],
+                "route_notes": ["deterministic_fast_path"],
+                "route_metadata": {"lane": "fast_command"},
+            }
         return self.fast_lane_result
 
     def _thinking_ack_start(self, **kwargs) -> None:
@@ -164,6 +173,10 @@ class InteractionRouteDispatchTests(unittest.TestCase):
         self.assertEqual(assistant.route_calls, 0)
         self.assertEqual(assistant.dispatched, [])
         self.assertEqual(assistant.finished_telemetry["result"], "fast_lane")
+        self.assertEqual(assistant.finished_telemetry["route_kind"], "action")
+        self.assertEqual(assistant.finished_telemetry["primary_intent"], "ask_time")
+        self.assertEqual(assistant.turn_benchmark_service.route_events[0]["route_kind"], "action")
+        self.assertEqual(assistant.turn_benchmark_service.route_events[0]["primary_intent"], "ask_time")
 
 
 if __name__ == "__main__":

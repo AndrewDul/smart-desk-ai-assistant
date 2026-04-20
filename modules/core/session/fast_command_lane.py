@@ -162,6 +162,7 @@ class FastCommandLane:
         )
 
         route = self._build_route_decision(decision)
+        self._store_last_route_snapshot(assistant=assistant, route=route)
         return bool(assistant.action_flow.execute(route=route, language=decision.language))
 
     # ------------------------------------------------------------------
@@ -235,6 +236,17 @@ class FastCommandLane:
             normalized_text=normalized_text,
             interrupts_pending=interrupts_pending,
         )
+
+    @staticmethod
+    def _store_last_route_snapshot(*, assistant: Any, route: RouteDecision) -> None:
+        assistant._last_fast_lane_route_snapshot = {
+            "route_kind": getattr(route.kind, "value", str(route.kind)),
+            "route_confidence": float(getattr(route, "confidence", 0.0) or 0.0),
+            "primary_intent": str(getattr(route, "primary_intent", "") or ""),
+            "topics": list(getattr(route, "conversation_topics", []) or []),
+            "route_notes": list(getattr(route, "notes", []) or []),
+            "route_metadata": dict(getattr(route, "metadata", {}) or {}),
+        }
 
     @staticmethod
     def _match_simple_action(normalized_text: str) -> str:
