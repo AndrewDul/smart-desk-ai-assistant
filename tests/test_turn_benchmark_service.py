@@ -72,6 +72,13 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
                     "language": "en",
                     "input_source": "voice",
                     "user_text": "what time is it",
+                    "capture_metadata": {
+                        "capture_profile": "command",
+                        "capture_timeout_seconds": 4.2,
+                        "capture_end_silence_seconds": 0.32,
+                        "capture_min_speech_seconds": 0.12,
+                        "capture_pre_roll_seconds": 0.18,
+                    },
                 },
                 llm_snapshot={
                     "ok": True,
@@ -95,6 +102,12 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
             self.assertEqual(sample["stt_backend_label"], "faster-whisper")
             self.assertEqual(sample["stt_mode"], "command")
             self.assertAlmostEqual(sample["stt_confidence"], 0.91)
+            self.assertEqual(sample["capture_profile"], "command")
+            self.assertAlmostEqual(sample["capture_timeout_seconds"], 4.2)
+            self.assertAlmostEqual(sample["capture_end_silence_seconds"], 0.32)
+            self.assertAlmostEqual(sample["capture_min_speech_seconds"], 0.12)
+            self.assertAlmostEqual(sample["capture_pre_roll_seconds"], 0.18)
+            self.assertTrue(sample["voice_benchmark_ready"])
 
             latest_sample = service.latest_sample()
             latest_summary = service.latest_summary()

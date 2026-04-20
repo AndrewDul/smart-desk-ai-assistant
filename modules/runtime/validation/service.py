@@ -297,12 +297,33 @@ class TurnBenchmarkValidationService:
         }
 
     def _is_voice_turn(self, sample: dict[str, Any]) -> bool:
+        explicit_flag = sample.get("voice_benchmark_ready")
+        if explicit_flag is not None:
+            return bool(explicit_flag)
+
         candidates = [
             sample.get("input_source"),
             sample.get("stt_input_source"),
             sample.get("wake_input_source"),
         ]
-        return any(str(value or "").strip().lower() == "voice" for value in candidates)
+        has_voice_source = any(str(value or "").strip().lower() == "voice" for value in candidates)
+        if not has_voice_source:
+            return False
+
+        has_voice_evidence = any(
+            (
+                self._safe_float(sample.get("wake_latency_ms", 0.0)) > 0.0,
+                self._safe_float(sample.get("stt_latency_ms", 0.0)) > 0.0,
+                bool(str(sample.get("wake_source", "") or "").strip()),
+                bool(str(sample.get("stt_backend_label", "") or "").strip()),
+                bool(str(sample.get("stt_mode", "") or "").strip()),
+                bool(str(sample.get("active_phase", "") or "").strip()),
+                bool(str(sample.get("capture_profile", "") or "").strip()),
+                self._safe_float(sample.get("listen_to_speech_ms", 0.0)) > 0.0,
+                self._safe_float(sample.get("speech_to_route_ms", 0.0)) > 0.0,
+            )
+        )
+        return has_voice_evidence
 
     def _is_llm_turn(self, sample: dict[str, Any]) -> bool:
         reply_source = str(sample.get("response_reply_source", "") or "").strip().lower()
@@ -333,6 +354,14 @@ class TurnBenchmarkValidationService:
 
         reply_source = str(sample.get("response_reply_source", "") or "").strip().lower()
         return reply_source in {"skill", "action", "builtin"}
+
+
+    @staticmethod
+    def _safe_float(value: Any) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
 
     @staticmethod
     def _metric_values(samples: list[dict[str, Any]], key: str) -> list[float]:

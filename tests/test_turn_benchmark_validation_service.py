@@ -183,6 +183,50 @@ class TestTurnBenchmarkValidationService(unittest.TestCase):
         self.assertIn("llm.streaming-ratio", failed_keys)
         self.assertIn("overall.error-rate", failed_keys)
 
+
+    def test_voice_segment_excludes_synthetic_voice_samples_without_real_capture_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "turn_benchmarks.json"
+            samples = [
+                {
+                    **self._sample(1, skill=True, llm=False),
+                    "wake_latency_ms": None,
+                    "stt_latency_ms": None,
+                    "wake_source": "",
+                    "stt_backend_label": "",
+                    "stt_mode": "",
+                    "active_phase": "",
+                    "capture_profile": "",
+                    "listen_to_speech_ms": None,
+                    "speech_to_route_ms": None,
+                },
+                self._sample(2, skill=True, llm=False),
+                self._sample(3, skill=True, llm=False),
+                self._sample(4, skill=False, llm=True),
+                self._sample(5, skill=False, llm=True),
+                self._sample(6, skill=False, llm=True),
+            ]
+
+            path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "updated_at_iso": "",
+                        "samples": samples,
+                        "summary": {},
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            service = TurnBenchmarkValidationService(settings=self._settings(str(path)))
+            result = service.run()
+
+        voice_segment = next(segment for segment in result.segments if segment.key == "voice")
+        self.assertEqual(voice_segment.sample_count, 5)
+
+
     def test_llm_turns_do_not_count_as_skill_samples_when_skill_handled_flag_is_true(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "turn_benchmarks.json"

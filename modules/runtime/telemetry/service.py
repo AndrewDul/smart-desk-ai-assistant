@@ -204,6 +204,45 @@ class TurnBenchmarkService:
 
             safe_llm = dict(llm_snapshot or {})
 
+            capture_metadata = dict(telemetry.get("capture_metadata", {}) or {})
+            capture_profile = str(capture_metadata.get("capture_profile", "") or "").strip().lower()
+            capture_timeout_seconds = self._safe_float(
+                capture_metadata.get("capture_timeout_seconds", 0.0)
+            ) or None
+            capture_end_silence_seconds = self._safe_float(
+                capture_metadata.get("capture_end_silence_seconds", 0.0)
+            ) or None
+            capture_min_speech_seconds = self._safe_float(
+                capture_metadata.get("capture_min_speech_seconds", 0.0)
+            ) or None
+            capture_pre_roll_seconds = self._safe_float(
+                capture_metadata.get("capture_pre_roll_seconds", 0.0)
+            ) or None
+
+            has_voice_source = any(
+                str(value or "").strip().lower() == "voice"
+                for value in (
+                    telemetry.get("input_source"),
+                    trace.speech_input_source,
+                    trace.wake_input_source,
+                )
+            )
+            has_voice_evidence = any(
+                (
+                    self._safe_float(trace.wake_latency_ms) > 0.0,
+                    self._safe_float(trace.speech_latency_ms) > 0.0,
+                    bool(str(trace.wake_source or "").strip()),
+                    bool(str(trace.speech_backend_label or "").strip()),
+                    bool(str(trace.speech_mode or trace.active_phase or "").strip()),
+                    bool(capture_profile),
+                    self._delta_ms(
+                        trace.listening_started_at_monotonic,
+                        trace.speech_finalized_at_monotonic,
+                    ) is not None,
+                )
+            )
+            voice_benchmark_ready = bool(has_voice_source and has_voice_evidence)
+
             sample = {
                 "turn_id": str(telemetry.get("benchmark_turn_id") or trace.turn_id or "").strip(),
                 "created_at_iso": self._now_iso(),
@@ -311,7 +350,13 @@ class TurnBenchmarkService:
                 "stt_backend_label": str(trace.speech_backend_label or "").strip(),
                 "stt_mode": str(trace.speech_mode or trace.active_phase or "").strip(),
                 "stt_confidence": self._safe_float(trace.speech_confidence) or None,
- "resume_policy": {},
+                "capture_profile": capture_profile,
+                "capture_timeout_seconds": capture_timeout_seconds,
+                "capture_end_silence_seconds": capture_end_silence_seconds,
+                "capture_min_speech_seconds": capture_min_speech_seconds,
+                "capture_pre_roll_seconds": capture_pre_roll_seconds,
+                "voice_benchmark_ready": voice_benchmark_ready,
+                "resume_policy": {},
                 "command_window_policy": {},
                 "session_continuity": {},
                 "session_continuity_action": "",
