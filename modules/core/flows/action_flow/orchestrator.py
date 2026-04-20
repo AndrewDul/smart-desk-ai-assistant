@@ -209,6 +209,7 @@ class ActionFlowOrchestrator(
             request.confidence,
             sorted(request.payload.keys()),
         )
+        self._note_skill_started(request=request)
 
         execution_started_at = time.perf_counter()
         try:
@@ -326,6 +327,44 @@ class ActionFlowOrchestrator(
 
         return handler(**kwargs)
 
+    def _note_skill_started(self, *, request: SkillRequest) -> None:
+        benchmark_service = getattr(self.assistant, "turn_benchmark_service", None)
+        method = getattr(benchmark_service, "note_skill_started", None)
+        if not callable(method):
+            return
+
+        try:
+            method(
+                action=request.action,
+                source=request.source,
+            )
+        except Exception as error:
+            self.LOGGER.debug(
+                "Skill benchmark note_skill_started failed: action=%s error=%s",
+                request.action,
+                error,
+            )
+
+    def _note_skill_finished(self, *, request: SkillRequest, result: SkillResult) -> None:
+        benchmark_service = getattr(self.assistant, "turn_benchmark_service", None)
+        method = getattr(benchmark_service, "note_skill_finished", None)
+        if not callable(method):
+            return
+
+        metadata = dict(result.metadata or {})
+        try:
+            method(
+                action=result.action or request.action,
+                status=result.status,
+                source=str(metadata.get("source", request.source) or request.source),
+            )
+        except Exception as error:
+            self.LOGGER.debug(
+                "Skill benchmark note_skill_finished failed: action=%s error=%s",
+                result.action or request.action,
+                error,
+            )
+
 
 
     def _finalize_skill_result(
@@ -352,13 +391,15 @@ class ActionFlowOrchestrator(
                 "response_kind": response_kind,
             }
         )
-        return SkillResult(
+        finalized = SkillResult(
             action=result.action,
             handled=result.handled,
             response_delivered=result.response_delivered,
             status=result.status,
             metadata=metadata,
         )
+        self._note_skill_finished(request=request, result=finalized)
+        return finalized
 
 
 

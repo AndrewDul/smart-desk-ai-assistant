@@ -161,6 +161,74 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
             self.assertEqual(payload["summary"]["sample_count"], 1)
             self.assertEqual(payload["summary"]["last_turn_id"], turn_id)
 
+
+    def test_finish_turn_persists_skill_timing_markers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "turn_benchmarks_skill_markers.json"
+            service = TurnBenchmarkService(
+                enabled=True,
+                persist_turns=True,
+                path=path,
+                max_samples=10,
+                summary_window=5,
+            )
+
+            service.note_wake_detected(source="wake_gate")
+            turn_id = service.begin_turn(user_text="start a timer", language="en")
+            service.note_listening_started(phase="command")
+            service.note_speech_finalized(text="start a timer", phase="command")
+            service.note_route_resolved(
+                route_kind="action",
+                primary_intent="timer_start",
+                confidence=0.94,
+            )
+            service.note_skill_started(action="timer_start", source="timer_start")
+            service.note_skill_finished(
+                action="timer_start",
+                status="accepted",
+                source="timer_service.start",
+            )
+
+            response_started_at = service._active_trace.skill_started_at_monotonic + 0.020
+            first_audio_started_at = response_started_at + 0.100
+            report = StreamExecutionReport(
+                chunks_spoken=1,
+                full_text="Focus timer started.",
+                display_title="ACTION",
+                display_lines=["focus timer started"],
+                first_audio_latency_ms=100.0,
+                total_elapsed_ms=220.0,
+                started_at_monotonic=response_started_at,
+                first_audio_started_at_monotonic=first_audio_started_at,
+                finished_at_monotonic=response_started_at + 0.220,
+                chunk_kinds=["content"],
+                live_streaming=False,
+            )
+
+            sample = service.finish_turn(
+                telemetry={
+                    "benchmark_turn_id": turn_id,
+                    "total_ms": 450.0,
+                    "result": "action_route",
+                    "handled": True,
+                    "route_kind": "action",
+                    "primary_intent": "timer_start",
+                    "route_confidence": 0.94,
+                },
+                llm_snapshot={},
+                response_report=report,
+            )
+
+            self.assertEqual(sample["skill_action"], "timer_start")
+            self.assertEqual(sample["skill_status"], "accepted")
+            self.assertEqual(sample["skill_source"], "timer_service.start")
+            self.assertIsNotNone(sample["route_to_skill_start_ms"])
+            self.assertIsNotNone(sample["skill_execution_window_ms"])
+            self.assertIsNotNone(sample["skill_to_response_start_ms"])
+            self.assertIsNotNone(sample["skill_to_first_audio_ms"])
+
+
+
     def test_annotate_last_completed_turn_updates_latest_sample_and_store(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "annotated_benchmarks.json"

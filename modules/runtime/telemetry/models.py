@@ -12,6 +12,11 @@ class TurnBenchmarkTrace:
     listening_started_at_monotonic: float = 0.0
     speech_finalized_at_monotonic: float = 0.0
     route_resolved_at_monotonic: float = 0.0
+    skill_started_at_monotonic: float = 0.0
+    skill_finished_at_monotonic: float = 0.0
+    skill_action: str = ""
+    skill_source: str = ""
+    skill_status: str = ""
     user_text: str = ""
     input_source: str = "voice"
     language: str = ""

@@ -188,6 +188,40 @@ class TurnBenchmarkService:
             trace.primary_intent = str(primary_intent or trace.primary_intent or "").strip()
             trace.route_confidence = float(confidence or 0.0)
 
+    def note_skill_started(
+        self,
+        *,
+        action: str,
+        source: str = "",
+    ) -> None:
+        if not self.enabled:
+            return
+
+        with self._lock:
+            trace = self._ensure_active_trace_locked()
+            if trace.skill_started_at_monotonic <= 0.0:
+                trace.skill_started_at_monotonic = time.perf_counter()
+            trace.skill_action = str(action or trace.skill_action or "").strip()
+            trace.skill_source = str(source or trace.skill_source or "").strip()
+
+    def note_skill_finished(
+        self,
+        *,
+        action: str,
+        status: str,
+        source: str = "",
+    ) -> None:
+        if not self.enabled:
+            return
+
+        with self._lock:
+            trace = self._ensure_active_trace_locked()
+            if trace.skill_finished_at_monotonic <= 0.0:
+                trace.skill_finished_at_monotonic = time.perf_counter()
+            trace.skill_action = str(action or trace.skill_action or "").strip()
+            trace.skill_source = str(source or trace.skill_source or "").strip()
+            trace.skill_status = str(status or trace.skill_status or "").strip()
+
     def finish_turn(
         self,
         *,
@@ -321,6 +355,22 @@ class TurnBenchmarkService:
                     trace.route_resolved_at_monotonic,
                     report_first_audio,
                 ),
+                "route_to_skill_start_ms": self._delta_ms(
+                    trace.route_resolved_at_monotonic,
+                    trace.skill_started_at_monotonic,
+                ),
+                "skill_execution_window_ms": self._delta_ms(
+                    trace.skill_started_at_monotonic,
+                    trace.skill_finished_at_monotonic,
+                ),
+                "skill_to_response_start_ms": self._delta_ms(
+                    trace.skill_started_at_monotonic,
+                    report_started,
+                ),
+                "skill_to_first_audio_ms": self._delta_ms(
+                    trace.skill_started_at_monotonic,
+                    report_first_audio,
+                ),
                 "response_first_audio_ms": response_first_audio_ms or None,
                 "response_total_ms": response_total_ms or None,
                 "llm_first_chunk_ms": self._safe_float(
@@ -349,11 +399,11 @@ class TurnBenchmarkService:
                 "action_name": str(telemetry.get("action_name", "") or "").strip(),
                 "action_source": str(telemetry.get("action_source", "") or "").strip(),
                 "action_confidence": self._safe_float(telemetry.get("action_confidence", 0.0)) or None,
-                "skill_action": str(telemetry.get("skill_action", "") or "").strip(),
-                "skill_status": str(telemetry.get("skill_status", "") or "").strip(),
+                "skill_action": str(telemetry.get("skill_action") or trace.skill_action or "").strip(),
+                "skill_status": str(telemetry.get("skill_status") or trace.skill_status or "").strip(),
                 "skill_handled": bool(telemetry.get("skill_handled", False)),
                 "skill_response_delivered": bool(telemetry.get("skill_response_delivered", False)),
-                "skill_source": str(telemetry.get("skill_source", "") or "").strip(),
+                "skill_source": str(telemetry.get("skill_source") or trace.skill_source or "").strip(),
                 "skill_latency_ms": self._safe_float(telemetry.get("skill_latency_ms", 0.0)) or None,
                 "skill_response_kind": str(telemetry.get("skill_response_kind", "") or "").strip(),
                 "dialogue_status": str(telemetry.get("dialogue_status", "") or "").strip(),

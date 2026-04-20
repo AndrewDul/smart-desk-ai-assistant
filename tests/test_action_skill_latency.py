@@ -11,6 +11,20 @@ class _FakeTimer:
         return True, f"{mode} started"
 
 
+class _FakeBenchmarkService:
+    def __init__(self) -> None:
+        self.skill_started_calls: list[dict[str, object]] = []
+        self.skill_finished_calls: list[dict[str, object]] = []
+
+    def note_skill_started(self, *, action: str, source: str = "") -> None:
+        self.skill_started_calls.append({"action": action, "source": source})
+
+    def note_skill_finished(self, *, action: str, status: str, source: str = "") -> None:
+        self.skill_finished_calls.append(
+            {"action": action, "status": status, "source": source}
+        )
+
+
 class _FakeAssistant:
     def __init__(self) -> None:
         self.settings = {
@@ -20,6 +34,7 @@ class _FakeAssistant:
         self.default_focus_minutes = 25
         self.default_break_minutes = 5
         self.timer = _FakeTimer()
+        self.turn_benchmark_service = _FakeBenchmarkService()
 
     def _normalize_lang(self, language: str) -> str:
         return str(language or "en").strip().lower() or "en"
@@ -49,6 +64,11 @@ class ActionSkillLatencyTests(unittest.TestCase):
         self.assertGreaterEqual(float(flow._last_skill_result.metadata.get("latency_ms", -1.0)), 0.0)
         self.assertEqual(flow._last_skill_result.metadata.get("response_kind"), "accepted_only")
         self.assertEqual(flow._last_skill_result.metadata.get("source"), "timer_service.start")
+        self.assertEqual(assistant.turn_benchmark_service.skill_started_calls[0]["action"], "timer_start")
+        self.assertEqual(assistant.turn_benchmark_service.skill_started_calls[0]["source"], "route.primary_intent")
+        self.assertEqual(assistant.turn_benchmark_service.skill_finished_calls[0]["action"], "timer_start")
+        self.assertEqual(assistant.turn_benchmark_service.skill_finished_calls[0]["status"], "accepted")
+        self.assertEqual(assistant.turn_benchmark_service.skill_finished_calls[0]["source"], "timer_service.start")
 
 
 if __name__ == "__main__":
