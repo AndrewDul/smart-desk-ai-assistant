@@ -312,6 +312,15 @@ class FasterWhisperInputBackend(
                     "pre_roll_seconds": min(base_profile["pre_roll_seconds"], 0.18),
                 },
             ),
+            "wake_command": self._merge_capture_profile(
+                base_profile,
+                {
+                    "timeout_seconds": min(base_profile["timeout_seconds"], 4.4),
+                    "end_silence_seconds": min(base_profile["end_silence_seconds"], 0.26),
+                    "min_speech_seconds": min(base_profile["min_speech_seconds"], 0.10),
+                    "pre_roll_seconds": min(base_profile["pre_roll_seconds"], 0.14),
+                },
+            ),
             "follow_up": self._merge_capture_profile(
                 base_profile,
                 {
@@ -486,6 +495,7 @@ class FasterWhisperInputBackend(
             self.LOGGER.warning("FasterWhisper rich transcribe capture failed: %s", error)
             return None
 
+        capture_finished_at = time.monotonic()
         candidate = self._transcribe_audio_candidate(audio, debug=debug)
         if candidate is None:
             return None
@@ -536,6 +546,11 @@ class FasterWhisperInputBackend(
         metadata.setdefault("capture_end_silence_seconds", float(capture_profile["end_silence_seconds"]))
         metadata.setdefault("capture_min_speech_seconds", float(capture_profile["min_speech_seconds"]))
         metadata.setdefault("capture_pre_roll_seconds", float(capture_profile["pre_roll_seconds"]))
+        metadata.setdefault("capture_finished_at_monotonic", capture_finished_at)
+        metadata.setdefault(
+            "capture_elapsed_seconds",
+            max(0.0, capture_finished_at - started_at),
+        )
 
         return TranscriptResult(
             text=cleaned,

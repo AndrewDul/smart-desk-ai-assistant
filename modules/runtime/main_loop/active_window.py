@@ -185,6 +185,24 @@ def _prepare_capture_handoff_for_phase(
     return dict(snapshot)
 
 
+def _capture_mode_for_active_phase(
+    assistant: CoreAssistant,
+    *,
+    active_phase: str,
+    capture_handoff: dict[str, object] | None = None,
+) -> str:
+    normalized_phase = str(active_phase or PHASE_COMMAND).strip() or PHASE_COMMAND
+    if normalized_phase != PHASE_COMMAND:
+        return normalized_phase
+
+    snapshot = dict(capture_handoff or getattr(assistant, "_last_capture_handoff", {}) or {})
+    strategy = str(snapshot.get("strategy", "") or "").strip().lower()
+    if strategy in {"wake_prime_prepare", "wake_prime_reuse"}:
+        return "wake_command"
+
+    return normalized_phase
+
+
 def _remember_input_capture(
     assistant: CoreAssistant,
     *,
@@ -313,6 +331,9 @@ def _note_turn_benchmark_speech_finalized(
             backend_label=str(transcript_metadata.get("backend_label", "") or ""),
             mode=str(transcript_metadata.get("mode", phase) or phase),
             confidence=float(getattr(transcript, "confidence", 0.0) or 0.0),
+            finalized_at_monotonic=float(
+                transcript_metadata.get("capture_finished_at_monotonic", 0.0) or 0.0
+            ),
         )
     except Exception as error:
         append_log(f"Turn benchmark speech-finalized note failed: {error}")
@@ -754,7 +775,12 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
         return prefetched
 
     active_phase = _active_phase(state_flags)
-    _prepare_capture_handoff_for_phase(assistant, phase=active_phase)
+    capture_handoff = _prepare_capture_handoff_for_phase(assistant, phase=active_phase)
+    capture_mode = _capture_mode_for_active_phase(
+        assistant,
+        active_phase=active_phase,
+        capture_handoff=capture_handoff,
+    )
 
     _note_turn_benchmark_listening_started(
         assistant,
@@ -772,7 +798,7 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
         assistant,
         timeout=_active_command_timeout(assistant),
         debug=bool(getattr(assistant, "voice_debug", False)),
-        mode=active_phase,
+        mode=capture_mode,
     )
     if transcript is None:
         return None

@@ -252,5 +252,29 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
             self.assertEqual(len(set(kept_ids)), 20)
 
 
+    def test_note_speech_finalized_uses_capture_finished_timestamp_when_provided(self) -> None:
+        service = TurnBenchmarkService(
+            enabled=True,
+            persist_turns=False,
+            path="/tmp/turn_benchmarks.json",
+            max_samples=20,
+            summary_window=5,
+        )
+
+        service.note_wake_detected(source="wake_gate")
+        service.begin_turn(user_text="hello", language="en")
+        service.note_listening_started(phase="command")
+        service.note_speech_finalized(
+            text="hello",
+            phase="command",
+            finalized_at_monotonic=12.5,
+            latency_ms=180.0,
+        )
+
+        self.assertAlmostEqual(service._active_trace.speech_finalized_at_monotonic, 12.5)
+        self.assertAlmostEqual(service._active_trace.speech_latency_ms, 180.0)
+
+
+
 if __name__ == "__main__":
     unittest.main()

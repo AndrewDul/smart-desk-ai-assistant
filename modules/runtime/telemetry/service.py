@@ -144,14 +144,16 @@ class TurnBenchmarkService:
         backend_label: str = "",
         mode: str = "",
         confidence: float = 0.0,
+        finalized_at_monotonic: float = 0.0,
     ) -> None:
         if not self.enabled:
             return
 
         with self._lock:
             trace = self._ensure_active_trace_locked()
+            finalized_at = max(0.0, self._safe_float(finalized_at_monotonic))
             if trace.speech_finalized_at_monotonic <= 0.0:
-                trace.speech_finalized_at_monotonic = time.perf_counter()
+                trace.speech_finalized_at_monotonic = finalized_at or time.perf_counter()
 
             if not trace.user_text:
                 trace.user_text = self._preview_text(text)

@@ -54,6 +54,7 @@ class _SpeechRecognitionProbe:
                 "mode": request.mode,
                 "adapter": "service_rich_contract",
                 "engine": "faster_whisper",
+                "capture_finished_at_monotonic": 123.45,
             },
         )
 
@@ -181,7 +182,46 @@ class ActiveWindowSTTServiceIntegrationTests(unittest.TestCase):
             "speech_captured",
         )
 
+    def test_listen_for_active_command_uses_wake_command_mode_after_wake_prime(self) -> None:
+        assistant = _AssistantProbe()
+        state_flags = _StateFlags()
+        assistant._primed_capture_handoff = {
+            "source_phase": "command",
+            "strategy": "wake_prime_prepare",
+            "target_owner": "voice_input",
+            "applied_owner": "voice_input",
+            "wait_completed": True,
+            "prepared_at_monotonic": _module.time.perf_counter(),
+        }
 
+        original_note_listening = _module._note_turn_benchmark_listening_started
+        original_remember = _module._remember_capture_from_transcript
+        original_note_finalized = _module._note_turn_benchmark_speech_finalized
+
+        finalized: list[dict[str, object]] = []
+
+        try:
+            _module._note_turn_benchmark_listening_started = lambda assistant_obj, phase: None
+            _module._remember_capture_from_transcript = lambda assistant_obj, transcript, phase: None
+            _module._note_turn_benchmark_speech_finalized = (
+                lambda assistant_obj, text, phase, transcript=None: finalized.append(
+                    {
+                        "text": text,
+                        "phase": phase,
+                        "mode": dict(getattr(transcript, "metadata", {}) or {}).get("mode", ""),
+                    }
+                )
+            )
+
+            result = _listen_for_active_command(assistant, state_flags)
+        finally:
+            _module._note_turn_benchmark_listening_started = original_note_listening
+            _module._remember_capture_from_transcript = original_remember
+            _module._note_turn_benchmark_speech_finalized = original_note_finalized
+
+        self.assertEqual(result, "hello via service")
+        self.assertEqual(assistant.speech_recognition.requests[-1].mode, "wake_command")
+        self.assertEqual(finalized[0]["mode"], "wake_command")
 
     def test_listen_for_active_command_reuses_primed_handoff_after_wake(self) -> None:
         assistant = _AssistantProbe()
