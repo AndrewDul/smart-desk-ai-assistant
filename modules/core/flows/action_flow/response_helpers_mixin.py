@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from modules.shared.logging.logger import append_log
 from modules.runtime.contracts import (
     AssistantChunk,
     ChunkKind,
@@ -256,6 +257,39 @@ class ActionResponseHelpersMixin:
             },
         )
 
+    def _should_prefetch_action_response(self, *, spoken_text: str) -> bool:
+        streaming_cfg = getattr(self.assistant, "settings", {}).get("streaming", {})
+        configured = streaming_cfg.get("prefetch_action_responses")
+        if configured is None:
+            enabled = True
+        else:
+            enabled = bool(configured)
+
+        if not enabled:
+            return False
+
+        return bool(str(spoken_text or "").strip())
+
+    def _prefetch_action_response(self, *, spoken_text: str, language: str, action: str) -> None:
+        if not self._should_prefetch_action_response(spoken_text=spoken_text):
+            return
+
+        prepare_method = getattr(getattr(self.assistant, "voice_out", None), "prepare_speech", None)
+        if not callable(prepare_method):
+            return
+
+        try:
+            prepare_method(spoken_text, language)
+            append_log(
+                "Action response TTS prefetch queued: "
+                f"action={action}, lang={language}, chars={len(str(spoken_text or '').strip())}"
+            )
+        except Exception as error:
+            append_log(
+                "Action response TTS prefetch failed: "
+                f"action={action}, error={error}"
+            )
+
     def _deliver_simple_action_response(
         self,
         *,
@@ -267,6 +301,12 @@ class ActionResponseHelpersMixin:
         extra_metadata: dict[str, Any] | None = None,
         chunk_kind: ChunkKind = ChunkKind.CONTENT,
     ) -> bool:
+        self._prefetch_action_response(
+            spoken_text=spoken_text,
+            language=language,
+            action=action,
+        )
+
         plan = ResponsePlan(
             turn_id=create_turn_id(),
             language=language,

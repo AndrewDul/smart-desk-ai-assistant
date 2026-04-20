@@ -113,6 +113,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "inter_chunk_pause_seconds": 0.0,
         "max_display_lines": 2,
         "max_display_chars_per_line": 20,
+        "prefetch_action_responses": True,
     },
     "audio_coordination": {
         "self_hearing_hold_seconds": 0.32,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from modules.core.flows.action_flow.models import ResolvedAction
+from tests.support.fakes import FakeVoiceOutput
 from modules.core.flows.action_flow.response_helpers_mixin import ActionResponseHelpersMixin
 from modules.core.flows.action_flow.system_actions_mixin import ActionSystemActionsMixin
 from modules.runtime.contracts import RouteDecision, RouteKind
@@ -45,6 +46,7 @@ class _FakeAssistant:
         self.reminders = _FakeReminders([{"id": "r1"}])
         self.timer = _FakeTimer({"running": True})
 
+        self.voice_out = FakeVoiceOutput(supports_prepare_next=True)
         self.last_plan = None
         self.last_source = ""
         self.last_extra_metadata: dict[str, object] = {}
@@ -125,8 +127,11 @@ class SystemStatusActionTests(unittest.TestCase):
         self.assertEqual(assistant.last_source, "action_flow:status")
         self.assertTrue(assistant.last_extra_metadata["runtime_premium_ready"])
         self.assertTrue(assistant.last_extra_metadata["runtime_primary_ready"])
+        self.assertEqual(len(assistant.voice_out.prepare_calls), 1)
 
         spoken = assistant.last_plan.chunks[0].text
+        self.assertEqual(assistant.voice_out.prepare_calls[0][0], spoken)
+        self.assertEqual(assistant.voice_out.prepare_calls[0][1], "en")
         self.assertIn("Premium mode is ready.", spoken)
         self.assertIn("Wake uses oww", spoken)
         self.assertIn("STT uses faster", spoken)
@@ -182,8 +187,11 @@ class SystemStatusActionTests(unittest.TestCase):
             assistant.last_extra_metadata["runtime_compatibility_components"],
             ["wake_gate"],
         )
+        self.assertEqual(len(assistant.voice_out.prepare_calls), 1)
 
         spoken = assistant.last_plan.chunks[0].text
+        self.assertEqual(assistant.voice_out.prepare_calls[0][0], spoken)
+        self.assertEqual(assistant.voice_out.prepare_calls[0][1], "pl")
         self.assertIn("ścieżka kompatybilności", spoken)
         self.assertIn("wake używa compat", spoken.lower())
         self.assertIn("stt używa faster", spoken.lower())

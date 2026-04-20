@@ -115,12 +115,13 @@
     "default_break_minutes": 5
   },
   "streaming": {
-  "dialogue_stream_mode": "sentence",
-  "live_llm_sentence_streaming_enabled": true,
-  "inter_chunk_pause_seconds": 0.0,
-  "max_display_lines": 2,
-  "max_display_chars_per_line": 20
-},
+    "dialogue_stream_mode": "sentence",
+    "live_llm_sentence_streaming_enabled": true,
+    "inter_chunk_pause_seconds": 0.0,
+    "max_display_lines": 2,
+    "max_display_chars_per_line": 20,
+    "prefetch_action_responses": true
+  },
   "audio_coordination": {
   "self_hearing_hold_seconds": 0.32,
   "listen_resume_poll_seconds": 0.04
