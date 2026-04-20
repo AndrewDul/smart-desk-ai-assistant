@@ -19,6 +19,10 @@ class TurnBenchmarkTrace:
     wake_input_source: str = "voice"
     wake_latency_ms: float = 0.0
     wake_backend_label: str = ""
+    wake_ack_latency_ms: float = 0.0
+    wake_ack_text: str = ""
+    wake_ack_strategy: str = ""
+    wake_ack_output_hold_seconds: float = 0.0
     speech_input_source: str = "voice"
     speech_language: str = ""
     speech_latency_ms: float = 0.0

@@ -237,26 +237,55 @@ def _acknowledge_wake(assistant: CoreAssistant) -> None:
 
     language = getattr(assistant, "last_language", "en")
     wake_ack_service = getattr(assistant, "wake_ack_service", None)
+    benchmark_service = getattr(assistant, "turn_benchmark_service", None)
     wake_ack = "I'm listening."
+    wake_ack_strategy = "fallback"
+    wake_ack_output_hold_seconds: float | None = None
     spoken = False
+    wake_ack_started_at = time.perf_counter()
 
     if wake_ack_service is not None:
         try:
-            result = wake_ack_service.speak(language=language)
+            result = wake_ack_service.speak(language=language, prefer_fast_phrase=True)
             wake_ack = result.text or wake_ack
             spoken = bool(result.spoken)
+            wake_ack_strategy = str(getattr(result, "strategy", "fast") or "fast")
+            wake_ack_output_hold_seconds = getattr(result, "output_hold_seconds", None)
         except Exception as error:
             append_log(f"Wake acknowledgement service failed: {error}")
 
     if not spoken:
         wake_builder = getattr(assistant.voice_session, "build_wake_acknowledgement", None)
         wake_ack = wake_builder() if callable(wake_builder) else wake_ack
-        assistant.voice_out.speak(
-            wake_ack,
-            language=language,
-        )
+        try:
+            assistant.voice_out.speak(
+                wake_ack,
+                language=language,
+                output_hold_seconds=wake_ack_output_hold_seconds,
+            )
+        except TypeError:
+            assistant.voice_out.speak(
+                wake_ack,
+                language=language,
+            )
 
-    append_log(f"Wake phrase detected. Acknowledgement spoken: {wake_ack}")
+    wake_ack_latency_ms = max(0.0, (time.perf_counter() - wake_ack_started_at) * 1000.0)
+    note_wake_acknowledged = getattr(benchmark_service, "note_wake_acknowledged", None)
+    if callable(note_wake_acknowledged):
+        try:
+            note_wake_acknowledged(
+                text=wake_ack,
+                strategy=wake_ack_strategy,
+                latency_ms=wake_ack_latency_ms,
+                output_hold_seconds=wake_ack_output_hold_seconds,
+            )
+        except Exception as error:
+            append_log(f"Turn benchmark wake-ack note failed: {error}")
+
+    append_log(
+        "Wake phrase detected. Acknowledgement spoken: "
+        f"{wake_ack} | strategy={wake_ack_strategy} | ack_ms={wake_ack_latency_ms:.1f}"
+    )
     print("Wake phrase detected. Waiting for command...")
 
 

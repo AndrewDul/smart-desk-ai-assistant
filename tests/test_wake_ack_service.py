@@ -50,6 +50,9 @@ class WakeAcknowledgementServiceTests(unittest.TestCase):
         self.assertTrue(result.spoken)
         self.assertEqual(result.text, "I'm here.")
         self.assertEqual(result.language, "en")
+        self.assertEqual(result.strategy, "fast")
+        self.assertAlmostEqual(result.output_hold_seconds or 0.0, 0.04)
+        self.assertEqual(result.word_count, 2)
         self.assertEqual(
             voice_output.speak_calls,
             [
@@ -57,6 +60,7 @@ class WakeAcknowledgementServiceTests(unittest.TestCase):
                     "text": "I'm here.",
                     "language": "en",
                     "prepare_next": None,
+                    "output_hold_seconds": 0.04,
                 }
             ],
         )

@@ -21,6 +21,7 @@ class FakeVoiceOutput:
         text: str,
         language: str | None = None,
         prepare_next: tuple[str, str] | None = None,
+        output_hold_seconds: float | None = None,
     ) -> bool:
         if not self.supports_prepare_next and prepare_next is not None:
             raise TypeError("prepare_next not supported")
@@ -30,6 +31,7 @@ class FakeVoiceOutput:
                 "text": str(text),
                 "language": language,
                 "prepare_next": prepare_next,
+                "output_hold_seconds": output_hold_seconds,
             }
         )
         return True

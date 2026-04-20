@@ -99,6 +99,29 @@ class TurnBenchmarkService:
             self._active_trace.wake_latency_ms = max(0.0, self._safe_float(latency_ms))
             self._active_trace.wake_backend_label = str(backend_label or source or "").strip()
 
+    def note_wake_acknowledged(
+        self,
+        *,
+        text: str,
+        strategy: str = "standard",
+        latency_ms: float = 0.0,
+        output_hold_seconds: float | None = None,
+    ) -> None:
+        if not self.enabled:
+            return
+
+        with self._lock:
+            trace = self._ensure_active_trace_locked()
+            trace.wake_ack_text = self._preview_text(text)
+            trace.wake_ack_strategy = str(strategy or "standard").strip() or "standard"
+            trace.wake_ack_latency_ms = max(0.0, self._safe_float(latency_ms))
+            trace.wake_ack_output_hold_seconds = max(
+                0.0,
+                self._safe_float(output_hold_seconds),
+            )
+
+
+
     def note_listening_started(self, *, phase: str) -> None:
         if not self.enabled:
             return
@@ -270,6 +293,10 @@ class TurnBenchmarkService:
                 "wake_input_source": str(trace.wake_input_source or trace.input_source or "voice").strip() or "voice",
                 "wake_latency_ms": self._safe_float(trace.wake_latency_ms) or None,
                 "wake_backend_label": str(trace.wake_backend_label or "").strip(),
+                "wake_ack_latency_ms": self._safe_float(trace.wake_ack_latency_ms) or None,
+                "wake_ack_text": str(trace.wake_ack_text or "").strip(),
+                "wake_ack_strategy": str(trace.wake_ack_strategy or "").strip(),
+                "wake_ack_output_hold_seconds": self._safe_float(trace.wake_ack_output_hold_seconds) or None,
                 "active_phase": str(trace.active_phase or "").strip(),
                 "wake_to_listen_ms": self._delta_ms(
                     trace.wake_detected_at_monotonic,

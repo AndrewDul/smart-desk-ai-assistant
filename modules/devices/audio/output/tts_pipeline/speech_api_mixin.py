@@ -40,6 +40,7 @@ class TTSPipelineSpeechApiMixin:
         text: str,
         language: str | None = None,
         prepare_next: tuple[str, str] | None = None,
+        output_hold_seconds: float | None = None,
     ) -> bool:
         started_at = time.monotonic()
 
@@ -121,6 +122,7 @@ class TTSPipelineSpeechApiMixin:
                     interrupted=interrupted,
                     success=success,
                     spoken_text=tts_text,
+                    output_hold_override=output_hold_seconds,
                 )
                 self.audio_coordinator.end_assistant_output(
                     coordinator_token,
@@ -135,6 +137,7 @@ class TTSPipelineSpeechApiMixin:
                 f"success={success}, "
                 f"interrupted={interrupted}, "
                 f"prepare_next={has_prepare_next}, "
+                f"output_hold_override={output_hold_seconds}, "
                 f"elapsed={time.monotonic() - started_at:.3f}s"
             )
 

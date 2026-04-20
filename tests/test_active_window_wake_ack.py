@@ -48,16 +48,26 @@ class _FakeVoiceSession:
 
 class _FakeWakeAckService:
     def __init__(self) -> None:
-        self.calls: list[str] = []
+        self.calls: list[tuple[str, bool | None]] = []
 
-    def speak(self, *, language: str | None = None):
-        self.calls.append(str(language))
+    def speak(self, *, language: str | None = None, prefer_fast_phrase: bool | None = None):
+        self.calls.append((str(language), prefer_fast_phrase))
 
         class _Result:
             text = "Yes?"
             spoken = True
+            strategy = "fast"
+            output_hold_seconds = 0.04
 
         return _Result()
+
+
+class _FakeBenchmarkService:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def note_wake_acknowledged(self, **kwargs) -> None:
+        self.calls.append(dict(kwargs))
 
 
 class _AssistantProbe:
@@ -65,6 +75,7 @@ class _AssistantProbe:
         self.voice_session = _FakeVoiceSession()
         self.voice_out = FakeVoiceOutput()
         self.wake_ack_service = _FakeWakeAckService()
+        self.turn_benchmark_service = _FakeBenchmarkService()
         self.last_language = "en"
 
 
@@ -75,9 +86,13 @@ class ActiveWindowWakeAcknowledgementTests(unittest.TestCase):
         _acknowledge_wake(assistant)
 
         self.assertEqual(assistant.voice_session.transition_calls, ["wake_phrase_detected"])
-        self.assertEqual(assistant.wake_ack_service.calls, ["en"])
+        self.assertEqual(assistant.wake_ack_service.calls, [("en", True)])
         self.assertEqual(assistant.voice_out.speak_calls, [])
         self.assertEqual(assistant.voice_session.builder_calls, 0)
+        self.assertEqual(len(assistant.turn_benchmark_service.calls), 1)
+        self.assertEqual(assistant.turn_benchmark_service.calls[0]["text"], "Yes?")
+        self.assertEqual(assistant.turn_benchmark_service.calls[0]["strategy"], "fast")
+        self.assertAlmostEqual(float(assistant.turn_benchmark_service.calls[0]["output_hold_seconds"] or 0.0), 0.04)
 
 
 if __name__ == "__main__":

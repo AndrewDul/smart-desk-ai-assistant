@@ -27,6 +27,12 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
                 backend_label="openwakeword",
             )
             turn_id = service.begin_turn(user_text="what time is it", language="en")
+            service.note_wake_acknowledged(
+                text="Yes?",
+                strategy="fast",
+                latency_ms=72.0,
+                output_hold_seconds=0.04,
+            )
             service.note_listening_started(phase="command")
             service.note_speech_finalized(
                 text="what time is it",
@@ -99,6 +105,10 @@ class TurnBenchmarkServiceTests(unittest.TestCase):
             self.assertEqual(sample["wake_input_source"], "wake_word")
             self.assertAlmostEqual(sample["wake_latency_ms"], 35.0)
             self.assertEqual(sample["wake_backend_label"], "openwakeword")
+            self.assertAlmostEqual(sample["wake_ack_latency_ms"], 72.0)
+            self.assertEqual(sample["wake_ack_text"], "Yes?")
+            self.assertEqual(sample["wake_ack_strategy"], "fast")
+            self.assertAlmostEqual(sample["wake_ack_output_hold_seconds"], 0.04)
             self.assertEqual(sample["stt_backend_label"], "faster-whisper")
             self.assertEqual(sample["stt_mode"], "command")
             self.assertAlmostEqual(sample["stt_confidence"], 0.91)

@@ -46,9 +46,16 @@ class TTSPipelineControlMixin:
         interrupted: bool,
         success: bool,
         spoken_text: str,
+        output_hold_override: float | None = None,
     ) -> float:
         if not success:
             return 0.0
+
+        if output_hold_override is not None:
+            try:
+                return max(0.0, float(output_hold_override))
+            except (TypeError, ValueError):
+                pass
 
         if interrupted:
             return max(

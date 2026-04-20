@@ -166,6 +166,9 @@ class CoreAssistant(
             phrase_builder=self.voice_session.build_wake_acknowledgement,
             phrase_inventory=self.voice_session.wake_acknowledgements,
             prefetch_on_boot=bool(voice_input_cfg.get("wake_ack_prefetch_on_boot", True)),
+            prefer_fast_phrase_on_wake=bool(voice_input_cfg.get("wake_ack_prefer_fast_phrase", True)),
+            fast_phrase_max_words=int(voice_input_cfg.get("wake_ack_fast_phrase_max_words", 2)),
+            fast_output_hold_seconds=float(voice_input_cfg.get("wake_ack_output_hold_seconds", 0.04)),
         )
         self.memory = self.runtime.memory
         self.reminders = self.runtime.reminders
