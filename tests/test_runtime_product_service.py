@@ -65,7 +65,7 @@ class _FakeRuntime:
 
 
 class RuntimeProductServiceTests(unittest.TestCase):
-    def test_provider_inventory_marks_compatibility_path_and_blocks_premium_ready(self) -> None:
+    def test_provider_inventory_marks_compatibility_path_and_blocks_only_premium_ready(self) -> None:
         service = RuntimeProductService(
             settings={
                 "llm": {
@@ -83,9 +83,15 @@ class RuntimeProductServiceTests(unittest.TestCase):
         )
 
         self.assertTrue(snapshot["startup_allowed"])
+        self.assertTrue(snapshot["primary_ready"])
         self.assertFalse(snapshot["premium_ready"])
-        self.assertFalse(snapshot["primary_ready"])
+        self.assertEqual(snapshot["startup_mode"], "limited")
         self.assertIn("wake_gate", snapshot["compatibility_components"])
+        self.assertIn("wake_gate: compatibility path active", snapshot["warnings"])
+        self.assertEqual(
+            snapshot["status_message"],
+            "runtime ready with compatibility path: wake_gate",
+        )
 
         provider_inventory = snapshot["provider_inventory"]
         self.assertIn("wake_gate", provider_inventory)

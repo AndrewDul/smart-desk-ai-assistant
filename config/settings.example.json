@@ -57,7 +57,8 @@
   "whisper_cli_path": "whisper.cpp/build/bin/whisper-cli",
   "model_path": "models/ggml-base.bin",
   "vad_model_path": "models/ggml-silero-v6.2.0.bin",
-  "single_capture_mode": true
+  "single_capture_mode": true,
+  "wake_prefer_dedicated_gate": true
   
 },
   "voice_output": {

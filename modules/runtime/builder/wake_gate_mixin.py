@@ -64,7 +64,9 @@ class RuntimeBuilderWakeGateMixin:
             )
 
         single_capture_mode = self._single_capture_mode_enabled(config)
-        if single_capture_mode and bool(voice_input_status.ok):
+        prefer_dedicated_gate = bool(config.get("wake_prefer_dedicated_gate", True))
+
+        if single_capture_mode and bool(voice_input_status.ok) and not prefer_dedicated_gate:
             compatibility_gate = CompatibilityWakeGate(voice_input)
             return (
                 compatibility_gate,

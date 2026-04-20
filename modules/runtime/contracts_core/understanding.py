@@ -33,12 +33,39 @@ class TranscriptResult:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
-    def duration_seconds(self) -> float:
+    def wall_clock_duration_seconds(self) -> float:
         return max(0.0, self.ended_at - self.started_at)
 
     @property
+    def audio_duration_seconds(self) -> float:
+        raw = self.metadata.get("audio_duration_seconds")
+        try:
+            if raw is not None:
+                return max(0.0, float(raw))
+        except (TypeError, ValueError):
+            pass
+        return self.wall_clock_duration_seconds
+
+    @property
+    def processing_duration_seconds(self) -> float:
+        raw = self.metadata.get("transcription_elapsed_seconds")
+        try:
+            if raw is not None:
+                return max(0.0, float(raw))
+        except (TypeError, ValueError):
+            pass
+
+        wall_clock = self.wall_clock_duration_seconds
+        audio_duration = self.audio_duration_seconds
+        return max(0.0, wall_clock - audio_duration)
+
+    @property
+    def duration_seconds(self) -> float:
+        return self.audio_duration_seconds
+
+    @property
     def latency_ms(self) -> float:
-        return self.duration_seconds * 1000.0
+        return self.processing_duration_seconds * 1000.0
 
     @property
     def normalized_text(self) -> str:

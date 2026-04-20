@@ -147,7 +147,7 @@ class RuntimeProductService:
                 if bool(getattr(status, "required", False))
             )
 
-            required_primary_ready = bool(startup_allowed) and not compatibility_components and all(
+            required_primary_ready = bool(startup_allowed) and all(
                 self._is_primary_service_status(status)
                 for name, status in services.items()
                 if bool(getattr(status, "required", False))
