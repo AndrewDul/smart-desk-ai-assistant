@@ -268,5 +268,9 @@
     "llm_long_turn_target": 3,
     "barge_in_turn_target": 3,
     "reminder_turn_target": 2
+  },
+  "premium_release": {
+    "min_benchmark_window_samples": 10,
+    "required_segments": ["voice", "skill", "llm"]
   }
 }
