@@ -64,7 +64,7 @@ class RuntimeBuilderWakeGateMixin:
             )
 
         single_capture_mode = self._single_capture_mode_enabled(config)
-        prefer_dedicated_gate = bool(config.get("wake_prefer_dedicated_gate", True))
+        prefer_dedicated_gate = bool(config.get("wake_prefer_dedicated_gate", False))
 
         if single_capture_mode and bool(voice_input_status.ok) and not prefer_dedicated_gate:
             compatibility_gate = CompatibilityWakeGate(voice_input)
@@ -106,6 +106,8 @@ class RuntimeBuilderWakeGateMixin:
                     ),
                     energy_rms_threshold=float(config.get("wake_energy_rms_threshold", 0.0085)),
                     score_smoothing_window=int(config.get("wake_score_smoothing_window", 3)),
+                    wake_channel_mode=str(config.get("wake_channel_mode", "mono_mix")),
+                    wake_channel_index=config.get("wake_channel_index"),
                     debug=bool(config.get("wake_debug", False)),
                 )
                 return (

@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-import unittest
 import time
+import unittest
+
 from modules.presentation.response_streamer.streamer import ResponseStreamer
 from modules.runtime.contracts import AssistantChunk, ChunkKind, ResponsePlan, RouteKind, StreamMode
 from tests.support.fakes import FakeDisplay, FakeVoiceOutput
 
 
-
-class _SlowVoiceOutput(FakeVoiceOutput):
-    def __init__(self, *, sleep_seconds: float = 0.06) -> None:
+class _TelemetryVoiceOutput(FakeVoiceOutput):
+    def __init__(self, *, audio_delay_seconds: float = 0.05) -> None:
         super().__init__(supports_prepare_next=True)
-        self.sleep_seconds = float(sleep_seconds)
+        self.audio_delay_seconds = float(audio_delay_seconds)
 
     def speak(
         self,
@@ -20,13 +20,17 @@ class _SlowVoiceOutput(FakeVoiceOutput):
         prepare_next: tuple[str, str] | None = None,
         output_hold_seconds: float | None = None,
     ) -> bool:
-        time.sleep(self.sleep_seconds)
-        return super().speak(
+        started_at = time.monotonic()
+        time.sleep(self.audio_delay_seconds)
+        result = super().speak(
             text,
             language=language,
             prepare_next=prepare_next,
             output_hold_seconds=output_hold_seconds,
         )
+        self._last_speak_report["first_audio_started_at_monotonic"] = started_at + self.audio_delay_seconds
+        self._last_speak_report["first_audio_latency_ms"] = self.audio_delay_seconds * 1000.0
+        return result
 
 
 class ResponseStreamerTests(unittest.TestCase):
@@ -82,7 +86,11 @@ class ResponseStreamerTests(unittest.TestCase):
                 sequence_index=0,
                 metadata={"first_chunk_latency_ms": 42.0},
             )
-            yield AssistantChunk(text="The timer is running.", kind=ChunkKind.CONTENT, sequence_index=1)
+            yield AssistantChunk(
+                text="The timer is running.",
+                kind=ChunkKind.CONTENT,
+                sequence_index=1,
+            )
 
         plan = ResponsePlan(
             turn_id="turn-live",
@@ -108,10 +116,8 @@ class ResponseStreamerTests(unittest.TestCase):
         self.assertEqual(len(voice_output.speak_calls), 2)
         self.assertTrue(display.blocks)
 
-
-
-    def test_execute_live_plan_measures_first_audio_from_speak_start_not_completion(self) -> None:
-        voice_output = _SlowVoiceOutput(sleep_seconds=0.06)
+    def test_execute_live_plan_measures_first_audio_from_voice_output_report(self) -> None:
+        voice_output = _TelemetryVoiceOutput(audio_delay_seconds=0.05)
         display = FakeDisplay()
         streamer = ResponseStreamer(
             voice_output=voice_output,
@@ -144,8 +150,37 @@ class ResponseStreamerTests(unittest.TestCase):
         report = streamer.execute(plan)
 
         self.assertTrue(report.live_streaming)
-        self.assertLess(report.first_audio_latency_ms, 40.0)
+        self.assertGreaterEqual(report.first_audio_latency_ms, 50.0)
         self.assertGreaterEqual(report.total_elapsed_ms, 50.0)
+
+    def test_execute_standard_plan_prefers_voice_output_first_audio_report_when_available(self) -> None:
+        voice_output = _TelemetryVoiceOutput(audio_delay_seconds=0.05)
+        display = FakeDisplay()
+        streamer = ResponseStreamer(
+            voice_output=voice_output,
+            display=display,
+            default_display_seconds=4.0,
+            inter_chunk_pause_seconds=0.0,
+        )
+
+        plan = ResponsePlan(
+            turn_id="turn-standard-telemetry",
+            language="en",
+            route_kind=RouteKind.CONVERSATION,
+            stream_mode=StreamMode.SENTENCE,
+            chunks=[
+                AssistantChunk(text="Let me think.", kind=ChunkKind.ACK, sequence_index=0),
+                AssistantChunk(text="The focus timer is active.", kind=ChunkKind.CONTENT, sequence_index=1),
+            ],
+            metadata={"display_title": "CHAT", "display_lines": ["Let me think."]},
+        )
+
+        report = streamer.execute(plan)
+
+        self.assertGreaterEqual(report.first_audio_latency_ms, 45.0)
+        self.assertGreaterEqual(report.first_sentence_latency_ms, 45.0)
+        self.assertGreaterEqual(report.total_elapsed_ms, 50.0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -38,7 +38,12 @@ class _FakeCloseableInput:
     def __init__(self) -> None:
         self.closed = False
         self.close_calls = 0
+        self.release_calls = 0
         self._stream = object()
+
+    def release_capture_ownership(self) -> bool:
+        self.release_calls += 1
+        return True
 
     def close(self) -> None:
         self.closed = True
@@ -141,14 +146,21 @@ class CaptureOwnershipServiceTests(unittest.TestCase):
         self.assertEqual(result.target_owner, VOICE_INPUT_OWNER_VOICE_INPUT)
         self.assertEqual(result.applied_owner, VOICE_INPUT_OWNER_VOICE_INPUT)
         self.assertTrue(result.wake_backend_released)
+        self.assertEqual(result.wake_backend_release_mode, "soft")
         self.assertFalse(result.voice_input_released)
+        self.assertEqual(result.voice_input_release_mode, "none")
         self.assertEqual(result.wake_backend_label, "runtime.wake_gate")
-        self.assertTrue(wake_gate.closed)
+        self.assertFalse(wake_gate.closed)
+        self.assertEqual(wake_gate.release_calls, 1)
         self.assertFalse(voice_in.closed)
         self.assertEqual(assistant.voice_session.input_owner(), VOICE_INPUT_OWNER_VOICE_INPUT)
         self.assertEqual(
             assistant._last_capture_handoff["applied_owner"],
             VOICE_INPUT_OWNER_VOICE_INPUT,
+        )
+        self.assertEqual(
+            assistant._last_capture_handoff["wake_backend_release_mode"],
+            "soft",
         )
 
     def test_prepare_for_standby_capture_releases_voice_input(self) -> None:
@@ -165,13 +177,20 @@ class CaptureOwnershipServiceTests(unittest.TestCase):
         self.assertEqual(result.target_owner, VOICE_INPUT_OWNER_WAKE_GATE)
         self.assertEqual(result.applied_owner, VOICE_INPUT_OWNER_WAKE_GATE)
         self.assertFalse(result.wake_backend_released)
+        self.assertEqual(result.wake_backend_release_mode, "none")
         self.assertTrue(result.voice_input_released)
+        self.assertEqual(result.voice_input_release_mode, "soft")
         self.assertFalse(wake_gate.closed)
-        self.assertTrue(voice_in.closed)
+        self.assertFalse(voice_in.closed)
+        self.assertEqual(voice_in.release_calls, 1)
         self.assertEqual(assistant.voice_session.input_owner(), VOICE_INPUT_OWNER_WAKE_GATE)
         self.assertEqual(
             assistant._last_capture_handoff["applied_owner"],
             VOICE_INPUT_OWNER_WAKE_GATE,
+        )
+        self.assertEqual(
+            assistant._last_capture_handoff["voice_input_release_mode"],
+            "soft",
         )
 
     def test_wait_for_input_ready_records_blocked_output(self) -> None:
@@ -208,7 +227,9 @@ class CaptureOwnershipServiceTests(unittest.TestCase):
         result = self.service.prepare_for_active_capture(assistant)
 
         self.assertFalse(result.wake_backend_released)
+        self.assertEqual(result.wake_backend_release_mode, "none")
         self.assertFalse(voice_in.closed)
+        self.assertEqual(voice_in.release_calls, 0)
         self.assertEqual(result.applied_owner, VOICE_INPUT_OWNER_VOICE_INPUT)
         self.assertEqual(assistant.voice_session.input_owner(), VOICE_INPUT_OWNER_VOICE_INPUT)
 
@@ -221,11 +242,13 @@ class CaptureOwnershipServiceTests(unittest.TestCase):
             coordinator=_FakeCoordinator([False]),
         )
 
-        released, label = self.service.ensure_wake_capture_released(assistant)
+        released, release_mode, label = self.service.ensure_wake_capture_released(assistant)
 
         self.assertTrue(released)
+        self.assertEqual(release_mode, "soft")
         self.assertEqual(label, "runtime.wake_gate")
-        self.assertTrue(wake_gate.closed)
+        self.assertFalse(wake_gate.closed)
+        self.assertEqual(wake_gate.release_calls, 1)
 
     def test_ensure_voice_capture_released_keeps_shared_backend_alive(self) -> None:
         voice_in = _FakeVoiceInput()
@@ -236,10 +259,12 @@ class CaptureOwnershipServiceTests(unittest.TestCase):
             wake_selected_backend="compatibility_voice_input",
         )
 
-        released = self.service.ensure_voice_capture_released(assistant)
+        released, release_mode = self.service.ensure_voice_capture_released(assistant)
 
         self.assertFalse(released)
+        self.assertEqual(release_mode, "none")
         self.assertFalse(voice_in.closed)
+        self.assertEqual(voice_in.release_calls, 0)
 
 
 if __name__ == "__main__":

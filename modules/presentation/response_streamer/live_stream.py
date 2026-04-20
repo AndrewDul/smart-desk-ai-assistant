@@ -52,8 +52,11 @@ class ResponseStreamerLiveStream(ResponseStreamerHelpers):
             nonlocal first_chunk_latency_ms
             nonlocal first_chunk_started_at_monotonic
 
+            actual_first_audio_started_at = self._resolve_chunk_first_audio_started_at(
+                speak_call_started_at=speak_call_started_at,
+            )
             if first_audio_latency_s is None:
-                first_audio_latency_s = max(0.0, speak_call_started_at - response_started_at)
+                first_audio_latency_s = max(0.0, actual_first_audio_started_at - response_started_at)
 
             chunk_first_latency_ms = self._chunk_first_latency_ms(chunk)
             if first_chunk_latency_ms <= 0.0 and chunk_first_latency_ms > 0.0:
@@ -63,7 +66,7 @@ class ResponseStreamerLiveStream(ResponseStreamerHelpers):
                 )
 
             if first_sentence_latency_s is None and self._is_sentence_chunk_kind(chunk.kind):
-                first_sentence_latency_s = max(0.0, speak_call_started_at - response_started_at)
+                first_sentence_latency_s = max(0.0, actual_first_audio_started_at - response_started_at)
 
         for chunk in prepared_chunks:
             speak_call_started_at = time.monotonic()

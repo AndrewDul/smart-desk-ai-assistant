@@ -110,12 +110,15 @@ class ResponseStreamer(
 
             spoken_count += 1
             full_text_parts.append(text)
+            actual_first_audio_started_at = self._resolve_chunk_first_audio_started_at(
+                speak_call_started_at=speak_started_at,
+            )
 
             if first_audio_latency_s is None:
-                first_audio_latency_s = max(0.0, speak_started_at - response_started_at)
+                first_audio_latency_s = max(0.0, actual_first_audio_started_at - response_started_at)
 
             if first_sentence_latency_s is None and chunk.kind in {ChunkKind.CONTENT, ChunkKind.FOLLOW_UP}:
-                first_sentence_latency_s = max(0.0, speak_started_at - response_started_at)
+                first_sentence_latency_s = max(0.0, actual_first_audio_started_at - response_started_at)
             if defer_display_until_after_first and not display_shown:
                 display_shown = self._show_display_block(display_title, display_lines)
 

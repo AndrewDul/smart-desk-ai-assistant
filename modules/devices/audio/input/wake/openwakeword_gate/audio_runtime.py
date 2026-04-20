@@ -24,25 +24,32 @@ class OpenWakeWordGateAudioRuntime(OpenWakeWordGateHelpers):
     _resampled_buffer: np.ndarray
     _score_history: list[float]
 
+    def _select_mono_input(self, indata: np.ndarray) -> np.ndarray:
+        if indata.ndim != 2:
+            return indata.copy()
+
+        if indata.shape[1] == 1:
+            return indata[:, 0].copy()
+
+        mode = getattr(self, "wake_channel_mode", "mono_mix")
+        configured_index = getattr(self, "wake_channel_index", None)
+
+        if mode == "fixed_channel" and configured_index is not None:
+            safe_index = max(0, min(int(configured_index), indata.shape[1] - 1))
+            return indata[:, safe_index].copy()
+
+        if mode == "first_channel":
+            return indata[:, 0].copy()
+
+        mixed = np.mean(indata.astype(np.float32), axis=1)
+        return np.clip(np.rint(mixed), -32768, 32767).astype(np.int16)
+
     def _audio_callback(self, indata, frames, time_info, status) -> None:
         if status:
             LOGGER.warning("OpenWakeWord audio callback status: %s", status)
 
         try:
-            if indata.ndim == 2:
-                if indata.shape[1] == 1:
-                    mono = indata[:, 0].copy()
-                else:
-                    rms_scores: list[float] = []
-                    for channel_index in range(indata.shape[1]):
-                        channel_audio = indata[:, channel_index].astype(np.float32, copy=False)
-                        rms = float(np.sqrt(np.mean(np.square(channel_audio), dtype=np.float64)))
-                        rms_scores.append(rms)
-
-                    best_channel_index = int(np.argmax(rms_scores))
-                    mono = indata[:, best_channel_index].copy()
-            else:
-                mono = indata.copy()
+            mono = self._select_mono_input(indata)
 
             if mono.dtype != np.int16:
                 mono = mono.astype(np.int16, copy=False)

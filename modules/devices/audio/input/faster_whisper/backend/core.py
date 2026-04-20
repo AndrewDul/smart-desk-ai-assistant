@@ -586,6 +586,10 @@ class FasterWhisperInputBackend(
 
         return "nexa"
 
+    def release_capture_ownership(self) -> bool:
+        self._clear_audio_queue()
+        return self._stream is not None
+
     def close(self) -> None:
         self._clear_audio_queue()
         self._close_stream()

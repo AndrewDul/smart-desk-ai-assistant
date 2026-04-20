@@ -51,6 +51,8 @@ class OpenWakeWordGate(OpenWakeWordGateListener):
         block_release_settle_seconds: float = 0.18,
         energy_rms_threshold: float = 0.0085,
         score_smoothing_window: int = 3,
+        wake_channel_mode: str = "mono_mix",
+        wake_channel_index: int | None = None,
         debug: bool = False,
     ) -> None:
         self.model_path = self._resolve_project_path(model_path)
@@ -61,7 +63,8 @@ class OpenWakeWordGate(OpenWakeWordGateListener):
 
         self.debug = bool(debug)
         self.enable_speex_noise_suppression = bool(enable_speex_noise_suppression)
-
+        self.wake_channel_mode = self._normalize_channel_mode(wake_channel_mode)
+        self.wake_channel_index = self._normalize_channel_index(wake_channel_index)
         self.threshold = self._normalize_threshold(threshold)
         self.trigger_level = self._normalize_trigger_level(trigger_level)
         self.block_ms = self._normalize_block_ms(block_ms)
@@ -118,8 +121,9 @@ class OpenWakeWordGate(OpenWakeWordGateListener):
             "threshold=%.3f, direct_accept_threshold=%.3f, direct_support_floor=%.3f, "
             "relaxed_hit_floor=%.3f, trigger_level=%s, min_frames_before_accept=%s, "
             "block_ms=%s, activation_cooldown=%.2fs, block_release_settle=%.2fs, "
-            "energy_rms_threshold=%.4f, smoothing_window=%s, selection_reason='%s', available_inputs='%s'",
-            self.model_path,
+            "energy_rms_threshold=%.4f, smoothing_window=%s, channel_mode='%s', "
+            "channel_index=%s, selection_reason='%s', available_inputs='%s'",
+            str(self.model_path),
             self.device_name,
             self.input_sample_rate,
             self.threshold,
@@ -133,9 +137,16 @@ class OpenWakeWordGate(OpenWakeWordGateListener):
             self.block_release_settle_seconds,
             self.energy_rms_threshold,
             self.score_smoothing_window,
+            self.wake_channel_mode,
+            self.wake_channel_index,
             getattr(self, "device_selection_reason", "unknown"),
             getattr(self, "available_input_devices_summary", "unknown"),
         )
+
+    def release_capture_ownership(self) -> bool:
+        self._clear_audio_queue()
+        self._reset_runtime_state()
+        return self._stream is not None
 
     def close(self) -> None:
         self._clear_audio_queue()

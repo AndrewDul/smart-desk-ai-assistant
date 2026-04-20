@@ -145,6 +145,40 @@ class OpenWakeWordGateHelpers:
             return cls._MIN_SAFE_SCORE_SMOOTHING_WINDOW
         return value
 
+
+    @staticmethod
+    def _normalize_channel_mode(raw_value: str) -> str:
+        value = str(raw_value).strip().lower()
+        if value in {"mono_mix", "first_channel", "fixed_channel"}:
+            return value
+        LOGGER.warning(
+            "Unsupported wake channel mode '%s'; falling back to 'mono_mix'.",
+            raw_value,
+        )
+        return "mono_mix"
+
+    @staticmethod
+    def _normalize_channel_index(raw_value: int | None) -> int | None:
+        if raw_value is None:
+            return None
+        try:
+            value = int(raw_value)
+        except (TypeError, ValueError):
+            LOGGER.warning(
+                "Unsupported wake channel index '%s'; falling back to None.",
+                raw_value,
+            )
+            return None
+        if value < 0:
+            LOGGER.warning(
+                "Negative wake channel index '%s' is invalid; falling back to None.",
+                raw_value,
+            )
+            return None
+        return value
+
+
+
     @staticmethod
     def _resolve_direct_accept_threshold(threshold: float) -> float:
         return min(0.95, max(0.38, threshold + 0.12))

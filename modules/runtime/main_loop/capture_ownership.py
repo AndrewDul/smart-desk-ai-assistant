@@ -3,7 +3,9 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
+from unittest import result
 
+from modules.core import assistant
 from modules.core.session.voice_session import (
     VOICE_INPUT_OWNER_ASSISTANT_OUTPUT,
     VOICE_INPUT_OWNER_NONE,
@@ -27,7 +29,9 @@ class CaptureOwnershipResult:
     applied_owner: str
     wake_backend_label: str = ""
     wake_backend_released: bool = False
+    wake_backend_release_mode: str = "none"
     voice_input_released: bool = False
+    voice_input_release_mode: str = "none"
     blocked_observed: bool = False
     wait_completed: bool = True
     wait_elapsed_ms: float = 0.0
@@ -51,7 +55,7 @@ class CaptureOwnershipService:
         *,
         max_wait_seconds: float = INPUT_READY_MAX_WAIT_SECONDS,
     ) -> CaptureOwnershipResult:
-        wake_backend_released, backend_label = self.ensure_wake_capture_released(assistant)
+        wake_backend_released, wake_release_mode, backend_label = self.ensure_wake_capture_released(assistant)
 
         wait_result = self._wait_for_input_ready(
             assistant,
@@ -67,7 +71,9 @@ class CaptureOwnershipService:
             applied_owner=applied_owner,
             wake_backend_label=backend_label,
             wake_backend_released=wake_backend_released,
+            wake_backend_release_mode=wake_release_mode,
             voice_input_released=False,
+            voice_input_release_mode="none",
             blocked_observed=wait_result["blocked_observed"],
             wait_completed=wait_result["wait_completed"],
             wait_elapsed_ms=wait_result["wait_elapsed_ms"],
@@ -78,6 +84,7 @@ class CaptureOwnershipService:
             "Capture handoff prepared for active capture: "
             f"owner={result.applied_owner}, wake_backend={backend_label}, "
             f"wake_released={result.wake_backend_released}, "
+            f"wake_release_mode={result.wake_backend_release_mode}, "
             f"blocked_observed={result.blocked_observed}, "
             f"wait_completed={result.wait_completed}, "
             f"wait_elapsed_ms={result.wait_elapsed_ms:.1f}"
@@ -88,7 +95,7 @@ class CaptureOwnershipService:
         self,
         assistant: CoreAssistant,
     ) -> CaptureOwnershipResult:
-        voice_input_released = self.ensure_voice_capture_released(assistant)
+        voice_input_released, voice_input_release_mode = self.ensure_voice_capture_released(assistant)
         _, backend_label = self._resolve_wake_backend(assistant)
 
         applied_owner = self._set_input_owner(
@@ -101,7 +108,9 @@ class CaptureOwnershipService:
             applied_owner=applied_owner,
             wake_backend_label=backend_label,
             wake_backend_released=False,
+            wake_backend_release_mode="none",
             voice_input_released=voice_input_released,
+            voice_input_release_mode=voice_input_release_mode,
             blocked_observed=False,
             wait_completed=True,
             wait_elapsed_ms=0.0,
@@ -111,34 +120,43 @@ class CaptureOwnershipService:
         append_log(
             "Capture handoff prepared for standby capture: "
             f"owner={result.applied_owner}, wake_backend={backend_label}, "
-            f"voice_input_released={result.voice_input_released}"
+            f"voice_input_released={result.voice_input_released}, "
+            f"voice_input_release_mode={result.voice_input_release_mode}"
         )
         return result
 
-    def ensure_wake_capture_released(self, assistant: CoreAssistant) -> tuple[bool, str]:
+    def ensure_wake_capture_released(self, assistant: CoreAssistant) -> tuple[bool, str, str]:
         wake_backend, backend_label = self._resolve_wake_backend(assistant)
         voice_in = getattr(assistant, "voice_in", None)
 
         if wake_backend is None:
-            return False, backend_label
+            return False, "none", backend_label
         if wake_backend is voice_in:
-            return False, backend_label
+            return False, "none", backend_label
         if self._wake_backend_shares_voice_input(assistant, wake_backend):
-            return False, backend_label
+            return False, "none", backend_label
 
-        released = self._safe_close_runtime_component(wake_backend, backend_label)
-        return released, backend_label
+        released, release_mode = self._safe_release_runtime_component(
+            assistant,
+            wake_backend,
+            backend_label,
+        )
+        return released, release_mode, backend_label
 
-    def ensure_voice_capture_released(self, assistant: CoreAssistant) -> bool:
+    def ensure_voice_capture_released(self, assistant: CoreAssistant) -> tuple[bool, str]:
         voice_in = getattr(assistant, "voice_in", None)
         if voice_in is None:
-            return False
+            return False, "none"
 
         wake_backend, _ = self._resolve_wake_backend(assistant)
         if self._wake_backend_shares_voice_input(assistant, wake_backend):
-            return False
+            return False, "none"
 
-        return self._safe_close_runtime_component(voice_in, "voice_input")
+        return self._safe_release_runtime_component(
+            assistant,
+            voice_in,
+            "voice_input",
+        )
 
     def assistant_output_blocks_input(self, assistant: CoreAssistant) -> bool:
         coordinator = getattr(getattr(assistant, "voice_out", None), "audio_coordinator", None)
@@ -285,6 +303,45 @@ class CaptureOwnershipService:
                 pass
         return "unknown"
 
+    def _capture_handoff_force_close_enabled(self, assistant: CoreAssistant) -> bool:
+        voice_input_cfg = assistant.settings.get("voice_input", {})
+        configured = voice_input_cfg.get("capture_handoff_force_close")
+        if configured is None:
+            return False
+        return bool(configured)
+
+    def _safe_release_runtime_component(
+        self,
+        assistant: CoreAssistant,
+        component: Any | None,
+        label: str,
+    ) -> tuple[bool, str]:
+        if component is None:
+            return False, "none"
+
+        release_method = getattr(component, "release_capture_ownership", None)
+        if callable(release_method):
+            try:
+                release_result = release_method()
+                released = True if release_result is None else bool(release_result)
+                if released:
+                    append_log(f"Soft-released runtime input component for capture handoff: {label}")
+                    return True, "soft"
+            except Exception as error:
+                append_log(f"Failed to soft-release runtime input component {label}: {error}")
+
+        if not self._capture_handoff_force_close_enabled(assistant):
+            return False, "none"
+
+        closed = self._safe_close_runtime_component(component, label)
+        return closed, "close" if closed else "none"
+
+
+
+
+
+
+
     def _safe_close_runtime_component(self, component: Any | None, label: str) -> bool:
         if component is None:
             return False
@@ -383,7 +440,9 @@ class CaptureOwnershipService:
             "applied_owner": result.applied_owner,
             "wake_backend_label": result.wake_backend_label,
             "wake_backend_released": result.wake_backend_released,
+            "wake_backend_release_mode": result.wake_backend_release_mode,
             "voice_input_released": result.voice_input_released,
+            "voice_input_release_mode": result.voice_input_release_mode,
             "blocked_observed": result.blocked_observed,
             "wait_completed": result.wait_completed,
             "wait_elapsed_ms": result.wait_elapsed_ms,

@@ -17,6 +17,13 @@ class TTSPipelineSynthesisMixin:
       behind the background queue
     - if the same text is already being synthesized, reuse that pending job
     """
+    def _store_playback_report(self, **values) -> None:
+        self._latest_playback_report = dict(values)
+
+    def _consume_playback_report(self) -> dict[str, object]:
+        report = dict(getattr(self, "_latest_playback_report", {}) or {})
+        self._latest_playback_report = {}
+        return report
 
     def _resolve_piper_binary_runner(self) -> str | None:
         candidate = str(getattr(self, "piper_path", "") or "").strip()
@@ -301,7 +308,16 @@ class TTSPipelineSynthesisMixin:
 
         first_audio_started_at = time.monotonic()
         played = self._play_wav(cache_path)
-        first_audio_ms = (time.monotonic() - started_at) * 1000.0
+        first_audio_ms = (first_audio_started_at - started_at) * 1000.0
+        self._store_playback_report(
+            engine="piper",
+            success=played,
+            first_audio_started_at_monotonic=first_audio_started_at if played else 0.0,
+            first_audio_latency_ms=first_audio_ms if played else 0.0,
+            wav_ready_ms=wav_ready_ms,
+            wav_ready_source=ready_source,
+            cache_hit=cache_hit,
+        )
 
         if played:
             append_log(
@@ -336,7 +352,18 @@ class TTSPipelineSynthesisMixin:
             )
             return False
 
+        retry_first_audio_started_at = time.monotonic()
         played = self._play_wav(cache_path)
+        retry_first_audio_ms = (retry_first_audio_started_at - started_at) * 1000.0
+        self._store_playback_report(
+            engine="piper",
+            success=played,
+            first_audio_started_at_monotonic=retry_first_audio_started_at if played else 0.0,
+            first_audio_latency_ms=retry_first_audio_ms if played else 0.0,
+            wav_ready_ms=retry_ready_ms,
+            wav_ready_source="retry_ready",
+            cache_hit=False,
+        )
         if played:
             append_log(
                 "TTS total finished after playback retry: "
@@ -433,6 +460,15 @@ class TTSPipelineSynthesisMixin:
             input_text=text,
             timeout_seconds=self._synthesis_timeout_seconds,
             source=f"espeak_tts_{lang}",
+        )
+        self._store_playback_report(
+            engine="espeak",
+            success=ok,
+            first_audio_started_at_monotonic=started_at if ok else 0.0,
+            first_audio_latency_ms=0.0,
+            wav_ready_ms=0.0,
+            wav_ready_source="espeak_stdin",
+            cache_hit=False,
         )
         if ok:
             append_log(

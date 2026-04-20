@@ -2581,3 +2581,748 @@ I treated camera work in this stage as preparation, validation, and architecture
 
 ### Result
 The project is closer to the future camera stage, but this area still needs a full runtime integration pass.
+
+
+---
+
+## 099. STT benchmark contract stopped feeding the speech-finalized benchmark note
+ 
+
+### Problem
+A Stage 4 STT contract test failed even though the speech recognition service itself was returning a valid transcript.
+
+### Symptom
+The test:
+
+- `tests/test_stage4_stt_contract.py`
+
+failed with:
+
+- expected benchmark note call count = `1`
+- actual call count = `0`
+
+This meant the transcript result was no longer reaching the benchmark speech-finalized contract path correctly.
+
+### Root cause
+The benchmark note handoff between the transcript result and the assistant-side benchmark service had drifted.  
+The STT result was valid, but the helper path that should feed benchmark speech-finalized metadata was not hitting the expected assistant benchmark hook.
+
+### Fix applied
+The benchmark note contract path was restored so that:
+- transcript text
+- backend label
+- mode
+- speech-finalized benchmark note
+
+all flow together again through the expected contract boundary.
+
+### Result
+The failing STT benchmark contract test passed again, and the transcript result correctly fed the benchmark speech-finalized flow.
+
+---
+
+## 100. Benchmark sample diagnostics misclassified voice turns as non-voice
+  
+
+### Problem
+The turn benchmark diagnostics service was misclassifying valid voice turns.
+
+### Symptom
+The tests in:
+
+- `tests/test_turn_benchmark_sample_diagnostics.py`
+
+failed because `description["voice"]` was `False` even for samples with:
+
+- `input_source = "voice"`
+
+This affected both:
+- skill turns
+- LLM turns
+
+### Root cause
+The sample description logic was relying too heavily on secondary routing metadata instead of correctly recognizing direct voice-origin samples.
+
+As a result:
+- a voice + skill turn could be described incorrectly
+- a voice + llm turn could also be described incorrectly
+
+### Fix applied
+The diagnostics service was corrected so that voice classification is derived properly from voice-origin benchmark fields, including the direct input source.
+
+### Result
+Voice turns are now diagnosed correctly and the benchmark inspection tools produce more trustworthy output.
+
+---
+
+## 101. Premium validation capture could look broken because the benchmark store was reset without a ready runtime
+
+
+### Problem
+The capture workflow could show repeated zero-sample output even when the user expected it to start collecting turns.
+
+### Symptom
+After running:
+
+- `python scripts/run_premium_validation_capture.py --reset --stage llm_short`
+- `python scripts/run_premium_validation_capture.py --stage llm_short --watch`
+
+the tool kept showing:
+- `total samples: 0`
+- `window samples: 0`
+- `benchmark file looks idle`
+
+### Root cause
+The benchmark store was being reset correctly, but the runtime was not actually in a valid capture-ready state yet.
+
+Common reasons included:
+- runtime stopped
+- runtime failed
+- runtime degraded
+- no active turn processing
+- the running assistant instance was not writing to the same benchmark file path
+
+### Fix applied
+The validation capture output and troubleshooting flow were treated more explicitly as a runtime-state-sensitive tool, not just a passive benchmark viewer.
+
+### Result
+It became clearer that:
+- zero samples after reset does not automatically mean benchmark code is broken
+- the first thing to verify is whether the runtime is really active and writing new turns
+
+---
+
+## 102. Runtime status and benchmark capture could drift apart and confuse troubleshooting
+
+
+### Problem
+Benchmark capture output and runtime status could tell different parts of the truth, which made debugging confusing.
+
+### Symptom
+Examples included:
+- benchmark watcher showing no new samples
+- `runtime_status.json` showing `stopped`, `failed`, `degraded`, or old timestamps
+- active expectations not matching what the assistant was really doing
+
+### Root cause
+The project already had:
+- runtime status
+- benchmark traces
+- systemd acceptance checks
+
+but the operator still needed to interpret them together.
+
+A stale or degraded runtime status could make benchmark capture look broken even when the benchmark code was technically fine.
+
+### Fix applied
+The troubleshooting flow shifted to reading the system as a coordinated set of signals:
+- runtime status
+- benchmark file age
+- latest benchmark turn
+- service state
+- whether `main.py` was actually running
+
+### Result
+This made it much easier to separate:
+- “capture is broken”
+from
+- “runtime is not actually ready”
+from
+- “runtime is active but not using the expected input path”
+
+---
+
+## 103. Premium validation failed because only skill turns were being collected
+
+ 
+
+### Problem
+The benchmark file could contain many valid completed turns and still fail premium validation because the sample mix was wrong.
+
+### Symptom
+The validation output showed cases such as:
+- `skill` segment populated
+- `voice` segment empty or incomplete
+- `llm` segment empty or incomplete
+
+This happened even though the benchmark file itself was valid and contained completed turns.
+
+### Root cause
+The assistant was executing real interactions, but the captured turns did not cover the required validation mix.
+
+Examples:
+- deterministic skills only
+- too few true voice turns
+- too few streamed LLM turns
+- turns routed differently than expected
+
+### Fix applied
+The capture workflow was treated as scenario-driven validation rather than “just use the assistant for a bit”.
+
+The user had to deliberately drive:
+- short voice skill turns
+- short streamed LLM turns
+
+with the correct prompts and with the runtime actually active.
+
+### Result
+Benchmark failure became easier to understand:
+- not every failure means broken code
+- sometimes the validation window simply does not contain the right kinds of turns yet
+
+---
+
+## 104. The first visible bottleneck was not LLM first-chunk latency, but the earlier voice path
+
+ 
+### Problem
+At first glance it looked like the local LLM path might still be the main premium blocker.
+
+### Symptom
+Premium validation still failed, so it was tempting to assume the local LLM backend was still too slow.
+
+### Root cause
+Once the segmented benchmarks were inspected properly, the numbers showed a different reality.
+
+The real pattern was:
+- `llm_first_chunk_ms` could already pass
+- `response_first_audio_ms` for LLM could also pass or be close
+- but the earlier voice path was still too expensive
+
+The biggest bottlenecks were:
+- wake latency
+- STT latency
+- route-to-first-audio before or around skill / conversation handoff
+
+### Fix applied
+The troubleshooting focus moved away from blaming the LLM by default and toward:
+- wake path
+- STT path
+- route timing
+- skill path end-to-end latency
+- capture mode and wake mode correctness
+
+### Result
+This was an important direction correction.
+The project stopped optimising the wrong layer first.
+
+---
+
+## 105. The benchmark tools needed to be read as product observability, not only as pass/fail scripts
+ 
+
+### Problem
+It was possible to treat the benchmark and premium validation scripts as simple pass/fail tools, which hid useful product-level information.
+
+### Symptom
+The same run could contain valuable clues, for example:
+- runtime not ready
+- benchmark file idle
+- wrong segment population
+- route classification mismatch
+- capture writing to the wrong place
+- degraded voice mode
+- LLM actually passing key first-response metrics
+
+but these clues were easy to miss if the user looked only at the final `FAIL`.
+
+### Root cause
+The tools were doing more than one job:
+- validation
+- observability
+- scenario guidance
+- diagnosis hints
+
+### Fix applied
+The troubleshooting approach changed so that benchmark outputs were read as a structured product telemetry layer.
+
+This helped identify:
+- what is really broken
+- what is just missing coverage
+- what is already good enough
+- what must be fixed next for premium-ready
+
+### Result
+The benchmark tooling became much more useful as a development instrument, not just a release gate.
+
+---
+
+## 106. Systemd startup failed because the runtime blocked degraded wake compatibility mode
+
+
+### Problem
+The systemd unit started, but the assistant exited during startup instead of staying alive.
+
+### Symptom
+`nexa.service` briefly showed as active and then stopped.  
+The journal showed a fatal startup error and boot acceptance failed.
+
+### Root cause
+The startup gate rejected the runtime because the assistant was still in a degraded wake configuration.
+
+The critical journal message was effectively:
+- primary runtime stack is not ready
+- runtime degraded
+- wake gate compatibility path active
+
+So the issue was not that systemd itself was broken.  
+The real issue was that runtime readiness policy treated the current wake configuration as not acceptable for the requested startup mode.
+
+### Fix applied
+I treated this first as a runtime-state problem, not as a deployment problem.
+
+The debugging path focused on:
+- reading `runtime_status.json`
+- reading the service journal
+- checking whether wake was running in compatibility mode or dedicated mode
+- checking whether the service had become `failed`, `degraded`, `limited`, or truly `ready`
+
+### Result
+This made the service failure understandable and moved troubleshooting to the correct layer: runtime readiness, not unit installation.
+
+---
+
+## 107. Boot acceptance could fail even when the systemd unit file itself was installed correctly
+
+
+### Problem
+It was possible for deployment to look mostly correct while boot acceptance still failed.
+
+### Symptom
+Checks such as:
+- `nexa.service:installed`
+- `nexa.service:enabled`
+
+could pass, while:
+- `nexa.service:active`
+- `runtime-product-state`
+
+still failed.
+
+### Root cause
+Boot acceptance is stricter than simple systemd installation.
+
+A valid unit file is not enough if the runtime itself ends in:
+- `failed`
+- `degraded`
+- `blocked`
+- `limited`
+- `stopped`
+
+### Fix applied
+I treated boot acceptance as a product-runtime gate, not only as a deployment gate.
+
+That means:
+- passing install is not enough
+- passing enablement is not enough
+- passing service activation is not enough if the product state is still not healthy
+
+### Result
+This made deployment debugging more honest and prevented false confidence from “systemd looks installed” while the assistant still was not truly ready.
+
+---
+
+## 108. Voice input silently fell back to developer text mode when microphone initialization failed
+
+
+### Problem
+The assistant looked alive, but instead of acting like a voice assistant it exposed text-style interaction behaviour.
+
+### Symptom
+The runtime status showed:
+- `voice_input` failed
+- backend selected as `text_input`
+- runtime mode like `developer_text_input`
+
+The assistant could then behave as if it wanted typed commands in the terminal.
+
+### Root cause
+The real microphone path failed during initialization, and the runtime fell back to a developer-safe text input backend.
+
+One key runtime message showed the failure clearly:
+- no input audio devices available
+- waited for audio input discovery
+- last visible inputs: none
+
+### Fix applied
+I started diagnosing this through runtime status instead of guessing:
+- inspect `var/data/runtime_status.json`
+- inspect `services.voice_input`
+- inspect `provider_inventory.voice_input`
+
+This exposed whether the assistant was actually using:
+- FasterWhisper microphone input
+or
+- fallback text input
+
+### Result
+The project became much easier to diagnose when voice disappeared, because the fallback mode was visible instead of silently misunderstood.
+
+---
+
+## 109. Display backend could fail because GPIO was still busy from an earlier process
+
+
+### Problem
+The display backend could fail even though the physical LCD hardware was fine.
+
+### Symptom
+Runtime status showed:
+- `display` failed
+- backend selected as `null_display`
+- error similar to: `GPIO busy`
+
+### Root cause
+The GPIO lines needed by the display were still held by another process or by an earlier assistant instance that had not been cleaned up properly.
+
+### Fix applied
+I cleaned the runtime before restarting:
+- stopped `nexa.service`
+- killed any leftover `main.py` process
+- checked for still-running assistant processes
+- checked GPIO ownership
+- then restarted the assistant cleanly
+
+### Result
+The real display backend could initialize again instead of falling back to `null_display`.
+
+---
+
+## 110. The microphone was healthy, but the runtime still needed explicit process cleanup before retesting
+ 
+
+### Problem
+There was a period where the assistant looked like it had lost microphone support, but the hardware itself was not actually the problem.
+
+### Symptom
+The assistant failed to use voice input and fell back to text mode.
+
+### What I verified
+I checked:
+- `arecord -l`
+- `sounddevice` input devices
+
+and confirmed that the real microphone was available:
+- `reSpeaker XVF3800 4-Mic Array`
+- valid input channels
+- default sample rate visible
+
+### Root cause
+The project was carrying stale runtime state and needed a clean restart path more than a hardware replacement.
+
+### Fix applied
+Before retesting, I used a stricter recovery sequence:
+- stop systemd service
+- kill leftover `main.py`
+- wait briefly
+- confirm no assistant process is still alive
+- verify microphone devices again
+- then run `python main.py`
+
+### Result
+The assistant recovered real voice input cleanly, and this proved the microphone itself was healthy.
+
+---
+
+## 111. The runtime could recover from blocked or degraded state after the real hardware paths were revalidated
+ 
+
+### Problem
+At different moments the runtime status moved through:
+- `failed`
+- `blocked`
+- `degraded`
+- `limited`
+
+This made it easy to think the whole assistant was broken.
+
+### Root cause
+Those states were real, but they reflected intermediate recovery conditions rather than permanent project failure.
+
+The assistant could degrade because of:
+- text input fallback
+- display fallback
+- compatibility wake mode
+- stale state after an interrupted run
+
+### Fix applied
+I treated runtime recovery as a sequence:
+1. clean old processes
+2. validate microphone visibility
+3. validate display availability
+4. rerun the assistant
+5. re-read `runtime_status.json`
+
+### Result
+The runtime could move back upward from degraded startup into a healthier state once the real blocking condition was removed.
+
+---
+
+## 112. Real voice mode came back, but the system still honestly reported compatibility wake as degraded
+
+
+### Problem
+After microphone and display recovery, the assistant could again hear real speech and execute commands, but the runtime still reported a degraded or limited mode.
+
+### Symptom
+The assistant could successfully:
+- wake
+- listen
+- recognize commands
+- speak replies
+- execute actions such as time and exit
+
+but runtime status still reported something like:
+- compatibility path active: wake_gate
+- `startup_mode = limited`
+- `premium_ready = false`
+
+### Root cause
+The system had recovered practical voice functionality, but it was still not using the desired dedicated wake path yet.
+
+So the runtime was behaving honestly:
+- usable assistant
+- real microphone working
+- but wake still not in the premium dedicated mode
+
+### Fix applied
+I did not treat this as a contradiction.
+
+Instead, I accepted the distinction between:
+- “works again”
+and
+- “premium-ready architecture restored”
+
+### Result
+This clarified the next task:
+the project was no longer blocked by missing microphone or dead display,
+but it still needed the dedicated wake path to be restored correctly before premium-ready status could be trusted.
+
+
+---
+
+## 113. Compatibility wake path proved that the voice pipeline still worked even when dedicated wake failed
+ 
+
+### Problem
+The assistant stopped reacting reliably on the dedicated wake path, which raised concern that the entire voice stack might be broken.
+
+### Symptom
+On the dedicated wake path, saying “NeXa” did not trigger the assistant even after repeated attempts.
+
+### Root cause
+At that stage it was not yet clear whether the problem was:
+- the wake model
+- the microphone
+- the audio preprocessing
+- or the wake runtime path itself
+
+### Fix applied
+I forced the system back onto the compatibility wake path and tested real microphone turns again.
+
+### Result
+The assistant successfully:
+- detected wake
+- listened for commands
+- recognized commands
+- spoke the reply
+- completed follow-up flows such as exit confirmation
+
+This was extremely important because it proved:
+- the microphone was working
+- STT was working
+- command routing was working
+- TTS was working
+- the assistant was not generally “deaf”
+
+The failure was therefore narrowed to the **dedicated wake path**, not the whole voice stack.
+
+---
+
+## 114. Dedicated OpenWakeWord path received real audio but produced almost zero wake scores
+
+
+### Problem
+The dedicated wake gate did not react to the wake phrase even though the runtime was healthy.
+
+### Symptom
+With wake debug enabled, the assistant printed traces such as:
+- `raw=0.001`
+- `smooth=0.001`
+- `voiced` increasing
+- repeated evaluations
+- no actual wake trigger
+
+### Root cause
+The important observation was that the dedicated wake path **was receiving voiced audio**, but the model score stayed extremely low.
+
+That meant:
+- the assistant was not fully silent
+- the wake path was not completely disconnected
+- but something in the dedicated wake scoring path was not matching the spoken phrase properly
+
+### Fix applied
+I used the debug output not as a final fix, but as a narrowing tool:
+- confirm audio is entering the wake path
+- confirm the issue is score quality, not total absence of sound
+- stop blaming unrelated layers such as TTS or LLM
+
+### Result
+The issue was narrowed from “voice is broken” to:
+- “dedicated wake is hearing audio but not scoring it correctly”
+
+---
+
+## 115. The first suspicion was the model, but the working history of `nexa.onnx` argued for a regression first
+  
+
+### Problem
+Because the dedicated wake path produced extremely low scores, it was tempting to assume that `models/wake/nexa.onnx` was bad.
+
+### Symptom
+Wake debug showed very weak scores and no practical activation on the dedicated path.
+
+### Root cause
+At first glance this could look like a broken or poor wake model.  
+However, the project history mattered:
+- the model had worked before
+- earlier wake behaviour had been good enough to use
+- the failure appeared after later pipeline and runtime changes
+
+### Fix applied
+I deliberately avoided treating model retraining or replacement as the first fix.  
+Instead, the project switched to a regression-first mindset:
+- check builder logic
+- check config drift
+- check wake backend selection
+- check audio preprocessing
+- check mono/channel handling
+- check runtime path differences
+
+### Result
+This avoided an expensive and misleading conclusion.  
+The working assumption became:
+- `nexa.onnx` is not automatically guilty
+- regression in the dedicated wake path must be checked first
+
+---
+
+## 116. Rollback attempts failed at first because the wake path configuration combination was wrong
+ 
+
+### Problem
+I attempted to roll the system back from dedicated wake to compatibility wake, but the assistant still launched the dedicated OpenWakeWord backend.
+
+### Symptom
+Even after editing the configuration, runtime status still reported:
+- `selected_backend = openwakeword`
+- `runtime_mode = dedicated_wake_gate`
+
+### Root cause
+The rollback settings were initially changed to the wrong combination.
+
+The intended rollback required the configuration to align with how the runtime builder selected the wake path.  
+Using the wrong combination caused the runtime to stay on the dedicated path even though the intention was to test compatibility mode.
+
+### Fix applied
+The wake configuration was corrected to the combination that actually activates compatibility wake in the current runtime path selection logic.
+
+### Result
+Once the correct values were applied, the assistant finally switched onto:
+- `compatibility_voice_input`
+- `single_capture_compatibility`
+
+This confirmed that the earlier rollback had failed because of **config interaction**, not because rollback itself was impossible.
+
+---
+
+## 117. `single_capture_mode` turned out to be a real wake-path switch, not just a capture convenience setting
+
+
+### Problem
+At first, `single_capture_mode` could be misread as only a general audio-capture preference.
+
+### Symptom
+Changing `single_capture_mode` changed much more than expected:
+- wake path behaviour
+- compatibility reuse of the main voice input
+- whether the runtime stayed in a degraded but working wake mode
+
+### Root cause
+In practice, `single_capture_mode` participates directly in wake path selection.
+
+That means it does not only affect how input is captured.  
+It also influences whether wake detection:
+- reuses the main voice input backend
+or
+- goes through a dedicated wake pipeline
+
+### Fix applied
+I started treating `single_capture_mode` as a high-impact routing control rather than a minor capture tweak.
+
+### Result
+This made wake-path debugging much clearer and reduced confusion about why the assistant changed behaviour after seemingly small config edits.
+
+---
+
+## 118. Wake path preference logic drifted and needed to be made explicit again
+
+
+### Problem
+The project needed a predictable way to choose between:
+- compatibility wake
+- dedicated wake
+
+but the path preference became confusing over time.
+
+### Symptom
+The runtime behaviour did not always match the operator’s expectation after config edits.  
+This made it hard to tell whether the correct wake path was truly being tested.
+
+### Root cause
+Wake path selection was effectively being driven by a combination of builder logic and runtime settings, but the preference rules were not sufficiently explicit and easy to reason about during troubleshooting.
+
+### Fix applied
+The wake-path preference logic was clarified so that:
+- compatibility wake can be selected intentionally for recovery or diagnosis
+- dedicated wake can be selected intentionally for premium-path validation
+- the chosen route is reflected clearly in runtime status
+
+### Result
+Wake path testing became controlled instead of ambiguous.  
+This was necessary to fairly compare:
+- “known-good fallback path”
+versus
+- “premium dedicated wake path”
+
+---
+
+## 119. Compatibility wake worked, but it was too slow to ever satisfy premium wake targets
+
+
+### Problem
+Compatibility wake provided a working recovery path, but that did not mean it was a premium-ready solution.
+
+### Symptom
+With compatibility wake active, the assistant could function correctly, but benchmark results still showed that premium voice targets were not met.
+
+The critical issue was wake latency:
+- wake worked
+- but the average wake time stayed far above the premium target
+
+### Root cause
+Compatibility wake reuses the main voice input path.  
+This is useful for recovery and diagnosis, but it is not the dedicated low-latency wake architecture the premium release is targeting.
+
+### Fix applied
+I explicitly separated the meanings of:
+- “works”
+and
+- “premium-ready”
+
+Compatibility wake was accepted as a valid diagnostic and fallback path, but not as the final target for release quality.
+
+### Result
+This clarified the roadmap:
+- compatibility wake is good enough to keep development moving
+- but **11.1 / 4 cannot be considered complete at premium level until dedicated wake is restored and fast again**

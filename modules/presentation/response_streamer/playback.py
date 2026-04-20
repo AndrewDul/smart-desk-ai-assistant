@@ -94,6 +94,35 @@ class ResponseStreamerPlayback(ResponseStreamerHelpers):
         )
         return result
 
+    def _resolve_chunk_first_audio_started_at(
+        self,
+        *,
+        speak_call_started_at: float,
+    ) -> float:
+        report_method = getattr(self.voice_output, "latest_speak_report", None)
+        if not callable(report_method):
+            return speak_call_started_at
+
+        try:
+            report = dict(report_method() or {})
+        except Exception:
+            return speak_call_started_at
+
+        try:
+            value = float(report.get("first_audio_started_at_monotonic", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return speak_call_started_at
+
+        if value <= 0.0:
+            return speak_call_started_at
+
+        return max(speak_call_started_at, value)
+
+
+
+
+
+
     def _voice_output_supports_prepare_next(self) -> bool:
         speak_method = getattr(self.voice_output, "speak", None)
         if not callable(speak_method):

@@ -12,6 +12,7 @@ class FakeVoiceOutput:
         self.prepare_calls: list[tuple[str, str | None]] = []
         self.stop_calls = 0
         self.audio_coordinator: Any | None = None
+        self._last_speak_report: dict[str, Any] = {}
 
     def prepare_speech(self, text: str, language: str | None = None) -> None:
         self.prepare_calls.append((str(text), language))
@@ -26,6 +27,7 @@ class FakeVoiceOutput:
         if not self.supports_prepare_next and prepare_next is not None:
             raise TypeError("prepare_next not supported")
 
+        first_audio_started_at = time.monotonic()
         self.speak_calls.append(
             {
                 "text": str(text),
@@ -34,7 +36,18 @@ class FakeVoiceOutput:
                 "output_hold_seconds": output_hold_seconds,
             }
         )
+        self._last_speak_report = {
+            "text": str(text),
+            "language": language,
+            "first_audio_started_at_monotonic": first_audio_started_at,
+            "first_audio_latency_ms": 0.0,
+            "engine": "fake",
+            "success": True,
+        }
         return True
+
+    def latest_speak_report(self) -> dict[str, Any]:
+        return dict(self._last_speak_report)
 
     def stop_playback(self) -> None:
         self.stop_calls += 1
