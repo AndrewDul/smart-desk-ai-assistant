@@ -28,9 +28,44 @@ class _TelemetryVoiceOutput(FakeVoiceOutput):
             prepare_next=prepare_next,
             output_hold_seconds=output_hold_seconds,
         )
-        self._last_speak_report["first_audio_started_at_monotonic"] = started_at + self.audio_delay_seconds
-        self._last_speak_report["first_audio_latency_ms"] = self.audio_delay_seconds * 1000.0
+        self._last_speak_report["first_audio_started_at_monotonic"] = (
+            started_at + self.audio_delay_seconds
+        )
+        self._last_speak_report["first_audio_latency_ms"] = (
+            self.audio_delay_seconds * 1000.0
+        )
         return result
+
+
+class _OrderedVoiceOutput(FakeVoiceOutput):
+    def __init__(self, events: list[str]) -> None:
+        super().__init__(supports_prepare_next=True)
+        self.events = events
+
+    def speak(
+        self,
+        text: str,
+        language: str | None = None,
+        prepare_next: tuple[str, str] | None = None,
+        output_hold_seconds: float | None = None,
+    ) -> bool:
+        self.events.append("speak")
+        return super().speak(
+            text,
+            language=language,
+            prepare_next=prepare_next,
+            output_hold_seconds=output_hold_seconds,
+        )
+
+
+class _OrderedDisplay(FakeDisplay):
+    def __init__(self, events: list[str]) -> None:
+        super().__init__()
+        self.events = events
+
+    def show_block(self, title: str, lines: list[str], duration: float | None = None) -> None:
+        self.events.append("display")
+        super().show_block(title, lines, duration=duration)
 
 
 class ResponseStreamerTests(unittest.TestCase):
@@ -180,6 +215,42 @@ class ResponseStreamerTests(unittest.TestCase):
         self.assertGreaterEqual(report.first_audio_latency_ms, 45.0)
         self.assertGreaterEqual(report.first_sentence_latency_ms, 45.0)
         self.assertGreaterEqual(report.total_elapsed_ms, 50.0)
+
+    def test_execute_action_single_chunk_defers_display_until_after_first_audio(self) -> None:
+        events: list[str] = []
+        voice_output = _OrderedVoiceOutput(events)
+        display = _OrderedDisplay(events)
+        streamer = ResponseStreamer(
+            voice_output=voice_output,
+            display=display,
+            default_display_seconds=4.0,
+            inter_chunk_pause_seconds=0.0,
+        )
+
+        plan = ResponsePlan(
+            turn_id="turn-action-single-chunk",
+            language="en",
+            route_kind=RouteKind.ACTION,
+            stream_mode=StreamMode.SENTENCE,
+            chunks=[
+                AssistantChunk(
+                    text="The timer is already running.",
+                    kind=ChunkKind.CONTENT,
+                    sequence_index=0,
+                ),
+            ],
+            metadata={
+                "display_title": "ACTION",
+                "display_lines": ["timer already running"],
+            },
+        )
+
+        report = streamer.execute(plan)
+
+        self.assertEqual(report.chunks_spoken, 1)
+        self.assertEqual(events[:2], ["speak", "display"])
+        self.assertEqual(len(voice_output.speak_calls), 1)
+        self.assertEqual(len(display.blocks), 1)
 
 
 if __name__ == "__main__":

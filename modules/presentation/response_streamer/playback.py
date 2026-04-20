@@ -141,13 +141,29 @@ class ResponseStreamerPlayback(ResponseStreamerHelpers):
         self._supports_prepare_next_cache = supports
         return supports
 
-    def _should_defer_display_until_after_first(self, chunks: list[AssistantChunk]) -> bool:
+    def _should_defer_display_until_after_first(
+        self,
+        plan,
+        chunks: list[AssistantChunk],
+    ) -> bool:
         if not chunks:
             return False
 
+        metadata = dict(getattr(plan, "metadata", {}) or {})
+        explicit = metadata.get("defer_display_until_after_first")
+        if explicit is not None:
+            return bool(explicit)
+
         first = chunks[0]
         first_text = clean_response_text(first.text)
-        return first.kind == ChunkKind.ACK and len(first_text) <= self.short_ack_max_chars
+        if first.kind == ChunkKind.ACK and len(first_text) <= self.short_ack_max_chars:
+            return True
+
+        route_kind = self._route_kind_value(plan)
+        if route_kind == "action" and len(chunks) == 1:
+            return True
+
+        return False
 
     def _pause_after_chunk(
         self,

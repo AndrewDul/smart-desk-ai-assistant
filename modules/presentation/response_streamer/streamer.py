@@ -73,7 +73,10 @@ class ResponseStreamer(
         first_audio_latency_s: float | None = None
         first_sentence_latency_s: float | None = None
 
-        defer_display_until_after_first = self._should_defer_display_until_after_first(prepared_chunks)
+        defer_display_until_after_first = self._should_defer_display_until_after_first(
+            plan,
+            prepared_chunks,
+        )
         display_shown = False
 
         if not defer_display_until_after_first:
