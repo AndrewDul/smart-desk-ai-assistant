@@ -18,6 +18,55 @@ from modules.shared.logging.logger import append_log, log_exception
 
 
 class CoreAssistantResponseMixin:
+    def _should_prefetch_text_response(
+        self,
+        *,
+        text: str,
+    ) -> bool:
+        streaming_cfg = getattr(self, "settings", {}).get("streaming", {})
+        configured = streaming_cfg.get("prefetch_text_responses")
+        if configured is None:
+            enabled = True
+        else:
+            enabled = bool(configured)
+
+        if not enabled:
+            return False
+
+        cleaned_text = str(text or "").strip()
+        if not cleaned_text:
+            return False
+
+        max_chars = int(streaming_cfg.get("prefetch_text_response_max_chars", 220) or 220)
+        if len(cleaned_text) > max_chars:
+            return False
+
+        return True
+
+    def _prefetch_text_response(
+        self,
+        *,
+        text: str,
+        language: str,
+        source: str,
+    ) -> None:
+        if not self._should_prefetch_text_response(text=text):
+            return
+
+        prepare_method = getattr(getattr(self, "voice_out", None), "prepare_speech", None)
+        if not callable(prepare_method):
+            return
+
+        cleaned_text = str(text or "").strip()
+        try:
+            prepare_method(cleaned_text, language)
+            append_log(
+                "Text response TTS prefetch queued: "
+                f"source={source}, lang={language}, chars={len(cleaned_text)}"
+            )
+        except Exception as error:
+            log_exception("Text response TTS prefetch failed", error)
+
     def deliver_response_plan(
         self,
         plan: ResponsePlan,
@@ -232,13 +281,20 @@ class CoreAssistantResponseMixin:
         chunk_kind: ChunkKind = ChunkKind.CONTENT,
         metadata: dict[str, Any] | None = None,
     ) -> bool:
+        cleaned_text = str(text or "").strip()
+        self._prefetch_text_response(
+            text=cleaned_text,
+            language=language,
+            source=source,
+        )
+
         plan = ResponsePlan(
             turn_id=create_turn_id(),
             language=language,
             route_kind=route_kind,
             stream_mode=self.stream_mode,
         )
-        plan.add_text(text, kind=chunk_kind, mode=self.stream_mode)
+        plan.add_text(cleaned_text, kind=chunk_kind, mode=self.stream_mode)
         return self.deliver_response_plan(
             plan,
             source=source,

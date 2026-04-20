@@ -43,6 +43,12 @@ class DummyAssistant(CoreAssistantResponseMixin):
         self.voice_session = FakeVoiceSession()
         self.response_streamer = response_streamer
         self.default_overlay_seconds = 4.0
+        self.settings = {
+            "streaming": {
+                "prefetch_text_responses": True,
+                "prefetch_text_response_max_chars": 220,
+            }
+        }
         self.shutdown_requested = False
         self.stream_mode = StreamMode.SENTENCE
         self._last_response_stream_report = None
@@ -112,6 +118,28 @@ class ResponseDeliveryTests(unittest.TestCase):
         self.assertEqual(assistant._last_response_delivery_snapshot["source"], "test_dialogue_flow")
         self.assertEqual(assistant._last_response_delivery_snapshot["route_kind"], "conversation")
         self.assertTrue(assistant._last_response_delivery_snapshot["remembered"])
+
+    def test_deliver_text_response_prefetches_short_text_before_delivery(self) -> None:
+        assistant = DummyAssistant(EmptyReportStreamer())
+
+        delivered = assistant.deliver_text_response(
+            "The timer is already running.",
+            language="en",
+            route_kind=RouteKind.ACTION,
+            source="test_action_status",
+        )
+
+        self.assertTrue(delivered)
+        self.assertEqual(len(assistant.voice_out.prepare_calls), 1)
+        self.assertEqual(
+            assistant.voice_out.prepare_calls[0],
+            ("The timer is already running.", "en"),
+        )
+        self.assertEqual(len(assistant.voice_out.speak_calls), 1)
+        self.assertEqual(
+            assistant.voice_out.speak_calls[0]["text"],
+            "The timer is already running.",
+        )
 
     def test_deliver_response_plan_falls_back_when_stream_report_is_empty(self) -> None:
         assistant = DummyAssistant(EmptyReportStreamer())

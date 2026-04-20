@@ -114,6 +114,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "max_display_lines": 2,
         "max_display_chars_per_line": 20,
         "prefetch_action_responses": True,
+        "prefetch_text_responses": True,
+        "prefetch_text_response_max_chars": 220,
     },
     "audio_coordination": {
         "self_hearing_hold_seconds": 0.32,

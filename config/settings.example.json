@@ -120,7 +120,9 @@
     "inter_chunk_pause_seconds": 0.0,
     "max_display_lines": 2,
     "max_display_chars_per_line": 20,
-    "prefetch_action_responses": true
+    "prefetch_action_responses": true,
+    "prefetch_text_responses": true,
+    "prefetch_text_response_max_chars": 220
   },
   "audio_coordination": {
   "self_hearing_hold_seconds": 0.32,
