@@ -13,13 +13,28 @@ class FasterWhisperRichTranscribeTests(unittest.TestCase):
         backend = object.__new__(FasterWhisperInputBackend)
         backend.sample_rate = 16000
         backend.language = "auto"
+        backend.max_record_seconds = 6.5
+        backend.capture_profiles = {
+            "default": {
+                "timeout_seconds": 6.5,
+                "end_silence_seconds": 0.6,
+                "min_speech_seconds": 0.2,
+                "pre_roll_seconds": 0.45,
+            },
+            "conversation": {
+                "timeout_seconds": 6.5,
+                "end_silence_seconds": 0.6,
+                "min_speech_seconds": 0.2,
+                "pre_roll_seconds": 0.45,
+            },
+        }
 
         class _Logger:
             def warning(self, *args, **kwargs) -> None:
                 return None
 
         backend.LOGGER = _Logger()
-        backend._record_until_silence = lambda timeout=8.0, debug=False: np.ones(16000, dtype=np.float32)
+        backend._record_until_silence = lambda timeout=8.0, debug=False, **kwargs: np.ones(16000, dtype=np.float32)
         backend._transcribe_audio_candidate = lambda audio, debug=False: {
             "text": "cześć nexa",
             "language": "pl",
@@ -57,19 +72,39 @@ class FasterWhisperRichTranscribeTests(unittest.TestCase):
         self.assertTrue(result.metadata["rescue_used"])
         self.assertFalse(result.metadata["retry_used"])
         self.assertEqual(result.metadata["engine"], "faster_whisper")
+        self.assertEqual(result.metadata["capture_profile"], "conversation")
+        self.assertAlmostEqual(result.metadata["capture_timeout_seconds"], 4.0)
+        self.assertAlmostEqual(result.metadata["capture_end_silence_seconds"], 0.6)
+        self.assertAlmostEqual(result.metadata["capture_min_speech_seconds"], 0.2)
+        self.assertAlmostEqual(result.metadata["capture_pre_roll_seconds"], 0.45)
         self.assertGreater(result.metadata["audio_duration_seconds"], 0.0)
 
     def test_transcribe_returns_none_when_candidate_is_missing(self) -> None:
         backend = object.__new__(FasterWhisperInputBackend)
         backend.sample_rate = 16000
         backend.language = "auto"
+        backend.max_record_seconds = 6.5
+        backend.capture_profiles = {
+            "default": {
+                "timeout_seconds": 6.5,
+                "end_silence_seconds": 0.6,
+                "min_speech_seconds": 0.2,
+                "pre_roll_seconds": 0.45,
+            },
+            "command": {
+                "timeout_seconds": 5.2,
+                "end_silence_seconds": 0.4,
+                "min_speech_seconds": 0.14,
+                "pre_roll_seconds": 0.24,
+            },
+        }
 
         class _Logger:
             def warning(self, *args, **kwargs) -> None:
                 return None
 
         backend.LOGGER = _Logger()
-        backend._record_until_silence = lambda timeout=8.0, debug=False: np.ones(16000, dtype=np.float32)
+        backend._record_until_silence = lambda timeout=8.0, debug=False, **kwargs: np.ones(16000, dtype=np.float32)
         backend._transcribe_audio_candidate = lambda audio, debug=False: None
 
         result = FasterWhisperInputBackend.transcribe(
@@ -84,6 +119,81 @@ class FasterWhisperRichTranscribeTests(unittest.TestCase):
         )
 
         self.assertIsNone(result)
+
+    def test_transcribe_uses_mode_specific_capture_profile_for_follow_up(self) -> None:
+        backend = object.__new__(FasterWhisperInputBackend)
+        backend.sample_rate = 16000
+        backend.language = "auto"
+        backend.max_record_seconds = 6.5
+        backend.capture_profiles = {
+            "default": {
+                "timeout_seconds": 6.5,
+                "end_silence_seconds": 0.6,
+                "min_speech_seconds": 0.2,
+                "pre_roll_seconds": 0.45,
+            },
+            "follow_up": {
+                "timeout_seconds": 4.8,
+                "end_silence_seconds": 0.34,
+                "min_speech_seconds": 0.12,
+                "pre_roll_seconds": 0.2,
+            },
+        }
+
+        class _Logger:
+            def warning(self, *args, **kwargs) -> None:
+                return None
+
+        backend.LOGGER = _Logger()
+        capture_calls: list[dict[str, float | bool]] = []
+
+        def _record_until_silence(timeout=8.0, debug=False, **kwargs):
+            capture_calls.append(
+                {
+                    "timeout": float(timeout),
+                    "debug": bool(debug),
+                    "end_silence_seconds": float(kwargs["end_silence_seconds"]),
+                    "min_speech_seconds": float(kwargs["min_speech_seconds"]),
+                    "pre_roll_seconds": float(kwargs["pre_roll_seconds"]),
+                }
+            )
+            return np.ones(12000, dtype=np.float32)
+
+        backend._record_until_silence = _record_until_silence
+        backend._transcribe_audio_candidate = lambda audio, debug=False: {
+            "text": "yes, delete it",
+            "language": "en",
+            "language_probability": 0.92,
+            "elapsed": 0.25,
+            "forced_language": "",
+            "path": "primary",
+            "engine": "faster_whisper",
+        }
+
+        result = FasterWhisperInputBackend.transcribe(
+            backend,
+            TranscriptRequest(
+                timeout_seconds=6.0,
+                debug=True,
+                source=InputSource.VOICE,
+                mode="follow_up",
+                metadata={"test_case": "faster_whisper_follow_up_profile"},
+            ),
+        )
+
+        self.assertEqual(len(capture_calls), 1)
+        self.assertAlmostEqual(capture_calls[0]["timeout"], 4.8)
+        self.assertAlmostEqual(capture_calls[0]["end_silence_seconds"], 0.34)
+        self.assertAlmostEqual(capture_calls[0]["min_speech_seconds"], 0.12)
+        self.assertAlmostEqual(capture_calls[0]["pre_roll_seconds"], 0.2)
+
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertEqual(result.metadata["capture_profile"], "follow_up")
+        self.assertAlmostEqual(result.metadata["capture_timeout_seconds"], 4.8)
+        self.assertAlmostEqual(result.metadata["capture_end_silence_seconds"], 0.34)
+        self.assertAlmostEqual(result.metadata["capture_min_speech_seconds"], 0.12)
+        self.assertAlmostEqual(result.metadata["capture_pre_roll_seconds"], 0.2)
 
 
 if __name__ == "__main__":

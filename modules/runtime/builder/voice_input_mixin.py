@@ -70,6 +70,7 @@ class RuntimeBuilderVoiceInputMixin:
                     vad_min_speech_ms=int(config.get("vad_min_speech_ms", 120)),
                     vad_min_silence_ms=int(config.get("vad_min_silence_ms", 250)),
                     vad_speech_pad_ms=int(config.get("vad_speech_pad_ms", 180)),
+                    capture_profiles=config.get("capture_profiles"),
                     device_discovery_timeout_seconds=float(
                         config.get("device_discovery_timeout_seconds", 8.0)
                     ),

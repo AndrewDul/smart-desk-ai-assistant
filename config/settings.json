@@ -55,7 +55,45 @@
   "model_path": "models/ggml-base.bin",
   "vad_model_path": "models/ggml-silero-v6.2.0.bin",
   "device_discovery_timeout_seconds": 20.0,
-  "device_discovery_poll_seconds": 0.35
+  "device_discovery_poll_seconds": 0.35,
+  "capture_profiles": {
+  "command": {
+    "timeout_seconds": 5.2,
+    "end_silence_seconds": 0.4,
+    "min_speech_seconds": 0.14,
+    "pre_roll_seconds": 0.24
+  },
+  "inline_command_after_wake": {
+    "timeout_seconds": 4.2,
+    "end_silence_seconds": 0.32,
+    "min_speech_seconds": 0.12,
+    "pre_roll_seconds": 0.18
+  },
+  "follow_up": {
+    "timeout_seconds": 4.8,
+    "end_silence_seconds": 0.34,
+    "min_speech_seconds": 0.12,
+    "pre_roll_seconds": 0.2
+  },
+  "grace": {
+    "timeout_seconds": 3.2,
+    "end_silence_seconds": 0.28,
+    "min_speech_seconds": 0.1,
+    "pre_roll_seconds": 0.16
+  },
+  "conversation": {
+    "timeout_seconds": 6.5,
+    "end_silence_seconds": 0.6,
+    "min_speech_seconds": 0.2,
+    "pre_roll_seconds": 0.45
+  },
+  "wake_fallback": {
+    "timeout_seconds": 1.5,
+    "end_silence_seconds": 0.18,
+    "min_speech_seconds": 0.07,
+    "pre_roll_seconds": 0.1
+  }
+}
 },
   "voice_output": {
     "enabled": true,

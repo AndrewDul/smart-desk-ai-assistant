@@ -179,6 +179,7 @@ class FasterWhisperInputBackend(
         vad_min_speech_ms: int = 120,
         vad_min_silence_ms: int = 250,
         vad_speech_pad_ms: int = 180,
+        capture_profiles: dict[str, dict[str, float]] | None = None,
         device_discovery_timeout_seconds: float = 8.0,
         device_discovery_poll_seconds: float = 0.35,
     ) -> None:
@@ -251,6 +252,8 @@ class FasterWhisperInputBackend(
         self.wake_short_clip_rms_threshold = 0.0048
         self.wake_forced_languages = ("en", "pl")
 
+        self.capture_profiles = self._build_capture_profiles(capture_profiles)
+
         self.input_unblock_settle_seconds = 0.16
         self.stream_start_settle_seconds = 0.05
         self.no_speech_decay_seconds = 0.55
@@ -276,6 +279,166 @@ class FasterWhisperInputBackend(
             self._ensure_runtime_ready()
         except Exception as error:
             self.LOGGER.warning("FasterWhisper warmup will be retried lazily. Reason: %s", error)
+
+
+
+    def _build_capture_profiles(
+        self,
+        overrides: dict[str, dict[str, float]] | None,
+    ) -> dict[str, dict[str, float]]:
+        base_profile = {
+            "timeout_seconds": max(self.max_record_seconds, 0.25),
+            "end_silence_seconds": self.end_silence_seconds,
+            "min_speech_seconds": self.min_speech_seconds,
+            "pre_roll_seconds": self.pre_roll_seconds,
+        }
+        profile_map = {
+            "default": dict(base_profile),
+            "command": self._merge_capture_profile(
+                base_profile,
+                {
+                    "timeout_seconds": min(base_profile["timeout_seconds"], 5.2),
+                    "end_silence_seconds": min(base_profile["end_silence_seconds"], 0.40),
+                    "min_speech_seconds": min(base_profile["min_speech_seconds"], 0.14),
+                    "pre_roll_seconds": min(base_profile["pre_roll_seconds"], 0.24),
+                },
+            ),
+            "inline_command_after_wake": self._merge_capture_profile(
+                base_profile,
+                {
+                    "timeout_seconds": min(base_profile["timeout_seconds"], 4.2),
+                    "end_silence_seconds": min(base_profile["end_silence_seconds"], 0.32),
+                    "min_speech_seconds": min(base_profile["min_speech_seconds"], 0.12),
+                    "pre_roll_seconds": min(base_profile["pre_roll_seconds"], 0.18),
+                },
+            ),
+            "follow_up": self._merge_capture_profile(
+                base_profile,
+                {
+                    "timeout_seconds": min(base_profile["timeout_seconds"], 4.8),
+                    "end_silence_seconds": min(base_profile["end_silence_seconds"], 0.34),
+                    "min_speech_seconds": min(base_profile["min_speech_seconds"], 0.12),
+                    "pre_roll_seconds": min(base_profile["pre_roll_seconds"], 0.20),
+                },
+            ),
+            "grace": self._merge_capture_profile(
+                base_profile,
+                {
+                    "timeout_seconds": min(base_profile["timeout_seconds"], 3.2),
+                    "end_silence_seconds": min(base_profile["end_silence_seconds"], 0.28),
+                    "min_speech_seconds": min(base_profile["min_speech_seconds"], 0.10),
+                    "pre_roll_seconds": min(base_profile["pre_roll_seconds"], 0.16),
+                },
+            ),
+            "conversation": self._merge_capture_profile(
+                base_profile,
+                {
+                    "timeout_seconds": max(base_profile["timeout_seconds"], 6.5),
+                    "end_silence_seconds": max(base_profile["end_silence_seconds"], 0.60),
+                    "min_speech_seconds": max(base_profile["min_speech_seconds"], 0.20),
+                    "pre_roll_seconds": max(base_profile["pre_roll_seconds"], 0.45),
+                },
+            ),
+            "wake_fallback": self._merge_capture_profile(
+                base_profile,
+                {
+                    "timeout_seconds": min(base_profile["timeout_seconds"], 1.5),
+                    "end_silence_seconds": min(base_profile["end_silence_seconds"], 0.18),
+                    "min_speech_seconds": min(base_profile["min_speech_seconds"], 0.07),
+                    "pre_roll_seconds": min(base_profile["pre_roll_seconds"], 0.10),
+                },
+            ),
+        }
+
+        for profile_name, profile_overrides in (overrides or {}).items():
+            normalized_name = str(profile_name or "").strip().lower()
+            if not normalized_name:
+                continue
+            reference_profile = profile_map.get(normalized_name, profile_map["default"])
+            profile_map[normalized_name] = self._merge_capture_profile(
+                reference_profile,
+                profile_overrides,
+            )
+
+        return profile_map
+
+    @staticmethod
+    def _merge_capture_profile(
+        base_profile: dict[str, float],
+        overrides: dict[str, float] | None,
+    ) -> dict[str, float]:
+        profile = dict(base_profile)
+        for key, raw_value in (overrides or {}).items():
+            normalized_key = str(key or "").strip().lower()
+            if normalized_key not in {
+                "timeout_seconds",
+                "end_silence_seconds",
+                "min_speech_seconds",
+                "pre_roll_seconds",
+            }:
+                continue
+            try:
+                value = float(raw_value)
+            except (TypeError, ValueError):
+                continue
+            if normalized_key == "timeout_seconds":
+                profile[normalized_key] = max(value, 0.25)
+            else:
+                profile[normalized_key] = max(value, 0.05)
+        return profile
+
+    def _resolve_capture_profile(
+        self,
+        mode: str,
+        timeout_seconds: float,
+    ) -> tuple[str, dict[str, float]]:
+        profiles = getattr(self, "capture_profiles", None)
+        if not isinstance(profiles, dict) or not profiles:
+            base_timeout = max(float(getattr(self, "max_record_seconds", timeout_seconds or 8.0)), 0.25)
+            profiles = {
+                "default": {
+                    "timeout_seconds": base_timeout,
+                    "end_silence_seconds": max(float(getattr(self, "end_silence_seconds", 0.65)), 0.05),
+                    "min_speech_seconds": max(float(getattr(self, "min_speech_seconds", 0.20)), 0.05),
+                    "pre_roll_seconds": max(float(getattr(self, "pre_roll_seconds", 0.45)), 0.05),
+                }
+            }
+
+        normalized_mode = str(mode or "command").strip().lower() or "command"
+        profile_name = normalized_mode if normalized_mode in profiles else "default"
+        profile = dict(profiles.get(profile_name, profiles["default"]))
+        requested_timeout = max(float(timeout_seconds), 0.25)
+        max_record_seconds = max(float(getattr(self, "max_record_seconds", profile["timeout_seconds"])), 0.25)
+        profile["timeout_seconds"] = min(requested_timeout, float(profile["timeout_seconds"]))
+        profile["timeout_seconds"] = min(profile["timeout_seconds"], max_record_seconds)
+        profile["timeout_seconds"] = max(profile["timeout_seconds"], 0.25)
+        return profile_name, profile
+
+    def _record_with_capture_profile(
+        self,
+        *,
+        mode: str,
+        timeout_seconds: float,
+        debug: bool,
+        flush_queue: bool = True,
+    ) -> tuple[np.ndarray | None, str, dict[str, float]]:
+        profile_name, profile = self._resolve_capture_profile(mode, timeout_seconds)
+        try:
+            audio = self._record_until_silence(
+                timeout=float(profile["timeout_seconds"]),
+                debug=debug,
+                end_silence_seconds=float(profile["end_silence_seconds"]),
+                min_speech_seconds=float(profile["min_speech_seconds"]),
+                pre_roll_seconds=float(profile["pre_roll_seconds"]),
+                flush_queue=flush_queue,
+            )
+        except TypeError:
+            audio = self._record_until_silence(
+                timeout=float(profile["timeout_seconds"]),
+                debug=debug,
+            )
+        return audio, profile_name, profile
+
 
     def listen(self, timeout: float = 8.0, debug: bool = False) -> str | None:
         try:
@@ -312,7 +475,11 @@ class FasterWhisperInputBackend(
         mode = str(request.mode or "command").strip().lower() or "command"
 
         try:
-            audio = self._record_until_silence(timeout=timeout, debug=debug)
+            audio, capture_profile_name, capture_profile = self._record_with_capture_profile(
+                mode=mode,
+                timeout_seconds=timeout,
+                debug=debug,
+            )
             if audio is None or audio.size == 0:
                 return None
         except Exception as error:
@@ -364,6 +531,11 @@ class FasterWhisperInputBackend(
         metadata.setdefault("rescue_used", transcription_path in {"rescue", "retry_rescue"})
         metadata.setdefault("retry_used", transcription_path in {"retry", "retry_rescue"})
         metadata.setdefault("engine", str(candidate.get("engine") or "faster_whisper"))
+        metadata.setdefault("capture_profile", capture_profile_name)
+        metadata.setdefault("capture_timeout_seconds", float(capture_profile["timeout_seconds"]))
+        metadata.setdefault("capture_end_silence_seconds", float(capture_profile["end_silence_seconds"]))
+        metadata.setdefault("capture_min_speech_seconds", float(capture_profile["min_speech_seconds"]))
+        metadata.setdefault("capture_pre_roll_seconds", float(capture_profile["pre_roll_seconds"]))
 
         return TranscriptResult(
             text=cleaned,
