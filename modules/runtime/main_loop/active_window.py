@@ -317,17 +317,81 @@ def _note_turn_benchmark_speech_finalized(
     except Exception as error:
         append_log(f"Turn benchmark speech-finalized note failed: {error}")
 
-def _acknowledge_wake(assistant: CoreAssistant) -> None:
+def _wake_ack_skip_for_dedicated_gate_enabled(assistant: CoreAssistant) -> bool:
+    voice_input_cfg = assistant.settings.get("voice_input", {})
+    configured = voice_input_cfg.get("wake_ack_skip_for_dedicated_gate")
+    if configured is None:
+        return True
+    return bool(configured)
+
+
+def _should_skip_spoken_wake_ack(
+    assistant: CoreAssistant,
+    *,
+    source_label: str,
+    inline_command_present: bool,
+) -> bool:
+    if inline_command_present:
+        return True
+
+    normalized_source = str(source_label or "").strip().lower()
+    if normalized_source in {"", "compatibility_voice_input", "voice_input"}:
+        return False
+
+    backend_statuses = getattr(assistant, "backend_statuses", {})
+    wake_status = backend_statuses.get("wake_gate") if hasattr(backend_statuses, "get") else None
+    selected_backend = str(getattr(wake_status, "selected_backend", "") or "").strip().lower()
+    if selected_backend == "compatibility_voice_input":
+        return False
+
+    return _wake_ack_skip_for_dedicated_gate_enabled(assistant)
+
+
+def _acknowledge_wake(
+    assistant: CoreAssistant,
+    *,
+    source_label: str = "",
+    inline_command_present: bool = False,
+) -> None:
     assistant.voice_session.transition_to_wake_detected(detail="wake_phrase_detected")
 
     language = getattr(assistant, "last_language", "en")
-    wake_ack_service = getattr(assistant, "wake_ack_service", None)
     benchmark_service = getattr(assistant, "turn_benchmark_service", None)
+    wake_ack = ""
+    wake_ack_strategy = "listen_priority_skip"
+    wake_ack_output_hold_seconds: float | None = None
+    wake_ack_started_at = time.perf_counter()
+
+    if _should_skip_spoken_wake_ack(
+        assistant,
+        source_label=source_label,
+        inline_command_present=inline_command_present,
+    ):
+        wake_ack_latency_ms = max(0.0, (time.perf_counter() - wake_ack_started_at) * 1000.0)
+        note_wake_acknowledged = getattr(benchmark_service, "note_wake_acknowledged", None)
+        if callable(note_wake_acknowledged):
+            try:
+                note_wake_acknowledged(
+                    text=wake_ack,
+                    strategy=wake_ack_strategy,
+                    latency_ms=wake_ack_latency_ms,
+                    output_hold_seconds=wake_ack_output_hold_seconds,
+                )
+            except Exception as error:
+                append_log(f"Turn benchmark wake-ack note failed: {error}")
+
+        append_log(
+            "Wake phrase detected. Spoken acknowledgement skipped to prioritize command capture: "
+            f"source={source_label or 'unknown'} | strategy={wake_ack_strategy} | "
+            f"ack_ms={wake_ack_latency_ms:.1f}"
+        )
+        print("Wake phrase detected. Waiting for command...")
+        return
+
+    wake_ack_service = getattr(assistant, "wake_ack_service", None)
     wake_ack = "I'm listening."
     wake_ack_strategy = "fallback"
-    wake_ack_output_hold_seconds: float | None = None
     spoken = False
-    wake_ack_started_at = time.perf_counter()
 
     if wake_ack_service is not None:
         try:
@@ -517,7 +581,11 @@ def _accept_standby_wake(
     state_flags.hide_standby_banner()
     state_flags.store_prefetched_command(safe_inline_command)
     append_log(f"Wake phrase accepted by {source_label}.")
-    _acknowledge_wake(assistant)
+    _acknowledge_wake(
+        assistant,
+        source_label=source_label,
+        inline_command_present=bool(safe_inline_command),
+    )
     return True
 
 

@@ -71,19 +71,37 @@ class _FakeBenchmarkService:
 
 
 class _AssistantProbe:
-    def __init__(self) -> None:
+    def __init__(self, *, wake_selected_backend: str = "runtime.wake_gate") -> None:
+        self.settings = {"voice_input": {}}
         self.voice_session = _FakeVoiceSession()
         self.voice_out = FakeVoiceOutput()
         self.wake_ack_service = _FakeWakeAckService()
         self.turn_benchmark_service = _FakeBenchmarkService()
+        self.backend_statuses = {
+            "wake_gate": types.SimpleNamespace(selected_backend=wake_selected_backend),
+        }
         self.last_language = "en"
 
 
 class ActiveWindowWakeAcknowledgementTests(unittest.TestCase):
-    def test_acknowledge_wake_prefers_wake_ack_service(self) -> None:
-        assistant = _AssistantProbe()
+    def test_acknowledge_wake_skips_spoken_ack_for_dedicated_wake_gate(self) -> None:
+        assistant = _AssistantProbe(wake_selected_backend="runtime.wake_gate")
 
-        _acknowledge_wake(assistant)
+        _acknowledge_wake(assistant, source_label="runtime.wake_gate")
+
+        self.assertEqual(assistant.voice_session.transition_calls, ["wake_phrase_detected"])
+        self.assertEqual(assistant.wake_ack_service.calls, [])
+        self.assertEqual(assistant.voice_out.speak_calls, [])
+        self.assertEqual(assistant.voice_session.builder_calls, 0)
+        self.assertEqual(len(assistant.turn_benchmark_service.calls), 1)
+        self.assertEqual(assistant.turn_benchmark_service.calls[0]["text"], "")
+        self.assertEqual(assistant.turn_benchmark_service.calls[0]["strategy"], "listen_priority_skip")
+        self.assertIsNone(assistant.turn_benchmark_service.calls[0]["output_hold_seconds"])
+
+    def test_acknowledge_wake_prefers_wake_ack_service_for_compatibility_mode(self) -> None:
+        assistant = _AssistantProbe(wake_selected_backend="compatibility_voice_input")
+
+        _acknowledge_wake(assistant, source_label="compatibility_voice_input")
 
         self.assertEqual(assistant.voice_session.transition_calls, ["wake_phrase_detected"])
         self.assertEqual(assistant.wake_ack_service.calls, [("en", True)])
