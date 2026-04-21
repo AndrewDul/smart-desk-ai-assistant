@@ -62,6 +62,7 @@ class TTSPipeline(
         piper_models: dict[str, dict[str, str]] | None = None,
         process_poll_seconds: float = 0.02,
         playback_poll_seconds: float = 0.005,
+        preferred_playback_backend: str = "",
     ) -> None:
         self.enabled = bool(enabled)
         self.preferred_engine = (
@@ -116,6 +117,7 @@ class TTSPipeline(
         self._playback_backends: list[tuple[str, list[str]]] = (
             self._detect_playback_backends()
         )
+        self._preferred_playback_backend = str(preferred_playback_backend or "").strip()
         self._last_good_playback_backend: str | None = None
 
         # Timeouts and queue timing tuned for fast short replies on Raspberry Pi.
@@ -202,6 +204,7 @@ class TTSPipeline(
             f"job_wait_poll={self._job_wait_poll_seconds:.3f}s, "
             f"process_poll={self._process_poll_seconds:.3f}s, "
             f"playback_poll={self._playback_poll_seconds:.3f}s, "
+            f"preferred_playback_backend={self._preferred_playback_backend or '-'}, "
             f"current_job_wait={self._current_job_wait_seconds:.1f}s, "
             f"direct_current_chars={self._direct_current_synthesis_max_chars}, "
             f"early_next_prefetch_chars={self._early_next_prefetch_max_chars}"

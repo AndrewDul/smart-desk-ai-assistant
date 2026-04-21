@@ -78,6 +78,7 @@ class _SpeechApiProbe(TTSPipelineSpeechApiMixin):
         self._playback_report = {}
         return report
 
+
 class _PlaybackProbe(TTSPipelineSynthesisMixin):
     def __init__(self) -> None:
         self.enabled = True
@@ -91,6 +92,27 @@ class _PlaybackProbe(TTSPipelineSynthesisMixin):
     def _run_process_interruptibly(self, args, **kwargs) -> bool:
         self.playback_calls.append({"args": list(args), **dict(kwargs)})
         return True
+
+
+class _PreferredPlaybackProbe(TTSPipelineSynthesisMixin):
+    def __init__(self, *, preferred_playback_backend: str = "") -> None:
+        self.enabled = True
+        self.preferred_engine = "piper"
+        self._playback_backends = [
+            ("pw-play", ["pw-play"]),
+            ("aplay", ["aplay", "-q"]),
+            ("ffplay", ["ffplay", "-autoexit", "-nodisp"]),
+        ]
+        self._preferred_playback_backend = str(preferred_playback_backend)
+        self._last_good_playback_backend = None
+        self._playback_timeout_seconds = 24.0
+        self._playback_poll_seconds = 0.005
+        self.playback_calls: list[dict[str, object]] = []
+
+    def _run_process_interruptibly(self, args, **kwargs) -> bool:
+        self.playback_calls.append({"args": list(args), **dict(kwargs)})
+        return True
+
 
 class TTSPipelinePriorityTests(unittest.TestCase):
     def test_current_path_promotes_matching_pending_prefetch_job(self) -> None:
@@ -133,6 +155,19 @@ class TTSPipelinePriorityTests(unittest.TestCase):
             self.assertEqual(len(probe.playback_calls), 1)
             self.assertEqual(probe.playback_calls[0]["poll_sleep_seconds"], 0.005)
             self.assertFalse(probe.playback_calls[0]["capture_output"])
+            self.assertEqual(probe._last_good_playback_backend, "aplay")
+
+    def test_playback_prefers_configured_backend_before_first_success(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            probe = _PreferredPlaybackProbe(preferred_playback_backend="aplay")
+            wav_path = Path(temp_dir) / "reply.wav"
+            wav_path.write_bytes(b"RIFFtest")
+
+            ok = probe._play_wav(wav_path)
+
+            self.assertTrue(ok)
+            self.assertEqual(len(probe.playback_calls), 1)
+            self.assertEqual(probe.playback_calls[0]["args"][:2], ["aplay", "-q"])
             self.assertEqual(probe._last_good_playback_backend, "aplay")
 
 

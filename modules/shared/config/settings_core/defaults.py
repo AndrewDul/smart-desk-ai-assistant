@@ -81,6 +81,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         },
         "process_poll_seconds": 0.02,
         "playback_poll_seconds": 0.005,
+        "preferred_playback_backend": "aplay",
     },
     "display": {
         "enabled": True,

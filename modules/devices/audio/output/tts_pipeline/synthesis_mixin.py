@@ -243,9 +243,20 @@ class TTSPipelineSynthesisMixin:
         playback_started_at = time.monotonic()
 
         backends = list(self._playback_backends)
+        preferred_backend = str(getattr(self, "_preferred_playback_backend", "") or "").strip()
+        preferred_order: list[str] = []
         if self._last_good_playback_backend:
+            preferred_order.append(self._last_good_playback_backend)
+        if preferred_backend and preferred_backend not in preferred_order:
+            preferred_order.append(preferred_backend)
+
+        if preferred_order:
+            priority_map = {name: index for index, name in enumerate(preferred_order)}
             backends.sort(
-                key=lambda item: 0 if item[0] == self._last_good_playback_backend else 1
+                key=lambda item: (
+                    priority_map.get(item[0], len(priority_map)),
+                    item[0],
+                )
             )
 
         for backend_name, base_command in backends:
