@@ -206,11 +206,13 @@ class HealthSystemChecks(HealthCheckHelpers):
         if not self._module_exists("numpy"):
             return self._error("vision", "missing vision runtime package: numpy")
 
-        unsupported_backends = sorted({backend for backend in requested_backends if backend not in {"picamera2", "opencv"}})
-        if unsupported_backends:
+        unsupported_camera_backends = sorted(
+            {backend for backend in requested_backends if backend not in {"picamera2", "opencv"}}
+        )
+        if unsupported_camera_backends:
             return self._error(
                 "vision",
-                "unsupported vision backend(s): " + ", ".join(unsupported_backends),
+                "unsupported vision backend(s): " + ", ".join(unsupported_camera_backends),
             )
 
         availability: dict[str, bool] = {}
@@ -231,11 +233,37 @@ class HealthSystemChecks(HealthCheckHelpers):
                 "missing vision runtime packages: " + ", ".join(sorted(set(missing_labels))),
             )
 
+        people_enabled = bool(vision_cfg.get("people_detection_enabled", False))
+        people_backend = str(vision_cfg.get("people_detector_backend", "opencv_hog") or "opencv_hog").strip().lower()
+        object_enabled = bool(vision_cfg.get("object_detection_enabled", False))
+        object_backend = str(vision_cfg.get("object_detector_backend", "null") or "null").strip().lower()
+
+        if people_enabled and people_backend not in {"opencv_hog", "null", "none"}:
+            return self._error(
+                "vision",
+                f"unsupported people detector backend: {people_backend}",
+            )
+
+        if object_enabled and object_backend not in {"null", "none"}:
+            return self._error(
+                "vision",
+                f"unsupported object detector backend: {object_backend}",
+            )
+
+        if people_enabled and people_backend == "opencv_hog" and not self._module_exists("cv2"):
+            return self._error(
+                "vision",
+                "people detector backend 'opencv_hog' requires opencv-python",
+            )
+
         camera_index = int(vision_cfg.get("camera_index", 0))
+
         capabilities: list[str] = []
+        if people_enabled and people_backend not in {"null", "none"}:
+            capabilities.append("people")
         if bool(vision_cfg.get("face_detection_enabled", False)):
             capabilities.append("face")
-        if bool(vision_cfg.get("object_detection_enabled", False)):
+        if object_enabled and object_backend not in {"null", "none"}:
             capabilities.append("object")
         if bool(vision_cfg.get("scene_understanding_enabled", False)):
             capabilities.append("scene")
@@ -246,9 +274,17 @@ class HealthSystemChecks(HealthCheckHelpers):
 
         capability_text = ", ".join(capabilities) if capabilities else "camera-only"
         selected_text = ", ".join(available_backends)
+        detector_text = ", ".join(
+            [
+                f"people={people_backend if people_enabled else 'null'}",
+                f"objects={object_backend if object_enabled else 'null'}",
+                "scene=zone_rules",
+            ]
+        )
+
         return self._info(
             "vision",
-            f"camera index {camera_index} configured, backends={selected_text}, capabilities={capability_text}",
+            f"camera index {camera_index} configured, backends={selected_text}, detectors={detector_text}, capabilities={capability_text}",
             critical=False,
         )
 

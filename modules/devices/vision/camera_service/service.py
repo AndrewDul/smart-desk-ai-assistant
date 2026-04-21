@@ -29,6 +29,11 @@ class CameraService:
     - run a clean perception pipeline with separate people/object/scene contracts
     - keep behavior inference out of the camera service itself
     - track activity sessions over time
+
+    Stage 3 detector foundation:
+    - load configurable detector backends
+    - expose active detector status
+    - support the first real people detection path
     """
 
     def __init__(self, config: dict[str, Any]) -> None:
@@ -38,7 +43,7 @@ class CameraService:
 
         self._lock = threading.RLock()
         self._reader = VisionCaptureReader(config=self._config)
-        self._perception = PerceptionPipeline()
+        self._perception = PerceptionPipeline.from_config(self._config)
         self._behavior = BehaviorPipeline()
         self._sessions = VisionSessionTracker()
         self._last_observation: VisionObservation | None = None
@@ -82,6 +87,7 @@ class CameraService:
                 "last_captured_at": None if last is None else last.captured_at,
                 "last_error": self._last_error,
                 "capabilities": self._config.capability_flags(),
+                "detectors": self._perception.detector_status(),
                 "perception_pipeline_ready": True,
                 "behavior_pipeline_ready": True,
                 "session_tracker_ready": True,
@@ -114,12 +120,13 @@ class CameraService:
         self._last_error = None
 
         LOGGER.info(
-            "Vision snapshot captured: backend=%s size=%sx%s people=%s objects=%s presence=%s desk=%s phone=%s computer=%s study=%s presence_seconds=%s",
+            "Vision snapshot captured: backend=%s size=%sx%s people=%s objects=%s people_detector=%s presence=%s desk=%s phone=%s computer=%s study=%s presence_seconds=%s",
             packet.backend_label,
             packet.width,
             packet.height,
             len(perception.people),
             len(perception.objects),
+            self._perception.detector_status().get("people"),
             behavior.presence.active,
             behavior.desk_activity.active,
             behavior.phone_usage.active,

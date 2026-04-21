@@ -954,3 +954,113 @@ The next important testing step after this stage should be:
 
 
 
+# Test Notes
+
+
+## Area
+Power delivery, X1206 UPS integration, Raspberry Pi 5 USB-boot power policy, and battery-only runtime validation
+
+---
+
+## Main purpose of this test stage
+
+In this stage I focused on validating the practical power architecture for NeXa when running from battery without a normal external USB-C power supply.
+
+The main goals were:
+- understand why Raspberry Pi 5 showed the high-current USB boot warning
+- confirm whether the issue was caused by weak batteries or by Raspberry Pi 5 power-source detection behaviour
+- validate the X1206 UPS as the main battery-backed power layer
+- remove the boot-time power restriction that could reduce USB power budget
+- confirm that NeXa can boot and run more safely from battery through the X1206 path
+
+---
+
+## Main changes tested
+
+I tested changes in:
+- Raspberry Pi 5 EEPROM power configuration
+- `/boot/firmware/config.txt` power-related runtime settings
+- USB boot behaviour under non-PD battery-backed power
+- X1206 battery voltage and battery percentage reporting
+- throttling and undervoltage status during live runtime checks
+- practical battery-backed operation after the power-policy update
+
+---
+
+## Current testing approach
+
+This stage was tested mainly through:
+- direct terminal checks on Raspberry Pi 5
+- EEPROM configuration update and verification
+- config file update and verification
+- live power-state commands
+- X1206 battery telemetry checks
+- repeated boot and runtime observation on the real hardware setup
+
+The main commands used during this stage included:
+- `sudo -E rpi-eeprom-config --edit`
+- `grep -n "usb_max_current_enable" /boot/firmware/config.txt`
+- `sudo rpi-eeprom-config | grep PSU_MAX_CURRENT`
+- `vcgencmd get_throttled`
+- `dmesg | grep -i voltage`
+- `python /home/devdul/x120x/bat.py`
+
+---
+
+## Successful results confirmed
+
+The following behaviour was confirmed working in this stage:
+
+- `PSU_MAX_CURRENT=5000` was saved successfully in EEPROM
+- `usb_max_current_enable=1` was saved successfully in `/boot/firmware/config.txt`
+- the EEPROM update completed successfully
+- runtime verification confirmed that both power settings were active
+- `vcgencmd get_throttled` returned `0x0`
+- `dmesg | grep -i voltage` did not show undervoltage warnings
+- X1206 battery telemetry reported stable battery state during manual observation
+- battery telemetry showed about `4.03V` and `84%` during the later runtime check
+- the observed power state looked healthy after the configuration update
+
+---
+
+## Problems found during testing
+
+I also found several important problems during this stage:
+
+- Raspberry Pi 5 showed the `USB boot requires high current (5 volt 5 amp) power supply` warning when running through the X1206 battery-backed path
+- the power source was shown as `Unknown 3000 mA`
+- it was initially unclear whether the problem was caused by weak batteries or by Raspberry Pi 5 source-detection logic
+- without the correct override, Raspberry Pi 5 could treat the power path as a reduced-current source and risk limiting USB power budget during SSD boot and peripheral use
+- this created a risk of unstable behaviour for a premium battery-only NeXa runtime
+
+---
+
+## Fixes applied after testing
+
+After these tests I applied or confirmed the following fixes:
+
+- set `PSU_MAX_CURRENT=5000` in Raspberry Pi 5 EEPROM
+- set `usb_max_current_enable=1` in `/boot/firmware/config.txt`
+- rebooted and verified the active configuration state
+- checked that the system no longer reported current throttling
+- checked that no voltage warning appeared in the runtime logs
+- checked X1206 battery telemetry directly during runtime
+
+---
+
+## Practical conclusion
+
+This stage confirmed an important design point:
+
+the main issue was not simply battery capacity, but Raspberry Pi 5 power-policy behaviour when the system is powered through a battery-backed UPS path that is not detected like a normal 5V/5A USB-PD source.
+
+The practical result is that:
+- the X1206 can remain the current battery-backed power layer for NeXa
+- Raspberry Pi 5 needs the correct power-policy override for this setup
+- after the override, the runtime state looked healthy
+- there were no immediate signs of undervoltage or throttling during the observed checks
+
+This was an important step toward a proper battery-only embedded runtime for NeXa.
+
+
+

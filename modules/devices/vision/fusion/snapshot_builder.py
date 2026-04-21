@@ -30,6 +30,35 @@ def _session_to_dict(session) -> dict[str, object]:
     }
 
 
+def _box_to_dict(box) -> dict[str, int]:
+    return {
+        "left": box.left,
+        "top": box.top,
+        "right": box.right,
+        "bottom": box.bottom,
+        "width": box.width,
+        "height": box.height,
+    }
+
+
+def _person_to_dict(person) -> dict[str, object]:
+    return {
+        "label": person.label,
+        "confidence": person.confidence,
+        "bounding_box": _box_to_dict(person.bounding_box),
+        "metadata": dict(person.metadata),
+    }
+
+
+def _object_to_dict(obj) -> dict[str, object]:
+    return {
+        "label": obj.label,
+        "confidence": obj.confidence,
+        "bounding_box": _box_to_dict(obj.bounding_box),
+        "metadata": dict(obj.metadata),
+    }
+
+
 def build_vision_observation(
     packet: FramePacket,
     perception: PerceptionSnapshot | None = None,
@@ -64,6 +93,9 @@ def build_vision_observation(
         metadata["perception"] = {
             "people_count": len(perception.people),
             "object_count": len(perception.objects),
+            "people": [_person_to_dict(person) for person in perception.people],
+            "objects": [_object_to_dict(obj) for obj in perception.objects],
+            "detectors": dict(perception.metadata.get("detectors", {})),
             "desk_zone_people_count": perception.scene.desk_zone_people_count,
             "screen_candidate_count": perception.scene.screen_candidate_count,
             "handheld_candidate_count": perception.scene.handheld_candidate_count,
@@ -78,6 +110,9 @@ def build_vision_observation(
         metadata["perception"] = {
             "people_count": 0,
             "object_count": 0,
+            "people": [],
+            "objects": [],
+            "detectors": {"people": "null", "objects": "null", "scene": "null"},
             "desk_zone_people_count": 0,
             "screen_candidate_count": 0,
             "handheld_candidate_count": 0,

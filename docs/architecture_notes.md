@@ -2285,3 +2285,93 @@ The next architecture step after this point should be:
 
 
 
+## 28. Battery-backed power architecture update
+
+I clarified and validated the practical power architecture for NeXa when running from battery through the X1206 UPS rather than from a normal external USB-C power adapter.
+
+This became important because NeXa is no longer only a desk-bound software prototype.
+The project is moving toward a more embedded and battery-capable hardware platform, so the power path must be described as part of the architecture, not only as a temporary hardware detail.
+
+### Current power direction
+
+The current practical power direction is:
+
+- Raspberry Pi 5 as the main compute node
+- X1206 as the battery-backed UPS and power-conditioning layer
+- 21700 battery cells as the energy storage layer
+- SSD boot as the main system storage direction
+- USB peripherals such as microphone, speaker, and other connected devices sharing the practical power budget
+
+This means the power path is now part of the real runtime architecture.
+
+### Important architectural insight
+
+During validation I confirmed that the main challenge was not only battery capacity.
+
+The more important issue was that Raspberry Pi 5 can apply a conservative USB-boot and USB-current policy when the power source is not detected like a normal 5V / 5A USB-PD supply.
+
+This matters architecturally because:
+- the system can still have enough real battery energy
+- but the Pi can still behave as if the source should be treated more cautiously
+- this directly affects practical runtime behaviour for SSD boot and USB-connected devices
+
+### Architectural adjustment
+
+To align Raspberry Pi 5 behaviour with the intended X1206 battery-backed runtime, I adopted an explicit power-policy override as part of the embedded platform design.
+
+The validated settings are:
+
+- `PSU_MAX_CURRENT=5000` in EEPROM
+- `usb_max_current_enable=1` in `/boot/firmware/config.txt`
+
+This is not just a random workaround.
+In this project, it becomes part of the defined hardware-runtime contract between:
+- Raspberry Pi 5
+- the X1206 UPS path
+- the battery-backed NeXa deployment model
+
+### Why this matters
+
+This update improves the architecture in several ways:
+
+- it makes battery-backed boot behaviour more predictable
+- it reduces the risk of Raspberry Pi 5 staying in an unnecessarily reduced USB-current policy
+- it gives a cleaner path for running NeXa from battery without depending on a normal external USB-C supply
+- it supports the move toward a more realistic embedded assistant platform
+
+### Current practical interpretation
+
+The current architecture should therefore treat the X1206 path as:
+
+- the active battery-backed power layer
+- a valid runtime direction for NeXa
+- a path that requires explicit Raspberry Pi 5 power-policy configuration
+- a hardware layer that still needs full-load validation as the system grows
+
+### Current limitation
+
+Even with the correct override, this does not create unlimited power.
+
+The architecture still needs to respect real load limits under:
+- SSD boot
+- USB peripherals
+- audio activity
+- display usage
+- future camera and mobility expansion
+
+So the correct architectural view is:
+
+- the policy issue is now understood
+- the current configuration is valid
+- the X1206 remains part of the intended battery-backed design
+- future heavy-load validation is still required
+
+### Architectural conclusion
+
+This power update moves NeXa closer to a real embedded system architecture.
+
+Instead of relying only on a standard desk power adapter model, the project now has a clearer battery-backed runtime direction with:
+- UPS-backed operation
+- SSD-backed storage
+- explicit Raspberry Pi 5 power-policy control
+- a more honest and realistic embedded deployment model

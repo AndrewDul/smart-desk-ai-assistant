@@ -36,11 +36,19 @@ class _FakeReader:
 
 
 class _FakePerceptionPipeline:
-    def __init__(self) -> None:
-        self.calls = 0
+    @classmethod
+    def from_config(cls, config):
+        del config
+        return cls()
+
+    def detector_status(self) -> dict[str, str]:
+        return {
+            "people": "fake_people",
+            "objects": "fake_objects",
+            "scene": "fake_scene",
+        }
 
     def analyze(self, packet):
-        self.calls += 1
         del packet
 
         class _Scene:
@@ -54,6 +62,7 @@ class _FakePerceptionPipeline:
             people = ()
             objects = ()
             scene = _Scene()
+            metadata = {"detectors": {"people": "fake_people"}}
 
         return _Snapshot()
 
@@ -138,6 +147,7 @@ class CameraServiceTests(unittest.TestCase):
         self.assertTrue(service.status()["perception_pipeline_ready"])
         self.assertTrue(service.status()["behavior_pipeline_ready"])
         self.assertTrue(service.status()["session_tracker_ready"])
+        self.assertEqual(service.status()["detectors"]["people"], "fake_people")
 
     @patch("modules.devices.vision.camera_service.service.build_vision_observation")
     @patch("modules.devices.vision.camera_service.service.VisionSessionTracker", _FakeSessionTracker)
