@@ -78,6 +78,19 @@ class _SpeechApiProbe(TTSPipelineSpeechApiMixin):
         self._playback_report = {}
         return report
 
+class _PlaybackProbe(TTSPipelineSynthesisMixin):
+    def __init__(self) -> None:
+        self.enabled = True
+        self.preferred_engine = "piper"
+        self._playback_backends = [("aplay", ["aplay", "-q"])]
+        self._last_good_playback_backend = None
+        self._playback_timeout_seconds = 24.0
+        self._playback_poll_seconds = 0.005
+        self.playback_calls: list[dict[str, object]] = []
+
+    def _run_process_interruptibly(self, args, **kwargs) -> bool:
+        self.playback_calls.append({"args": list(args), **dict(kwargs)})
+        return True
 
 class TTSPipelinePriorityTests(unittest.TestCase):
     def test_current_path_promotes_matching_pending_prefetch_job(self) -> None:
@@ -107,6 +120,20 @@ class TTSPipelinePriorityTests(unittest.TestCase):
         self.assertTrue(report["success"])
         self.assertEqual(report["engine"], "piper")
         self.assertFalse(report["interrupted"])
+
+    def test_playback_uses_fast_poll_and_skips_output_capture(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            probe = _PlaybackProbe()
+            wav_path = Path(temp_dir) / "reply.wav"
+            wav_path.write_bytes(b"RIFFtest")
+
+            ok = probe._play_wav(wav_path)
+
+            self.assertTrue(ok)
+            self.assertEqual(len(probe.playback_calls), 1)
+            self.assertEqual(probe.playback_calls[0]["poll_sleep_seconds"], 0.005)
+            self.assertFalse(probe.playback_calls[0]["capture_output"])
+            self.assertEqual(probe._last_good_playback_backend, "aplay")
 
 
 if __name__ == "__main__":

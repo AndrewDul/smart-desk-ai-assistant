@@ -79,6 +79,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
                 "config": "voices/piper/en_GB-jenny_dioco-medium.onnx.json",
             },
         },
+        "process_poll_seconds": 0.02,
+        "playback_poll_seconds": 0.005,
     },
     "display": {
         "enabled": True,

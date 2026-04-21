@@ -60,6 +60,8 @@ class TTSPipeline(
         pitch: int = 58,
         voices: dict[str, str] | None = None,
         piper_models: dict[str, dict[str, str]] | None = None,
+        process_poll_seconds: float = 0.02,
+        playback_poll_seconds: float = 0.005,
     ) -> None:
         self.enabled = bool(enabled)
         self.preferred_engine = (
@@ -119,6 +121,8 @@ class TTSPipeline(
         # Timeouts and queue timing tuned for fast short replies on Raspberry Pi.
         self._synthesis_timeout_seconds = 18.0
         self._playback_timeout_seconds = 24.0
+        self._process_poll_seconds = max(0.001, float(process_poll_seconds))
+        self._playback_poll_seconds = max(0.001, float(playback_poll_seconds))
         self._job_wait_poll_seconds = 0.015
         self._cache_warmup_delay_seconds = 0.45
         self._current_job_wait_seconds = 6.5
@@ -196,6 +200,8 @@ class TTSPipeline(
             f"synthesis_timeout={self._synthesis_timeout_seconds:.1f}s, "
             f"playback_timeout={self._playback_timeout_seconds:.1f}s, "
             f"job_wait_poll={self._job_wait_poll_seconds:.3f}s, "
+            f"process_poll={self._process_poll_seconds:.3f}s, "
+            f"playback_poll={self._playback_poll_seconds:.3f}s, "
             f"current_job_wait={self._current_job_wait_seconds:.1f}s, "
             f"direct_current_chars={self._direct_current_synthesis_max_chars}, "
             f"early_next_prefetch_chars={self._early_next_prefetch_max_chars}"

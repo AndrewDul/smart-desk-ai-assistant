@@ -254,6 +254,8 @@ class TTSPipelineSynthesisMixin:
                 command,
                 timeout_seconds=self._playback_timeout_seconds,
                 source=f"{backend_name}_playback",
+                poll_sleep_seconds=getattr(self, "_playback_poll_seconds", 0.005),
+                capture_output=False,
             )
             if ok:
                 self._last_good_playback_backend = backend_name

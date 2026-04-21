@@ -38,6 +38,8 @@ class RuntimeBuilderVoiceOutputMixin:
                 pitch=int(config.get("pitch", 58)),
                 voices=config.get("voices"),
                 piper_models=config.get("piper_models"),
+                process_poll_seconds=float(config.get("process_poll_seconds", 0.02) or 0.02),
+                playback_poll_seconds=float(config.get("playback_poll_seconds", 0.005) or 0.005),
             )
             return (
                 backend,

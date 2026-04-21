@@ -65,6 +65,8 @@ class TTSPipelineProcessMixin:
         timed_out: bool = False,
         interrupted: bool = False,
         error_text: str = "",
+        poll_sleep_seconds: float = 0.0,
+        capture_output: bool = True,
     ) -> None:
         result = {
             "source": str(source),
@@ -78,6 +80,8 @@ class TTSPipelineProcessMixin:
             "timed_out": bool(timed_out),
             "interrupted": bool(interrupted),
             "error_text": str(error_text or ""),
+            "poll_sleep_seconds": float(poll_sleep_seconds or 0.0),
+            "capture_output": bool(capture_output),
         }
         with self._process_lock:
             self._last_process_results[str(source)] = result
@@ -94,6 +98,8 @@ class TTSPipelineProcessMixin:
         input_text: str | None = None,
         timeout_seconds: float,
         source: str,
+        poll_sleep_seconds: float | None = None,
+        capture_output: bool = True,
     ) -> bool:
         started_at = time.monotonic()
         process: subprocess.Popen | None = None
@@ -103,12 +109,21 @@ class TTSPipelineProcessMixin:
         interrupted = False
         error_text = ""
 
+        poll_sleep = max(
+            0.001,
+            float(
+                poll_sleep_seconds
+                if poll_sleep_seconds is not None
+                else getattr(self, "_process_poll_seconds", 0.02)
+            ),
+        )
+
         try:
             process = subprocess.Popen(
                 args,
                 stdin=subprocess.PIPE if input_text is not None else subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE if capture_output else subprocess.DEVNULL,
+                stderr=subprocess.PIPE if capture_output else subprocess.DEVNULL,
                 text=True,
             )
             self._register_process(process)
@@ -138,15 +153,15 @@ class TTSPipelineProcessMixin:
                     self._terminate_process(process, reason=f"{source}_timeout")
                     break
 
-                time.sleep(0.02)
+                time.sleep(poll_sleep)
 
-            if process.stdout is not None:
+            if capture_output and process.stdout is not None:
                 try:
                     stdout_text = process.stdout.read()
                 except Exception:
                     stdout_text = ""
 
-            if process.stderr is not None:
+            if capture_output and process.stderr is not None:
                 try:
                     stderr_text = process.stderr.read()
                 except Exception:
@@ -167,6 +182,8 @@ class TTSPipelineProcessMixin:
                 timed_out=timed_out,
                 interrupted=interrupted,
                 error_text=error_text,
+                poll_sleep_seconds=poll_sleep,
+                capture_output=capture_output,
             )
 
             if not success:
@@ -200,6 +217,8 @@ class TTSPipelineProcessMixin:
                 timed_out=timed_out,
                 interrupted=interrupted,
                 error_text=error_text,
+                poll_sleep_seconds=poll_sleep,
+                capture_output=capture_output,
             )
             return False
         finally:
