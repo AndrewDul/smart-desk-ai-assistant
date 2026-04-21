@@ -12,6 +12,7 @@ from modules.devices.vision.perception import (
     PersonDetection,
     SceneContext,
 )
+from modules.devices.vision.sessions import ActivitySessionSnapshot, VisionSessionSnapshot
 
 
 class SnapshotBuilderTests(unittest.TestCase):
@@ -34,8 +35,9 @@ class SnapshotBuilderTests(unittest.TestCase):
         self.assertEqual(observation.metadata["frame_width"], 1280)
         self.assertEqual(observation.metadata["frame_height"], 720)
         self.assertEqual(observation.metadata["capture_backend"], "picamera2")
+        self.assertEqual(observation.metadata["sessions"]["presence"]["current_active_seconds"], 0.0)
 
-    def test_builds_semantic_observation_from_perception_and_behavior(self) -> None:
+    def test_builds_semantic_observation_from_perception_behavior_and_sessions(self) -> None:
         packet = FramePacket(
             pixels=[[0]],
             width=1280,
@@ -73,8 +75,52 @@ class SnapshotBuilderTests(unittest.TestCase):
             phone_usage=ActivitySignal(active=False, confidence=0.0, reasons=()),
             study_activity=ActivitySignal(active=True, confidence=0.78, reasons=("computer_work_confirmed",)),
         )
+        sessions = VisionSessionSnapshot(
+            presence=ActivitySessionSnapshot(
+                active=True,
+                state="active",
+                current_active_seconds=180.0,
+                total_active_seconds=540.0,
+                activations=2,
+                last_started_at=100.0,
+            ),
+            desk_activity=ActivitySessionSnapshot(
+                active=True,
+                state="active",
+                current_active_seconds=175.0,
+                total_active_seconds=500.0,
+                activations=2,
+            ),
+            computer_work=ActivitySessionSnapshot(
+                active=True,
+                state="active",
+                current_active_seconds=160.0,
+                total_active_seconds=470.0,
+                activations=2,
+            ),
+            phone_usage=ActivitySessionSnapshot(
+                active=False,
+                state="inactive",
+                current_active_seconds=0.0,
+                last_active_streak_seconds=22.0,
+                total_active_seconds=100.0,
+                activations=3,
+            ),
+            study_activity=ActivitySessionSnapshot(
+                active=True,
+                state="active",
+                current_active_seconds=140.0,
+                total_active_seconds=430.0,
+                activations=2,
+            ),
+        )
 
-        observation = build_vision_observation(packet, perception=perception, behavior=behavior)
+        observation = build_vision_observation(
+            packet,
+            perception=perception,
+            behavior=behavior,
+            sessions=sessions,
+        )
 
         self.assertTrue(observation.detected)
         self.assertTrue(observation.user_present)
@@ -85,8 +131,12 @@ class SnapshotBuilderTests(unittest.TestCase):
         self.assertIn("object:laptop", observation.labels)
         self.assertIn("person_in_desk_zone", observation.labels)
         self.assertIn("behavior:computer_work", observation.labels)
+        self.assertIn("session:presence_active", observation.labels)
+        self.assertIn("session:study_active", observation.labels)
         self.assertEqual(observation.metadata["perception"]["people_count"], 1)
         self.assertEqual(observation.metadata["behavior"]["computer_work"]["active"], True)
+        self.assertEqual(observation.metadata["sessions"]["presence"]["current_active_seconds"], 180.0)
+        self.assertEqual(observation.metadata["sessions"]["phone_usage"]["last_active_streak_seconds"], 22.0)
         self.assertAlmostEqual(observation.confidence, 0.91, places=2)
 
 

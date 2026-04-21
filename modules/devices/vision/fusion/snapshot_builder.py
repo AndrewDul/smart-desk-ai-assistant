@@ -3,6 +3,7 @@ from __future__ import annotations
 from modules.devices.vision.behavior import BehaviorSnapshot
 from modules.devices.vision.capture import FramePacket
 from modules.devices.vision.perception import PerceptionSnapshot
+from modules.devices.vision.sessions import VisionSessionSnapshot
 from modules.runtime.contracts import VisionObservation
 
 
@@ -15,10 +16,25 @@ def _signal_to_dict(signal) -> dict[str, object]:
     }
 
 
+def _session_to_dict(session) -> dict[str, object]:
+    return {
+        "active": session.active,
+        "state": session.state,
+        "current_active_seconds": session.current_active_seconds,
+        "last_active_streak_seconds": session.last_active_streak_seconds,
+        "total_active_seconds": session.total_active_seconds,
+        "activations": session.activations,
+        "last_started_at": session.last_started_at,
+        "last_ended_at": session.last_ended_at,
+        "metadata": dict(session.metadata),
+    }
+
+
 def build_vision_observation(
     packet: FramePacket,
     perception: PerceptionSnapshot | None = None,
     behavior: BehaviorSnapshot | None = None,
+    sessions: VisionSessionSnapshot | None = None,
 ) -> VisionObservation:
     metadata = dict(packet.metadata)
     metadata.update(
@@ -111,6 +127,81 @@ def build_vision_observation(
             "study_activity": {"active": False, "confidence": 0.0, "reasons": [], "metadata": {}},
         }
 
+    if sessions is not None:
+        metadata["sessions"] = {
+            "presence": _session_to_dict(sessions.presence),
+            "desk_activity": _session_to_dict(sessions.desk_activity),
+            "computer_work": _session_to_dict(sessions.computer_work),
+            "phone_usage": _session_to_dict(sessions.phone_usage),
+            "study_activity": _session_to_dict(sessions.study_activity),
+            "tracker_metadata": dict(sessions.metadata),
+        }
+
+        if sessions.presence.active:
+            labels.append("session:presence_active")
+        if sessions.phone_usage.active:
+            labels.append("session:phone_active")
+        if sessions.study_activity.active:
+            labels.append("session:study_active")
+    else:
+        metadata["sessions"] = {
+            "presence": {
+                "active": False,
+                "state": "inactive",
+                "current_active_seconds": 0.0,
+                "last_active_streak_seconds": 0.0,
+                "total_active_seconds": 0.0,
+                "activations": 0,
+                "last_started_at": None,
+                "last_ended_at": None,
+                "metadata": {},
+            },
+            "desk_activity": {
+                "active": False,
+                "state": "inactive",
+                "current_active_seconds": 0.0,
+                "last_active_streak_seconds": 0.0,
+                "total_active_seconds": 0.0,
+                "activations": 0,
+                "last_started_at": None,
+                "last_ended_at": None,
+                "metadata": {},
+            },
+            "computer_work": {
+                "active": False,
+                "state": "inactive",
+                "current_active_seconds": 0.0,
+                "last_active_streak_seconds": 0.0,
+                "total_active_seconds": 0.0,
+                "activations": 0,
+                "last_started_at": None,
+                "last_ended_at": None,
+                "metadata": {},
+            },
+            "phone_usage": {
+                "active": False,
+                "state": "inactive",
+                "current_active_seconds": 0.0,
+                "last_active_streak_seconds": 0.0,
+                "total_active_seconds": 0.0,
+                "activations": 0,
+                "last_started_at": None,
+                "last_ended_at": None,
+                "metadata": {},
+            },
+            "study_activity": {
+                "active": False,
+                "state": "inactive",
+                "current_active_seconds": 0.0,
+                "last_active_streak_seconds": 0.0,
+                "total_active_seconds": 0.0,
+                "activations": 0,
+                "last_started_at": None,
+                "last_ended_at": None,
+                "metadata": {},
+            },
+        }
+
     return VisionObservation(
         detected=True,
         user_present=user_present,
@@ -126,4 +217,4 @@ def build_vision_observation(
 
 
 def build_camera_only_observation(packet: FramePacket) -> VisionObservation:
-    return build_vision_observation(packet=packet, perception=None, behavior=None)
+    return build_vision_observation(packet=packet, perception=None, behavior=None, sessions=None)

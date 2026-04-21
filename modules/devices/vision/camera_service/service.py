@@ -8,6 +8,7 @@ from modules.devices.vision.capture import VisionCaptureReader
 from modules.devices.vision.config import VisionRuntimeConfig
 from modules.devices.vision.fusion import build_vision_observation
 from modules.devices.vision.perception import PerceptionPipeline
+from modules.devices.vision.sessions import VisionSessionTracker
 from modules.runtime.contracts import VisionObservation
 from modules.shared.logging.logger import get_logger
 
@@ -27,6 +28,7 @@ class CameraService:
     Stage 2 foundation:
     - run a clean perception pipeline with separate people/object/scene contracts
     - keep behavior inference out of the camera service itself
+    - track activity sessions over time
     """
 
     def __init__(self, config: dict[str, Any]) -> None:
@@ -38,6 +40,7 @@ class CameraService:
         self._reader = VisionCaptureReader(config=self._config)
         self._perception = PerceptionPipeline()
         self._behavior = BehaviorPipeline()
+        self._sessions = VisionSessionTracker()
         self._last_observation: VisionObservation | None = None
         self._last_error: str | None = None
         self._closed = False
@@ -81,6 +84,7 @@ class CameraService:
                 "capabilities": self._config.capability_flags(),
                 "perception_pipeline_ready": True,
                 "behavior_pipeline_ready": True,
+                "session_tracker_ready": True,
             }
 
     def close(self) -> None:
@@ -97,17 +101,20 @@ class CameraService:
         packet = self._reader.read_frame()
         perception = self._perception.analyze(packet)
         behavior = self._behavior.analyze(perception)
+        sessions = self._sessions.update(behavior, packet.captured_at)
+
         observation = build_vision_observation(
             packet,
             perception=perception,
             behavior=behavior,
+            sessions=sessions,
         )
 
         self._last_observation = observation
         self._last_error = None
 
         LOGGER.info(
-            "Vision snapshot captured: backend=%s size=%sx%s people=%s objects=%s presence=%s desk=%s phone=%s computer=%s study=%s",
+            "Vision snapshot captured: backend=%s size=%sx%s people=%s objects=%s presence=%s desk=%s phone=%s computer=%s study=%s presence_seconds=%s",
             packet.backend_label,
             packet.width,
             packet.height,
@@ -118,5 +125,6 @@ class CameraService:
             behavior.phone_usage.active,
             behavior.computer_work.active,
             behavior.study_activity.active,
+            sessions.presence.current_active_seconds,
         )
         return observation

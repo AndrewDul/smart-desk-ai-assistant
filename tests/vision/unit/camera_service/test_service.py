@@ -84,8 +84,41 @@ class _FakeBehaviorPipeline:
         return _Snapshot()
 
 
+class _FakeSessionTracker:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def update(self, behavior, captured_at):
+        self.calls += 1
+        del behavior
+        del captured_at
+
+        class _Session:
+            def __init__(self, active=False):
+                self.active = active
+                self.state = "inactive"
+                self.current_active_seconds = 0.0
+                self.last_active_streak_seconds = 0.0
+                self.total_active_seconds = 0.0
+                self.activations = 0
+                self.last_started_at = None
+                self.last_ended_at = None
+                self.metadata = {}
+
+        class _Snapshot:
+            presence = _Session(active=False)
+            desk_activity = _Session(active=False)
+            computer_work = _Session(active=False)
+            phone_usage = _Session(active=False)
+            study_activity = _Session(active=False)
+            metadata = {}
+
+        return _Snapshot()
+
+
 class CameraServiceTests(unittest.TestCase):
     @patch("modules.devices.vision.camera_service.service.build_vision_observation")
+    @patch("modules.devices.vision.camera_service.service.VisionSessionTracker", _FakeSessionTracker)
     @patch("modules.devices.vision.camera_service.service.BehaviorPipeline", _FakeBehaviorPipeline)
     @patch("modules.devices.vision.camera_service.service.PerceptionPipeline", _FakePerceptionPipeline)
     @patch("modules.devices.vision.camera_service.service.VisionCaptureReader", _FakeReader)
@@ -104,8 +137,10 @@ class CameraServiceTests(unittest.TestCase):
         self.assertIsNone(service.status()["last_error"])
         self.assertTrue(service.status()["perception_pipeline_ready"])
         self.assertTrue(service.status()["behavior_pipeline_ready"])
+        self.assertTrue(service.status()["session_tracker_ready"])
 
     @patch("modules.devices.vision.camera_service.service.build_vision_observation")
+    @patch("modules.devices.vision.camera_service.service.VisionSessionTracker", _FakeSessionTracker)
     @patch("modules.devices.vision.camera_service.service.BehaviorPipeline", _FakeBehaviorPipeline)
     @patch("modules.devices.vision.camera_service.service.PerceptionPipeline", _FakePerceptionPipeline)
     @patch("modules.devices.vision.camera_service.service.VisionCaptureReader", _FakeReader)
@@ -126,6 +161,7 @@ class CameraServiceTests(unittest.TestCase):
         self.assertFalse(service.status()["ok"])
         self.assertIn("camera offline", str(service.status()["last_error"]))
 
+    @patch("modules.devices.vision.camera_service.service.VisionSessionTracker", _FakeSessionTracker)
     @patch("modules.devices.vision.camera_service.service.BehaviorPipeline", _FakeBehaviorPipeline)
     @patch("modules.devices.vision.camera_service.service.PerceptionPipeline", _FakePerceptionPipeline)
     @patch("modules.devices.vision.camera_service.service.VisionCaptureReader", _FakeReader)
