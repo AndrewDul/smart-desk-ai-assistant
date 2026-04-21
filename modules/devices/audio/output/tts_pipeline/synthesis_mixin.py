@@ -233,10 +233,11 @@ class TTSPipelineSynthesisMixin:
             )
             return False
 
-        append_log(
-            "Piper synthesis command prepared: "
-            f"lang={normalized_lang}, command={self._format_process_command(command)}"
-        )
+        if bool(getattr(self, "_tts_hot_path_success_log_enabled", False)):
+            append_log(
+                "Piper synthesis command prepared: "
+                f"lang={normalized_lang}, command={self._format_process_command(command)}"
+            )
 
         wav_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -281,10 +282,11 @@ class TTSPipelineSynthesisMixin:
             self._log_last_tts_process_failure(source, normalized_lang)
             return False
 
-        append_log(
-            f"Piper synthesis finished: lang={normalized_lang}, chars={len(text)}, "
-            f"elapsed={time.monotonic() - started_at:.3f}s"
-        )
+        if bool(getattr(self, "_tts_hot_path_success_log_enabled", False)):
+            append_log(
+                f"Piper synthesis finished: lang={normalized_lang}, chars={len(text)}, "
+                f"elapsed={time.monotonic() - started_at:.3f}s"
+            )
         return True
 
     def _play_wav(self, wav_path) -> bool:
@@ -389,13 +391,14 @@ class TTSPipelineSynthesisMixin:
 
         if played:
             self._cleanup_runtime_wav_path(ready_wav_path=ready_wav_path, cache_path=cache_path)
-            append_log(
-                f"TTS total finished: lang={normalized_lang}, chars={len(text)}, "
-                f"cache_hit={cache_hit}, wav_ready_source={ready_source}, "
-                f"wav_ready_ms={wav_ready_ms:.1f}, first_audio_path_ms={first_audio_ms:.1f}, "
-                f"latency_profile={latency_profile or '-'}, "
-                f"elapsed={time.monotonic() - started_at:.3f}s"
-            )
+            if bool(getattr(self, "_tts_hot_path_success_log_enabled", False)):
+                append_log(
+                    f"TTS total finished: lang={normalized_lang}, chars={len(text)}, "
+                    f"cache_hit={cache_hit}, wav_ready_source={ready_source}, "
+                    f"wav_ready_ms={wav_ready_ms:.1f}, first_audio_path_ms={first_audio_ms:.1f}, "
+                    f"latency_profile={latency_profile or '-'}, "
+                    f"elapsed={time.monotonic() - started_at:.3f}s"
+                )
             return True
 
         self._cleanup_runtime_wav_path(ready_wav_path=ready_wav_path, cache_path=cache_path)
@@ -438,11 +441,12 @@ class TTSPipelineSynthesisMixin:
             cache_hit=False,
         )
         if played:
-            append_log(
-                "TTS total finished after playback retry: "
-                f"lang={normalized_lang}, chars={len(text)}, retry_ready_ms={retry_ready_ms:.1f}, "
-                f"elapsed={time.monotonic() - started_at:.3f}s"
-            )
+            if bool(getattr(self, "_tts_hot_path_success_log_enabled", False)):
+                append_log(
+                    "TTS total finished after playback retry: "
+                    f"lang={normalized_lang}, chars={len(text)}, retry_ready_ms={retry_ready_ms:.1f}, "
+                    f"elapsed={time.monotonic() - started_at:.3f}s"
+                )
             return True
 
         append_log(f"No working WAV playback command available for language '{normalized_lang}'.")

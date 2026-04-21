@@ -7,6 +7,7 @@ import threading
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from modules.devices.audio.output.tts_pipeline.cache_queue_mixin import TTSPipelineCacheQueueMixin
 from modules.devices.audio.output.tts_pipeline.speech_api_mixin import TTSPipelineSpeechApiMixin
@@ -61,6 +62,7 @@ class _SpeechApiProbe(TTSPipelineSpeechApiMixin):
         *,
         console_echo_enabled: bool = False,
         spoken_text_log_enabled: bool = False,
+        hot_path_success_log_enabled: bool = False,
     ) -> None:
         self.enabled = True
         self.preferred_engine = "piper"
@@ -69,6 +71,7 @@ class _SpeechApiProbe(TTSPipelineSpeechApiMixin):
         self._stop_requested = threading.Event()
         self._console_echo_enabled = bool(console_echo_enabled)
         self._spoken_text_log_enabled = bool(spoken_text_log_enabled)
+        self._tts_hot_path_success_log_enabled = bool(hot_path_success_log_enabled)
 
     def _normalize_text_for_log(self, text: str) -> str:
         return str(text or "").strip()
@@ -159,7 +162,13 @@ class _RunnerResolutionProbe(TTSPipelineSynthesisMixin):
         return str(python_path) == "/fake/python"
 
 class _PiperSynthesisProbe(TTSPipelineSynthesisMixin):
-    def __init__(self, temp_dir: Path, *, success_on_attempt: int = 1) -> None:
+    def __init__(
+        self,
+        temp_dir: Path,
+        *,
+        success_on_attempt: int = 1,
+        hot_path_success_log_enabled: bool = False,
+    ) -> None:
         self._resolved_piper_paths = {
             "en": {
                 "model": temp_dir / "model.onnx",
@@ -172,6 +181,7 @@ class _PiperSynthesisProbe(TTSPipelineSynthesisMixin):
         self._synthesis_poll_seconds = 0.005
         self._stop_requested = threading.Event()
         self._piper_failure_diagnostic_retry_enabled = True
+        self._tts_hot_path_success_log_enabled = bool(hot_path_success_log_enabled)
         self.run_calls: list[dict[str, object]] = []
         self.success_on_attempt = int(success_on_attempt)
 
@@ -291,6 +301,37 @@ class TTSPipelinePriorityTests(unittest.TestCase):
 
         self.assertTrue(spoken)
         self.assertIn("Assistant> Hello there.", captured.getvalue())
+
+    def test_speak_success_hot_path_logging_is_disabled_by_default(self) -> None:
+        probe = _SpeechApiProbe()
+
+        with patch("modules.devices.audio.output.tts_pipeline.speech_api_mixin.append_log") as log_mock:
+            spoken = probe.speak("Hello there.", language="en")
+
+        self.assertTrue(spoken)
+        log_mock.assert_not_called()
+
+    def test_speak_success_hot_path_logging_can_be_enabled(self) -> None:
+        probe = _SpeechApiProbe(hot_path_success_log_enabled=True)
+
+        with patch("modules.devices.audio.output.tts_pipeline.speech_api_mixin.append_log") as log_mock:
+            spoken = probe.speak("Hello there.", language="en")
+
+        self.assertTrue(spoken)
+        self.assertEqual(log_mock.call_count, 1)
+        self.assertIn("TTS speak finished:", log_mock.call_args[0][0])
+
+    def test_piper_synthesis_success_hot_path_logging_is_disabled_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            probe = _PiperSynthesisProbe(Path(temp_dir), success_on_attempt=1)
+            wav_path = Path(temp_dir) / "reply.wav"
+
+            with patch("modules.devices.audio.output.tts_pipeline.synthesis_mixin.append_log") as log_mock:
+                ok = probe._synthesize_piper_to_wav("Hello", "en", wav_path)
+
+            self.assertTrue(ok)
+            log_mock.assert_not_called()
+
 
     def test_speak_does_not_log_spoken_text_content_by_default(self) -> None:
         probe = _SpeechApiProbe()

@@ -206,10 +206,11 @@ class TTSPipelineWavPlaybackMixin:
         if self._sounddevice_playback_available():
             ok, first_audio_started_at = self._play_wav_with_sounddevice(Path(wav_path))
             if ok:
-                append_log(
-                    "TTS playback finished with sounddevice in "
-                    f"{time.monotonic() - playback_started_at:.3f}s"
-                )
+                if bool(getattr(self, "_tts_hot_path_success_log_enabled", False)):
+                    append_log(
+                        "TTS playback finished with sounddevice in "
+                        f"{time.monotonic() - playback_started_at:.3f}s"
+                    )
                 return True, first_audio_started_at
 
         backends = list(self._playback_backends)
@@ -241,10 +242,11 @@ class TTSPipelineWavPlaybackMixin:
             )
             if ok:
                 self._last_good_playback_backend = backend_name
-                append_log(
-                    f"TTS playback finished with {backend_name} in "
-                    f"{time.monotonic() - playback_started_at:.3f}s"
-                )
+                if bool(getattr(self, "_tts_hot_path_success_log_enabled", False)):
+                    append_log(
+                        f"TTS playback finished with {backend_name} in "
+                        f"{time.monotonic() - playback_started_at:.3f}s"
+                    )
                 return True, launched_at
 
         append_log("All playback backends failed for current WAV.")

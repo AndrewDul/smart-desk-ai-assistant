@@ -36,9 +36,10 @@ class TTSPipelineSpeechApiMixin:
         if not tts_text:
             return
 
-        append_log(
-            f"TTS prepare_speech queued: lang={lang}, chars={len(tts_text)}"
-        )
+        if self._should_log_tts_hot_path_success():
+            append_log(
+                f"TTS prepare_speech queued: lang={lang}, chars={len(tts_text)}"
+            )
         self._start_prefetch(tts_text, lang)
 
     def speak(
@@ -192,25 +193,29 @@ class TTSPipelineSpeechApiMixin:
                 elapsed_ms=max(0.0, (time.monotonic() - started_at) * 1000.0),
             )
 
-            append_log(
-                "TTS speak finished: "
-                f"lang={lang}, "
-                f"chars={len(tts_text)}, "
-                f"engine={used_engine}, "
-                f"success={success}, "
-                f"interrupted={interrupted}, "
-                f"prepare_next={has_prepare_next}, "
-                f"output_hold_override={output_hold_seconds}, "
-                f"latency_profile={latency_profile or '-'}, "
-                f"first_audio_ms={first_audio_latency_ms:.1f}, "
-                f"elapsed={time.monotonic() - started_at:.3f}s"
-            )
+            if self._should_log_tts_hot_path_success():
+                append_log(
+                    "TTS speak finished: "
+                    f"lang={lang}, "
+                    f"chars={len(tts_text)}, "
+                    f"engine={used_engine}, "
+                    f"success={success}, "
+                    f"interrupted={interrupted}, "
+                    f"prepare_next={has_prepare_next}, "
+                    f"output_hold_override={output_hold_seconds}, "
+                    f"latency_profile={latency_profile or '-'}, "
+                    f"first_audio_ms={first_audio_latency_ms:.1f}, "
+                    f"elapsed={time.monotonic() - started_at:.3f}s"
+                )
 
     def _should_echo_spoken_text_to_console(self) -> bool:
         return bool(getattr(self, "_console_echo_enabled", False))
 
     def _should_log_spoken_text_content(self) -> bool:
         return bool(getattr(self, "_spoken_text_log_enabled", False))
+
+    def _should_log_tts_hot_path_success(self) -> bool:
+        return bool(getattr(self, "_tts_hot_path_success_log_enabled", False))
 
     @staticmethod
     def _log_spoken_text(cleaned_text: str, lang: str) -> None:

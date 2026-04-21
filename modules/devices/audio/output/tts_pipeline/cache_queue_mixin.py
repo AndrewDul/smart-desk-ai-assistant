@@ -156,12 +156,13 @@ class TTSPipelineCacheQueueMixin:
                 except OSError:
                     pass
             else:
-                append_log(
-                    "TTS queued synthesis finished: "
-                    f"lang={job.lang}, chars={len(job.text)}, "
-                    f"elapsed={time.monotonic() - started_at:.3f}s, "
-                    f"priority={job.priority}"
-                )
+                if bool(getattr(self, "_tts_hot_path_success_log_enabled", False)):
+                    append_log(
+                        "TTS queued synthesis finished: "
+                        f"lang={job.lang}, chars={len(job.text)}, "
+                        f"elapsed={time.monotonic() - started_at:.3f}s, "
+                        f"priority={job.priority}"
+                    )
 
             job.event.set()
             self._finalize_job_cleanup(job)
