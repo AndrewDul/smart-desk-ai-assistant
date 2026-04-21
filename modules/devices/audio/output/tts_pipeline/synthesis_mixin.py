@@ -302,7 +302,7 @@ class TTSPipelineSynthesisMixin:
             self._start_prefetch(normalized_next[0], normalized_next[1])
 
         wav_ready_started_at = time.monotonic()
-        ready, ready_source = self._ensure_current_wav_ready(
+        ready, ready_source, ready_wav_path = self._ensure_current_wav_ready(
             text=text,
             lang=normalized_lang,
             cache_path=cache_path,
@@ -322,7 +322,7 @@ class TTSPipelineSynthesisMixin:
         if normalized_next is not None and len(text) > self._early_next_prefetch_max_chars:
             self._start_prefetch(normalized_next[0], normalized_next[1])
 
-        played, first_audio_started_at = self._play_wav(cache_path)
+        played, first_audio_started_at = self._play_wav(ready_wav_path)
         if first_audio_started_at <= 0.0:
             first_audio_started_at = time.monotonic() if played else 0.0
         first_audio_ms = (first_audio_started_at - started_at) * 1000.0 if played else 0.0
@@ -345,6 +345,12 @@ class TTSPipelineSynthesisMixin:
                 f"elapsed={time.monotonic() - started_at:.3f}s"
             )
             return True
+
+        if ready_source == "direct_current_bypass_pending" and ready_wav_path.exists():
+            try:
+                ready_wav_path.unlink()
+            except OSError:
+                pass
 
         if cache_path.exists():
             try:
@@ -402,9 +408,26 @@ class TTSPipelineSynthesisMixin:
         cache_path: Path,
         cache_hit: bool,
         latency_profile: str | None = None,
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, str, Path]:
         if cache_hit and cache_path.exists():
-            return True, "cache_hit"
+            return True, "cache_hit", cache_path
+
+        pending_job = self._get_pending_job(text=text, lang=lang)
+        if self._should_bypass_pending_job_for_direct_current(
+            pending_job=pending_job,
+            text=text,
+            lang=lang,
+            latency_profile=latency_profile,
+        ):
+            direct_path = self._bypass_pending_direct_current_wav_path(cache_path)
+            ok = self._synthesize_piper_to_wav(text, lang, direct_path)
+            if ok and direct_path.exists():
+                return True, "direct_current_bypass_pending", direct_path
+            if direct_path.exists():
+                try:
+                    direct_path.unlink()
+                except OSError:
+                    pass
 
         existing_job, promoted = self._promote_pending_job(
             text=text,
@@ -416,7 +439,7 @@ class TTSPipelineSynthesisMixin:
                 existing_job,
                 timeout_seconds=self._current_job_wait_seconds,
             )
-            return ready, "pending_job_promoted" if promoted else "pending_job"
+            return ready, "pending_job_promoted" if promoted else "pending_job", cache_path
 
         if self._should_direct_synthesize_current(
             text=text,
@@ -424,7 +447,7 @@ class TTSPipelineSynthesisMixin:
             latency_profile=latency_profile,
         ):
             ok = self._synthesize_piper_to_wav(text, lang, cache_path)
-            return ok, "direct_current"
+            return ok, "direct_current", cache_path
 
         current_job = self._enqueue_synthesis(
             text,
@@ -435,7 +458,39 @@ class TTSPipelineSynthesisMixin:
             current_job,
             timeout_seconds=self._current_job_wait_seconds,
         )
-        return ready, "queued_current"
+        return ready, "queued_current", cache_path
+
+    @staticmethod
+    def _bypass_pending_direct_current_wav_path(cache_path: Path) -> Path:
+        return cache_path.with_name(f"{cache_path.stem}.direct-current{cache_path.suffix}")
+
+    def _should_bypass_pending_job_for_direct_current(
+        self,
+        *,
+        pending_job,
+        text: str,
+        lang: str,
+        latency_profile: str | None = None,
+    ) -> bool:
+        normalized_profile = str(latency_profile or "").strip().lower()
+        if normalized_profile != "action_fast":
+            return False
+        if pending_job is None:
+            return False
+        if getattr(pending_job, "event", None) is not None and pending_job.event.is_set():
+            return False
+
+        pending_priority = int(getattr(pending_job, "priority", self._PRIORITY_CURRENT))
+        if pending_priority <= self._PRIORITY_CURRENT:
+            return False
+
+        return self._should_direct_synthesize_current(
+            text=text,
+            lang=lang,
+            latency_profile=latency_profile,
+        )
+
+
 
     def _get_pending_job(self, *, text: str, lang: str):
         key = self._prefetch_key(text, lang)

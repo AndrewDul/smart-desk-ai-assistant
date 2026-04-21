@@ -30,6 +30,9 @@ class _PriorityProbe(TTSPipelineCacheQueueMixin, TTSPipelineSynthesisMixin):
         self._current_job_wait_seconds = 0.01
         self._direct_current_synthesis_max_chars = 115
         self._action_fast_direct_current_synthesis_max_chars = 220
+        self.waited_priority = None
+        self.waited_timeout_seconds = None
+        self.synthesized_paths: list[Path] = []
 
     def _piper_model_ready(self, lang: str) -> bool:
         return True
@@ -38,6 +41,13 @@ class _PriorityProbe(TTSPipelineCacheQueueMixin, TTSPipelineSynthesisMixin):
         self.waited_priority = int(job.priority)
         self.waited_timeout_seconds = float(timeout_seconds)
         return False
+
+    def _synthesize_piper_to_wav(self, text: str, lang: str, wav_path) -> bool:
+        del text, lang
+        wav_path = Path(wav_path)
+        wav_path.write_bytes(b"RIFFtest")
+        self.synthesized_paths.append(wav_path)
+        return True
 
 
 class _SpeechApiProbe(TTSPipelineSpeechApiMixin):
@@ -113,9 +123,6 @@ class _PreferredPlaybackProbe(TTSPipelineWavPlaybackMixin, TTSPipelineSynthesisM
         self._output_stream_lock = threading.Lock()
         self._active_output_stream = None
         self._sounddevice_playback_ready = False
-        self._output_stream_lock = threading.Lock()
-        self._active_output_stream = None
-        self._sounddevice_playback_ready = False
 
     def _run_process_interruptibly(self, args, **kwargs) -> bool:
         self.playback_calls.append({"args": list(args), **dict(kwargs)})
@@ -128,7 +135,7 @@ class TTSPipelinePriorityTests(unittest.TestCase):
             probe = _PriorityProbe(Path(temp_dir))
             existing_job = probe._enqueue_synthesis("Timer started.", "en", priority=probe._PRIORITY_NEXT)
 
-            ready, source = probe._ensure_current_wav_ready(
+            ready, source, ready_path = probe._ensure_current_wav_ready(
                 text="Timer started.",
                 lang="en",
                 cache_path=probe._cached_wav_path("Timer started.", "en"),
@@ -137,8 +144,31 @@ class TTSPipelinePriorityTests(unittest.TestCase):
 
             self.assertFalse(ready)
             self.assertEqual(source, "pending_job_promoted")
+            self.assertEqual(ready_path, probe._cached_wav_path("Timer started.", "en"))
             self.assertEqual(existing_job.priority, probe._PRIORITY_CURRENT)
             self.assertEqual(probe.waited_priority, probe._PRIORITY_CURRENT)
+
+    def test_action_fast_bypasses_low_priority_pending_job_with_direct_current_temp_wav(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            probe = _PriorityProbe(Path(temp_dir))
+            text = "Timer started successfully."
+            existing_job = probe._enqueue_synthesis(text, "en", priority=probe._PRIORITY_NEXT)
+
+            ready, source, ready_path = probe._ensure_current_wav_ready(
+                text=text,
+                lang="en",
+                cache_path=probe._cached_wav_path(text, "en"),
+                cache_hit=False,
+                latency_profile="action_fast",
+            )
+
+            self.assertTrue(ready)
+            self.assertEqual(source, "direct_current_bypass_pending")
+            self.assertEqual(existing_job.priority, probe._PRIORITY_NEXT)
+            self.assertIsNone(probe.waited_priority)
+            self.assertTrue(ready_path.exists())
+            self.assertTrue(str(ready_path.name).endswith(".direct-current.wav"))
+            self.assertEqual(probe.synthesized_paths[-1], ready_path)
 
     def test_speak_does_not_require_audio_coordinator(self) -> None:
         probe = _SpeechApiProbe()
@@ -180,7 +210,6 @@ class TTSPipelinePriorityTests(unittest.TestCase):
             self.assertEqual(probe.playback_calls[0]["args"][:2], ["aplay", "-q"])
             self.assertEqual(probe._last_good_playback_backend, "aplay")
 
-
     def test_playback_uses_sounddevice_before_subprocess_backends(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             probe = _PlaybackProbe()
@@ -194,7 +223,6 @@ class TTSPipelinePriorityTests(unittest.TestCase):
             self.assertTrue(ok)
             self.assertEqual(started_at, 123.0)
             self.assertEqual(probe.playback_calls, [])
-
 
     def test_action_fast_profile_expands_direct_current_threshold(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -215,7 +243,6 @@ class TTSPipelinePriorityTests(unittest.TestCase):
                     latency_profile="action_fast",
                 )
             )
-
 
 
 if __name__ == "__main__":
