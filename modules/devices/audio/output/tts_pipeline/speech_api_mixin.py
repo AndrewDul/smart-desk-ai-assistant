@@ -77,7 +77,8 @@ class TTSPipelineSpeechApiMixin:
 
         if self._should_echo_spoken_text_to_console():
             print(f"Assistant> {cleaned_text}")
-        self._log_spoken_text(cleaned_text, lang)
+        if self._should_log_spoken_text_content():
+            self._log_spoken_text(cleaned_text, lang)
 
         if not self.enabled:
             append_log("TTS speak skipped: pipeline disabled.")
@@ -207,6 +208,9 @@ class TTSPipelineSpeechApiMixin:
 
     def _should_echo_spoken_text_to_console(self) -> bool:
         return bool(getattr(self, "_console_echo_enabled", False))
+
+    def _should_log_spoken_text_content(self) -> bool:
+        return bool(getattr(self, "_spoken_text_log_enabled", False))
 
     @staticmethod
     def _log_spoken_text(cleaned_text: str, lang: str) -> None:

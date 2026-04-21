@@ -66,6 +66,7 @@ class TTSPipeline(
         playback_poll_seconds: float = 0.005,
         preferred_playback_backend: str = "",
         console_echo_enabled: bool = False,
+        spoken_text_log_enabled: bool = False,
     ) -> None:
         self.enabled = bool(enabled)
         self.preferred_engine = (
@@ -130,6 +131,7 @@ class TTSPipeline(
         self._last_good_playback_backend: str | None = None
         self._sounddevice_playback_ready: bool | None = None
         self._console_echo_enabled = bool(console_echo_enabled)
+        self._spoken_text_log_enabled = bool(spoken_text_log_enabled)
 
         # Timeouts and queue timing tuned for fast short replies on Raspberry Pi.
         self._synthesis_timeout_seconds = 18.0
