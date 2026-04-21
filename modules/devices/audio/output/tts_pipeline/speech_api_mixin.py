@@ -75,7 +75,8 @@ class TTSPipelineSpeechApiMixin:
         normalized_prepare_next = self._normalize_prefetch_request(prepare_next)
         has_prepare_next = normalized_prepare_next is not None
 
-        print(f"Assistant> {cleaned_text}")
+        if self._should_echo_spoken_text_to_console():
+            print(f"Assistant> {cleaned_text}")
         self._log_spoken_text(cleaned_text, lang)
 
         if not self.enabled:
@@ -203,6 +204,9 @@ class TTSPipelineSpeechApiMixin:
                 f"first_audio_ms={first_audio_latency_ms:.1f}, "
                 f"elapsed={time.monotonic() - started_at:.3f}s"
             )
+
+    def _should_echo_spoken_text_to_console(self) -> bool:
+        return bool(getattr(self, "_console_echo_enabled", False))
 
     @staticmethod
     def _log_spoken_text(cleaned_text: str, lang: str) -> None:

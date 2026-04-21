@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import io
 import queue
 import tempfile
 import threading
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 from modules.devices.audio.output.tts_pipeline.cache_queue_mixin import TTSPipelineCacheQueueMixin
@@ -51,12 +53,13 @@ class _PriorityProbe(TTSPipelineCacheQueueMixin, TTSPipelineSynthesisMixin):
 
 
 class _SpeechApiProbe(TTSPipelineSpeechApiMixin):
-    def __init__(self) -> None:
+    def __init__(self, *, console_echo_enabled: bool = False) -> None:
         self.enabled = True
         self.preferred_engine = "piper"
         self.audio_coordinator = None
         self._speak_lock = threading.Lock()
         self._stop_requested = threading.Event()
+        self._console_echo_enabled = bool(console_echo_enabled)
 
     def _normalize_text_for_log(self, text: str) -> str:
         return str(text or "").strip()
@@ -236,6 +239,28 @@ class TTSPipelinePriorityTests(unittest.TestCase):
         self.assertTrue(report["success"])
         self.assertEqual(report["engine"], "piper")
         self.assertFalse(report["interrupted"])
+
+
+    def test_speak_does_not_echo_to_console_by_default(self) -> None:
+        probe = _SpeechApiProbe()
+        captured = io.StringIO()
+
+        with redirect_stdout(captured):
+            spoken = probe.speak("Hello there.", language="en")
+
+        self.assertTrue(spoken)
+        self.assertEqual(captured.getvalue(), "")
+
+    def test_speak_can_echo_to_console_when_explicitly_enabled(self) -> None:
+        probe = _SpeechApiProbe(console_echo_enabled=True)
+        captured = io.StringIO()
+
+        with redirect_stdout(captured):
+            spoken = probe.speak("Hello there.", language="en")
+
+        self.assertTrue(spoken)
+        self.assertIn("Assistant> Hello there.", captured.getvalue())
+
 
     def test_playback_uses_fast_poll_and_skips_output_capture(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
