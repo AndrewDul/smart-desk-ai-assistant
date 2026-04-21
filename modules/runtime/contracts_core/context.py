@@ -15,6 +15,7 @@ class VisionObservation:
     user_present: bool = False
     studying_likely: bool = False
     on_phone_likely: bool = False
+    computer_work_likely: bool = False
     desk_active: bool = False
     labels: list[str] = field(default_factory=list)
     confidence: float = 0.0

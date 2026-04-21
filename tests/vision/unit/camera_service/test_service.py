@@ -58,8 +58,35 @@ class _FakePerceptionPipeline:
         return _Snapshot()
 
 
+class _FakeBehaviorPipeline:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def analyze(self, perception):
+        self.calls += 1
+        del perception
+
+        class _Signal:
+            def __init__(self, active=False, confidence=0.0):
+                self.active = active
+                self.confidence = confidence
+                self.reasons = ()
+                self.metadata = {}
+
+        class _Snapshot:
+            presence = _Signal(active=False, confidence=0.0)
+            desk_activity = _Signal(active=False, confidence=0.0)
+            computer_work = _Signal(active=False, confidence=0.0)
+            phone_usage = _Signal(active=False, confidence=0.0)
+            study_activity = _Signal(active=False, confidence=0.0)
+            metadata = {}
+
+        return _Snapshot()
+
+
 class CameraServiceTests(unittest.TestCase):
     @patch("modules.devices.vision.camera_service.service.build_vision_observation")
+    @patch("modules.devices.vision.camera_service.service.BehaviorPipeline", _FakeBehaviorPipeline)
     @patch("modules.devices.vision.camera_service.service.PerceptionPipeline", _FakePerceptionPipeline)
     @patch("modules.devices.vision.camera_service.service.VisionCaptureReader", _FakeReader)
     def test_latest_observation_captures_and_caches_snapshot(self, builder_mock) -> None:
@@ -76,8 +103,10 @@ class CameraServiceTests(unittest.TestCase):
         self.assertEqual(service.status()["backend"], "fake_backend")
         self.assertIsNone(service.status()["last_error"])
         self.assertTrue(service.status()["perception_pipeline_ready"])
+        self.assertTrue(service.status()["behavior_pipeline_ready"])
 
     @patch("modules.devices.vision.camera_service.service.build_vision_observation")
+    @patch("modules.devices.vision.camera_service.service.BehaviorPipeline", _FakeBehaviorPipeline)
     @patch("modules.devices.vision.camera_service.service.PerceptionPipeline", _FakePerceptionPipeline)
     @patch("modules.devices.vision.camera_service.service.VisionCaptureReader", _FakeReader)
     def test_returns_cached_observation_when_refresh_capture_fails(self, builder_mock) -> None:
@@ -97,6 +126,7 @@ class CameraServiceTests(unittest.TestCase):
         self.assertFalse(service.status()["ok"])
         self.assertIn("camera offline", str(service.status()["last_error"]))
 
+    @patch("modules.devices.vision.camera_service.service.BehaviorPipeline", _FakeBehaviorPipeline)
     @patch("modules.devices.vision.camera_service.service.PerceptionPipeline", _FakePerceptionPipeline)
     @patch("modules.devices.vision.camera_service.service.VisionCaptureReader", _FakeReader)
     def test_close_releases_reader_and_marks_service_closed(self) -> None:
