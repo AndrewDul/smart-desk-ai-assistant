@@ -34,6 +34,13 @@ class TTSPipelineControlMixin:
     def stop_playback(self) -> None:
         self._stop_requested.set()
 
+        stop_stream = getattr(self, "_stop_active_output_stream", None)
+        if callable(stop_stream):
+            try:
+                stop_stream()
+            except Exception:
+                pass
+
         with self._process_lock:
             processes = list(self._active_processes)
 

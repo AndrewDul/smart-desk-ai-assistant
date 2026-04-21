@@ -319,9 +319,10 @@ class TTSPipelineSynthesisMixin:
         if normalized_next is not None and len(text) > self._early_next_prefetch_max_chars:
             self._start_prefetch(normalized_next[0], normalized_next[1])
 
-        first_audio_started_at = time.monotonic()
-        played = self._play_wav(cache_path)
-        first_audio_ms = (first_audio_started_at - started_at) * 1000.0
+        played, first_audio_started_at = self._play_wav(cache_path)
+        if first_audio_started_at <= 0.0:
+            first_audio_started_at = time.monotonic() if played else 0.0
+        first_audio_ms = (first_audio_started_at - started_at) * 1000.0 if played else 0.0
         self._store_playback_report(
             engine="piper",
             success=played,
@@ -365,9 +366,10 @@ class TTSPipelineSynthesisMixin:
             )
             return False
 
-        retry_first_audio_started_at = time.monotonic()
-        played = self._play_wav(cache_path)
-        retry_first_audio_ms = (retry_first_audio_started_at - started_at) * 1000.0
+        played, retry_first_audio_started_at = self._play_wav(cache_path)
+        if retry_first_audio_started_at <= 0.0:
+            retry_first_audio_started_at = time.monotonic() if played else 0.0
+        retry_first_audio_ms = (retry_first_audio_started_at - started_at) * 1000.0 if played else 0.0
         self._store_playback_report(
             engine="piper",
             success=played,

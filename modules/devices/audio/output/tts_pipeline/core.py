@@ -13,6 +13,7 @@ from modules.system.utils import BASE_DIR, CACHE_DIR, append_log
 from .cache_queue_mixin import TTSPipelineCacheQueueMixin
 from .control_mixin import TTSPipelineControlMixin
 from .normalization_mixin import TTSPipelineNormalizationMixin
+from .wav_playback_mixin import TTSPipelineWavPlaybackMixin
 from .process_mixin import TTSPipelineProcessMixin
 from .resolution_mixin import TTSPipelineResolutionMixin
 from .speech_api_mixin import TTSPipelineSpeechApiMixin
@@ -29,6 +30,7 @@ class TTSPipeline(
     TTSPipelineProcessMixin,
     TTSPipelineResolutionMixin,
     TTSPipelineNormalizationMixin,
+    TTSPipelineWavPlaybackMixin,
     TTSPipelineCacheQueueMixin,
     TTSPipelineSynthesisMixin,
     TTSPipelineSpeechApiMixin,
@@ -98,9 +100,11 @@ class TTSPipeline(
         self._speak_lock = threading.Lock()
         self._process_lock = threading.Lock()
         self._prefetch_lock = threading.Lock()
+        self._output_stream_lock = threading.Lock()
         self._stop_requested = threading.Event()
 
         self._active_processes: list[subprocess.Popen] = []
+        self._active_output_stream = None
         self._last_process_results: dict[str, dict[str, object]] = {}
 
         self.audio_coordinator: AssistantAudioCoordinator | None = None
@@ -119,6 +123,7 @@ class TTSPipeline(
         )
         self._preferred_playback_backend = str(preferred_playback_backend or "").strip()
         self._last_good_playback_backend: str | None = None
+        self._sounddevice_playback_ready: bool | None = None
 
         # Timeouts and queue timing tuned for fast short replies on Raspberry Pi.
         self._synthesis_timeout_seconds = 18.0

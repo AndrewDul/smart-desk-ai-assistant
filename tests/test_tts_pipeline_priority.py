@@ -9,6 +9,7 @@ from pathlib import Path
 from modules.devices.audio.output.tts_pipeline.cache_queue_mixin import TTSPipelineCacheQueueMixin
 from modules.devices.audio.output.tts_pipeline.speech_api_mixin import TTSPipelineSpeechApiMixin
 from modules.devices.audio.output.tts_pipeline.synthesis_mixin import TTSPipelineSynthesisMixin
+from modules.devices.audio.output.tts_pipeline.wav_playback_mixin import TTSPipelineWavPlaybackMixin
 
 
 class _PriorityProbe(TTSPipelineCacheQueueMixin, TTSPipelineSynthesisMixin):
@@ -79,7 +80,7 @@ class _SpeechApiProbe(TTSPipelineSpeechApiMixin):
         return report
 
 
-class _PlaybackProbe(TTSPipelineSynthesisMixin):
+class _PlaybackProbe(TTSPipelineWavPlaybackMixin, TTSPipelineSynthesisMixin):
     def __init__(self) -> None:
         self.enabled = True
         self.preferred_engine = "piper"
@@ -94,7 +95,7 @@ class _PlaybackProbe(TTSPipelineSynthesisMixin):
         return True
 
 
-class _PreferredPlaybackProbe(TTSPipelineSynthesisMixin):
+class _PreferredPlaybackProbe(TTSPipelineWavPlaybackMixin, TTSPipelineSynthesisMixin):
     def __init__(self, *, preferred_playback_backend: str = "") -> None:
         self.enabled = True
         self.preferred_engine = "piper"
@@ -108,6 +109,12 @@ class _PreferredPlaybackProbe(TTSPipelineSynthesisMixin):
         self._playback_timeout_seconds = 24.0
         self._playback_poll_seconds = 0.005
         self.playback_calls: list[dict[str, object]] = []
+        self._output_stream_lock = threading.Lock()
+        self._active_output_stream = None
+        self._sounddevice_playback_ready = False
+        self._output_stream_lock = threading.Lock()
+        self._active_output_stream = None
+        self._sounddevice_playback_ready = False
 
     def _run_process_interruptibly(self, args, **kwargs) -> bool:
         self.playback_calls.append({"args": list(args), **dict(kwargs)})
@@ -149,9 +156,10 @@ class TTSPipelinePriorityTests(unittest.TestCase):
             wav_path = Path(temp_dir) / "reply.wav"
             wav_path.write_bytes(b"RIFFtest")
 
-            ok = probe._play_wav(wav_path)
+            ok, started_at = probe._play_wav(wav_path)
 
             self.assertTrue(ok)
+            self.assertGreater(started_at, 0.0)
             self.assertEqual(len(probe.playback_calls), 1)
             self.assertEqual(probe.playback_calls[0]["poll_sleep_seconds"], 0.005)
             self.assertFalse(probe.playback_calls[0]["capture_output"])
@@ -163,12 +171,29 @@ class TTSPipelinePriorityTests(unittest.TestCase):
             wav_path = Path(temp_dir) / "reply.wav"
             wav_path.write_bytes(b"RIFFtest")
 
-            ok = probe._play_wav(wav_path)
+            ok, started_at = probe._play_wav(wav_path)
 
             self.assertTrue(ok)
+            self.assertGreater(started_at, 0.0)
             self.assertEqual(len(probe.playback_calls), 1)
             self.assertEqual(probe.playback_calls[0]["args"][:2], ["aplay", "-q"])
             self.assertEqual(probe._last_good_playback_backend, "aplay")
+
+
+    def test_playback_uses_sounddevice_before_subprocess_backends(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            probe = _PlaybackProbe()
+            probe._sounddevice_playback_ready = True
+            probe._play_wav_with_sounddevice = lambda wav_path: (True, 123.0)
+            wav_path = Path(temp_dir) / "reply.wav"
+            wav_path.write_bytes(b"RIFFtest")
+
+            ok, started_at = probe._play_wav(wav_path)
+
+            self.assertTrue(ok)
+            self.assertEqual(started_at, 123.0)
+            self.assertEqual(probe.playback_calls, [])
+
 
 
 if __name__ == "__main__":
