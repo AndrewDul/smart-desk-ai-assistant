@@ -117,6 +117,10 @@ class TTSPipeline(
             else ""
         )
         self.piper_python_runner_path: str | None = None
+        self._resolved_piper_binary_runner: str | None = None
+        self._resolved_piper_binary_runner_checked = False
+        self._resolved_piper_python_runner: str | None = None
+        self._resolved_piper_python_runner_checked = False
 
         self._playback_backends: list[tuple[str, list[str]]] = (
             self._detect_playback_backends()

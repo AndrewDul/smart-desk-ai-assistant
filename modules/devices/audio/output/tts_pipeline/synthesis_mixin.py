@@ -26,19 +26,23 @@ class TTSPipelineSynthesisMixin:
         return report
 
     def _resolve_piper_binary_runner(self) -> str | None:
+        if bool(getattr(self, "_resolved_piper_binary_runner_checked", False)):
+            return str(getattr(self, "_resolved_piper_binary_runner", "") or "") or None
+
         candidate = str(getattr(self, "piper_path", "") or "").strip()
-        if not candidate:
-            return None
+        resolved_runner: str | None = None
+        if candidate:
+            path = Path(candidate)
+            if path.exists() and path.is_file():
+                resolved_runner = candidate
+            else:
+                resolved = shutil.which(candidate)
+                if resolved:
+                    resolved_runner = resolved
 
-        path = Path(candidate)
-        if path.exists() and path.is_file():
-            return candidate
-
-        resolved = shutil.which(candidate)
-        if resolved:
-            return resolved
-
-        return None
+        self._resolved_piper_binary_runner = resolved_runner
+        self._resolved_piper_binary_runner_checked = True
+        return resolved_runner
 
     def _python_has_piper_module(self, python_path: str) -> bool:
         candidate = str(python_path or "").strip()
@@ -68,11 +72,14 @@ class TTSPipelineSynthesisMixin:
             return False
 
     def _resolve_piper_python_runner(self) -> str | None:
-        cached = str(getattr(self, "piper_python_runner_path", "") or "").strip()
-        if cached and self._python_has_piper_module(cached):
-            return cached
+        if bool(getattr(self, "_resolved_piper_python_runner_checked", False)):
+            return str(getattr(self, "_resolved_piper_python_runner", "") or "") or None
 
         candidates: list[str] = []
+
+        cached = str(getattr(self, "piper_python_runner_path", "") or "").strip()
+        if cached:
+            candidates.append(cached)
 
         explicit_python = str(getattr(self, "python_path", "") or "").strip()
         if explicit_python:
@@ -94,6 +101,7 @@ class TTSPipelineSynthesisMixin:
         if python_path:
             candidates.append(python_path)
 
+        resolved_runner: str | None = None
         seen: set[str] = set()
         for candidate in candidates:
             normalized = str(candidate or "").strip()
@@ -102,12 +110,16 @@ class TTSPipelineSynthesisMixin:
             seen.add(normalized)
 
             if self._python_has_piper_module(normalized):
+                resolved_runner = normalized
                 self.piper_python_runner_path = normalized
                 append_log(f"Piper python runner resolved: {normalized}")
-                return normalized
+                break
 
-        self.piper_python_runner_path = None
-        return None
+        self._resolved_piper_python_runner = resolved_runner
+        self._resolved_piper_python_runner_checked = True
+        if resolved_runner is None:
+            self.piper_python_runner_path = None
+        return resolved_runner
 
     def _build_piper_command(
         self,

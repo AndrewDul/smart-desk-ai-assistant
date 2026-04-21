@@ -129,6 +129,25 @@ class _PreferredPlaybackProbe(TTSPipelineWavPlaybackMixin, TTSPipelineSynthesisM
         return True
 
 
+class _RunnerResolutionProbe(TTSPipelineSynthesisMixin):
+    def __init__(self) -> None:
+        self.piper_path = ""
+        self.python_path = "/fake/python"
+        self.project_venv_python_path = ""
+        self.runtime_python_path = ""
+        self.piper_python_runner_path = "/fake/python"
+        self._resolved_piper_binary_runner = None
+        self._resolved_piper_binary_runner_checked = False
+        self._resolved_piper_python_runner = None
+        self._resolved_piper_python_runner_checked = False
+        self.python_probe_calls: list[str] = []
+
+    def _python_has_piper_module(self, python_path: str) -> bool:
+        self.python_probe_calls.append(str(python_path))
+        return str(python_path) == "/fake/python"
+
+
+
 class TTSPipelinePriorityTests(unittest.TestCase):
     def test_current_path_promotes_matching_pending_prefetch_job(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -243,6 +262,17 @@ class TTSPipelinePriorityTests(unittest.TestCase):
                     latency_profile="action_fast",
                 )
             )
+
+
+    def test_resolved_piper_python_runner_is_cached_after_first_lookup(self) -> None:
+        probe = _RunnerResolutionProbe()
+
+        first = probe._resolve_piper_python_runner()
+        second = probe._resolve_piper_python_runner()
+
+        self.assertEqual(first, "/fake/python")
+        self.assertEqual(second, "/fake/python")
+        self.assertEqual(probe.python_probe_calls, ["/fake/python"])
 
 
 if __name__ == "__main__":
