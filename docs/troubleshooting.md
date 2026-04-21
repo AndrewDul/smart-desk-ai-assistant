@@ -3326,3 +3326,196 @@ Compatibility wake was accepted as a valid diagnostic and fallback path, but not
 This clarified the roadmap:
 - compatibility wake is good enough to keep development moving
 - but **11.1 / 4 cannot be considered complete at premium level until dedicated wake is restored and fast again**
+
+
+## 120. UGV02 was visible over USB serial, but the first movement tests did not move the chassis
+ 
+
+### Problem
+After connecting the mobile base to Raspberry Pi through USB-C, the base was visible to the system but did not move during the first hardware tests.
+
+### Symptom
+The project could communicate with the base, but the chassis still stayed still.
+
+The important observations were:
+- the Pi detected the controller at `/dev/ttyACM0`
+- serial communication worked
+- telemetry queries returned valid JSON feedback
+- the chassis still did not move during the first movement attempts
+
+### Root cause
+The problem was not a dead USB connection.
+
+The real issue was that:
+- the correct serial device was `/dev/ttyACM0`, not `/dev/ttyUSB0`
+- the first manual movement path was not the most reliable control path for this base
+- the base responded better when driven through the working repeated streamed movement command flow
+
+### Fix applied
+I switched diagnosis and control toward:
+- explicit serial setup at `115200`
+- the correct `/dev/ttyACM0` path
+- repeated streamed motion commands
+- explicit stop commands
+- mobility calibration through manual hardware tests
+
+### Result
+The Raspberry Pi could command the UGV02 successfully and the base started moving under project-side software control.
+
+
+## 121. UGV02 AP mode looked confusing even though the hotspot was active
+ 
+
+### Problem
+The mobile base looked like it had networking issues because the control page at `192.168.4.1` did not load immediately.
+
+### Symptom
+The OLED showed:
+- `AP: UGV`
+- `ST: off`
+
+but the browser page did not open at first.
+
+### Root cause
+The meaning of the OLED status was misunderstood.
+
+`AP: UGV` means the base is exposing its own Wi-Fi hotspot.  
+`ST: off` means it is not connected to another router as a station.
+
+The page at `192.168.4.1` is only reachable when the phone or laptop is actually connected to the `UGV` access point.
+
+### Fix applied
+I clarified the networking model:
+- find the `UGV` Wi-Fi network on the client device
+- connect to that network
+- then open `192.168.4.1`
+
+### Result
+The Wi-Fi behaviour became understandable and no longer looked like a random connectivity failure.
+
+## 122. BOOT button was pressed during normal runtime and could leave the base in the wrong state
+ 
+
+### Problem
+The base reacted a few times and then became inconsistent after the BOOT button had been pressed during normal use.
+
+### Symptom
+The chassis could:
+- react briefly
+- then stop reacting
+- appear confusing to recover
+- make it unclear whether the problem was software or hardware
+
+### Root cause
+The BOOT button is associated with special controller state handling and should not be used as a normal runtime reset action.
+
+In the assembled hardware setup, the normal reset path was not obvious, which made recovery more confusing.
+
+### Fix applied
+I changed the practical recovery rule:
+- avoid using BOOT for normal recovery
+- use a full power cycle for clean recovery
+- reconnect USB after the base has restarted cleanly
+- continue diagnosis from a known clean startup state
+
+### Result
+Recovery became safer and more repeatable.
+
+
+## 123. Desk-surface slip caused open-loop turn tests to under-rotate
+
+
+### Problem
+The first turn test was not accurate enough on the desk surface.
+
+### Symptom
+The expected turn behaviour did not match the real chassis motion:
+- a nominal 90-degree turn could behave closer to about 45 degrees
+- a nominal full spin could behave closer to about 180 degrees
+
+### Root cause
+The initial turn test used open-loop timing assumptions.
+
+On a desk surface, real chassis rotation is affected by:
+- wheel slip
+- friction variation
+- angular command strength
+- short motion timing sensitivity
+
+A single shared angular calibration value was not good enough for:
+- quarter turns
+- full spin
+
+### Fix applied
+The motion test direction was improved by:
+- separating turn calibration from straight motion
+- splitting quarter-turn calibration from full-spin calibration
+- lowering angular command strength for safer behaviour
+- exposing calibration parameters in the manual test layer
+
+### Result
+The test path became much more usable for manual calibration, even though it is still not the final motion runtime.
+
+### Follow-up
+The final premium solution should later move toward a dedicated transport service with better closed-loop support where practical.
+
+
+## 124. Mobility validation was intentionally kept outside the main assistant runtime
+
+
+### Problem
+There was a risk of mixing early chassis control directly into the main assistant runtime before the mobility layer was properly validated.
+
+### Symptom
+Without separation, it would be too easy to confuse:
+- hardware problems
+- serial problems
+- control calibration problems
+- assistant runtime problems
+
+### Root cause
+The mobility layer is still in a validation stage and should not yet be merged into high-level assistant orchestration as if it were already production-ready.
+
+### Fix applied
+I kept the mobility validation in dedicated manual test paths under:
+- `tests/hardware/ugv02/`
+
+This allowed safe isolation of:
+- port detection
+- movement command testing
+- desk-safe calibration
+- turn and spin tuning
+
+### Result
+The mobility work no longer risks destabilising the core voice runtime while the base is still being calibrated.
+
+
+## 125. The UGV02 serial JSON boundary proved to be the correct integration direction
+ 
+
+### Problem
+The project needed a clean way to integrate the mobile base without mixing assistant logic directly with low-level chassis control.
+
+### Symptom
+At first, it was not yet clear whether the best direction would be:
+- direct mixed motor logic in the assistant flow
+or
+- a cleaner hardware boundary
+
+### Root cause
+As the project becomes more embodied, hardware boundaries matter more.
+
+Without a clean boundary, mobility would become harder to:
+- debug
+- test
+- calibrate
+- extend safely
+
+### Fix applied
+The practical architecture direction was clarified:
+- Raspberry Pi talks to the UGV02 through the serial JSON control boundary
+- the ESP32 driver board remains the low-level chassis controller
+- NeXa should later integrate mobility through a dedicated client or transport service
+
+### Result
+The mobility integration now has a cleaner architectural direction and fits the overall NeXa modular design much better.

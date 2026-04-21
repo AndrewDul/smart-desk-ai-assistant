@@ -61,6 +61,7 @@ class WakeAcknowledgementServiceTests(unittest.TestCase):
                     "language": "en",
                     "prepare_next": None,
                     "output_hold_seconds": 0.04,
+                    "latency_profile": None,
                 }
             ],
         )

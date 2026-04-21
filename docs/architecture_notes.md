@@ -1943,3 +1943,345 @@ At the end of this stage, the project became stronger in several important ways:
 
 This stage was important because it moved NeXa further away from a software prototype and closer to a real modular embedded assistant system.
 
+
+
+## 33. NeXa 2.0 product direction and target runtime lock
+
+During the latest development stages, the project direction was tightened around **NeXa 2.0** as a premium local-first assistant rather than a general student prototype.
+
+This is an important architectural shift.
+
+Earlier stages were focused on proving that:
+- voice input works
+- voice output works
+- reminders and memory work
+- display output works
+- wake can work locally
+- the runtime can be reorganised safely
+
+The current direction is different.
+
+The project is now being shaped as a premium embedded assistant with:
+- fast wake
+- fast built-in commands
+- always-on local AI backend
+- streaming-first response flow
+- stronger state handling
+- clearer system health reporting
+- measurable premium behaviour
+- cleaner hardware boundaries
+- modular code ready for long-term extension
+
+### Current target architecture layers
+
+The target NeXa 2.0 architecture is now understood more clearly as:
+
+- `runtime`
+  - startup
+  - service composition
+  - health checks
+  - state reporting
+  - shutdown and recovery
+
+- `audio`
+  - capture
+  - wake
+  - VAD / endpointing
+  - playback coordination
+  - self-hearing protection
+  - TTS execution
+
+- `ai`
+  - STT
+  - local LLM backend access
+  - routing
+  - later vision / VLM support
+
+- `skills`
+  - timer
+  - focus
+  - break
+  - reminders
+  - memory
+  - self-introduction
+  - system status
+  - later mobility-oriented actions
+
+- `session`
+  - active window
+  - follow-up handling
+  - confirmation handling
+  - interruption control
+  - short-term continuity
+
+- `presentation`
+  - display overlays
+  - startup cues
+  - acknowledgement behaviour
+  - later combined motion + expression presentation
+
+- `persistence`
+  - settings
+  - profiles
+  - reminders
+  - memory
+  - traces
+  - benchmarks
+  - runtime state snapshots
+
+### Practical system roles
+
+The practical system role split is now much more deliberate:
+
+- **Raspberry Pi 5**
+  - orchestration
+  - audio coordination
+  - runtime control
+  - skill execution
+  - display and presentation coordination
+  - persistence
+  - hardware integration
+
+- **AI HAT+ 2**
+  - accelerated local AI direction
+  - primary heavy local inference backend path
+  - later stronger STT / LLM / VLM use when stable enough
+
+This is important because the project is no longer being shaped as one Python assistant loop with random hardware attached.
+It is now moving toward a more realistic embedded product architecture with cleaner system boundaries.
+
+
+
+## 34. Observability, premium validation, and release-gate architecture
+
+Another major architectural step was the move toward explicit runtime observability and premium validation.
+
+The system is no longer treated as “working” only because it starts and answers.  
+Instead, the project now uses a more product-like view of runtime truth.
+
+### Runtime truth model
+
+The runtime now needs to report more honestly whether the system is:
+
+- healthy
+- degraded
+- limited
+- blocked
+- failed
+- stopped
+
+This matters because a voice assistant can:
+- start
+- print logs
+- show a screen
+- even answer sometimes
+
+while still being in a degraded state that is not acceptable for a premium product.
+
+### Benchmark and validation direction
+
+The project now includes stronger benchmark and validation thinking around:
+
+- wake latency
+- STT latency
+- route-to-first-audio latency
+- local LLM first chunk timing
+- response first audio timing
+- turn completion quality
+- segment coverage across skill and LLM turns
+- premium release gate decisions
+
+This means the benchmark layer is no longer just a debug extra.
+It is becoming part of the product-quality architecture.
+
+### Why this matters
+
+This architectural direction is important because it changes how the project is judged.
+
+The assistant should not be described only as:
+- can answer
+- can wake
+- can speak
+
+It should now also be described as:
+- measurable
+- diagnosable
+- benchmarkable
+- release-gated
+- honest about degraded states
+
+This is a major upgrade in engineering maturity.
+
+
+## 35. Camera Module 3 Wide and embodied presentation hardware update
+
+The hardware setup moved further toward an embodied assistant form.
+
+The project now includes the **Raspberry Pi Camera Module 3 Wide** as part of the mounted hardware stack.
+
+### Current camera status
+
+At the current stage, the camera should be described as:
+
+- physically integrated into the hardware direction
+- detected successfully by Raspberry Pi camera tools
+- validated at the hardware level
+- suitable for continued vision integration work
+- not yet described as a fully finished production vision runtime
+
+This distinction matters.
+
+Hardware validation is already real progress, but it is not the same as saying that a complete vision service is already finished.
+
+### Presentation stack direction
+
+The project now moves toward a combined presentation stack rather than isolated output channels.
+
+The practical presentation direction now includes:
+
+- spoken output
+- LCD visual feedback
+- pan-tilt movement
+- camera-ready embodiment
+- later mobility-aware expression and response
+
+This is important because the assistant is no longer only:
+- a speaker
+- a microphone
+- a screen
+
+It is becoming a more embodied system where:
+- voice
+- display
+- mechanical movement
+- future camera awareness
+
+can become part of one coordinated assistant behaviour model.
+
+
+## 36. Mobile base integration - Waveshare UGV02
+
+Today the project moved into a new hardware stage with the mounting of the mobile base:
+
+**Waveshare UGV02 6-wheel 4WD Off-Road UGV Kit (ESP32 Driver)**
+
+This is an important milestone because NeXa now has a real chassis layer rather than only pan-tilt and static desk presence.
+
+### Architectural role of the mobile base
+
+The mobile base should not be treated as raw motor logic directly embedded into assistant flow code.
+
+The correct architecture direction is:
+
+- the **UGV02 ESP32 driver board** owns the low-level chassis control
+- the **Raspberry Pi** owns high-level orchestration and later movement intent
+- communication between the Pi and the base happens through a clean control boundary
+
+### Current communication boundary
+
+The practical boundary currently used is:
+
+- USB-C connection from the mobile base to Raspberry Pi
+- serial device path such as:
+  - `/dev/ttyACM0`
+- JSON control messages sent from Raspberry Pi to the UGV02 controller
+
+This is an important design choice because it matches the overall NeXa architecture philosophy:
+assistant logic should talk to dedicated hardware control boundaries instead of mixing high-level behaviour with low-level motor details.
+
+### Current mobility test direction
+
+The current mobility stage is still a validation and calibration stage.
+
+At this stage, the project now includes manual hardware-oriented tests under:
+
+- `tests/hardware/ugv02/`
+
+These tests are used to validate:
+- serial communication with the chassis
+- safe desk movement
+- forward / backward movement
+- rotation behaviour
+- repeatable command flow from Raspberry Pi
+
+### Current motion control lesson
+
+A key practical result from this stage is that the mobile base responds correctly through the serial boundary when driven with the working streamed control path.
+
+The current working movement direction uses:
+- repeated streamed movement commands
+- explicit stop commands
+- small calibration-oriented motion segments
+
+This is important because it proves:
+- the Pi can see the UGV02
+- the Pi can command the UGV02
+- the base can move under software control from the NeXa project environment
+
+### Important limitation
+
+At the current stage, the mobility tests should still be described as:
+
+- manual
+- calibration-oriented
+- desk-safe
+- open-loop
+
+This means they are useful for hardware validation, but they are not yet the final mobility runtime.
+
+The final mobility direction should later move toward:
+- a dedicated transport / chassis service
+- closed-loop motion where practical
+- better calibration and safety policy
+- cleaner integration with assistant-level movement skills
+
+
+
+## 37. Current system state after mobility mounting
+
+At this stage, NeXa should no longer be described as only a stationary Raspberry Pi assistant prototype.
+
+The system now includes:
+
+- Raspberry Pi 5 runtime orchestration
+- AI HAT+ 2 integration direction
+- bilingual voice interaction
+- local wake-word direction
+- LCD presentation layer
+- pan-tilt platform
+- camera hardware validation
+- mobile chassis integration through UGV02
+- benchmark-aware premium runtime direction
+
+This is a major practical shift.
+
+The assistant is now moving from:
+- voice-and-screen prototype
+
+toward:
+- a modular embodied assistant platform
+
+### Current architecture conclusion
+
+The project is now much closer to the final intended NeXa 2.0 direction:
+
+- premium local-first assistant
+- clear runtime boundaries
+- honest health reporting
+- measurable interaction quality
+- embodied hardware stack
+- mobility integration path
+- future-ready camera and AI acceleration direction
+
+### Next recommended architecture step
+
+The next architecture step after this point should be:
+
+- introduce a dedicated mobility client / transport service for UGV02
+- keep manual hardware tests separate from runtime logic
+- later expose movement through assistant-level skills
+- preserve the premium voice/runtime path while mobility is integrated
+- avoid mixing direct serial motor control into high-level assistant orchestration
+
+
+

@@ -822,3 +822,135 @@ The next important step after this stage should be:
 - cleaner premium wake behaviour
 - stronger combined motion + display behaviour
 - full camera runtime integration when the vision path is ready
+
+# Test Notes
+
+
+
+## Area
+Camera validation, UGV02 mobile base integration, serial control, and desk-safe motion testing
+
+---
+
+## Main purpose of this test stage
+
+In this stage I focused on extending NeXa further from a partially embodied assistant into a system that now includes a real mobile chassis layer.
+
+The main goals were:
+- validate the Raspberry Pi Camera Module 3 Wide at the hardware level
+- mount and connect the UGV02 mobile base
+- confirm that Raspberry Pi can see the UGV02 controller over USB serial
+- confirm that the base can receive commands from the NeXa project environment
+- create safe manual hardware tests for desk use
+- separate mobility testing from the main assistant runtime
+
+---
+
+## Main changes tested
+
+I tested changes in:
+- camera hardware visibility and basic capture
+- UGV02 startup state and controller communication
+- USB serial device detection on Raspberry Pi
+- serial JSON command flow from Pi to the UGV02 ESP32 driver board
+- desk-safe movement tests under `tests/hardware/ugv02/`
+- forward / backward movement
+- turn calibration
+- in-place spin calibration
+- practical recovery after incorrect BOOT-button use or unclear controller state
+
+
+## Current testing approach
+
+This stage was tested mainly through:
+- direct hardware runs on Raspberry Pi
+- terminal-based serial control
+- repeated movement attempts from the project environment
+- manual recovery and restart checks
+- live observation of the OLED on the mobile base
+- live observation of physical motion on a desk surface
+- camera detection and photo capture checks
+
+This was mainly a real hardware validation and calibration stage rather than a unit-test stage.
+
+---
+
+## Successful results confirmed
+
+The following behaviour was confirmed working in this stage:
+
+- the Raspberry Pi Camera Module 3 Wide was detected successfully
+- the camera could produce a real image capture during hardware validation
+- the UGV02 controller was visible to Raspberry Pi over USB serial
+- the correct live serial path was confirmed as `/dev/ttyACM0`
+- telemetry feedback from the base could be read successfully
+- the OLED on the mobile base showed live status information
+- the base AP mode could be identified through the `UGV` hotspot state
+- Raspberry Pi could send working streamed movement commands to the mobile base
+- the chassis could move forward and backward under software control from the project environment
+- desk-safe manual mobility tests were created inside:
+  - `tests/hardware/ugv02/test_forward_and_backward_movement.py`
+  - `tests/hardware/ugv02/test_forward_backward_turns_and_spin.py`
+- the project now has a real mobility validation layer separate from the main assistant runtime
+
+---
+
+## Problems found during testing
+
+I also found several important problems during this stage:
+
+- the first movement test path did not move the chassis even though serial communication worked
+- the wrong serial path could easily be assumed at first (`ttyUSB0` instead of the real `ttyACM0`)
+- the mobile base web page could look unavailable if the client device was not actually connected to the `UGV` Wi-Fi access point
+- pressing the BOOT button during normal use could leave the controller in a confusing state
+- early turn and spin calibration on the desk surface was inaccurate
+- a nominal 90-degree turn could behave closer to about 45 degrees
+- a nominal full spin could behave closer to about 180 degrees
+- desk-surface slip made open-loop turning less predictable than straight movement
+
+
+## Fixes applied after testing
+
+After these tests I applied or clarified the following improvements:
+
+- I treated the UGV02 as a separate hardware control boundary instead of mixing low-level motion into assistant logic
+- I switched mobility validation toward the confirmed working serial path on `/dev/ttyACM0`
+- I used repeated streamed movement commands with explicit stop commands
+- I kept the mobility work inside dedicated manual hardware tests instead of pushing it directly into the main runtime
+- I clarified the meaning of the mobile base OLED status and AP mode
+- I used safe power-cycle recovery instead of relying on BOOT during normal runtime diagnosis
+- I separated straight-motion validation from turn calibration
+- I split quarter-turn and full-spin calibration as separate practical tuning problems
+
+---
+
+## Practical test conclusion
+
+This stage was important because it proved that NeXa now has a real mobile chassis path, not only:
+- voice
+- display
+- pan-tilt
+- and camera preparation
+
+The assistant now includes:
+- camera hardware validation
+- a mobile base physically mounted and powered
+- a working serial control boundary to the chassis
+- dedicated mobility test scripts
+- real desk-safe movement validation from the project environment
+
+This means the project moved another step away from a software-plus-screen assistant and closer to a real modular embodied assistant platform.
+
+---
+
+## Next recommended testing step
+
+The next important testing step after this stage should be:
+- stabilise mobility calibration further
+- move from ad-hoc motion test logic toward a dedicated reusable UGV02 motion client
+- keep mobility tests isolated from the main voice runtime until the chassis layer is cleaner
+- later expose movement through a higher-level transport or mobility service
+- continue camera validation toward a real production-ready vision runtime
+
+
+
