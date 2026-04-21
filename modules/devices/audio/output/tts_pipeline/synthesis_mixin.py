@@ -203,6 +203,7 @@ class TTSPipelineSynthesisMixin:
             command,
             timeout_seconds=self._synthesis_timeout_seconds,
             source=source,
+            poll_sleep_seconds=getattr(self, "_synthesis_poll_seconds", 0.005),
             capture_output=capture_output,
         )
 

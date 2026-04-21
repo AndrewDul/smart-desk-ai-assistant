@@ -169,6 +169,7 @@ class _PiperSynthesisProbe(TTSPipelineSynthesisMixin):
         self._resolved_piper_paths["en"]["model"].write_text("model")
         self._resolved_piper_paths["en"]["config"].write_text("config")
         self._synthesis_timeout_seconds = 18.0
+        self._synthesis_poll_seconds = 0.005
         self._stop_requested = threading.Event()
         self._piper_failure_diagnostic_retry_enabled = True
         self.run_calls: list[dict[str, object]] = []
@@ -386,6 +387,7 @@ class TTSPipelinePriorityTests(unittest.TestCase):
             self.assertTrue(ok)
             self.assertEqual(len(probe.run_calls), 1)
             self.assertFalse(probe.run_calls[0]["capture_output"])
+            self.assertEqual(probe.run_calls[0]["poll_sleep_seconds"], 0.005)
 
     def test_piper_synthesis_retries_with_output_capture_for_diagnostics_after_fast_path_failure(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -398,6 +400,8 @@ class TTSPipelinePriorityTests(unittest.TestCase):
             self.assertEqual(len(probe.run_calls), 2)
             self.assertFalse(probe.run_calls[0]["capture_output"])
             self.assertTrue(probe.run_calls[1]["capture_output"])
+            self.assertEqual(probe.run_calls[0]["poll_sleep_seconds"], 0.005)
+            self.assertEqual(probe.run_calls[1]["poll_sleep_seconds"], 0.005)
 
 
 if __name__ == "__main__":

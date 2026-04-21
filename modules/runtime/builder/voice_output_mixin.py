@@ -39,6 +39,7 @@ class RuntimeBuilderVoiceOutputMixin:
                 voices=config.get("voices"),
                 piper_models=config.get("piper_models"),
                 process_poll_seconds=float(config.get("process_poll_seconds", 0.02) or 0.02),
+                synthesis_poll_seconds=float(config.get("synthesis_poll_seconds", 0.005) or 0.005),
                 playback_poll_seconds=float(config.get("playback_poll_seconds", 0.005) or 0.005),
                 preferred_playback_backend=str(config.get("preferred_playback_backend", "") or ""),
                 console_echo_enabled=bool(config.get("console_echo_enabled", False)),

@@ -63,6 +63,7 @@ class TTSPipeline(
         voices: dict[str, str] | None = None,
         piper_models: dict[str, dict[str, str]] | None = None,
         process_poll_seconds: float = 0.02,
+        synthesis_poll_seconds: float = 0.005,
         playback_poll_seconds: float = 0.005,
         preferred_playback_backend: str = "",
         console_echo_enabled: bool = False,
@@ -140,6 +141,7 @@ class TTSPipeline(
         self._playback_timeout_seconds = 24.0
         self._piper_failure_diagnostic_retry_enabled = True
         self._process_poll_seconds = max(0.001, float(process_poll_seconds))
+        self._synthesis_poll_seconds = max(0.001, float(synthesis_poll_seconds))
         self._playback_poll_seconds = max(0.001, float(playback_poll_seconds))
         self._job_wait_poll_seconds = 0.015
         self._cache_warmup_delay_seconds = 0.45
@@ -219,6 +221,7 @@ class TTSPipeline(
             f"playback_timeout={self._playback_timeout_seconds:.1f}s, "
             f"job_wait_poll={self._job_wait_poll_seconds:.3f}s, "
             f"process_poll={self._process_poll_seconds:.3f}s, "
+            f"synthesis_poll={self._synthesis_poll_seconds:.3f}s, "
             f"playback_poll={self._playback_poll_seconds:.3f}s, "
             f"preferred_playback_backend={self._preferred_playback_backend or '-'}, "
             f"current_job_wait={self._current_job_wait_seconds:.1f}s, "
