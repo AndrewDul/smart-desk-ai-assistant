@@ -285,6 +285,7 @@ class TTSPipelineSynthesisMixin:
         lang: str,
         *,
         prepare_next: tuple[str, str] | None = None,
+        latency_profile: str | None = None,
     ) -> bool:
         if not self.enabled:
             return False
@@ -306,13 +307,15 @@ class TTSPipelineSynthesisMixin:
             lang=normalized_lang,
             cache_path=cache_path,
             cache_hit=cache_hit,
+            latency_profile=latency_profile,
         )
         wav_ready_ms = (time.monotonic() - wav_ready_started_at) * 1000.0
 
         if not ready:
             append_log(
                 f"TTS current synthesis did not finish in time: lang={normalized_lang}, "
-                f"chars={len(text)}, wav_ready_ms={wav_ready_ms:.1f}, source={ready_source}"
+                f"chars={len(text)}, wav_ready_ms={wav_ready_ms:.1f}, source={ready_source}, "
+                f"latency_profile={latency_profile or '-'}"
             )
             return False
 
@@ -338,6 +341,7 @@ class TTSPipelineSynthesisMixin:
                 f"TTS total finished: lang={normalized_lang}, chars={len(text)}, "
                 f"cache_hit={cache_hit}, wav_ready_source={ready_source}, "
                 f"wav_ready_ms={wav_ready_ms:.1f}, first_audio_path_ms={first_audio_ms:.1f}, "
+                f"latency_profile={latency_profile or '-'}, "
                 f"elapsed={time.monotonic() - started_at:.3f}s"
             )
             return True
@@ -397,6 +401,7 @@ class TTSPipelineSynthesisMixin:
         lang: str,
         cache_path: Path,
         cache_hit: bool,
+        latency_profile: str | None = None,
     ) -> tuple[bool, str]:
         if cache_hit and cache_path.exists():
             return True, "cache_hit"
@@ -413,7 +418,11 @@ class TTSPipelineSynthesisMixin:
             )
             return ready, "pending_job_promoted" if promoted else "pending_job"
 
-        if self._should_direct_synthesize_current(text=text, lang=lang):
+        if self._should_direct_synthesize_current(
+            text=text,
+            lang=lang,
+            latency_profile=latency_profile,
+        ):
             ok = self._synthesize_piper_to_wav(text, lang, cache_path)
             return ok, "direct_current"
 
@@ -438,7 +447,23 @@ class TTSPipelineSynthesisMixin:
                 return None
             return job
 
-    def _should_direct_synthesize_current(self, *, text: str, lang: str) -> bool:
+    def _direct_current_limit_for_profile(self, *, latency_profile: str | None = None) -> int:
+        base_limit = int(getattr(self, "_direct_current_synthesis_max_chars", 120))
+        normalized_profile = str(latency_profile or "").strip().lower()
+        if normalized_profile == "action_fast":
+            profile_limit = int(
+                getattr(self, "_action_fast_direct_current_synthesis_max_chars", base_limit)
+            )
+            return max(base_limit, profile_limit)
+        return base_limit
+
+    def _should_direct_synthesize_current(
+        self,
+        *,
+        text: str,
+        lang: str,
+        latency_profile: str | None = None,
+    ) -> bool:
         if not self.enabled:
             return False
         if self.preferred_engine != "piper":
@@ -448,7 +473,7 @@ class TTSPipelineSynthesisMixin:
         if self._stop_requested.is_set():
             return False
 
-        max_chars = int(getattr(self, "_direct_current_synthesis_max_chars", 120))
+        max_chars = self._direct_current_limit_for_profile(latency_profile=latency_profile)
         if len(text) > max_chars:
             return False
 

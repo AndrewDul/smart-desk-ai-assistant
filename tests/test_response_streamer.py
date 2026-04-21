@@ -19,6 +19,7 @@ class _TelemetryVoiceOutput(FakeVoiceOutput):
         language: str | None = None,
         prepare_next: tuple[str, str] | None = None,
         output_hold_seconds: float | None = None,
+        latency_profile: str | None = None,
     ) -> bool:
         started_at = time.monotonic()
         time.sleep(self.audio_delay_seconds)
@@ -27,6 +28,7 @@ class _TelemetryVoiceOutput(FakeVoiceOutput):
             language=language,
             prepare_next=prepare_next,
             output_hold_seconds=output_hold_seconds,
+            latency_profile=latency_profile,
         )
         self._last_speak_report["first_audio_started_at_monotonic"] = (
             started_at + self.audio_delay_seconds
@@ -48,6 +50,7 @@ class _OrderedVoiceOutput(FakeVoiceOutput):
         language: str | None = None,
         prepare_next: tuple[str, str] | None = None,
         output_hold_seconds: float | None = None,
+        latency_profile: str | None = None,
     ) -> bool:
         self.events.append("speak")
         return super().speak(
@@ -55,6 +58,7 @@ class _OrderedVoiceOutput(FakeVoiceOutput):
             language=language,
             prepare_next=prepare_next,
             output_hold_seconds=output_hold_seconds,
+            latency_profile=latency_profile,
         )
 
 
@@ -250,6 +254,7 @@ class ResponseStreamerTests(unittest.TestCase):
         self.assertEqual(report.chunks_spoken, 1)
         self.assertEqual(events[:2], ["speak", "display"])
         self.assertEqual(len(voice_output.speak_calls), 1)
+        self.assertEqual(voice_output.speak_calls[0]["latency_profile"], "action_fast")
         self.assertEqual(len(display.blocks), 1)
 
 

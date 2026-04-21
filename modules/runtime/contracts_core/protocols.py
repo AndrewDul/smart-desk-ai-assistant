@@ -67,6 +67,7 @@ class SpeechOutputBackend(Protocol):
         language: str | None = None,
         prepare_next: tuple[str, str] | None = None,
         output_hold_seconds: float | None = None,
+        latency_profile: str | None = None,
     ) -> bool:
         ...
 

@@ -58,6 +58,7 @@ class ResponseStreamerPlayback(ResponseStreamerHelpers):
         text: str,
         *,
         next_hint: tuple[str, str] | None = None,
+        latency_profile: str | None = None,
     ) -> bool:
         speak_method = getattr(self.voice_output, "speak", None)
         if not callable(speak_method):
@@ -65,17 +66,25 @@ class ResponseStreamerPlayback(ResponseStreamerHelpers):
 
         started_at = time.monotonic()
 
+        speak_kwargs: dict[str, Any] = {"language": chunk.language}
+        if next_hint is not None and self._voice_output_supports_prepare_next():
+            speak_kwargs["prepare_next"] = next_hint
+        if latency_profile and self._voice_output_supports_latency_profile():
+            speak_kwargs["latency_profile"] = latency_profile
+
         try:
-            if self._voice_output_supports_prepare_next():
-                result = bool(
-                    speak_method(
-                        text,
-                        language=chunk.language,
-                        prepare_next=next_hint,
-                    )
-                )
-            else:
-                result = bool(speak_method(text, language=chunk.language))
+            try:
+                result = bool(speak_method(text, **speak_kwargs))
+            except TypeError:
+                fallback_kwargs = dict(speak_kwargs)
+                if "prepare_next" in fallback_kwargs:
+                    fallback_kwargs.pop("prepare_next", None)
+                    result = bool(speak_method(text, **fallback_kwargs))
+                elif "latency_profile" in fallback_kwargs:
+                    fallback_kwargs.pop("latency_profile", None)
+                    result = bool(speak_method(text, **fallback_kwargs))
+                else:
+                    raise
         except TypeError:
             try:
                 result = bool(speak_method(text, language=chunk.language))
@@ -118,11 +127,6 @@ class ResponseStreamerPlayback(ResponseStreamerHelpers):
 
         return max(speak_call_started_at, value)
 
-
-
-
-
-
     def _voice_output_supports_prepare_next(self) -> bool:
         speak_method = getattr(self.voice_output, "speak", None)
         if not callable(speak_method):
@@ -140,6 +144,48 @@ class ResponseStreamerPlayback(ResponseStreamerHelpers):
 
         self._supports_prepare_next_cache = supports
         return supports
+
+    def _voice_output_supports_latency_profile(self) -> bool:
+        speak_method = getattr(self.voice_output, "speak", None)
+        if not callable(speak_method):
+            return False
+
+        cached = getattr(self, "_supports_latency_profile_cache", None)
+        if isinstance(cached, bool):
+            return cached
+
+        try:
+            signature = inspect.signature(speak_method)
+            supports = "latency_profile" in signature.parameters
+        except Exception:
+            supports = False
+
+        self._supports_latency_profile_cache = supports
+        return supports
+
+    def _resolve_latency_profile(
+        self,
+        *,
+        plan,
+        chunk: AssistantChunk,
+        chunk_count: int,
+    ) -> str | None:
+        metadata = dict(getattr(plan, "metadata", {}) or {})
+        explicit = str(metadata.get("tts_latency_profile", "") or "").strip()
+        if explicit:
+            return explicit
+
+        route_kind = self._route_kind_value(plan)
+        if route_kind == "action" and chunk_count == 1 and chunk.kind in {
+            ChunkKind.ACK,
+            ChunkKind.CONTENT,
+            ChunkKind.FOLLOW_UP,
+            ChunkKind.TOOL_STATUS,
+            ChunkKind.FINAL,
+        }:
+            return "action_fast"
+
+        return None
 
     def _should_defer_display_until_after_first(
         self,

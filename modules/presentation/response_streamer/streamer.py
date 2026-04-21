@@ -93,9 +93,19 @@ class ResponseStreamer(
 
             next_hint = self._next_prefetch_payload(prepared_chunks, index + 1)
             self._prepare_next_chunk(next_hint)
+            latency_profile = self._resolve_latency_profile(
+                plan=plan,
+                chunk=chunk,
+                chunk_count=len(prepared_chunks),
+            )
 
             speak_started_at = time.monotonic()
-            spoken_ok = self._speak_chunk(chunk, text, next_hint=next_hint)
+            spoken_ok = self._speak_chunk(
+                chunk,
+                text,
+                next_hint=next_hint,
+                latency_profile=latency_profile,
+            )
             speak_elapsed = time.monotonic() - speak_started_at
 
             if not spoken_ok:

@@ -137,7 +137,7 @@ class TTSPipeline(
         # If the current reply is short enough, synthesize it directly instead
         # of waiting behind the background queue.
         self._direct_current_synthesis_max_chars = 115
-
+        self._action_fast_direct_current_synthesis_max_chars = 220
         # Output hold tuning:
         # - interrupted playback should release input almost immediately
         # - short replies should not keep the mic blocked too long
@@ -212,6 +212,7 @@ class TTSPipeline(
             f"preferred_playback_backend={self._preferred_playback_backend or '-'}, "
             f"current_job_wait={self._current_job_wait_seconds:.1f}s, "
             f"direct_current_chars={self._direct_current_synthesis_max_chars}, "
+            f"action_fast_direct_current_chars={self._action_fast_direct_current_synthesis_max_chars}, "
             f"early_next_prefetch_chars={self._early_next_prefetch_max_chars}"
         )
         append_log(

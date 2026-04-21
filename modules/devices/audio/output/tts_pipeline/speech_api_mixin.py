@@ -47,6 +47,7 @@ class TTSPipelineSpeechApiMixin:
         language: str | None = None,
         prepare_next: tuple[str, str] | None = None,
         output_hold_seconds: float | None = None,
+        latency_profile: str | None = None,
     ) -> bool:
         started_at = time.monotonic()
         self._store_speak_report(
@@ -106,6 +107,7 @@ class TTSPipelineSpeechApiMixin:
                         tts_text,
                         lang,
                         prepare_next=normalized_prepare_next,
+                        latency_profile=latency_profile,
                     )
                     if used_piper:
                         used_engine = "piper"
@@ -184,6 +186,7 @@ class TTSPipelineSpeechApiMixin:
                 interrupted=interrupted,
                 prepare_next=has_prepare_next,
                 output_hold_seconds=output_hold_seconds,
+                latency_profile=latency_profile,
                 elapsed_ms=max(0.0, (time.monotonic() - started_at) * 1000.0),
             )
 
@@ -196,6 +199,7 @@ class TTSPipelineSpeechApiMixin:
                 f"interrupted={interrupted}, "
                 f"prepare_next={has_prepare_next}, "
                 f"output_hold_override={output_hold_seconds}, "
+                f"latency_profile={latency_profile or '-'}, "
                 f"first_audio_ms={first_audio_latency_ms:.1f}, "
                 f"elapsed={time.monotonic() - started_at:.3f}s"
             )

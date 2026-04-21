@@ -24,6 +24,7 @@ class SilentVoiceOutput:
         language: str | None = None,
         prepare_next: tuple[str, str] | None = None,
         output_hold_seconds: float | None = None,
+        latency_profile: str | None = None,
     ) -> bool:
         del prepare_next
         self.messages.append(
@@ -31,6 +32,7 @@ class SilentVoiceOutput:
                 "text": str(text),
                 "language": language,
                 "output_hold_seconds": output_hold_seconds,
+                "latency_profile": latency_profile,
             }
         )
         return True

@@ -6,8 +6,14 @@ from typing import Any
 
 
 class FakeVoiceOutput:
-    def __init__(self, *, supports_prepare_next: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        supports_prepare_next: bool = True,
+        supports_latency_profile: bool = True,
+    ) -> None:
         self.supports_prepare_next = supports_prepare_next
+        self.supports_latency_profile = supports_latency_profile
         self.speak_calls: list[dict[str, Any]] = []
         self.prepare_calls: list[tuple[str, str | None]] = []
         self.stop_calls = 0
@@ -23,9 +29,12 @@ class FakeVoiceOutput:
         language: str | None = None,
         prepare_next: tuple[str, str] | None = None,
         output_hold_seconds: float | None = None,
+        latency_profile: str | None = None,
     ) -> bool:
         if not self.supports_prepare_next and prepare_next is not None:
             raise TypeError("prepare_next not supported")
+        if not self.supports_latency_profile and latency_profile is not None:
+            raise TypeError("latency_profile not supported")
 
         first_audio_started_at = time.monotonic()
         self.speak_calls.append(
@@ -34,6 +43,7 @@ class FakeVoiceOutput:
                 "language": language,
                 "prepare_next": prepare_next,
                 "output_hold_seconds": output_hold_seconds,
+                "latency_profile": latency_profile,
             }
         )
         self._last_speak_report = {

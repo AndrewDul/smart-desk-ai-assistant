@@ -29,6 +29,7 @@ class _PriorityProbe(TTSPipelineCacheQueueMixin, TTSPipelineSynthesisMixin):
         self._stop_requested = threading.Event()
         self._current_job_wait_seconds = 0.01
         self._direct_current_synthesis_max_chars = 115
+        self._action_fast_direct_current_synthesis_max_chars = 220
 
     def _piper_model_ready(self, lang: str) -> bool:
         return True
@@ -62,7 +63,7 @@ class _SpeechApiProbe(TTSPipelineSpeechApiMixin):
     def clear_stop_request(self) -> None:
         self._stop_requested.clear()
 
-    def _speak_with_piper(self, text: str, lang: str, *, prepare_next=None) -> bool:
+    def _speak_with_piper(self, text: str, lang: str, *, prepare_next=None, latency_profile=None) -> bool:
         self._playback_report = {
             "engine": "piper",
             "success": True,
@@ -193,6 +194,27 @@ class TTSPipelinePriorityTests(unittest.TestCase):
             self.assertTrue(ok)
             self.assertEqual(started_at, 123.0)
             self.assertEqual(probe.playback_calls, [])
+
+
+    def test_action_fast_profile_expands_direct_current_threshold(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            probe = _PriorityProbe(Path(temp_dir))
+            text = "x" * 160
+
+            self.assertFalse(
+                probe._should_direct_synthesize_current(
+                    text=text,
+                    lang="en",
+                    latency_profile=None,
+                )
+            )
+            self.assertTrue(
+                probe._should_direct_synthesize_current(
+                    text=text,
+                    lang="en",
+                    latency_profile="action_fast",
+                )
+            )
 
 
 
