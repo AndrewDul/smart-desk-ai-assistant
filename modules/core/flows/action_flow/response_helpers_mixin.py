@@ -257,7 +257,12 @@ class ActionResponseHelpersMixin:
             },
         )
 
-    def _should_prefetch_action_response(self, *, spoken_text: str) -> bool:
+    def _should_prefetch_action_response(
+        self,
+        *,
+        spoken_text: str,
+        immediate_delivery: bool = False,
+    ) -> bool:
         streaming_cfg = getattr(self.assistant, "settings", {}).get("streaming", {})
         configured = streaming_cfg.get("prefetch_action_responses")
         if configured is None:
@@ -268,10 +273,23 @@ class ActionResponseHelpersMixin:
         if not enabled:
             return False
 
+        if immediate_delivery:
+            return False
+
         return bool(str(spoken_text or "").strip())
 
-    def _prefetch_action_response(self, *, spoken_text: str, language: str, action: str) -> None:
-        if not self._should_prefetch_action_response(spoken_text=spoken_text):
+    def _prefetch_action_response(
+        self,
+        *,
+        spoken_text: str,
+        language: str,
+        action: str,
+        immediate_delivery: bool = False,
+    ) -> None:
+        if not self._should_prefetch_action_response(
+            spoken_text=spoken_text,
+            immediate_delivery=immediate_delivery,
+        ):
             return
 
         prepare_method = getattr(getattr(self.assistant, "voice_out", None), "prepare_speech", None)
@@ -305,6 +323,7 @@ class ActionResponseHelpersMixin:
             spoken_text=spoken_text,
             language=language,
             action=action,
+            immediate_delivery=True,
         )
 
         plan = ResponsePlan(

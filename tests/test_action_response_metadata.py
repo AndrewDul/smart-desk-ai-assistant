@@ -15,6 +15,38 @@ class _ActionResponseMetadataProbe(ActionResponseHelpersMixin):
         self._active_skill_request = None
 
 
+class _FakeVoiceOut:
+    def __init__(self) -> None:
+        self.prepare_calls: list[dict[str, str | None]] = []
+
+    def prepare_speech(self, text: str, language: str | None = None) -> None:
+        self.prepare_calls.append({"text": str(text), "language": language})
+
+
+class _FakeAssistantForDelivery:
+    def __init__(self) -> None:
+        self.voice_out = _FakeVoiceOut()
+        self.settings = {"streaming": {"prefetch_action_responses": True}}
+        self._last_plan = None
+        self._last_source = ""
+        self._last_extra_metadata = {}
+
+    def deliver_response_plan(self, plan, *, source, remember=True, extra_metadata=None):
+        del remember
+        self._last_plan = plan
+        self._last_source = source
+        self._last_extra_metadata = dict(extra_metadata or {})
+        return True
+
+
+class _ActionResponseDeliveryProbe(ActionResponseHelpersMixin):
+    def __init__(self) -> None:
+        self.assistant = _FakeAssistantForDelivery()
+        self._active_route = None
+        self._active_resolved_action = None
+        self._active_skill_request = None
+
+
 class ActionResponseMetadataTests(unittest.TestCase):
     def test_current_action_response_metadata_includes_route_action_and_skill_request_context(self) -> None:
         probe = _ActionResponseMetadataProbe()
@@ -75,6 +107,22 @@ class ActionResponseMetadataTests(unittest.TestCase):
         self.assertEqual(metadata["skill_request_capture_backend"], "wake_inline_command")
 
         self.assertEqual(metadata["phase"], "unit_test")
+
+    def test_simple_action_response_skips_same_turn_prefetch_before_immediate_delivery(self) -> None:
+        probe = _ActionResponseDeliveryProbe()
+
+        ok = probe._deliver_simple_action_response(
+            language="en",
+            action="ask_time",
+            spoken_text="It is ten thirty.",
+            display_title="TIME",
+            display_lines=["10:30"],
+        )
+
+        self.assertTrue(ok)
+        self.assertEqual(probe.assistant.voice_out.prepare_calls, [])
+        self.assertEqual(probe.assistant._last_source, "action_flow:ask_time")
+        self.assertEqual(probe.assistant._last_plan.chunks[0].text, "It is ten thirty.")
 
 
 if __name__ == "__main__":
