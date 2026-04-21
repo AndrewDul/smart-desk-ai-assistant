@@ -5,7 +5,8 @@ from typing import Any
 
 from modules.devices.vision.capture import VisionCaptureReader
 from modules.devices.vision.config import VisionRuntimeConfig
-from modules.devices.vision.fusion import build_camera_only_observation
+from modules.devices.vision.fusion import build_vision_observation
+from modules.devices.vision.perception import PerceptionPipeline
 from modules.runtime.contracts import VisionObservation
 from modules.shared.logging.logger import get_logger
 
@@ -21,6 +22,10 @@ class CameraService:
     - expose a stable latest_observation() API for the runtime
     - return a real camera-backed VisionObservation snapshot
     - keep the perception / behavior layers decoupled for later stages
+
+    Stage 2 foundation:
+    - run a clean perception pipeline with separate people/object/scene contracts
+    - keep behavior inference out of the camera service itself
     """
 
     def __init__(self, config: dict[str, Any]) -> None:
@@ -30,6 +35,7 @@ class CameraService:
 
         self._lock = threading.RLock()
         self._reader = VisionCaptureReader(config=self._config)
+        self._perception = PerceptionPipeline()
         self._last_observation: VisionObservation | None = None
         self._last_error: str | None = None
         self._closed = False
@@ -71,6 +77,7 @@ class CameraService:
                 "last_captured_at": None if last is None else last.captured_at,
                 "last_error": self._last_error,
                 "capabilities": self._config.capability_flags(),
+                "perception_pipeline_ready": True,
             }
 
     def close(self) -> None:
@@ -85,14 +92,18 @@ class CameraService:
 
     def _capture_once_locked(self) -> VisionObservation:
         packet = self._reader.read_frame()
-        observation = build_camera_only_observation(packet)
+        perception = self._perception.analyze(packet)
+        observation = build_vision_observation(packet, perception=perception)
+
         self._last_observation = observation
         self._last_error = None
 
         LOGGER.info(
-            "Vision snapshot captured: backend=%s size=%sx%s",
+            "Vision snapshot captured: backend=%s size=%sx%s people=%s objects=%s",
             packet.backend_label,
             packet.width,
             packet.height,
+            len(perception.people),
+            len(perception.objects),
         )
         return observation

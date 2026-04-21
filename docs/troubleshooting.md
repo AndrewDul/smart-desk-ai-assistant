@@ -3519,3 +3519,192 @@ The practical architecture direction was clarified:
 
 ### Result
 The mobility integration now has a cleaner architectural direction and fits the overall NeXa modular design much better.
+
+# Vision Troubleshooting
+
+This file lists the main problems we had while building the camera and vision foundation for NeXa, what caused them, and how we fixed them.
+
+---
+
+## 1. Permission error for `system.log`
+
+### Symptom
+Tests failed before the vision code even started.
+
+### Error
+```text
+PermissionError: [Errno 13] Permission denied: '/home/devdul/Projects/smart-desk-ai-assistant/var/logs/system.log'
+Cause
+```
+
+The logger tried to open the log file during import.
+If the normal user did not have permission to write to that file, the import failed and the tests stopped.
+
+### Fix
+
+We changed the logger so it can safely fall back to stderr if the log file is not available.
+
+### Result
+
+The warning can still appear, but it no longer breaks tests or the vision system.
+
+### 2. Vision package imported too much too early
+Symptom
+
+A simple import triggered a long chain of other imports:
+
+CameraService
+capture reader
+logger
+backend modules
+
+This made tests fragile.
+
+### Cause
+
+__init__.py files in the vision package were using eager imports.
+
+### Fix
+
+We changed the imports to lazy loading with __getattr__.
+
+### Result
+
+Imports are lighter and safer now.
+
+### 3. ModuleNotFoundError in the camera smoke test
+Symptom
+
+pytest worked, but the hardware smoke script failed when run directly.
+
+### Error
+ModuleNotFoundError: No module named 'modules'
+Cause
+
+When Python ran the script directly, the project root was not added to sys.path.
+
+### Fix
+
+We added a small repo-root bootstrap at the top of the hardware smoke script.
+
+### Result
+
+The smoke script can now be run directly with:
+
+python tests/vision/hardware/camera/camera_capture_smoke.py
+### 4. Mutable default error in PerceptionPipeline
+Symptom
+
+The perception tests failed during test collection.
+
+### Error
+ValueError: mutable default <class '...NullSceneAnalyzer'> for field scene_analyzer is not allowed: use default_factory
+Cause
+
+We used object instances as default values inside a dataclass, for example:
+
+NullPeopleDetector()
+NullObjectDetector()
+NullSceneAnalyzer()
+
+That is not safe in Python dataclasses.
+
+### Fix
+
+We changed those fields to use field(default_factory=...).
+
+### Result
+
+The dataclass is now valid and the tests can run correctly.
+
+### 5. vars() failed with slots=True
+Symptom
+
+The perception pipeline still failed after the first fix.
+
+### Error
+TypeError: vars() argument must have __dict__ attribute
+Cause
+
+NormalizedRegion uses slots=True, so it does not have a normal __dict__.
+Because of that, vars(...) could not be used on it.
+
+### Fix
+
+We replaced vars(...) with a small helper function that builds a normal dictionary by hand.
+
+### Result
+
+Scene metadata now serializes correctly.
+
+### 6. No clear runtime contract for vision
+Symptom
+
+Vision worked, but it did not yet have a proper runtime contract like the other backends.
+
+### Cause
+
+There was no dedicated VisionBackend protocol, and the null backend was too simple.
+
+### Fix
+
+We added a clear runtime contract for vision:
+
+latest_observation(...)
+status()
+close()
+
+We also updated NullVisionBackend so it matches the real backend better.
+
+### Result
+
+Vision is now cleaner and easier to plug into runtime code.
+
+### 7. Camera service was too easy to break on a capture error
+Symptom
+
+A temporary camera read problem could break the flow too hard.
+
+### Cause
+
+The first version of CameraService did not keep a good fallback state when capture failed.
+
+### Fix
+
+We improved CameraService so it:
+
+stores last_error
+keeps the last good observation
+returns cached data if a refresh fails
+reports more details in status()
+Result
+
+The service is more stable and more product-ready now.
+
+### 8. Vision output was too simple at first
+Symptom
+
+The camera worked, but the output was only a basic "camera online" snapshot.
+
+### Cause
+
+The first fusion step did not yet include perception structure.
+
+### Fix
+
+We added:
+
+PerceptionSnapshot
+PerceptionPipeline
+scene context
+workspace zones
+semantic fusion
+
+### Result
+
+The system is now ready for the next vision features:
+
+person at desk
+phone usage
+computer work
+study activity logic
