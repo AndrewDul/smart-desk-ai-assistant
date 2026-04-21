@@ -19,7 +19,7 @@ class _PriorityProbe(TTSPipelineCacheQueueMixin, TTSPipelineSynthesisMixin):
     _PRIORITY_CURRENT = 0
     _PRIORITY_NEXT = 10
 
-    def __init__(self, cache_dir: Path) -> None:
+    def __init__(self, cache_dir: Path, *, runtime_wav_dir: Path | None = None) -> None:
         self.enabled = True
         self.preferred_engine = "piper"
         self._tts_cache_dir = cache_dir
@@ -32,6 +32,9 @@ class _PriorityProbe(TTSPipelineCacheQueueMixin, TTSPipelineSynthesisMixin):
         self._current_job_wait_seconds = 0.01
         self._direct_current_synthesis_max_chars = 115
         self._action_fast_direct_current_synthesis_max_chars = 220
+        self._runtime_wav_dir = runtime_wav_dir
+        if self._runtime_wav_dir is not None:
+            self._runtime_wav_dir.mkdir(parents=True, exist_ok=True)
         self.waited_priority = None
         self.waited_timeout_seconds = None
         self.synthesized_paths: list[Path] = []
@@ -212,6 +215,27 @@ class TTSPipelinePriorityTests(unittest.TestCase):
             self.assertEqual(ready_path, probe._cached_wav_path("Timer started.", "en"))
             self.assertEqual(existing_job.priority, probe._PRIORITY_CURRENT)
             self.assertEqual(probe.waited_priority, probe._PRIORITY_CURRENT)
+
+
+    def test_action_fast_direct_current_uses_runtime_wav_dir_when_available(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base = Path(temp_dir)
+            probe = _PriorityProbe(base / "cache", runtime_wav_dir=base / "runtime")
+            text = "It is ten thirty."
+
+            ready, source, ready_path = probe._ensure_current_wav_ready(
+                text=text,
+                lang="en",
+                cache_path=probe._cached_wav_path(text, "en"),
+                cache_hit=False,
+                latency_profile="action_fast",
+            )
+
+            self.assertTrue(ready)
+            self.assertEqual(source, "direct_current_runtime_wav")
+            self.assertTrue(ready_path.exists())
+            self.assertEqual(ready_path.parent, base / "runtime")
+            self.assertEqual(probe.synthesized_paths[-1], ready_path)
 
     def test_action_fast_bypasses_low_priority_pending_job_with_direct_current_temp_wav(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

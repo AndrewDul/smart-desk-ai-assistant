@@ -387,6 +387,7 @@ class TTSPipelineSynthesisMixin:
         )
 
         if played:
+            self._cleanup_runtime_wav_path(ready_wav_path=ready_wav_path, cache_path=cache_path)
             append_log(
                 f"TTS total finished: lang={normalized_lang}, chars={len(text)}, "
                 f"cache_hit={cache_hit}, wav_ready_source={ready_source}, "
@@ -396,11 +397,7 @@ class TTSPipelineSynthesisMixin:
             )
             return True
 
-        if ready_source == "direct_current_bypass_pending" and ready_wav_path.exists():
-            try:
-                ready_wav_path.unlink()
-            except OSError:
-                pass
+        self._cleanup_runtime_wav_path(ready_wav_path=ready_wav_path, cache_path=cache_path)
 
         if cache_path.exists():
             try:
@@ -469,10 +466,19 @@ class TTSPipelineSynthesisMixin:
             lang=lang,
             latency_profile=latency_profile,
         ):
-            direct_path = self._bypass_pending_direct_current_wav_path(cache_path)
+            direct_path = self._resolve_direct_current_wav_path(
+                cache_path=cache_path,
+                latency_profile=latency_profile,
+                variant="direct-current",
+            )
             ok = self._synthesize_piper_to_wav(text, lang, direct_path)
             if ok and direct_path.exists():
-                return True, "direct_current_bypass_pending", direct_path
+                source = (
+                    "direct_current_bypass_pending_runtime_wav"
+                    if self._is_runtime_wav_path(direct_path)
+                    else "direct_current_bypass_pending"
+                )
+                return True, source, direct_path
             if direct_path.exists():
                 try:
                     direct_path.unlink()
@@ -496,8 +502,14 @@ class TTSPipelineSynthesisMixin:
             lang=lang,
             latency_profile=latency_profile,
         ):
-            ok = self._synthesize_piper_to_wav(text, lang, cache_path)
-            return ok, "direct_current", cache_path
+            direct_path = self._resolve_direct_current_wav_path(
+                cache_path=cache_path,
+                latency_profile=latency_profile,
+                variant="current",
+            )
+            ok = self._synthesize_piper_to_wav(text, lang, direct_path)
+            source = "direct_current_runtime_wav" if self._is_runtime_wav_path(direct_path) else "direct_current"
+            return ok, source, direct_path
 
         current_job = self._enqueue_synthesis(
             text,
@@ -509,6 +521,71 @@ class TTSPipelineSynthesisMixin:
             timeout_seconds=self._current_job_wait_seconds,
         )
         return ready, "queued_current", cache_path
+
+
+    def _resolve_runtime_wav_dir(self, configured_directory: str = "") -> Path | None:
+        candidates: list[Path] = []
+        configured = str(configured_directory or "").strip()
+        if configured:
+            candidates.append(Path(configured))
+        candidates.append(Path("/dev/shm/nexa_tts"))
+
+        for candidate in candidates:
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                continue
+            if candidate.exists() and candidate.is_dir():
+                return candidate
+        return None
+
+    def _should_use_runtime_wav_dir_for_current(self, *, latency_profile: str | None = None) -> bool:
+        runtime_dir = getattr(self, "_runtime_wav_dir", None)
+        if runtime_dir is None:
+            return False
+        normalized_profile = str(latency_profile or "").strip().lower()
+        return normalized_profile == "action_fast"
+
+    def _resolve_direct_current_wav_path(
+        self,
+        *,
+        cache_path: Path,
+        latency_profile: str | None = None,
+        variant: str,
+    ) -> Path:
+        if not self._should_use_runtime_wav_dir_for_current(latency_profile=latency_profile):
+            if variant == "direct-current":
+                return self._bypass_pending_direct_current_wav_path(cache_path)
+            return cache_path
+
+        runtime_dir = getattr(self, "_runtime_wav_dir", None)
+        if runtime_dir is None:
+            if variant == "direct-current":
+                return self._bypass_pending_direct_current_wav_path(cache_path)
+            return cache_path
+
+        return runtime_dir / f"{cache_path.stem}.{variant}{cache_path.suffix}"
+
+    def _is_runtime_wav_path(self, wav_path: Path) -> bool:
+        runtime_dir = getattr(self, "_runtime_wav_dir", None)
+        if runtime_dir is None:
+            return False
+        try:
+            return wav_path.parent == runtime_dir
+        except Exception:
+            return False
+
+    def _cleanup_runtime_wav_path(self, *, ready_wav_path: Path, cache_path: Path) -> None:
+        if ready_wav_path == cache_path:
+            return
+        if not self._is_runtime_wav_path(ready_wav_path):
+            return
+        if ready_wav_path.exists():
+            try:
+                ready_wav_path.unlink()
+            except OSError:
+                pass
+
 
     @staticmethod
     def _bypass_pending_direct_current_wav_path(cache_path: Path) -> Path:

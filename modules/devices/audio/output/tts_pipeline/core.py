@@ -67,6 +67,7 @@ class TTSPipeline(
         preferred_playback_backend: str = "",
         console_echo_enabled: bool = False,
         spoken_text_log_enabled: bool = False,
+        runtime_wav_directory: str = "",
     ) -> None:
         self.enabled = bool(enabled)
         self.preferred_engine = (
@@ -132,6 +133,7 @@ class TTSPipeline(
         self._sounddevice_playback_ready: bool | None = None
         self._console_echo_enabled = bool(console_echo_enabled)
         self._spoken_text_log_enabled = bool(spoken_text_log_enabled)
+        self._runtime_wav_dir = self._resolve_runtime_wav_dir(runtime_wav_directory)
 
         # Timeouts and queue timing tuned for fast short replies on Raspberry Pi.
         self._synthesis_timeout_seconds = 18.0
@@ -222,6 +224,7 @@ class TTSPipeline(
             f"current_job_wait={self._current_job_wait_seconds:.1f}s, "
             f"direct_current_chars={self._direct_current_synthesis_max_chars}, "
             f"action_fast_direct_current_chars={self._action_fast_direct_current_synthesis_max_chars}, "
+            f"runtime_wav_dir={self._runtime_wav_dir or '-'}, "
             f"early_next_prefetch_chars={self._early_next_prefetch_max_chars}"
         )
         append_log(
