@@ -137,8 +137,19 @@ class NullVisionBackend:
     Placeholder backend until the camera stack is fully enabled.
     """
 
-    def latest_observation(self) -> Any:
+    def latest_observation(self, *, force_refresh: bool = True) -> Any:
+        del force_refresh
         return None
+
+    def status(self) -> dict[str, object]:
+        return {
+            "ok": False,
+            "enabled": False,
+            "backend": "null_vision",
+            "detail": "Vision backend disabled or unavailable.",
+            "last_capture_available": False,
+            "last_error": None,
+        }
 
     def close(self) -> None:
         return None

@@ -6,6 +6,7 @@ from .protocols import (
     RichWakeGateBackend,
     SpeechInputBackend,
     SpeechOutputBackend,
+    VisionBackend,
     WakeGateBackend,
 )
 from .response import AssistantChunk, ResponsePlan
@@ -44,6 +45,7 @@ __all__ = [
     "SpeechInputBackend",
     "SpeechOutputBackend",
     "StreamMode",
+    "VisionBackend",
     "ToolInvocation",
     "ToolResult",
     "TranscriptRequest",

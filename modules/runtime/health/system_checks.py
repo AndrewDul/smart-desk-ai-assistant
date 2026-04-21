@@ -194,15 +194,41 @@ class HealthSystemChecks(HealthCheckHelpers):
         if not bool(vision_cfg.get("enabled", False)):
             return self._info("vision", "disabled by config", critical=False)
 
-        missing_modules: list[str] = []
-        for module_name, label in (("cv2", "opencv-python"), ("numpy", "numpy")):
-            if not self._module_exists(module_name):
-                missing_modules.append(label)
+        requested_backends: list[str] = []
+        for key in ("backend", "fallback_backend"):
+            raw_value = str(vision_cfg.get(key, "") or "").strip().lower()
+            if raw_value and raw_value not in {"none", *requested_backends}:
+                requested_backends.append(raw_value)
 
-        if missing_modules:
+        if not requested_backends:
+            requested_backends.append("picamera2")
+
+        if not self._module_exists("numpy"):
+            return self._error("vision", "missing vision runtime package: numpy")
+
+        unsupported_backends = sorted({backend for backend in requested_backends if backend not in {"picamera2", "opencv"}})
+        if unsupported_backends:
             return self._error(
                 "vision",
-                "missing vision runtime packages: " + ", ".join(sorted(set(missing_modules))),
+                "unsupported vision backend(s): " + ", ".join(unsupported_backends),
+            )
+
+        availability: dict[str, bool] = {}
+        for backend in requested_backends:
+            if backend == "picamera2":
+                availability[backend] = self._module_exists("picamera2")
+            elif backend == "opencv":
+                availability[backend] = self._module_exists("cv2")
+
+        available_backends = [backend for backend in requested_backends if availability.get(backend, False)]
+        if not available_backends:
+            missing_labels = [
+                "picamera2" if backend == "picamera2" else "opencv-python"
+                for backend in requested_backends
+            ]
+            return self._error(
+                "vision",
+                "missing vision runtime packages: " + ", ".join(sorted(set(missing_labels))),
             )
 
         camera_index = int(vision_cfg.get("camera_index", 0))
@@ -219,9 +245,10 @@ class HealthSystemChecks(HealthCheckHelpers):
             capabilities.append("behavior")
 
         capability_text = ", ".join(capabilities) if capabilities else "camera-only"
+        selected_text = ", ".join(available_backends)
         return self._info(
             "vision",
-            f"camera index {camera_index} configured, capabilities={capability_text}",
+            f"camera index {camera_index} configured, backends={selected_text}, capabilities={capability_text}",
             critical=False,
         )
 

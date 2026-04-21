@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
+from .context import VisionObservation
 from .understanding import TranscriptRequest, TranscriptResult, WakeDetectionResult
 
 
@@ -106,12 +107,31 @@ class DisplayBackend(Protocol):
 
     def close(self) -> None:
         ...
-    
+
     def set_developer_overlay(self, title: str, lines: list[str]) -> None:
         ...
 
     def clear_developer_overlay(self) -> None:
         ...
+
+
+@runtime_checkable
+class VisionBackend(Protocol):
+    """Stable runtime contract for the NeXa vision subsystem."""
+
+    def latest_observation(
+        self,
+        *,
+        force_refresh: bool = True,
+    ) -> VisionObservation | None:
+        ...
+
+    def status(self) -> dict[str, Any]:
+        ...
+
+    def close(self) -> None:
+        ...
+
 
 __all__ = [
     "DisplayBackend",
@@ -119,5 +139,6 @@ __all__ = [
     "RichWakeGateBackend",
     "SpeechInputBackend",
     "SpeechOutputBackend",
+    "VisionBackend",
     "WakeGateBackend",
 ]

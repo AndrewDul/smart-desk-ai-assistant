@@ -12,6 +12,7 @@ from modules.shared.persistence.paths import SYSTEM_LOG_PATH, ensure_runtime_dir
 _LOGGER_LOCK = threading.RLock()
 _LOGGER_CACHE: dict[str, logging.Logger] = {}
 _LOGGER_SIGNATURES: dict[str, tuple[str, int, int, bool]] = {}
+_RETRYABLE_FALLBACK_ATTR = "_nexa_retryable_logging_fallback"
 
 
 def _safe_bool(value: Any, default: bool) -> bool:
@@ -51,7 +52,12 @@ def _configured_backup_count() -> int:
     return max(0, _safe_int(get_setting("logging.backup_count", 2), 2))
 
 
-def _logger_signature(log_path: Path, max_bytes: int, backup_count: int, console_enabled: bool) -> tuple[str, int, int, bool]:
+def _logger_signature(
+    log_path: Path,
+    max_bytes: int,
+    backup_count: int,
+    console_enabled: bool,
+) -> tuple[str, int, int, bool]:
     return (str(log_path.resolve()), max_bytes, backup_count, console_enabled)
 
 
@@ -71,6 +77,23 @@ def _build_file_handler(log_path: Path, max_bytes: int, backup_count: int) -> Ro
         backupCount=backup_count,
         encoding="utf-8",
     )
+
+
+def _build_stream_handler(
+    formatter: logging.Formatter,
+    *,
+    retryable_fallback: bool = False,
+) -> logging.Handler:
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(formatter)
+    if retryable_fallback:
+        setattr(handler, _RETRYABLE_FALLBACK_ATTR, True)
+    return handler
+
+
+def _has_retryable_fallback_handler(logger: logging.Logger) -> bool:
+    return any(bool(getattr(handler, _RETRYABLE_FALLBACK_ATTR, False)) for handler in logger.handlers)
 
 
 def _remove_all_handlers(logger: logging.Logger) -> None:
@@ -104,27 +127,38 @@ def _configure_logger(logger_name: str) -> logging.Logger:
         logger.propagate = False
         _LOGGER_CACHE[logger_name] = logger
 
-    if _LOGGER_SIGNATURES.get(logger_name) == signature and logger.handlers:
+    if (
+        _LOGGER_SIGNATURES.get(logger_name) == signature
+        and logger.handlers
+        and not _has_retryable_fallback_handler(logger)
+    ):
         return logger
 
     _remove_all_handlers(logger)
 
     formatter = _build_formatter()
 
-    file_handler = _build_file_handler(
-        log_path=log_path,
-        max_bytes=max_bytes,
-        backup_count=backup_count,
-    )
-    file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+    try:
+        file_handler = _build_file_handler(
+            log_path=log_path,
+            max_bytes=max_bytes,
+            backup_count=backup_count,
+        )
+    except OSError as error:
+        fallback_handler = _build_stream_handler(formatter, retryable_fallback=True)
+        logger.addHandler(fallback_handler)
+        logger.warning(
+            "Primary log file unavailable, using stderr fallback. path=%s error=%s",
+            log_path,
+            error,
+        )
+    else:
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
 
-    if console_enabled:
-        stream_handler = logging.StreamHandler()
-        stream_handler.setLevel(logging.INFO)
-        stream_handler.setFormatter(formatter)
-        logger.addHandler(stream_handler)
+        if console_enabled:
+            logger.addHandler(_build_stream_handler(formatter))
 
     _LOGGER_SIGNATURES[logger_name] = signature
     return logger
