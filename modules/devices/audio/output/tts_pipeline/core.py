@@ -132,6 +132,7 @@ class TTSPipeline(
         # Timeouts and queue timing tuned for fast short replies on Raspberry Pi.
         self._synthesis_timeout_seconds = 18.0
         self._playback_timeout_seconds = 24.0
+        self._piper_failure_diagnostic_retry_enabled = True
         self._process_poll_seconds = max(0.001, float(process_poll_seconds))
         self._playback_poll_seconds = max(0.001, float(playback_poll_seconds))
         self._job_wait_poll_seconds = 0.015

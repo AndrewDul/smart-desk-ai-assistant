@@ -189,6 +189,23 @@ class TTSPipelineSynthesisMixin:
         elif stdout_text:
             append_log(f"TTS subprocess stdout: {stdout_text}")
 
+    def _should_retry_piper_synthesis_with_diagnostics(self) -> bool:
+        return bool(getattr(self, "_piper_failure_diagnostic_retry_enabled", True))
+
+    def _run_piper_synthesis_command(
+        self,
+        *,
+        command: list[str],
+        source: str,
+        capture_output: bool,
+    ) -> bool:
+        return self._run_process_interruptibly(
+            command,
+            timeout_seconds=self._synthesis_timeout_seconds,
+            source=source,
+            capture_output=capture_output,
+        )
+
     def _synthesize_piper_to_wav(self, text: str, lang: str, wav_path) -> bool:
         normalized_lang = self._normalize_language(lang)
         model_info = self._resolved_piper_paths.get(normalized_lang)
@@ -224,11 +241,32 @@ class TTSPipelineSynthesisMixin:
 
         started_at = time.monotonic()
         source = f"piper_synthesis_{normalized_lang}"
-        ok = self._run_process_interruptibly(
-            command,
-            timeout_seconds=self._synthesis_timeout_seconds,
+        ok = self._run_piper_synthesis_command(
+            command=command,
             source=source,
+            capture_output=False,
         )
+
+        needs_diagnostic_retry = (
+            (not ok or not wav_path.exists())
+            and self._should_retry_piper_synthesis_with_diagnostics()
+        )
+        if needs_diagnostic_retry and not self._stop_requested.is_set():
+            if wav_path.exists():
+                try:
+                    wav_path.unlink()
+                except OSError:
+                    pass
+
+            append_log(
+                f"Piper synthesis fast path failed, retrying once with diagnostics: lang={normalized_lang}"
+            )
+            ok = self._run_piper_synthesis_command(
+                command=command,
+                source=source,
+                capture_output=True,
+            )
+
         if not ok:
             append_log(f"Piper synthesis failed for language '{normalized_lang}'.")
             self._log_last_tts_process_failure(source, normalized_lang)

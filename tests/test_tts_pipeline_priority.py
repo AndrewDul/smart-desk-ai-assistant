@@ -146,7 +146,44 @@ class _RunnerResolutionProbe(TTSPipelineSynthesisMixin):
         self.python_probe_calls.append(str(python_path))
         return str(python_path) == "/fake/python"
 
+class _PiperSynthesisProbe(TTSPipelineSynthesisMixin):
+    def __init__(self, temp_dir: Path, *, success_on_attempt: int = 1) -> None:
+        self._resolved_piper_paths = {
+            "en": {
+                "model": temp_dir / "model.onnx",
+                "config": temp_dir / "model.onnx.json",
+            }
+        }
+        self._resolved_piper_paths["en"]["model"].write_text("model")
+        self._resolved_piper_paths["en"]["config"].write_text("config")
+        self._synthesis_timeout_seconds = 18.0
+        self._stop_requested = threading.Event()
+        self._piper_failure_diagnostic_retry_enabled = True
+        self.run_calls: list[dict[str, object]] = []
+        self.success_on_attempt = int(success_on_attempt)
 
+    def _normalize_language(self, language: str | None) -> str:
+        return str(language or "en").strip().lower() or "en"
+
+    def _build_piper_command(self, model_path, config_path, wav_path, text: str):
+        del model_path, config_path, text
+        return ["fake-piper", str(wav_path)]
+
+    def _format_process_command(self, args: list[str]) -> str:
+        return " ".join(str(item) for item in args)
+
+    def _run_process_interruptibly(self, args, **kwargs) -> bool:
+        attempt = len(self.run_calls) + 1
+        wav_path = Path(args[-1])
+        self.run_calls.append({"args": list(args), **dict(kwargs)})
+        if attempt >= self.success_on_attempt:
+            wav_path.write_bytes(b"RIFFtest")
+            return True
+        return False
+
+    def _get_last_process_result(self, source: str) -> dict[str, object]:
+        del source
+        return {}
 
 class TTSPipelinePriorityTests(unittest.TestCase):
     def test_current_path_promotes_matching_pending_prefetch_job(self) -> None:
@@ -273,6 +310,30 @@ class TTSPipelinePriorityTests(unittest.TestCase):
         self.assertEqual(first, "/fake/python")
         self.assertEqual(second, "/fake/python")
         self.assertEqual(probe.python_probe_calls, ["/fake/python"])
+
+
+    def test_piper_synthesis_fast_path_skips_output_capture_on_success(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            probe = _PiperSynthesisProbe(Path(temp_dir), success_on_attempt=1)
+            wav_path = Path(temp_dir) / "reply.wav"
+
+            ok = probe._synthesize_piper_to_wav("Hello", "en", wav_path)
+
+            self.assertTrue(ok)
+            self.assertEqual(len(probe.run_calls), 1)
+            self.assertFalse(probe.run_calls[0]["capture_output"])
+
+    def test_piper_synthesis_retries_with_output_capture_for_diagnostics_after_fast_path_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            probe = _PiperSynthesisProbe(Path(temp_dir), success_on_attempt=2)
+            wav_path = Path(temp_dir) / "reply.wav"
+
+            ok = probe._synthesize_piper_to_wav("Hello", "en", wav_path)
+
+            self.assertTrue(ok)
+            self.assertEqual(len(probe.run_calls), 2)
+            self.assertFalse(probe.run_calls[0]["capture_output"])
+            self.assertTrue(probe.run_calls[1]["capture_output"])
 
 
 if __name__ == "__main__":
