@@ -137,6 +137,9 @@ class NullVisionBackend:
     Placeholder backend until the camera stack is fully enabled.
     """
 
+    def start(self) -> None:
+        return None
+
     def latest_observation(self, *, force_refresh: bool = True) -> Any:
         del force_refresh
         return None

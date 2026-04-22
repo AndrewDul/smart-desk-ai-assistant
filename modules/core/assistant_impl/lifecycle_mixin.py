@@ -141,6 +141,49 @@ class CoreAssistantLifecycleMixin:
             f"health_reason={llm_health.get('health_reason', '')}"
         )
 
+
+    def _start_vision_backend(self) -> None:
+        """
+        Start the vision backend lifecycle if it exposes a start() hook.
+        Never raises — vision failure must not block assistant boot.
+        """
+        vision = getattr(self, "vision", None)
+        if vision is None:
+            return
+
+        start_method = getattr(vision, "start", None)
+        if not callable(start_method):
+            return
+
+        try:
+            start_method()
+            append_log("Vision backend started.")
+        except Exception as error:
+            log_exception("Failed to start vision backend during boot", error)
+
+    def _close_vision_backend(self) -> None:
+        """
+        Close the vision backend lifecycle if it exposes a close() hook.
+        Never raises — shutdown must complete even if vision cleanup fails.
+        """
+        vision = getattr(self, "vision", None)
+        if vision is None:
+            return
+
+        close_method = getattr(vision, "close", None)
+        if not callable(close_method):
+            return
+
+        try:
+            close_method()
+            append_log("Vision backend closed.")
+        except Exception as error:
+            log_exception("Failed to close vision backend during shutdown", error)
+
+    def boot(self) -> None:
+        self.shutdown_requested = False
+
+
     def boot(self) -> None:
         self.shutdown_requested = False
         self.last_language = "en"
@@ -155,6 +198,8 @@ class CoreAssistantLifecycleMixin:
 
         if not self._reminder_thread.is_alive():
             self._reminder_thread.start()
+
+        self._start_vision_backend()
 
         self._clear_developer_overlay()
         self.display.show_block(
@@ -264,6 +309,8 @@ class CoreAssistantLifecycleMixin:
             self.voice_session.set_state(VOICE_STATE_SHUTDOWN, detail="assistant_shutdown")
         except Exception as error:
             log_exception("Failed to update voice session during shutdown", error)
+
+        self._close_vision_backend()
 
         self._mark_runtime_state("mark_stopped", "assistant shut down")
         append_log("Assistant shut down.")
