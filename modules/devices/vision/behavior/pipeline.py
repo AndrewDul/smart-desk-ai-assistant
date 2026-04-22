@@ -23,7 +23,12 @@ class BehaviorPipeline:
         presence = self.presence_interpreter.interpret(perception)
         desk_activity = self.desk_activity_interpreter.interpret(perception, presence)
         computer_work = self.computer_work_interpreter.interpret(perception, presence, desk_activity)
-        phone_usage = self.phone_usage_interpreter.interpret(perception, presence)
+        phone_usage = self.phone_usage_interpreter.interpret(
+            perception,
+            presence,
+            desk_activity,
+            computer_work,
+        )
         study_activity = self.study_activity_interpreter.interpret(
             perception,
             presence,
