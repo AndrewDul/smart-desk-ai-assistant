@@ -7,110 +7,110 @@
   "user": {
     "name": "Andrzej"
   },
- "voice_input": {
-  "enabled": true,
-  "engine": "faster_whisper",
-  "wake_engine": "openwakeword",
-  "single_capture_mode": true,
-  "wake_prefer_dedicated_gate": false,
-  "wake_model_path": "models/wake/nexa.onnx",
-  "wake_threshold": 0.24,
-  "wake_trigger_level": 2,
-  "wake_block_ms": 120,
-  "wake_vad_threshold": 0.0,
-  "wake_energy_rms_threshold": 0.003,
-  "wake_enable_speex_noise_suppression": false,
-  "wake_debug": true,
-  "wake_barge_in_enabled": true,
-  "wake_barge_in_timeout_seconds": 0.18,
-  "wake_barge_in_min_output_age_seconds": 0.35,
-  "wake_barge_in_resume_timeout_seconds": 1.25,
-  "wake_barge_in_refractory_seconds": 0.75,
+  "voice_input": {
+    "enabled": true,
+    "engine": "faster_whisper",
+    "wake_engine": "openwakeword",
+    "single_capture_mode": true,
+    "wake_prefer_dedicated_gate": false,
+    "wake_model_path": "models/wake/nexa.onnx",
+    "wake_threshold": 0.24,
+    "wake_trigger_level": 2,
+    "wake_block_ms": 120,
+    "wake_vad_threshold": 0.0,
+    "wake_energy_rms_threshold": 0.003,
+    "wake_enable_speex_noise_suppression": false,
+    "wake_debug": true,
+    "wake_barge_in_enabled": true,
+    "wake_barge_in_timeout_seconds": 0.18,
+    "wake_barge_in_min_output_age_seconds": 0.35,
+    "wake_barge_in_resume_timeout_seconds": 1.25,
+    "wake_barge_in_refractory_seconds": 0.75,
     "wake_score_smoothing_window": 3,
-  "wake_channel_mode": "mono_mix",
-  "wake_channel_index": 0,
-  "device_index": 1,
-  "device_name_contains": "reSpeaker",
-  "timeout_seconds": 7,
-  "active_listen_window_seconds": 6.0,
-  "thinking_ack_seconds": 1.2,
-  "wake_ack_prefetch_on_boot": true,
-  "wake_ack_prefer_fast_phrase": true,
-  "wake_ack_fast_phrase_max_words": 2,
-  "wake_ack_output_hold_seconds": 0.04,
-  "wake_ack_skip_for_dedicated_gate": true,
-  "wake_command_handoff_reuse_enabled": true,
-  "wake_command_handoff_reuse_max_age_seconds": 1.2,
-  "active_window_retry_min_remaining_seconds": 0.35,
-  "debug": false,
-  "sample_rate": 16000,
-  "max_record_seconds": 6.5,
-  "end_silence_seconds": 0.6,
-  "pre_roll_seconds": 0.45,
-  "blocksize": 1024,
-  "min_speech_seconds": 0.2,
-  "transcription_timeout_seconds": 10.0,
-  "threads": 4,
-  "language": "auto",
-  "vad_enabled": true,
-  "vad_threshold": 0.3,
-  "vad_min_speech_ms": 120,
-  "vad_min_silence_ms": 250,
-  "vad_speech_pad_ms": 180,
-  "compute_type": "int8",
-  "beam_size": 1,
-  "best_of": 1,
-  "model_size_or_path": "tiny",
-  "whisper_cli_path": "whisper.cpp/build/bin/whisper-cli",
-  "model_path": "models/ggml-base.bin",
-  "vad_model_path": "models/ggml-silero-v6.2.0.bin",
-  "device_discovery_timeout_seconds": 20.0,
-  "device_discovery_poll_seconds": 0.35,
-  "capture_profiles": {
-  "command": {
-    "timeout_seconds": 5.2,
-    "end_silence_seconds": 0.4,
-    "min_speech_seconds": 0.14,
-    "pre_roll_seconds": 0.24
-  },
-  "inline_command_after_wake": {
-    "timeout_seconds": 4.2,
-    "end_silence_seconds": 0.32,
-    "min_speech_seconds": 0.12,
-    "pre_roll_seconds": 0.18
-  },
-  "wake_command": {
-    "timeout_seconds": 4.4,
-    "end_silence_seconds": 0.26,
-    "min_speech_seconds": 0.1,
-    "pre_roll_seconds": 0.14
-  },
-  "follow_up": {
-    "timeout_seconds": 4.8,
-    "end_silence_seconds": 0.34,
-    "min_speech_seconds": 0.12,
-    "pre_roll_seconds": 0.2
-  },
-  "grace": {
-    "timeout_seconds": 3.2,
-    "end_silence_seconds": 0.28,
-    "min_speech_seconds": 0.1,
-    "pre_roll_seconds": 0.16
-  },
-  "conversation": {
-    "timeout_seconds": 6.5,
+    "wake_channel_mode": "mono_mix",
+    "wake_channel_index": 0,
+    "device_index": 1,
+    "device_name_contains": "reSpeaker",
+    "timeout_seconds": 7,
+    "active_listen_window_seconds": 6.0,
+    "thinking_ack_seconds": 1.2,
+    "wake_ack_prefetch_on_boot": true,
+    "wake_ack_prefer_fast_phrase": true,
+    "wake_ack_fast_phrase_max_words": 2,
+    "wake_ack_output_hold_seconds": 0.04,
+    "wake_ack_skip_for_dedicated_gate": true,
+    "wake_command_handoff_reuse_enabled": true,
+    "wake_command_handoff_reuse_max_age_seconds": 1.2,
+    "active_window_retry_min_remaining_seconds": 0.35,
+    "debug": false,
+    "sample_rate": 16000,
+    "max_record_seconds": 6.5,
     "end_silence_seconds": 0.6,
+    "pre_roll_seconds": 0.45,
+    "blocksize": 1024,
     "min_speech_seconds": 0.2,
-    "pre_roll_seconds": 0.45
+    "transcription_timeout_seconds": 10.0,
+    "threads": 4,
+    "language": "auto",
+    "vad_enabled": true,
+    "vad_threshold": 0.3,
+    "vad_min_speech_ms": 120,
+    "vad_min_silence_ms": 250,
+    "vad_speech_pad_ms": 180,
+    "compute_type": "int8",
+    "beam_size": 1,
+    "best_of": 1,
+    "model_size_or_path": "tiny",
+    "whisper_cli_path": "whisper.cpp/build/bin/whisper-cli",
+    "model_path": "models/ggml-base.bin",
+    "vad_model_path": "models/ggml-silero-v6.2.0.bin",
+    "device_discovery_timeout_seconds": 20.0,
+    "device_discovery_poll_seconds": 0.35,
+    "capture_profiles": {
+      "command": {
+        "timeout_seconds": 5.2,
+        "end_silence_seconds": 0.4,
+        "min_speech_seconds": 0.14,
+        "pre_roll_seconds": 0.24
+      },
+      "inline_command_after_wake": {
+        "timeout_seconds": 4.2,
+        "end_silence_seconds": 0.32,
+        "min_speech_seconds": 0.12,
+        "pre_roll_seconds": 0.18
+      },
+      "wake_command": {
+        "timeout_seconds": 4.4,
+        "end_silence_seconds": 0.26,
+        "min_speech_seconds": 0.1,
+        "pre_roll_seconds": 0.14
+      },
+      "follow_up": {
+        "timeout_seconds": 4.8,
+        "end_silence_seconds": 0.34,
+        "min_speech_seconds": 0.12,
+        "pre_roll_seconds": 0.2
+      },
+      "grace": {
+        "timeout_seconds": 3.2,
+        "end_silence_seconds": 0.28,
+        "min_speech_seconds": 0.1,
+        "pre_roll_seconds": 0.16
+      },
+      "conversation": {
+        "timeout_seconds": 6.5,
+        "end_silence_seconds": 0.6,
+        "min_speech_seconds": 0.2,
+        "pre_roll_seconds": 0.45
+      },
+      "wake_fallback": {
+        "timeout_seconds": 1.5,
+        "end_silence_seconds": 0.18,
+        "min_speech_seconds": 0.07,
+        "pre_roll_seconds": 0.1
+      }
+    }
   },
-  "wake_fallback": {
-    "timeout_seconds": 1.5,
-    "end_silence_seconds": 0.18,
-    "min_speech_seconds": 0.07,
-    "pre_roll_seconds": 0.1
-  }
-}
-},
   "voice_output": {
     "enabled": true,
     "engine": "piper",
@@ -141,7 +141,7 @@
     "interface": "spi",
     "port": 1,
     "address": 60,
-    "rotate":180,
+    "rotate": 180,
     "width": 240,
     "height": 320,
     "gpio_dc": 25,
@@ -156,13 +156,13 @@
       "title": "DEV",
       "refresh_on_boot": true,
       "refresh_on_turn_finish": true
-}
+    }
   },
   "timers": {
     "default_focus_minutes": 25,
     "default_break_minutes": 5
   },
-   "streaming": {
+  "streaming": {
     "dialogue_stream_mode": "sentence",
     "live_llm_sentence_streaming_enabled": true,
     "inter_chunk_pause_seconds": 0.0,
@@ -173,45 +173,45 @@
     "prefetch_text_response_max_chars": 220
   },
   "audio_coordination": {
-  "self_hearing_hold_seconds": 0.32,
-  "listen_resume_poll_seconds": 0.04
-},
+    "self_hearing_hold_seconds": 0.32,
+    "listen_resume_poll_seconds": 0.04
+  },
   "conversation": {
     "max_turns": 10,
     "max_total_chars": 2200
   },
   "llm": {
-  "enabled": true,
-  "runner": "hailo-ollama",
-  "command": "llama-cli",
-  "model_path": "models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
-  "n_predict": 72,
-  "temperature": 0.55,
-  "top_p": 0.9,
-  "top_k": 40,
-  "ctx_size": 2048,
-  "threads": 4,
-  "timeout_seconds": 10.0,
-  "repeat_penalty": 1.08,
-  "max_prompt_chars": 2200,
-  "prefer_json": false,
-  "stream_sentence_min_chars": 10,
-  "stream_sentence_soft_max_chars": 56,
-  "stream_first_chunk_min_chars": 20,
-  "stream_first_chunk_soft_max_chars": 36,
-  "server_url": "http://127.0.0.1:8000",
-  "server_chat_path": "/api/chat",
-  "server_health_path": "/hailo/v1/list",
-  "server_api_key": "",
-  "server_model_name":"qwen2:1.5b",
-  "server_use_openai_compat": false,
-  "server_connect_timeout_seconds": 2.0,
-  "require_persistent_backend": true,
-  "allow_cli_fallback": false,
-  "stream_responses": true,
-  "startup_warmup": true,
-  "startup_warmup_timeout_seconds": 12.0
-},
+    "enabled": true,
+    "runner": "hailo-ollama",
+    "command": "llama-cli",
+    "model_path": "models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
+    "n_predict": 72,
+    "temperature": 0.55,
+    "top_p": 0.9,
+    "top_k": 40,
+    "ctx_size": 2048,
+    "threads": 4,
+    "timeout_seconds": 10.0,
+    "repeat_penalty": 1.08,
+    "max_prompt_chars": 2200,
+    "prefer_json": false,
+    "stream_sentence_min_chars": 10,
+    "stream_sentence_soft_max_chars": 56,
+    "stream_first_chunk_min_chars": 20,
+    "stream_first_chunk_soft_max_chars": 36,
+    "server_url": "http://127.0.0.1:8000",
+    "server_chat_path": "/api/chat",
+    "server_health_path": "/hailo/v1/list",
+    "server_api_key": "",
+    "server_model_name": "qwen2:1.5b",
+    "server_use_openai_compat": false,
+    "server_connect_timeout_seconds": 2.0,
+    "require_persistent_backend": true,
+    "allow_cli_fallback": false,
+    "stream_responses": true,
+    "startup_warmup": true,
+    "startup_warmup_timeout_seconds": 12.0
+  },
   "logging": {
     "enabled": true,
     "console_enabled": false,
@@ -226,44 +226,50 @@
       "poweroff"
     ]
   },
- "deployment": {
-  "unit_output_dir": "deploy/systemd",
-  "app_unit_name": "nexa.service",
-  "llm_unit_name": "nexa-llm.service",
-  "user": "devdul",
-  "group": "devdul",
-  "python_path": "/home/devdul/Projects/smart-desk-ai-assistant/.venv/bin/python",
-  "environment_file": "config/systemd/nexa.env",
-  "app_restart": "on-failure",
-  "app_restart_sec": 2.0,
-  "app_start_limit_interval_sec": 30,
-  "app_start_limit_burst": 5,
-  "app_timeout_stop_sec": 25.0,
-  "app_kill_signal": "SIGINT",
-  "app_environment": {},
-  "llm_service_enabled": false,
-  "llm_service_command": [],
-  "llm_service_working_directory": "",
-  "llm_restart": "on-failure",
-  "llm_restart_sec": 2.0,
-  "llm_start_limit_interval_sec": 30,
-  "llm_start_limit_burst": 5,
-  "llm_timeout_stop_sec": 20.0,
-  "llm_kill_signal": "SIGTERM",
-  "llm_environment": {}
-},
+  "deployment": {
+    "unit_output_dir": "deploy/systemd",
+    "app_unit_name": "nexa.service",
+    "llm_unit_name": "nexa-llm.service",
+    "user": "devdul",
+    "group": "devdul",
+    "python_path": "/home/devdul/Projects/smart-desk-ai-assistant/.venv/bin/python",
+    "environment_file": "config/systemd/nexa.env",
+    "app_restart": "on-failure",
+    "app_restart_sec": 2.0,
+    "app_start_limit_interval_sec": 30,
+    "app_start_limit_burst": 5,
+    "app_timeout_stop_sec": 25.0,
+    "app_kill_signal": "SIGINT",
+    "app_environment": {},
+    "llm_service_enabled": false,
+    "llm_service_command": [],
+    "llm_service_working_directory": "",
+    "llm_restart": "on-failure",
+    "llm_restart_sec": 2.0,
+    "llm_start_limit_interval_sec": 30,
+    "llm_start_limit_burst": 5,
+    "llm_timeout_stop_sec": 20.0,
+    "llm_kill_signal": "SIGTERM",
+    "llm_environment": {}
+  },
   "runtime_product": {
-  "persist_status": true,
-  "status_path": "var/data/runtime_status.json",
-  "required_ready_components": ["voice_input", "voice_output", "display"],
-  "auto_recovery_components": ["llm"],
-  "treat_llm_as_required_when_enabled": false
-},
+    "persist_status": true,
+    "status_path": "var/data/runtime_status.json",
+    "required_ready_components": [
+      "voice_input",
+      "voice_output",
+      "display"
+    ],
+    "auto_recovery_components": [
+      "llm"
+    ],
+    "treat_llm_as_required_when_enabled": false
+  },
   "fast_command_lane": {
     "enabled": true
   },
   "vision": {
-    "enabled": false,
+    "enabled": true,
     "camera_index": 0,
     "frame_width": 1280,
     "frame_height": 720,
@@ -271,7 +277,9 @@
     "object_detection_enabled": false,
     "scene_understanding_enabled": false,
     "gesture_recognition_enabled": false,
-    "behavior_interpretation_enabled": false
+    "behavior_interpretation_enabled": false,
+    "continuous_capture_enabled": true,
+    "continuous_capture_target_fps": 10.0
   },
   "pan_tilt": {
     "enabled": true,
@@ -287,17 +295,13 @@
     "move_delay_seconds": 0.0,
     "settle_seconds": 0.02,
     "pan_max_angle": 118,
-
     "tilt_min_angle": 28,
     "tilt_center_angle": 90,
     "tilt_max_angle": 152,
-
     "step_degrees": 18,
-
     "motion_duration_seconds": 0.32,
     "motion_steps": 12,
     "motion_curve": "ease_in_out",
-
     "pan_inverted": true,
     "tilt_inverted": true
   },
