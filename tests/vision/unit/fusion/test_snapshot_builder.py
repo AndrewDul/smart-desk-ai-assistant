@@ -70,14 +70,15 @@ class SnapshotBuilderTests(unittest.TestCase):
             ),
             scene=SceneContext(
                 desk_zone_people_count=1,
+                engagement_face_count=1,
                 screen_candidate_count=1,
                 handheld_candidate_count=0,
-                labels=("person_in_desk_zone", "screen_candidate_visible"),
+                labels=("person_in_desk_zone", "face_in_engagement_zone", "screen_candidate_visible"),
             ),
         )
         behavior = BehaviorSnapshot(
             presence=ActivitySignal(active=True, confidence=0.91, reasons=("person_detected", "face_detected")),
-            desk_activity=ActivitySignal(active=True, confidence=0.8, reasons=("desk_zone_occupied",)),
+            desk_activity=ActivitySignal(active=True, confidence=0.8, reasons=("desk_zone_occupied", "face_in_engagement_zone")),
             computer_work=ActivitySignal(active=True, confidence=0.82, reasons=("computer_object_detected",)),
             phone_usage=ActivitySignal(active=False, confidence=0.0, reasons=()),
             study_activity=ActivitySignal(active=True, confidence=0.78, reasons=("computer_work_confirmed",)),
@@ -137,12 +138,14 @@ class SnapshotBuilderTests(unittest.TestCase):
         self.assertFalse(observation.on_phone_likely)
         self.assertIn("object:laptop", observation.labels)
         self.assertIn("person_in_desk_zone", observation.labels)
+        self.assertIn("face_in_engagement_zone", observation.labels)
         self.assertIn("face_detected", observation.labels)
         self.assertIn("behavior:computer_work", observation.labels)
         self.assertIn("session:presence_active", observation.labels)
         self.assertIn("session:study_active", observation.labels)
         self.assertEqual(observation.metadata["perception"]["people_count"], 1)
         self.assertEqual(observation.metadata["perception"]["face_count"], 1)
+        self.assertEqual(observation.metadata["perception"]["engagement_face_count"], 1)
         self.assertEqual(observation.metadata["behavior"]["computer_work"]["active"], True)
         self.assertEqual(observation.metadata["sessions"]["presence"]["current_active_seconds"], 180.0)
         self.assertEqual(observation.metadata["sessions"]["phone_usage"]["last_active_streak_seconds"], 22.0)

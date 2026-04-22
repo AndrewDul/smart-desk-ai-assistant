@@ -111,6 +111,7 @@ def build_vision_observation(
             "objects": [_object_to_dict(obj) for obj in perception.objects],
             "detectors": dict(perception.metadata.get("detectors", {})),
             "desk_zone_people_count": perception.scene.desk_zone_people_count,
+            "engagement_face_count": perception.scene.engagement_face_count,
             "screen_candidate_count": perception.scene.screen_candidate_count,
             "handheld_candidate_count": perception.scene.handheld_candidate_count,
             "scene_metadata": perception.scene.metadata,
@@ -131,6 +132,7 @@ def build_vision_observation(
             "objects": [],
             "detectors": {"people": "null", "face": "null", "objects": "null", "scene": "null"},
             "desk_zone_people_count": 0,
+            "engagement_face_count": 0,
             "screen_candidate_count": 0,
             "handheld_candidate_count": 0,
         }

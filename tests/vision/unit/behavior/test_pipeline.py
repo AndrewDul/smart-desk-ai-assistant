@@ -5,6 +5,7 @@ import unittest
 from modules.devices.vision.behavior import BehaviorPipeline
 from modules.devices.vision.perception import (
     BoundingBox,
+    FaceDetection,
     ObjectDetection,
     PerceptionSnapshot,
     PersonDetection,
@@ -23,6 +24,12 @@ class BehaviorPipelineTests(unittest.TestCase):
                     confidence=0.92,
                 ),
             ),
+            faces=(
+                FaceDetection(
+                    bounding_box=BoundingBox(left=480, top=80, right=640, bottom=260),
+                    confidence=0.85,
+                ),
+            ),
             objects=(
                 ObjectDetection(
                     label="laptop",
@@ -32,6 +39,7 @@ class BehaviorPipelineTests(unittest.TestCase):
             ),
             scene=SceneContext(
                 desk_zone_people_count=1,
+                engagement_face_count=1,
                 screen_candidate_count=1,
                 handheld_candidate_count=0,
             ),

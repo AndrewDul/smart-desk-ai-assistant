@@ -28,6 +28,10 @@ class DeskActivityInterpreter:
             reasons.append("desk_zone_occupied")
             confidence += 0.25
 
+        if perception.scene.engagement_face_count > 0:
+            reasons.append("face_in_engagement_zone")
+            confidence += 0.25
+
         if perception.scene.screen_candidate_count > 0:
             reasons.append("screen_candidate_visible")
             confidence += 0.15
@@ -44,6 +48,7 @@ class DeskActivityInterpreter:
             reasons=tuple(reasons),
             metadata={
                 "desk_zone_people_count": perception.scene.desk_zone_people_count,
+                "engagement_face_count": perception.scene.engagement_face_count,
                 "screen_candidate_count": perception.scene.screen_candidate_count,
                 "handheld_candidate_count": perception.scene.handheld_candidate_count,
             },

@@ -30,15 +30,17 @@ def _max_face_confidence(observation) -> float:
     return max(float(face.get("confidence", 0.0)) for face in faces)
 
 
-def _score_observation(observation) -> tuple[int, int, int, float, float]:
+def _score_observation(observation) -> tuple[int, int, int, int, float, float]:
     perception = observation.metadata.get("perception", {})
     people_count = int(perception.get("people_count", 0))
     face_count = int(perception.get("face_count", 0))
+    engagement_face_count = int(perception.get("engagement_face_count", 0))
     user_present = 1 if observation.user_present else 0
     return (
+        int(observation.desk_active),
         user_present,
+        engagement_face_count,
         face_count,
-        people_count,
         _max_face_confidence(observation),
         _max_people_confidence(observation),
     )
@@ -101,6 +103,7 @@ def main() -> None:
                     "frame": idx,
                     "people_count": perception.get("people_count"),
                     "face_count": perception.get("face_count"),
+                    "engagement_face_count": perception.get("engagement_face_count"),
                     "user_present": observation.user_present,
                     "desk_active": observation.desk_active,
                     "max_people_confidence": _max_people_confidence(observation),
@@ -118,6 +121,7 @@ def main() -> None:
                     "best_desk_active": best.desk_active,
                     "best_people_count": best_perception.get("people_count"),
                     "best_face_count": best_perception.get("face_count"),
+                    "best_engagement_face_count": best_perception.get("engagement_face_count"),
                     "best_people": best_perception.get("people"),
                     "best_faces": best_perception.get("faces"),
                     "best_behavior": best.metadata.get("behavior", {}),

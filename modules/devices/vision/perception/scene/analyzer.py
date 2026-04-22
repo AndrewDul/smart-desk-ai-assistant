@@ -5,6 +5,7 @@ from typing import Protocol
 
 from modules.devices.vision.capture import FramePacket
 from modules.devices.vision.perception.models import (
+    FaceDetection,
     NormalizedRegion,
     ObjectDetection,
     PersonDetection,
@@ -33,6 +34,7 @@ class SceneAnalyzer(Protocol):
         self,
         packet: FramePacket,
         people: tuple[PersonDetection, ...],
+        faces: tuple[FaceDetection, ...],
         objects: tuple[ObjectDetection, ...],
     ) -> SceneContext:
         ...
@@ -55,6 +57,7 @@ class NullSceneAnalyzer:
         self,
         packet: FramePacket,
         people: tuple[PersonDetection, ...],
+        faces: tuple[FaceDetection, ...],
         objects: tuple[ObjectDetection, ...],
     ) -> SceneContext:
         frame_width = packet.width
@@ -65,6 +68,16 @@ class NullSceneAnalyzer:
             for person in people
             if self.zone_layout.desk_zone.contains_box_center(
                 person.bounding_box,
+                frame_width,
+                frame_height,
+            )
+        )
+
+        engagement_face_count = sum(
+            1
+            for face in faces
+            if self.zone_layout.face_zone.contains_box_center(
+                face.bounding_box,
                 frame_width,
                 frame_height,
             )
@@ -95,6 +108,8 @@ class NullSceneAnalyzer:
         labels: list[str] = []
         if desk_zone_people_count > 0:
             labels.append("person_in_desk_zone")
+        if engagement_face_count > 0:
+            labels.append("face_in_engagement_zone")
         if screen_candidate_count > 0:
             labels.append("screen_candidate_visible")
         if handheld_candidate_count > 0:
@@ -102,6 +117,7 @@ class NullSceneAnalyzer:
 
         return SceneContext(
             desk_zone_people_count=desk_zone_people_count,
+            engagement_face_count=engagement_face_count,
             screen_candidate_count=screen_candidate_count,
             handheld_candidate_count=handheld_candidate_count,
             labels=tuple(labels),
@@ -110,6 +126,7 @@ class NullSceneAnalyzer:
                     "desk_zone": _region_to_dict(self.zone_layout.desk_zone),
                     "screen_zone": _region_to_dict(self.zone_layout.screen_zone),
                     "handheld_zone": _region_to_dict(self.zone_layout.handheld_zone),
+                    "face_zone": _region_to_dict(self.zone_layout.face_zone),
                 }
             },
         )

@@ -23,6 +23,14 @@ class WorkspaceZonesTests(unittest.TestCase):
 
         self.assertFalse(result)
 
+    def test_default_face_zone_contains_face_in_upper_center_frame(self) -> None:
+        layout = build_default_workspace_zone_layout()
+        box = BoundingBox(left=420, top=80, right=620, bottom=280)
+
+        result = layout.face_zone.contains_box_center(box, frame_width=1280, frame_height=720)
+
+        self.assertTrue(result)
+
 
 if __name__ == "__main__":
     unittest.main()

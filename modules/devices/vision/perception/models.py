@@ -101,6 +101,7 @@ class ObjectDetection:
 @dataclass(frozen=True, slots=True)
 class SceneContext:
     desk_zone_people_count: int = 0
+    engagement_face_count: int = 0
     screen_candidate_count: int = 0
     handheld_candidate_count: int = 0
     labels: tuple[str, ...] = ()

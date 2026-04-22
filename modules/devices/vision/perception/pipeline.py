@@ -40,7 +40,7 @@ class PerceptionPipeline:
         people = tuple(self.people_detector.detect_people(packet))
         faces = tuple(self.face_detector.detect_faces(packet))
         objects = tuple(self.object_detector.detect_objects(packet))
-        scene = self.scene_analyzer.analyze_scene(packet, people, objects)
+        scene = self.scene_analyzer.analyze_scene(packet, people, faces, objects)
 
         return PerceptionSnapshot(
             frame_width=packet.width,
