@@ -44,6 +44,11 @@ class VisionRuntimeConfig:
     face_detector_roi_enabled: bool
     object_detection_enabled: bool
     object_detector_backend: str
+    object_detector_hailo_hef_path: str
+    object_detector_hailo_score_threshold: float
+    object_detector_hailo_max_detections: int
+    object_detector_hailo_initial_cadence_hz: float
+    object_detector_hailo_desk_relevant_only: bool
     scene_understanding_enabled: bool
     gesture_recognition_enabled: bool
     behavior_interpretation_enabled: bool
@@ -103,6 +108,11 @@ class VisionRuntimeConfig:
             face_detector_roi_enabled=bool(payload.get("face_detector_roi_enabled", True)),
             object_detection_enabled=bool(payload.get("object_detection_enabled", False)),
             object_detector_backend=str(payload.get("object_detector_backend", "null") or "null").strip().lower(),
+            object_detector_hailo_hef_path=str(payload.get("object_detector_hailo_hef_path", "/usr/share/hailo-models/yolov11m_h10.hef") or "").strip(),
+            object_detector_hailo_score_threshold=_clamp_float(payload.get("object_detector_hailo_score_threshold", 0.35), 0.0, 1.0),
+            object_detector_hailo_max_detections=max(1, int(payload.get("object_detector_hailo_max_detections", 30))),
+            object_detector_hailo_initial_cadence_hz=max(0.0, float(payload.get("object_detector_hailo_initial_cadence_hz", 2.0))),
+            object_detector_hailo_desk_relevant_only=bool(payload.get("object_detector_hailo_desk_relevant_only", False)),
             scene_understanding_enabled=bool(payload.get("scene_understanding_enabled", False)),
             gesture_recognition_enabled=bool(payload.get("gesture_recognition_enabled", False)),
             behavior_interpretation_enabled=bool(payload.get("behavior_interpretation_enabled", False)),

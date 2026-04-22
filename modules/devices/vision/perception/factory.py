@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from modules.devices.vision.config import VisionRuntimeConfig
 from modules.devices.vision.perception.face import FaceDetector, NullFaceDetector, OpenCvHaarFaceDetector
-from modules.devices.vision.perception.objects import NullObjectDetector, ObjectDetector
+from modules.devices.vision.perception.objects import (
+    HailoYoloObjectDetector,
+    NullObjectDetector,
+    ObjectDetector,
+)
 from modules.devices.vision.perception.people import (
     HybridFacePrimaryPeopleDetector,
     NullPeopleDetector,
@@ -87,4 +91,13 @@ def build_object_detector(config: VisionRuntimeConfig) -> ObjectDetector:
         return NullObjectDetector()
 
     backend = config.object_detector_backend
+    if backend == "hailo_yolov11":
+        return HailoYoloObjectDetector(
+            hef_path=config.object_detector_hailo_hef_path,
+            score_threshold=config.object_detector_hailo_score_threshold,
+            max_detections=config.object_detector_hailo_max_detections,
+            desk_relevant_only=config.object_detector_hailo_desk_relevant_only,
+            initial_cadence_hz=config.object_detector_hailo_initial_cadence_hz,
+        )
+
     raise ValueError(f"Unsupported object detector backend: {backend}")

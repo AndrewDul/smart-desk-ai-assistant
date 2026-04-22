@@ -1,3 +1,8 @@
 from .detector import NullObjectDetector, ObjectDetector
+from .hailo_yolo_detector import HailoYoloObjectDetector
 
-__all__ = ["NullObjectDetector", "ObjectDetector"]
+__all__ = [
+    "HailoYoloObjectDetector",
+    "NullObjectDetector",
+    "ObjectDetector",
+]

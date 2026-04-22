@@ -2375,3 +2375,334 @@ Instead of relying only on a standard desk power adapter model, the project now 
 - SSD-backed storage
 - explicit Raspberry Pi 5 power-policy control
 - a more honest and realistic embedded deployment model
+
+## 38. Intent-driven AI ownership policy for AI HAT+ 2, local LLM, and vision
+
+This section records an important architecture decision for NeXa.
+
+NeXa runs on Raspberry Pi 5 with AI HAT+ 2.  
+This hardware is able to support both:
+- local generative AI
+- camera and vision workloads
+
+That is a strong capability, but it also means NeXa must manage one shared AI resource carefully.
+
+The main goal is not to make every AI task run at full strength all the time.  
+The main goal is to make NeXa feel fast, natural, stable, and reliable.
+
+For this product, the user experience is more important than trying to keep every heavy workload active at the same time.
+
+### What NeXa needs in real use
+
+NeXa does not always need the same thing.
+
+Sometimes the user wants a fast spoken answer.  
+Sometimes the user wants NeXa to look at something.  
+Sometimes the user wants NeXa to quietly monitor a situation for a longer time.
+
+These are different kinds of work.  
+Because of that, NeXa should not use one fixed policy for every moment.
+
+The right approach is:
+
+## intent-driven ownership
+
+This means the current user intent decides which subsystem owns the AI priority.
+
+In simple terms:
+- when the user asks a normal question, the answer path should win
+- when the user asks NeXa to check or find something visually, the vision path should win
+- when the user enables a monitor mode, the monitor path should stay active and efficient
+- the switch between these modes should be handled by NeXa runtime, not by unrelated modules fighting over the device
+
+This is the best fit for a premium local-first assistant.
+
+### Why the simple "YOLO always on, pause for LLM" model is not enough
+
+A rough design idea would be:
+
+- keep a heavy object detector running all the time
+- when the wake word is triggered, pause vision
+- give the device to the LLM
+- when the answer is done, resume vision
+
+That idea is easy to understand, but it is still too rough for NeXa.
+
+The main problems are:
+
+#### 1. Heavy vision all the time is not the best idle state
+NeXa does not need maximum object detection pressure during every idle second.
+
+In the idle state, NeXa mostly needs:
+- presence awareness
+- desk awareness
+- basic scene continuity
+- optional object refresh when useful
+
+That means full heavy detection all the time would waste compute, thermal headroom, and scheduling flexibility.
+
+#### 2. Hard switching is too crude
+A full stop / full resume pattern on every turn can create extra overhead and unstable behaviour.
+
+It can increase the risk of:
+- handover delays
+- device busy situations
+- jitter between fast follow-up turns
+- more fragile error recovery
+- poor smoothness during bursty interaction
+
+#### 3. Full vision shutdown is not always desirable
+There are many cases where NeXa still needs light awareness even while a response is being prepared or while a task is active.
+
+The correct goal is not full blindness.  
+The correct goal is to keep the cheap and useful parts alive while reducing only the expensive parts when needed.
+
+### Best decision for NeXa
+
+The best solution for NeXa is not:
+- vision always wins
+- LLM always wins
+- everything runs at full strength all the time
+
+The best solution is:
+
+## one NeXa-owned AI broker with intent-driven task ownership
+
+This means:
+- one central runtime owner manages the AI HAT+ 2 path
+- vision does not grab the device directly on its own
+- the LLM path does not grab the device directly on its own
+- NeXa runtime decides who has priority based on the current task
+- heavy jobs are scheduled deliberately instead of being left to collide
+
+This gives better responsiveness, better stability, and cleaner behaviour.
+
+### Core principle
+
+The core principle is:
+
+**The current task decides who gets AI priority.**  
+**Conversation tasks favour the answer path.**  
+**Vision tasks favour the camera and perception path.**  
+**Monitoring tasks favour efficient long-running observation.**
+
+This is the most natural fit for NeXa.
+
+### Single owner and scheduler-first policy
+
+NeXa should use one clear ownership boundary for the AI accelerator path.
+
+The preferred architecture is:
+- one NeXa-owned broker or coordinator
+- one process owning the main Hailo interaction when possible
+- scheduler-first model sharing inside that owner
+- multi-process service only if the project later becomes truly multi-process
+
+This keeps the system simpler and reduces the risk of runtime conflicts.
+
+In practical terms, that means:
+- do not let vision manage low-level Hailo ownership by itself
+- do not let the LLM path manage low-level Hailo ownership by itself
+- do not hardcode device handover rules in many parts of the codebase
+- keep policy decisions in one runtime layer
+
+### What this means for NeXa behaviour
+
+NeXa should behave differently depending on what the user is asking for.
+
+## 1. Conversation Answer Mode
+
+This mode is used when the user asks a normal question and expects a quick reply.
+
+Examples:
+- "NeXa, what time is it?"
+- "NeXa, explain this"
+- "NeXa, what is the weather like?"
+- "NeXa, tell me how to fix this"
+
+In this mode:
+- the answer path gets priority
+- heavy vision work can step back
+- cheap background awareness may remain alive if it is harmless
+- the system protects response speed and streaming smoothness
+
+The target here is simple:
+NeXa should answer quickly and sound natural.
+
+If the user only needs an answer, heavy camera work should not slow that down.
+
+## 2. Vision Action Mode
+
+This mode is used when the user asks NeXa to look, find, inspect, track, or navigate.
+
+Examples:
+- "NeXa, where is my phone?"
+- "NeXa, check if I am using my phone"
+- "NeXa, look at the desk"
+- "NeXa, go to the kitchen"
+
+In this mode:
+- the vision path gets priority
+- the LLM does not need to generate a long answer first
+- NeXa may give a short natural acknowledgement
+- the main work goes into perception, detection, and task execution
+
+The right pattern here is:
+- short acknowledgement first
+- heavy vision work second
+- fuller answer after the result is known
+
+This avoids wasting time on unnecessary generation before the task is done.
+
+## 3. Focus Sentinel Mode
+
+This mode is used when the user enables longer monitoring behaviour.
+
+Examples:
+- "NeXa, focus mode"
+- "NeXa, watch whether I am studying"
+- "NeXa, tell me if I start using my phone"
+
+In this mode:
+- the camera path stays active
+- monitoring is efficient, not wasteful
+- checks can be periodic or event-driven
+- the LLM mostly stays quiet
+- NeXa only speaks when it has a reason to speak
+
+This mode is not about constant talking.  
+It is about stable observation with low friction.
+
+## 4. Recovery Window
+
+After a task ends, NeXa should not immediately jump to another heavy policy in a rough way.
+
+A short recovery window helps with:
+- follow-up voice turns
+- repeat visual checks
+- smoother transition back to idle behaviour
+- fewer unnecessary scheduling spikes
+
+This makes interaction feel cleaner and more stable.
+
+### Fast lane and heavy lane
+
+For NeXa, the best runtime split is:
+
+## Fast lane
+This should stay available more often:
+- frame capture
+- cheap camera continuity
+- basic face-based awareness
+- presence state
+- desk engagement state
+- stabilization
+- session tracking
+
+This lane should be light, responsive, and reliable.
+
+## Heavy lane
+This should run when it adds real value:
+- full object detection
+- richer scene understanding
+- phone object checks
+- computer object checks
+- other expensive model-driven analysis
+- heavier LLM generation work
+
+This split is important.
+
+NeXa should not treat all vision as equally expensive, and it should not treat all AI work as always urgent.
+
+### Why this helps performance
+
+This policy helps avoid:
+- slow first replies
+- long first-audio delays
+- unnecessary heavy idle inference
+- device ownership conflicts
+- thermal pressure from always-on heavy workloads
+- poor behaviour during repeated mode changes
+
+It also gives NeXa a better chance to feel:
+- quick when answering
+- quick when checking something visually
+- calm during focus mode
+- stable across long sessions
+
+### Natural interaction matters
+
+NeXa should not feel like a system that always tries to do everything at once.
+
+It should feel like a smart companion that understands what the user wants right now.
+
+That means:
+- if the user asks a normal question, NeXa should answer quickly
+- if the user asks for a visual check, NeXa should look first and explain after
+- if the user enables monitoring, NeXa should stay quiet and only speak when needed
+
+This behaviour is more natural and more premium than forcing the same AI policy onto every task.
+
+### Cooling and runtime discipline
+
+NeXa should treat thermal stability as part of system architecture, not as an afterthought.
+
+Heavy AI workloads can increase heat and reduce runtime stability if cooling is weak.  
+Because of that, sustained AI use should assume:
+- proper Raspberry Pi 5 cooling
+- good airflow
+- careful benchmarking under realistic load
+- observation of latency, temperature, and recovery behaviour
+
+The right architecture is not only the one that works once.  
+It is the one that keeps working smoothly over time.
+
+### Final policy for this stage
+
+The current architecture decision for NeXa is:
+
+1. Do not treat AI HAT+ 2 as unlimited shared capacity.
+2. Do not keep heavy vision inference running at maximum effort by default.
+3. Do not rely on crude stop/start switching as the main control strategy.
+4. Use one NeXa-owned broker to control the AI accelerator path.
+5. Prefer scheduler-first coordination inside one owner process when possible.
+6. Give priority to the subsystem that matches the current task.
+7. Keep a cheap fast lane alive more often.
+8. Run heavy AI work when it is useful, not just because it can run.
+9. Use short acknowledgements before heavy visual tasks when needed.
+10. Use a recovery window to avoid rough transitions and scheduling thrash.
+
+### What this means for the roadmap
+
+This decision leads to the following order:
+
+1. finish real Hailo object detection integration
+2. connect object-backed computer work and phone usage signals
+3. add the NeXa AI broker
+4. define the three main ownership modes:
+   - conversation answer mode
+   - vision action mode
+   - focus sentinel mode
+5. add the recovery window policy
+6. benchmark:
+   - wake latency
+   - first chunk latency
+   - first audio latency
+   - reply smoothness
+   - visual task completion time
+   - thermal stability
+   - long-session behaviour
+
+### Final conclusion
+
+The best design for NeXa is not based on a permanent winner between vision and LLM.
+
+The best design is based on clear ownership by current intent.
+
+NeXa should:
+- answer quickly when the user wants an answer
+- look quickly when the user wants a visual action
+- monitor quietly when the user wants background observation
+- switch between these behaviours in a controlled way
+
+That is the architecture direction that best matches a premium local-first NeXa product on Raspberry Pi 5 with AI HAT+ 2.

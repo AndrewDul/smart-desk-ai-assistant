@@ -161,6 +161,43 @@ class PerceptionFactoryTests(unittest.TestCase):
             "null",
         )
 
+    def test_build_object_detector_returns_hailo_yolo_when_configured(self) -> None:
+        from modules.devices.vision.perception.objects import HailoYoloObjectDetector
+
+        config = VisionRuntimeConfig.from_mapping(
+            {
+                "enabled": True,
+                "object_detection_enabled": True,
+                "object_detector_backend": "hailo_yolov11",
+                "object_detector_hailo_hef_path": "/fake/path/model.hef",
+                "object_detector_hailo_score_threshold": 0.45,
+                "object_detector_hailo_max_detections": 15,
+                "object_detector_hailo_initial_cadence_hz": 4.0,
+                "object_detector_hailo_desk_relevant_only": True,
+            }
+        )
+
+        detector = build_object_detector(config)
+
+        self.assertIsInstance(detector, HailoYoloObjectDetector)
+        self.assertEqual(detector.hef_path, "/fake/path/model.hef")
+        self.assertAlmostEqual(detector.score_threshold, 0.45, places=3)
+        self.assertEqual(detector.max_detections, 15)
+        self.assertAlmostEqual(detector.initial_cadence_hz, 4.0, places=3)
+        self.assertTrue(detector.desk_relevant_only)
+        self.assertEqual(detector.backend_label, "hailo_yolov11")
+
+    def test_build_object_detector_unknown_backend_raises(self) -> None:
+        config = VisionRuntimeConfig.from_mapping(
+            {
+                "enabled": True,
+                "object_detection_enabled": True,
+                "object_detector_backend": "unknown_object_backend",
+            }
+        )
+        with self.assertRaises(ValueError):
+            build_object_detector(config)
+
 
 if __name__ == "__main__":
     unittest.main()
