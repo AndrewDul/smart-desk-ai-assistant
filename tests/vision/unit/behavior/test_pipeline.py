@@ -53,6 +53,31 @@ class BehaviorPipelineTests(unittest.TestCase):
         self.assertFalse(snapshot.phone_usage.active)
         self.assertTrue(snapshot.study_activity.active)
 
+    def test_behavior_pipeline_does_not_treat_downward_attention_as_phone_usage(self) -> None:
+        perception = PerceptionSnapshot(
+            frame_width=1280,
+            frame_height=720,
+            faces=(
+                FaceDetection(
+                    bounding_box=BoundingBox(left=520, top=250, right=700, bottom=520),
+                    confidence=0.87,
+                ),
+            ),
+            scene=SceneContext(
+                desk_zone_people_count=1,
+                engagement_face_count=1,
+                screen_candidate_count=0,
+                handheld_candidate_count=0,
+            ),
+        )
+
+        snapshot = BehaviorPipeline().analyze(perception)
+
+        self.assertTrue(snapshot.presence.active)
+        self.assertTrue(snapshot.desk_activity.active)
+        self.assertFalse(snapshot.computer_work.active)
+        self.assertFalse(snapshot.phone_usage.active)
+
 
 if __name__ == "__main__":
     unittest.main()

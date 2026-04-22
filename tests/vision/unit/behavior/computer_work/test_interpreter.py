@@ -4,7 +4,7 @@ import unittest
 
 from modules.devices.vision.behavior.computer_work import ComputerWorkInterpreter
 from modules.devices.vision.behavior.models import ActivitySignal
-from modules.devices.vision.perception import BoundingBox, ObjectDetection, PerceptionSnapshot, SceneContext
+from modules.devices.vision.perception import BoundingBox, FaceDetection, ObjectDetection, PerceptionSnapshot, SceneContext
 
 
 class ComputerWorkInterpreterTests(unittest.TestCase):
@@ -77,6 +77,34 @@ class ComputerWorkInterpreterTests(unittest.TestCase):
         self.assertFalse(signal.active)
         self.assertIn("phone_like_evidence_present", signal.reasons)
         self.assertNotIn("desk_screen_posture_proxy", signal.reasons)
+
+    def test_computer_work_is_not_activated_from_downward_attention_without_screen_evidence(self) -> None:
+        perception = PerceptionSnapshot(
+            frame_width=1280,
+            frame_height=720,
+            faces=(
+                FaceDetection(
+                    bounding_box=BoundingBox(left=520, top=250, right=700, bottom=520),
+                    confidence=0.87,
+                ),
+            ),
+            scene=SceneContext(
+                engagement_face_count=1,
+                screen_candidate_count=0,
+                handheld_candidate_count=0,
+            ),
+        )
+
+        signal = ComputerWorkInterpreter().interpret(
+            perception=perception,
+            presence=ActivitySignal(active=True, confidence=0.9),
+            desk_activity=ActivitySignal(active=True, confidence=0.78),
+        )
+
+        self.assertFalse(signal.active)
+        self.assertIn("downward_attention_proxy", signal.reasons)
+        self.assertNotIn("desk_screen_posture_proxy", signal.reasons)
+        self.assertEqual(signal.metadata["inference_mode"], "suppressed_downward_attention")
 
 
 if __name__ == "__main__":
