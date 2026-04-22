@@ -6,6 +6,7 @@ from typing import Any
 from modules.devices.vision.behavior import BehaviorPipeline
 from modules.devices.vision.capture import VisionCaptureReader
 from modules.devices.vision.config import VisionRuntimeConfig
+from modules.devices.vision.diagnostics import build_diagnostics_snapshot
 from modules.devices.vision.fusion import build_vision_observation
 from modules.devices.vision.perception import PerceptionPipeline
 from modules.devices.vision.sessions import VisionSessionTracker
@@ -116,6 +117,13 @@ class CameraService:
         raw_behavior = self._behavior.analyze(perception)
         behavior = self._stabilizer.stabilize(raw_behavior, packet.captured_at)
         sessions = self._sessions.update(behavior, packet.captured_at)
+        diagnostics = build_diagnostics_snapshot(
+            packet,
+            perception=perception,
+            raw_behavior=raw_behavior,
+            behavior=behavior,
+            sessions=sessions,
+        )
 
         observation = build_vision_observation(
             packet,
@@ -123,6 +131,8 @@ class CameraService:
             behavior=behavior,
             sessions=sessions,
         )
+
+        observation.metadata["diagnostics"] = diagnostics.to_dict()
 
         self._last_observation = observation
         self._last_error = None

@@ -165,6 +165,8 @@ class CameraServiceTests(unittest.TestCase):
         self.assertTrue(service.status()["session_tracker_ready"])
         self.assertEqual(service.status()["detectors"]["people"], "fake_people")
         self.assertEqual(service.status()["detectors"]["face"], "fake_face")
+        self.assertIn("diagnostics", first.metadata)
+        self.assertIn("signals", first.metadata["diagnostics"])
 
     @patch("modules.devices.vision.camera_service.service.build_vision_observation")
     @patch("modules.devices.vision.camera_service.service.VisionSessionTracker", _FakeSessionTracker)
