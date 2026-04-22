@@ -48,7 +48,10 @@ class VisionRuntimeConfig:
     temporal_stabilization_activation_hits: int
     temporal_stabilization_deactivation_hits: int
     temporal_stabilization_hold_seconds: float
-
+    continuous_capture_enabled: bool
+    continuous_capture_target_fps: float
+    continuous_capture_error_backoff_seconds: float
+    continuous_capture_stop_timeout_seconds: float
     @classmethod
     def from_mapping(cls, raw: dict[str, Any] | None) -> "VisionRuntimeConfig":
         payload = dict(raw or {})
@@ -101,6 +104,10 @@ class VisionRuntimeConfig:
             temporal_stabilization_activation_hits=max(1, int(payload.get("temporal_stabilization_activation_hits", 2))),
             temporal_stabilization_deactivation_hits=max(1, int(payload.get("temporal_stabilization_deactivation_hits", 2))),
             temporal_stabilization_hold_seconds=max(0.0, float(payload.get("temporal_stabilization_hold_seconds", 1.25))),
+            continuous_capture_enabled=bool(payload.get("continuous_capture_enabled", False)),
+            continuous_capture_target_fps=max(1.0, float(payload.get("continuous_capture_target_fps", 10.0))),
+            continuous_capture_error_backoff_seconds=max(0.1, float(payload.get("continuous_capture_error_backoff_seconds", 0.5))),
+            continuous_capture_stop_timeout_seconds=max(0.5, float(payload.get("continuous_capture_stop_timeout_seconds", 2.0))),
         )
 
     def people_detector_is_active(self) -> bool:

@@ -244,6 +244,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "temporal_stabilization_activation_hits": 2,
         "temporal_stabilization_deactivation_hits": 2,
         "temporal_stabilization_hold_seconds": 1.25,
+        "continuous_capture_enabled": True,
+        "continuous_capture_target_fps": 10.0,
+        "continuous_capture_error_backoff_seconds": 0.5,
+        "continuous_capture_stop_timeout_seconds": 2.0,
     },
     "pan_tilt": {
         "enabled": False,
