@@ -44,6 +44,10 @@ class VisionRuntimeConfig:
     scene_understanding_enabled: bool
     gesture_recognition_enabled: bool
     behavior_interpretation_enabled: bool
+    temporal_stabilization_enabled: bool
+    temporal_stabilization_activation_hits: int
+    temporal_stabilization_deactivation_hits: int
+    temporal_stabilization_hold_seconds: float
 
     @classmethod
     def from_mapping(cls, raw: dict[str, Any] | None) -> "VisionRuntimeConfig":
@@ -93,6 +97,10 @@ class VisionRuntimeConfig:
             scene_understanding_enabled=bool(payload.get("scene_understanding_enabled", False)),
             gesture_recognition_enabled=bool(payload.get("gesture_recognition_enabled", False)),
             behavior_interpretation_enabled=bool(payload.get("behavior_interpretation_enabled", False)),
+            temporal_stabilization_enabled=bool(payload.get("temporal_stabilization_enabled", True)),
+            temporal_stabilization_activation_hits=max(1, int(payload.get("temporal_stabilization_activation_hits", 2))),
+            temporal_stabilization_deactivation_hits=max(1, int(payload.get("temporal_stabilization_deactivation_hits", 2))),
+            temporal_stabilization_hold_seconds=max(0.0, float(payload.get("temporal_stabilization_hold_seconds", 1.25))),
         )
 
     def people_detector_is_active(self) -> bool:

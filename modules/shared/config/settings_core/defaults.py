@@ -240,6 +240,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "scene_understanding_enabled": False,
         "gesture_recognition_enabled": False,
         "behavior_interpretation_enabled": False,
+        "temporal_stabilization_enabled": True,
+        "temporal_stabilization_activation_hits": 2,
+        "temporal_stabilization_deactivation_hits": 2,
+        "temporal_stabilization_hold_seconds": 1.25,
     },
     "pan_tilt": {
         "enabled": False,

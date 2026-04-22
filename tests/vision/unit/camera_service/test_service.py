@@ -44,6 +44,7 @@ class _FakePerceptionPipeline:
     def detector_status(self) -> dict[str, str]:
         return {
             "people": "fake_people",
+            "face": "fake_face",
             "objects": "fake_objects",
             "scene": "fake_scene",
         }
@@ -53,6 +54,7 @@ class _FakePerceptionPipeline:
 
         class _Scene:
             desk_zone_people_count = 0
+            engagement_face_count = 0
             screen_candidate_count = 0
             handheld_candidate_count = 0
             labels = ()
@@ -60,9 +62,10 @@ class _FakePerceptionPipeline:
 
         class _Snapshot:
             people = ()
+            faces = ()
             objects = ()
             scene = _Scene()
-            metadata = {"detectors": {"people": "fake_people"}}
+            metadata = {"detectors": {"people": "fake_people", "face": "fake_face"}}
 
         return _Snapshot()
 
@@ -91,6 +94,17 @@ class _FakeBehaviorPipeline:
             metadata = {}
 
         return _Snapshot()
+
+
+class _FakeStabilizer:
+    @classmethod
+    def from_config(cls, config):
+        del config
+        return cls()
+
+    def stabilize(self, behavior, captured_at):
+        del captured_at
+        return behavior
 
 
 class _FakeSessionTracker:
@@ -128,6 +142,7 @@ class _FakeSessionTracker:
 class CameraServiceTests(unittest.TestCase):
     @patch("modules.devices.vision.camera_service.service.build_vision_observation")
     @patch("modules.devices.vision.camera_service.service.VisionSessionTracker", _FakeSessionTracker)
+    @patch("modules.devices.vision.camera_service.service.BehaviorStabilizer", _FakeStabilizer)
     @patch("modules.devices.vision.camera_service.service.BehaviorPipeline", _FakeBehaviorPipeline)
     @patch("modules.devices.vision.camera_service.service.PerceptionPipeline", _FakePerceptionPipeline)
     @patch("modules.devices.vision.camera_service.service.VisionCaptureReader", _FakeReader)
@@ -146,11 +161,14 @@ class CameraServiceTests(unittest.TestCase):
         self.assertIsNone(service.status()["last_error"])
         self.assertTrue(service.status()["perception_pipeline_ready"])
         self.assertTrue(service.status()["behavior_pipeline_ready"])
+        self.assertTrue(service.status()["stabilization_pipeline_ready"])
         self.assertTrue(service.status()["session_tracker_ready"])
         self.assertEqual(service.status()["detectors"]["people"], "fake_people")
+        self.assertEqual(service.status()["detectors"]["face"], "fake_face")
 
     @patch("modules.devices.vision.camera_service.service.build_vision_observation")
     @patch("modules.devices.vision.camera_service.service.VisionSessionTracker", _FakeSessionTracker)
+    @patch("modules.devices.vision.camera_service.service.BehaviorStabilizer", _FakeStabilizer)
     @patch("modules.devices.vision.camera_service.service.BehaviorPipeline", _FakeBehaviorPipeline)
     @patch("modules.devices.vision.camera_service.service.PerceptionPipeline", _FakePerceptionPipeline)
     @patch("modules.devices.vision.camera_service.service.VisionCaptureReader", _FakeReader)
@@ -172,6 +190,7 @@ class CameraServiceTests(unittest.TestCase):
         self.assertIn("camera offline", str(service.status()["last_error"]))
 
     @patch("modules.devices.vision.camera_service.service.VisionSessionTracker", _FakeSessionTracker)
+    @patch("modules.devices.vision.camera_service.service.BehaviorStabilizer", _FakeStabilizer)
     @patch("modules.devices.vision.camera_service.service.BehaviorPipeline", _FakeBehaviorPipeline)
     @patch("modules.devices.vision.camera_service.service.PerceptionPipeline", _FakePerceptionPipeline)
     @patch("modules.devices.vision.camera_service.service.VisionCaptureReader", _FakeReader)
