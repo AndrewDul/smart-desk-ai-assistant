@@ -103,10 +103,63 @@ class PerceptionFactoryTests(unittest.TestCase):
 
     def test_build_object_detector_returns_null_for_now(self) -> None:
         config = VisionRuntimeConfig.from_mapping({"enabled": True})
-
         detector = build_object_detector(config)
-
         self.assertIsInstance(detector, NullObjectDetector)
+
+    def test_build_people_detector_returns_hybrid_when_configured(self) -> None:
+        config = VisionRuntimeConfig.from_mapping(
+            {
+                "enabled": True,
+                "people_detection_enabled": True,
+                "people_detector_backend": "hybrid_face_primary",
+                "face_detector_backend": "opencv_haar",
+                "people_detector_hybrid_body_width_multiplier": 3.0,
+                "people_detector_hybrid_body_height_multiplier": 6.0,
+            }
+        )
+
+        detector = build_people_detector(config)
+
+        self.assertEqual(detector.backend_label, "hybrid_face_primary")
+        self.assertIsNotNone(detector.face_detector)
+        self.assertIsNone(detector.secondary_detector)
+        self.assertAlmostEqual(detector.body_width_multiplier, 3.0, places=3)
+        self.assertAlmostEqual(detector.body_height_multiplier, 6.0, places=3)
+
+    def test_build_people_detector_hybrid_attaches_hog_secondary_when_enabled(self) -> None:
+        config = VisionRuntimeConfig.from_mapping(
+            {
+                "enabled": True,
+                "people_detection_enabled": True,
+                "people_detector_backend": "hybrid_face_primary",
+                "face_detector_backend": "opencv_haar",
+                "people_detector_hybrid_use_hog_secondary": True,
+            }
+        )
+
+        detector = build_people_detector(config)
+
+        self.assertEqual(detector.backend_label, "hybrid_face_primary")
+        self.assertIsNotNone(detector.secondary_detector)
+        self.assertIsInstance(detector.secondary_detector, OpenCvHogPeopleDetector)
+
+    def test_build_people_detector_hybrid_uses_null_face_when_backend_unknown(self) -> None:
+        config = VisionRuntimeConfig.from_mapping(
+            {
+                "enabled": True,
+                "people_detection_enabled": True,
+                "people_detector_backend": "hybrid_face_primary",
+                "face_detector_backend": "unknown_face_backend",
+            }
+        )
+
+        detector = build_people_detector(config)
+
+        self.assertEqual(detector.backend_label, "hybrid_face_primary")
+        self.assertEqual(
+            getattr(detector.face_detector, "backend_label", ""),
+            "null",
+        )
 
 
 if __name__ == "__main__":

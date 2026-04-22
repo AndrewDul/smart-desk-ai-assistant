@@ -8,12 +8,13 @@ from .models import (
     PersonDetection,
     SceneContext,
 )
-from .people import OpenCvHogPeopleDetector
+from .people import HybridFacePrimaryPeopleDetector, OpenCvHogPeopleDetector
 from .pipeline import PerceptionPipeline
 
 __all__ = [
     "BoundingBox",
     "FaceDetection",
+    "HybridFacePrimaryPeopleDetector",
     "NormalizedRegion",
     "ObjectDetection",
     "OpenCvHogPeopleDetector",

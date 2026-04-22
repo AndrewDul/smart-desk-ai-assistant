@@ -273,13 +273,16 @@
     "camera_index": 0,
     "frame_width": 1280,
     "frame_height": 720,
-    "face_detection_enabled": false,
+    "face_detection_enabled": true,
     "object_detection_enabled": false,
     "scene_understanding_enabled": false,
     "gesture_recognition_enabled": false,
     "behavior_interpretation_enabled": false,
     "continuous_capture_enabled": true,
-    "continuous_capture_target_fps": 10.0
+    "continuous_capture_target_fps": 10.0,
+    "people_detection_enabled": true,
+    "people_detector_backend": "hybrid_face_primary",
+    "face_detector_backend": "opencv_haar"
   },
   "pan_tilt": {
     "enabled": true,

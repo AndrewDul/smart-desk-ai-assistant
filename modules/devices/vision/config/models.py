@@ -34,6 +34,9 @@ class VisionRuntimeConfig:
     people_detector_roi_y_min: float
     people_detector_roi_x_max: float
     people_detector_roi_y_max: float
+    people_detector_hybrid_use_hog_secondary: bool
+    people_detector_hybrid_body_width_multiplier: float
+    people_detector_hybrid_body_height_multiplier: float
     face_detection_enabled: bool
     face_detector_backend: str
     face_detector_min_area_ratio: float
@@ -90,6 +93,9 @@ class VisionRuntimeConfig:
             people_detector_roi_y_min=roi_y_min,
             people_detector_roi_x_max=roi_x_max,
             people_detector_roi_y_max=roi_y_max,
+            people_detector_hybrid_use_hog_secondary=bool(payload.get("people_detector_hybrid_use_hog_secondary", False)),
+            people_detector_hybrid_body_width_multiplier=max(1.0, float(payload.get("people_detector_hybrid_body_width_multiplier", 2.6))),
+            people_detector_hybrid_body_height_multiplier=max(1.0, float(payload.get("people_detector_hybrid_body_height_multiplier", 5.5))),
             face_detection_enabled=bool(payload.get("face_detection_enabled", False)),
             face_detector_backend=str(payload.get("face_detector_backend", "opencv_haar") or "opencv_haar").strip().lower(),
             face_detector_min_area_ratio=_clamp_float(payload.get("face_detector_min_area_ratio", 0.002), 0.0, 1.0),
