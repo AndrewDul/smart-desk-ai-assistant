@@ -4,6 +4,10 @@ from dataclasses import dataclass
 from typing import Any
 
 
+def _clamp_float(value: float, lower: float, upper: float) -> float:
+    return max(lower, min(upper, float(value)))
+
+
 @dataclass(frozen=True, slots=True)
 class VisionRuntimeConfig:
     enabled: bool
@@ -21,7 +25,20 @@ class VisionRuntimeConfig:
     people_detector_backend: str
     people_detector_min_confidence: float
     people_detector_min_area_ratio: float
+    people_detector_min_height_ratio: float
+    people_detector_max_width_ratio: float
+    people_detector_use_clahe: bool
+    people_detector_upscale_factor: float
+    people_detector_desk_roi_enabled: bool
+    people_detector_roi_x_min: float
+    people_detector_roi_y_min: float
+    people_detector_roi_x_max: float
+    people_detector_roi_y_max: float
     face_detection_enabled: bool
+    face_detector_backend: str
+    face_detector_min_area_ratio: float
+    face_detector_use_clahe: bool
+    face_detector_roi_enabled: bool
     object_detection_enabled: bool
     object_detector_backend: str
     scene_understanding_enabled: bool
@@ -31,6 +48,16 @@ class VisionRuntimeConfig:
     @classmethod
     def from_mapping(cls, raw: dict[str, Any] | None) -> "VisionRuntimeConfig":
         payload = dict(raw or {})
+        roi_x_min = _clamp_float(payload.get("people_detector_roi_x_min", 0.10), 0.0, 1.0)
+        roi_y_min = _clamp_float(payload.get("people_detector_roi_y_min", 0.08), 0.0, 1.0)
+        roi_x_max = _clamp_float(payload.get("people_detector_roi_x_max", 0.90), 0.0, 1.0)
+        roi_y_max = _clamp_float(payload.get("people_detector_roi_y_max", 0.98), 0.0, 1.0)
+
+        if roi_x_max <= roi_x_min:
+            roi_x_min, roi_x_max = 0.10, 0.90
+        if roi_y_max <= roi_y_min:
+            roi_y_min, roi_y_max = 0.08, 0.98
+
         return cls(
             enabled=bool(payload.get("enabled", False)),
             backend=str(payload.get("backend", "picamera2") or "picamera2").strip().lower(),
@@ -45,9 +72,22 @@ class VisionRuntimeConfig:
             vflip=bool(payload.get("vflip", False)),
             people_detection_enabled=bool(payload.get("people_detection_enabled", False)),
             people_detector_backend=str(payload.get("people_detector_backend", "opencv_hog") or "opencv_hog").strip().lower(),
-            people_detector_min_confidence=max(0.0, min(1.0, float(payload.get("people_detector_min_confidence", 0.45)))),
-            people_detector_min_area_ratio=max(0.0, min(1.0, float(payload.get("people_detector_min_area_ratio", 0.025)))),
+            people_detector_min_confidence=_clamp_float(payload.get("people_detector_min_confidence", 0.45), 0.0, 1.0),
+            people_detector_min_area_ratio=_clamp_float(payload.get("people_detector_min_area_ratio", 0.025), 0.0, 1.0),
+            people_detector_min_height_ratio=_clamp_float(payload.get("people_detector_min_height_ratio", 0.18), 0.0, 1.0),
+            people_detector_max_width_ratio=_clamp_float(payload.get("people_detector_max_width_ratio", 0.85), 0.0, 1.0),
+            people_detector_use_clahe=bool(payload.get("people_detector_use_clahe", True)),
+            people_detector_upscale_factor=max(1.0, float(payload.get("people_detector_upscale_factor", 1.35))),
+            people_detector_desk_roi_enabled=bool(payload.get("people_detector_desk_roi_enabled", True)),
+            people_detector_roi_x_min=roi_x_min,
+            people_detector_roi_y_min=roi_y_min,
+            people_detector_roi_x_max=roi_x_max,
+            people_detector_roi_y_max=roi_y_max,
             face_detection_enabled=bool(payload.get("face_detection_enabled", False)),
+            face_detector_backend=str(payload.get("face_detector_backend", "opencv_haar") or "opencv_haar").strip().lower(),
+            face_detector_min_area_ratio=_clamp_float(payload.get("face_detector_min_area_ratio", 0.002), 0.0, 1.0),
+            face_detector_use_clahe=bool(payload.get("face_detector_use_clahe", True)),
+            face_detector_roi_enabled=bool(payload.get("face_detector_roi_enabled", True)),
             object_detection_enabled=bool(payload.get("object_detection_enabled", False)),
             object_detector_backend=str(payload.get("object_detector_backend", "null") or "null").strip().lower(),
             scene_understanding_enabled=bool(payload.get("scene_understanding_enabled", False)),
@@ -58,13 +98,16 @@ class VisionRuntimeConfig:
     def people_detector_is_active(self) -> bool:
         return self.people_detection_enabled and self.people_detector_backend not in {"", "none", "null"}
 
+    def face_detector_is_active(self) -> bool:
+        return self.face_detection_enabled and self.face_detector_backend not in {"", "none", "null"}
+
     def object_detector_is_active(self) -> bool:
         return self.object_detection_enabled and self.object_detector_backend not in {"", "none", "null"}
 
     def capability_flags(self) -> dict[str, bool]:
         return {
             "people": self.people_detector_is_active(),
-            "face": self.face_detection_enabled,
+            "face": self.face_detector_is_active(),
             "object": self.object_detector_is_active(),
             "scene": self.scene_understanding_enabled,
             "gesture": self.gesture_recognition_enabled,
@@ -74,6 +117,7 @@ class VisionRuntimeConfig:
     def selected_detector_backends(self) -> dict[str, str]:
         return {
             "people": self.people_detector_backend if self.people_detector_is_active() else "null",
+            "face": self.face_detector_backend if self.face_detector_is_active() else "null",
             "objects": self.object_detector_backend if self.object_detector_is_active() else "null",
             "scene": "zone_rules",
         }

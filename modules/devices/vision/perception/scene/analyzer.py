@@ -27,6 +27,8 @@ def _region_to_dict(region: NormalizedRegion) -> dict[str, float]:
 
 
 class SceneAnalyzer(Protocol):
+    backend_label: str
+
     def analyze_scene(
         self,
         packet: FramePacket,
@@ -46,6 +48,7 @@ class NullSceneAnalyzer:
     foundation for later detector upgrades.
     """
 
+    backend_label: str = "zone_rules"
     zone_layout: WorkspaceZoneLayout = field(default_factory=build_default_workspace_zone_layout)
 
     def analyze_scene(

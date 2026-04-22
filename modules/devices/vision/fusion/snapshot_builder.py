@@ -50,6 +50,15 @@ def _person_to_dict(person) -> dict[str, object]:
     }
 
 
+def _face_to_dict(face) -> dict[str, object]:
+    return {
+        "label": face.label,
+        "confidence": face.confidence,
+        "bounding_box": _box_to_dict(face.bounding_box),
+        "metadata": dict(face.metadata),
+    }
+
+
 def _object_to_dict(obj) -> dict[str, object]:
     return {
         "label": obj.label,
@@ -90,10 +99,15 @@ def build_vision_observation(
         labels.extend(f"object:{label}" for label in object_labels)
         labels.extend(perception.scene.labels)
 
+        if perception.faces:
+            labels.append("face_detected")
+
         metadata["perception"] = {
             "people_count": len(perception.people),
+            "face_count": len(perception.faces),
             "object_count": len(perception.objects),
             "people": [_person_to_dict(person) for person in perception.people],
+            "faces": [_face_to_dict(face) for face in perception.faces],
             "objects": [_object_to_dict(obj) for obj in perception.objects],
             "detectors": dict(perception.metadata.get("detectors", {})),
             "desk_zone_people_count": perception.scene.desk_zone_people_count,
@@ -103,16 +117,19 @@ def build_vision_observation(
         }
 
         signal_confidences = [person.confidence for person in perception.people]
+        signal_confidences.extend(face.confidence for face in perception.faces)
         signal_confidences.extend(obj.confidence for obj in perception.objects)
         if signal_confidences:
             confidence = max(0.0, min(1.0, max(signal_confidences)))
     else:
         metadata["perception"] = {
             "people_count": 0,
+            "face_count": 0,
             "object_count": 0,
             "people": [],
+            "faces": [],
             "objects": [],
-            "detectors": {"people": "null", "objects": "null", "scene": "null"},
+            "detectors": {"people": "null", "face": "null", "objects": "null", "scene": "null"},
             "desk_zone_people_count": 0,
             "screen_candidate_count": 0,
             "handheld_candidate_count": 0,

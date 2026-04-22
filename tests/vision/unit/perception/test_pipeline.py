@@ -21,6 +21,7 @@ class PerceptionPipelineTests(unittest.TestCase):
         self.assertEqual(snapshot.frame_width, 1280)
         self.assertEqual(snapshot.frame_height, 720)
         self.assertEqual(len(snapshot.people), 0)
+        self.assertEqual(len(snapshot.faces), 0)
         self.assertEqual(len(snapshot.objects), 0)
         self.assertEqual(snapshot.scene.desk_zone_people_count, 0)
         self.assertEqual(snapshot.scene.screen_candidate_count, 0)

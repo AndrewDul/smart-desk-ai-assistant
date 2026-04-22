@@ -83,6 +83,14 @@ class PersonDetection:
 
 
 @dataclass(frozen=True, slots=True)
+class FaceDetection:
+    bounding_box: BoundingBox
+    confidence: float
+    label: str = "face"
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
 class ObjectDetection:
     label: str
     bounding_box: BoundingBox
@@ -104,6 +112,7 @@ class PerceptionSnapshot:
     frame_width: int
     frame_height: int
     people: tuple[PersonDetection, ...] = ()
+    faces: tuple[FaceDetection, ...] = ()
     objects: tuple[ObjectDetection, ...] = ()
     scene: SceneContext = field(default_factory=SceneContext)
     metadata: dict[str, Any] = field(default_factory=dict)
