@@ -24,10 +24,12 @@ class RuntimeDebugSnapshotService:
         runtime_snapshot_provider: Callable[[], dict[str, Any]] | None,
         benchmark_snapshot_provider: Callable[[], dict[str, Any]] | None,
         audio_snapshot_provider: Callable[[], dict[str, Any]] | None,
+        ai_broker_snapshot_provider: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self.runtime_snapshot_provider = runtime_snapshot_provider
         self.benchmark_snapshot_provider = benchmark_snapshot_provider
         self.audio_snapshot_provider = audio_snapshot_provider
+        self.ai_broker_snapshot_provider = ai_broker_snapshot_provider
         self._last_payload = RuntimeDebugSnapshotPayload()
 
     def snapshot(self) -> dict[str, Any]:
@@ -35,6 +37,7 @@ class RuntimeDebugSnapshotService:
             runtime_snapshot=self._safe_snapshot(self.runtime_snapshot_provider),
             benchmark_snapshot=self._safe_snapshot(self.benchmark_snapshot_provider),
             audio_snapshot=self._safe_snapshot(self.audio_snapshot_provider),
+            ai_broker_snapshot=self._safe_snapshot(self.ai_broker_snapshot_provider),
         )
         self._last_payload = payload
         return payload.to_dict()
@@ -45,6 +48,7 @@ class RuntimeDebugSnapshotService:
         runtime_snapshot: dict[str, Any],
         benchmark_snapshot: dict[str, Any],
         audio_snapshot: dict[str, Any],
+        ai_broker_snapshot: dict[str, Any],
     ) -> RuntimeDebugSnapshotPayload:
         latest_sample = dict(benchmark_snapshot.get("latest_sample", {}) or {})
         summary = dict(benchmark_snapshot.get("summary", {}) or {})
@@ -53,6 +57,7 @@ class RuntimeDebugSnapshotService:
         completed_turn_lines = self._completed_turn_lines(completed_turn_trace)
         audio_lines = self._audio_lines(audio_snapshot)
         audio_overlay_line = self._build_audio_overlay_line(audio_snapshot)
+        ai_broker_line = self._build_ai_broker_line(ai_broker_snapshot)
 
         runtime_label = self._runtime_label(runtime_snapshot)
         llm_label = self._llm_label(runtime_snapshot)
@@ -70,6 +75,7 @@ class RuntimeDebugSnapshotService:
             llm_label=llm_label,
             benchmark_snapshot=benchmark_snapshot,
             audio_overlay_line=audio_overlay_line,
+            ai_broker_line=ai_broker_line,
             completed_turn_trace=completed_turn_trace,
             last_turn_ms=last_turn_ms,
             avg_audio_ms=avg_audio_ms,
@@ -79,6 +85,7 @@ class RuntimeDebugSnapshotService:
             runtime_snapshot=runtime_snapshot,
             benchmark_snapshot=benchmark_snapshot,
             audio_runtime_snapshot=audio_snapshot,
+            ai_broker_snapshot=ai_broker_snapshot,
             runtime_label=runtime_label,
             llm_label=llm_label,
             wake_backend=wake_backend,
@@ -91,6 +98,7 @@ class RuntimeDebugSnapshotService:
             completed_turn_lines=completed_turn_lines,
             audio_lines=audio_lines,
             audio_overlay_line=audio_overlay_line,
+            ai_broker_line=ai_broker_line,
             developer_overlay_lines=developer_overlay_lines,
         )
 
@@ -296,6 +304,22 @@ class RuntimeDebugSnapshotService:
             max_chars=34,
         )
 
+    def _build_ai_broker_line(self, snapshot: dict[str, Any]) -> str:
+        if not snapshot:
+            return ""
+
+        mode = self._compact_token(snapshot.get("mode"), fallback="n/a", max_chars=10)
+        owner = self._compact_token(snapshot.get("owner"), fallback="n/a", max_chars=8)
+        profile = dict(snapshot.get("profile", {}) or {})
+        heavy_lane = self._safe_float(profile.get("heavy_lane_cadence_hz"))
+        heavy_text = "n/a" if heavy_lane is None else f"{heavy_lane:.1f}"
+        recovery = "on" if bool(snapshot.get("recovery_window_active", False)) else "off"
+
+        return self._compact_text(
+            f"ai:{mode} own:{owner} hv:{heavy_text} rw:{recovery}",
+            max_chars=34,
+        )
+
     def _completed_turn_overlay_line(self, trace: dict[str, Any]) -> str:
         route_kind = self._compact_token(trace.get("route_kind"), fallback="n/a", max_chars=8)
         result = self._compact_token(trace.get("result"), fallback="n/a", max_chars=10)
@@ -314,6 +338,7 @@ class RuntimeDebugSnapshotService:
         llm_label: str,
         benchmark_snapshot: dict[str, Any],
         audio_overlay_line: str,
+        ai_broker_line: str,
         completed_turn_trace: dict[str, Any],
         last_turn_ms: float | None,
         avg_audio_ms: float | None,
@@ -326,7 +351,9 @@ class RuntimeDebugSnapshotService:
             if self._compact_text(item, max_chars=34)
         ]
 
-        if benchmark_lines:
+        if ai_broker_line:
+            second_line = ai_broker_line
+        elif benchmark_lines:
             second_line = benchmark_lines[0]
         else:
             second_line = self._compact_text(

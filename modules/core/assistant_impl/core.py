@@ -207,6 +207,7 @@ class CoreAssistant(
             runtime_snapshot_provider=self._runtime_status_snapshot,
             benchmark_snapshot_provider=self.turn_benchmark_service.latest_snapshot,
             audio_snapshot_provider=self._audio_runtime_snapshot,
+            ai_broker_snapshot_provider=lambda: self._ai_broker_status_snapshot(tick=True),
         )
 
         self.developer_overlay = DeveloperOverlayService(

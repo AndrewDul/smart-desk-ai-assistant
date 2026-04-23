@@ -313,8 +313,9 @@ class ActionFlowOrchestrator(
                 return bool(self._last_skill_result)
         finally:
             if vision_action_mode_requested:
-                self.assistant._enter_ai_broker_idle_baseline(
+                self.assistant._enter_ai_broker_recovery_window(
                     reason=f"action_route_finished:{request.action}",
+                    return_to_mode="idle_baseline",
                 )
             self._active_route = None
             self._active_resolved_action = None

@@ -70,6 +70,23 @@ class _FakeAssistant:
             "profile": {"heavy_lane_cadence_hz": 2.0},
         }
 
+    def _enter_ai_broker_recovery_window(
+        self,
+        *,
+        reason: str = "",
+        return_to_mode="idle_baseline",
+        seconds: float | None = None,
+    ) -> dict[str, object]:
+        del seconds
+        mode_value = getattr(return_to_mode, "value", return_to_mode)
+        self.ai_broker_calls.append(("recovery", f"{reason}|{mode_value}"))
+        return {
+            "mode": "recovery_window",
+            "owner": "balanced",
+            "profile": {"heavy_lane_cadence_hz": 1.0},
+            "recovery_window_active": True,
+        }
+
     def deliver_response_plan(self, plan, *, source: str, remember: bool, extra_metadata=None) -> bool:
         del plan, source, remember, extra_metadata
         return self.deliver_ok
@@ -117,7 +134,7 @@ class AiBrokerDialogueHookTests(unittest.TestCase):
             assistant.ai_broker_calls,
             [
                 ("conversation", "dialogue_route_started:conversation"),
-                ("idle", "dialogue_route_finished:conversation"),
+                ("recovery", "dialogue_route_finished:conversation|idle_baseline"),
             ],
         )
 
@@ -132,7 +149,7 @@ class AiBrokerDialogueHookTests(unittest.TestCase):
             assistant.ai_broker_calls,
             [
                 ("conversation", "dialogue_route_started:conversation"),
-                ("idle", "dialogue_route_finished:conversation"),
+                ("recovery", "dialogue_route_finished:conversation|idle_baseline"),
             ],
         )
 

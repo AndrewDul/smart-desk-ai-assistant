@@ -12,6 +12,7 @@ class CoreAssistantInteractionMixin:
     def handle_command(self, text: str) -> bool:
         self.interrupt_controller.clear()
         self._last_interrupt_snapshot = {}
+        self._tick_ai_broker()
 
         cleaned = str(text or "").strip()
         if not cleaned:

@@ -9,6 +9,7 @@ class RuntimeDebugSnapshotPayload:
     runtime_snapshot: dict[str, Any] = field(default_factory=dict)
     benchmark_snapshot: dict[str, Any] = field(default_factory=dict)
     audio_runtime_snapshot: dict[str, Any] = field(default_factory=dict)
+    ai_broker_snapshot: dict[str, Any] = field(default_factory=dict)
     runtime_label: str = ""
     llm_label: str = ""
     wake_backend: str = "n/a"
@@ -21,6 +22,7 @@ class RuntimeDebugSnapshotPayload:
     completed_turn_lines: list[str] = field(default_factory=list)
     audio_lines: list[str] = field(default_factory=list)
     audio_overlay_line: str = ""
+    ai_broker_line: str = ""
     developer_overlay_lines: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:

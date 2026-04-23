@@ -113,8 +113,9 @@ class DialogueFlowOrchestrator(
             self._active_dialogue_request = None
             return True
         finally:
-            assistant._enter_ai_broker_idle_baseline(
+            assistant._enter_ai_broker_recovery_window(
                 reason=f"dialogue_route_finished:{route.kind.value}",
+                return_to_mode="idle_baseline",
             )
 
     def handle_conversation_route(self, *, route: RouteDecision, language: str) -> bool:
