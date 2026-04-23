@@ -13,6 +13,7 @@ from modules.system.utils import BASE_DIR, CACHE_DIR, append_log
 from .cache_queue_mixin import TTSPipelineCacheQueueMixin
 from .control_mixin import TTSPipelineControlMixin
 from .normalization_mixin import TTSPipelineNormalizationMixin
+from .piper_daemon import PiperDaemon
 from .wav_playback_mixin import TTSPipelineWavPlaybackMixin
 from .process_mixin import TTSPipelineProcessMixin
 from .resolution_mixin import TTSPipelineResolutionMixin
@@ -178,6 +179,13 @@ class TTSPipeline(
             for lang, model_info in self._resolved_piper_paths.items()
         }
 
+        # Persistent in-process Piper synthesis. Keeps PiperVoice loaded
+        # across utterances and skips the subprocess + ONNX reload cost.
+        self._piper_daemon = PiperDaemon(
+            piper_models=self.piper_models,
+            base_dir=self._base_dir,
+        )
+
         self._common_cache_phrases: dict[str, list[str]] = {
             "pl": [
                 "Dobrze.",
@@ -241,7 +249,29 @@ class TTSPipeline(
 
         if self.enabled and self.preferred_engine == "piper":
             self._start_synthesis_worker()
+            self._start_piper_daemon_preload()
             self._start_cache_warmup()
 
+    def _start_piper_daemon_preload(self) -> None:
+        """
+        Preload every configured Piper voice in a background thread so the
+        first real request does not pay the model-load cost.
+        """
+        daemon = getattr(self, "_piper_daemon", None)
+        if daemon is None or not daemon.is_enabled():
+            return
+
+        def _preload() -> None:
+            try:
+                daemon.preload_all()
+            except Exception as error:
+                append_log(f"Piper daemon preload failed: {error}")
+
+        thread = threading.Thread(
+            target=_preload,
+            name="tts-piper-daemon-preload",
+            daemon=True,
+        )
+        thread.start()
 
 __all__ = ["TTSPipeline"]

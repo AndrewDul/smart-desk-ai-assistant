@@ -221,6 +221,26 @@ class TTSPipelineSynthesisMixin:
             append_log(f"Piper model missing for language '{normalized_lang}'.")
             return False
 
+        # Fast path: in-process Piper daemon. Skips subprocess + ONNX reload
+        # when the voice is already loaded. Falls through on failure so the
+        # subprocess path below still runs as a safety net.
+        daemon = getattr(self, "_piper_daemon", None)
+        if daemon is not None and daemon.is_language_ready(normalized_lang):
+            if self._stop_requested.is_set():
+                return False
+            try:
+                if daemon.synthesize(
+                    text=text,
+                    lang=normalized_lang,
+                    wav_path=wav_path,
+                ):
+                    return True
+            except Exception as error:
+                append_log(
+                    f"Piper daemon call raised: lang={normalized_lang}, error={error}"
+                )
+            # Daemon did not produce a usable wav — fall through to subprocess.
+
         command = self._build_piper_command(model_path, config_path, wav_path, text)
         if not command:
             append_log(
