@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from modules.devices.vision.behavior.computer_work import ComputerWorkInterpreter
 from modules.devices.vision.behavior.desk_activity import DeskActivityInterpreter
@@ -18,6 +19,15 @@ class BehaviorPipeline:
     computer_work_interpreter: ComputerWorkInterpreter = field(default_factory=ComputerWorkInterpreter)
     phone_usage_interpreter: PhoneUsageInterpreter = field(default_factory=PhoneUsageInterpreter)
     study_activity_interpreter: StudyActivityInterpreter = field(default_factory=StudyActivityInterpreter)
+    version: int = 2
+
+    @classmethod
+    def from_mapping(cls, raw: dict[str, Any] | None) -> "BehaviorPipeline":
+        payload = dict(raw or {})
+        return cls(
+            computer_work_interpreter=ComputerWorkInterpreter.from_mapping(payload),
+            version=2,
+        )
 
     def analyze(self, perception: PerceptionSnapshot) -> BehaviorSnapshot:
         presence = self.presence_interpreter.interpret(perception)
@@ -44,6 +54,7 @@ class BehaviorPipeline:
             phone_usage=phone_usage,
             study_activity=study_activity,
             metadata={
-                "behavior_pipeline_version": 1,
+                "behavior_pipeline_version": self.version,
+                "computer_work_active_threshold": self.computer_work_interpreter.active_threshold,
             },
         )

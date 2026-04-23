@@ -78,6 +78,27 @@ class BehaviorPipelineTests(unittest.TestCase):
         self.assertFalse(snapshot.computer_work.active)
         self.assertFalse(snapshot.phone_usage.active)
 
+    def test_behavior_pipeline_can_be_built_from_mapping_with_computer_work_threshold(self) -> None:
+        perception = PerceptionSnapshot(
+            frame_width=1280,
+            frame_height=720,
+            scene=SceneContext(
+                desk_zone_people_count=1,
+                engagement_face_count=1,
+                screen_candidate_count=0,
+                handheld_candidate_count=0,
+            ),
+        )
+
+        snapshot = BehaviorPipeline.from_mapping(
+            {
+                "computer_work_active_threshold": 0.9,
+            }
+        ).analyze(perception)
+
+        self.assertEqual(snapshot.metadata["behavior_pipeline_version"], 2)
+        self.assertEqual(snapshot.metadata["computer_work_active_threshold"], 0.9)
+        self.assertFalse(snapshot.computer_work.active)
 
 if __name__ == "__main__":
     unittest.main()

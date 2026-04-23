@@ -48,7 +48,11 @@ class CameraService:
         self._pipeline_lock = threading.RLock()
         self._reader = VisionCaptureReader(config=self._config)
         self._perception = PerceptionPipeline.from_config(self._config)
-        self._behavior = BehaviorPipeline()
+        behavior_factory = getattr(BehaviorPipeline, "from_mapping", None)
+        if callable(behavior_factory):
+            self._behavior = behavior_factory(config)
+        else:
+            self._behavior = BehaviorPipeline()
         self._stabilizer = BehaviorStabilizer.from_config(self._config)
         self._sessions = VisionSessionTracker()
         self._last_observation: VisionObservation | None = None

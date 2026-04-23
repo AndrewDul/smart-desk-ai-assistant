@@ -1,14 +1,53 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Any, Iterable
+
 from modules.devices.vision.behavior.models import ActivitySignal
 from modules.devices.vision.behavior.shared import has_downward_attention_proxy
 from modules.devices.vision.perception.models import PerceptionSnapshot
 
-_COMPUTER_OBJECT_LABELS = {"monitor", "screen", "laptop", "keyboard", "mouse"}
-_PHONE_OBJECT_LABELS = {"phone", "cell phone", "mobile phone", "smartphone"}
+_DEFAULT_COMPUTER_OBJECT_LABELS = ("monitor", "screen", "laptop", "keyboard", "mouse")
+_DEFAULT_PHONE_OBJECT_LABELS = ("phone", "cell phone", "mobile phone", "smartphone")
 
 
+def _normalized_label_set(values: Iterable[str], *, fallback: tuple[str, ...]) -> frozenset[str]:
+    normalized = {str(value).strip().lower() for value in values if str(value).strip()}
+    if not normalized:
+        normalized = set(fallback)
+    return frozenset(normalized)
+
+
+@dataclass(slots=True)
 class ComputerWorkInterpreter:
+    active_threshold: float = 0.65
+    computer_object_labels: frozenset[str] = frozenset(_DEFAULT_COMPUTER_OBJECT_LABELS)
+    phone_object_labels: frozenset[str] = frozenset(_DEFAULT_PHONE_OBJECT_LABELS)
+
+    @classmethod
+    def from_mapping(cls, raw: dict[str, Any] | None) -> "ComputerWorkInterpreter":
+        payload = dict(raw or {})
+        return cls(
+            active_threshold=max(
+                0.0,
+                min(1.0, float(payload.get("computer_work_active_threshold", 0.65))),
+            ),
+            computer_object_labels=_normalized_label_set(
+                payload.get(
+                    "computer_work_screen_object_labels",
+                    _DEFAULT_COMPUTER_OBJECT_LABELS,
+                ),
+                fallback=_DEFAULT_COMPUTER_OBJECT_LABELS,
+            ),
+            phone_object_labels=_normalized_label_set(
+                payload.get(
+                    "computer_work_phone_object_labels",
+                    _DEFAULT_PHONE_OBJECT_LABELS,
+                ),
+                fallback=_DEFAULT_PHONE_OBJECT_LABELS,
+            ),
+        )
+
     def interpret(
         self,
         perception: PerceptionSnapshot,
@@ -29,12 +68,12 @@ class ComputerWorkInterpreter:
         computer_objects = tuple(
             obj
             for obj in perception.objects
-            if obj.label.strip().lower() in _COMPUTER_OBJECT_LABELS
+            if obj.label.strip().lower() in self.computer_object_labels
         )
         phone_objects = tuple(
             obj
             for obj in perception.objects
-            if obj.label.strip().lower() in _PHONE_OBJECT_LABELS
+            if obj.label.strip().lower() in self.phone_object_labels
         )
 
         engagement_face_count = perception.scene.engagement_face_count
@@ -89,7 +128,7 @@ class ComputerWorkInterpreter:
         elif downward_attention_proxy:
             inference_mode = "suppressed_downward_attention"
 
-        active = confidence >= 0.65
+        active = confidence >= self.active_threshold
 
         return ActivitySignal(
             active=active,
@@ -102,5 +141,6 @@ class ComputerWorkInterpreter:
                 "phone_like_evidence": phone_like_evidence,
                 "downward_attention_proxy": downward_attention_proxy,
                 "inference_mode": inference_mode,
+                "active_threshold": self.active_threshold,
             },
         )

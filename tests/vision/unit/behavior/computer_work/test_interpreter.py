@@ -107,5 +107,30 @@ class ComputerWorkInterpreterTests(unittest.TestCase):
         self.assertEqual(signal.metadata["inference_mode"], "suppressed_downward_attention")
 
 
+    def test_computer_work_threshold_can_be_tightened_from_mapping(self) -> None:
+        perception = PerceptionSnapshot(
+            frame_width=1280,
+            frame_height=720,
+            scene=SceneContext(
+                desk_zone_people_count=0,
+                engagement_face_count=1,
+                screen_candidate_count=0,
+                handheld_candidate_count=0,
+            ),
+        )
+
+        signal = ComputerWorkInterpreter.from_mapping(
+            {
+                "computer_work_active_threshold": 0.9,
+            }
+        ).interpret(
+            perception=perception,
+            presence=ActivitySignal(active=True, confidence=0.88),
+            desk_activity=ActivitySignal(active=True, confidence=0.76),
+        )
+
+        self.assertFalse(signal.active)
+        self.assertEqual(signal.metadata["active_threshold"], 0.9)
+
 if __name__ == "__main__":
     unittest.main()
