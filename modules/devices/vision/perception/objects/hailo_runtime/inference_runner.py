@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from modules.shared.logging.logger import get_logger
 
 from .device_manager import HailoDeviceManager
@@ -22,18 +24,16 @@ class HefInferenceRunner:
     Lifecycle:
         runner = HefInferenceRunner(manager, hef_path)
         runner.load()
-        result = runner.infer(preprocessed_tensor)   # called repeatedly
+        result = runner.infer(preprocessed_tensor)
         runner.unload()
 
     Responsibilities:
-    - Load HEF, configure inference model, prepare input/output streams.
+    - Load HEF and configure InferModel on the shared VDevice.
     - Serialize inference calls via the device manager inference_lock.
     - Parse HAILO_NMS_BY_CLASS output into RawNmsDetection tuples.
     - Track per-call timing for diagnostics.
 
-    This runner is model-agnostic regarding class labels — it returns
-    class indices as emitted by the HEF. Class-index-to-name mapping is
-    the job of the higher-level object detector.
+    This runner is model-agnostic regarding class labels.
     """
 
     def __init__(
@@ -50,16 +50,13 @@ class HefInferenceRunner:
         self._lifecycle_lock = threading.RLock()
         self._loaded = False
         self._hef: Any | None = None
-        self._network_group: Any | None = None
-        self._network_group_params: Any | None = None
+        self._infer_model: Any | None = None
+        self._configured_infer_model: Any | None = None
+        self._configure_context: Any | None = None
         self._input_vstream_info: Any | None = None
         self._output_vstream_info: Any | None = None
         self._input_shape: tuple[int, int, int] | None = None
         self._last_error: str | None = None
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     def load(self) -> None:
         """Load and configure the HEF on the shared VDevice."""
@@ -80,20 +77,15 @@ class HefInferenceRunner:
 
             try:
                 self._hef = hp.HEF(str(self._hef_path))
-                configure_params = hp.ConfigureParams.create_from_hef(
-                    hef=self._hef,
-                    interface=hp.HailoStreamInterface.PCIe,
-                )
-                network_groups = vdevice.configure(self._hef, configure_params)
-                if not network_groups:
-                    raise HailoRuntimeError("No network groups returned from configure().")
-                self._network_group = network_groups[0]
-                self._network_group_params = self._network_group.create_params()
+                self._infer_model = vdevice.create_infer_model(str(self._hef_path))
+                self._configure_context = self._infer_model.configure()
+                self._configured_infer_model = self._configure_context.__enter__()
 
                 input_infos = self._hef.get_input_vstream_infos()
                 output_infos = self._hef.get_output_vstream_infos()
                 if not input_infos or not output_infos:
                     raise HailoRuntimeError("HEF has no input or output vstreams.")
+
                 self._input_vstream_info = input_infos[0]
                 self._output_vstream_info = output_infos[0]
                 self._input_shape = tuple(self._input_vstream_info.shape)
@@ -115,10 +107,20 @@ class HefInferenceRunner:
                 ) from error
 
     def unload(self) -> None:
-        """Release references to the HEF and network group."""
+        """Release references to the HEF and configured infer model."""
         with self._lifecycle_lock:
-            self._network_group = None
-            self._network_group_params = None
+            if self._configure_context is not None:
+                try:
+                    self._configure_context.__exit__(None, None, None)
+                except Exception as error:
+                    LOGGER.warning(
+                        "HefInferenceRunner: error during configured model release. %s",
+                        error,
+                    )
+
+            self._configure_context = None
+            self._configured_infer_model = None
+            self._infer_model = None
             self._input_vstream_info = None
             self._output_vstream_info = None
             self._input_shape = None
@@ -142,43 +144,38 @@ class HefInferenceRunner:
         Run a single inference pass.
 
         preprocessed_tensor must match the HEF input shape exactly
-        (HxWxC UINT8 for YOLOv11m_h10). The runner serializes the call behind
-        the device inference_lock.
+        (HxWxC UINT8 for YOLOv11m_h10).
 
         Returns a HailoInferenceResult with parsed NMS detections.
         """
         with self._lifecycle_lock:
-            if not self._loaded:
+            if (
+                not self._loaded
+                or self._configured_infer_model is None
+                or self._infer_model is None
+            ):
                 raise HailoRuntimeError("HefInferenceRunner.infer() called before load().")
 
         inference_lock = self._device_manager.inference_lock()
-        hp = self._resolve_hailo_platform()
-
         raw_output = None
         inference_start = time.perf_counter()
 
         with inference_lock:
             try:
-                input_name = self._input_vstream_info.name
-                input_dict = {input_name: preprocessed_tensor}
-
-                input_params = hp.InputVStreamParams.make_from_network_group(
-                    self._network_group
-                )
-                output_params = hp.OutputVStreamParams.make_from_network_group(
-                    self._network_group
-                )
-
-                with self._network_group.activate(self._network_group_params):
-                    with hp.InferVStreams(
-                        self._network_group,
-                        input_params,
-                        output_params,
-                    ) as infer_pipeline:
-                        output_dict = infer_pipeline.infer(input_dict)
-
                 output_name = self._output_vstream_info.name
-                raw_output = output_dict.get(output_name)
+                output_buffers = {
+                    output_name: np.empty(
+                        self._infer_model.output(output_name).shape,
+                        dtype=self._resolve_output_numpy_dtype(),
+                    )
+                }
+
+                bindings = self._configured_infer_model.create_bindings(
+                    output_buffers=output_buffers
+                )
+                bindings.input().set_buffer(np.asarray(preprocessed_tensor))
+                self._configured_infer_model.run([bindings], 10000)
+                raw_output = self._binding_output_buffer(bindings, output_name)
             except Exception as error:
                 self._last_error = f"{error.__class__.__name__}: {error}"
                 raise HailoRuntimeError(f"Inference failed: {error}") from error
@@ -208,28 +205,14 @@ class HefInferenceRunner:
                 "last_error": self._last_error,
             }
 
-    # ------------------------------------------------------------------
-    # NMS_BY_CLASS parser
-    # ------------------------------------------------------------------
-
     def _parse_nms_by_class_output(self, raw_output: Any) -> tuple[RawNmsDetection, ...]:
         """
         Parse HAILO_NMS_BY_CLASS output into a flat tuple of RawNmsDetection.
-
-        The output is structured as a list (or numpy array) with one entry per
-        class. Each entry contains zero or more rows of shape [5] representing
-        [y_min, x_min, y_max, x_max, score] in normalized [0.0, 1.0] coords.
-
-        This layout is the HailoRT contract for HAILO_NMS_BY_CLASS and is
-        documented in the HailoRT user guide.
         """
         if raw_output is None:
             return ()
 
         detections: list[RawNmsDetection] = []
-
-        # HailoRT returns a list of per-class numpy arrays, one per class index.
-        # In some builds it's a batch-dim wrapped structure — handle both cases.
         per_class_arrays = self._unwrap_nms_output(raw_output)
 
         for class_index, class_rows in enumerate(per_class_arrays):
@@ -268,17 +251,10 @@ class HefInferenceRunner:
     def _unwrap_nms_output(raw_output: Any) -> list[Any]:
         """
         Normalize the HAILO_NMS_BY_CLASS output into a list indexed by class.
-
-        Handles two shapes we've observed in HailoRT:
-        - list[class_index] -> np.ndarray with shape (N, 5)
-        - np.ndarray with shape (1, num_classes) where dtype is object
-          and each cell holds the per-class ndarray.
         """
-        # Plain Python list already indexed by class.
         if isinstance(raw_output, list):
             return list(raw_output)
 
-        # Numpy object array — batch wrapper.
         shape = getattr(raw_output, "shape", None)
         if shape is not None:
             if len(shape) == 2 and shape[0] == 1:
@@ -286,15 +262,27 @@ class HefInferenceRunner:
             if len(shape) == 1:
                 return [raw_output[i] for i in range(shape[0])]
 
-        # Fallback: try to iterate once.
         try:
             return list(raw_output)
         except TypeError:
             return []
 
-    # ------------------------------------------------------------------
-    # Internals
-    # ------------------------------------------------------------------
+    def _binding_output_buffer(self, bindings: Any, output_name: str) -> Any:
+        output_method = getattr(bindings, "output")
+        try:
+            return output_method(output_name).get_buffer()
+        except TypeError:
+            return output_method().get_buffer()
+
+    def _resolve_output_numpy_dtype(self) -> Any:
+        output_format = getattr(getattr(self._output_vstream_info, "format", None), "type", None)
+        output_format_name = str(output_format).split(".")[-1].upper()
+        mapping = {
+            "UINT8": np.uint8,
+            "UINT16": np.uint16,
+            "FLOAT32": np.float32,
+        }
+        return mapping.get(output_format_name, np.float32)
 
     def _resolve_hailo_platform(self) -> Any:
         if self._hailo_platform is not None:

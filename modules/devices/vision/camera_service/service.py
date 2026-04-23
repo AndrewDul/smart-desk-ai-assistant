@@ -91,6 +91,17 @@ class CameraService:
                 )
 
             try:
+                object_detector = getattr(self._perception, "object_detector", None)
+                detector_close = getattr(object_detector, "close", None)
+                if callable(detector_close):
+                    try:
+                        detector_close()
+                    except Exception as error:
+                        LOGGER.warning(
+                            "CameraService: object detector close failed. %s",
+                            error,
+                        )
+
                 self._reader.close()
             finally:
                 self._closed = True
@@ -158,6 +169,18 @@ class CameraService:
                 "session_tracker_ready": True,
                 "worker": worker_stats,
             }
+
+    def object_detector_status(self) -> dict | None:
+        """
+        Return the status dict from the active object detector, if any.
+
+        Returns None when no object detector is active (NullObjectDetector).
+        Used by diagnostics, smoke tests, and the future AI broker.
+        """
+        detector = self._perception.object_detector
+        if hasattr(detector, "status"):
+            return detector.status()
+        return None
 
     # ------------------------------------------------------------------
     # Internal helpers

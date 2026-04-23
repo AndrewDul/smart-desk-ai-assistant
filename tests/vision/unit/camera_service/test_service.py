@@ -70,6 +70,26 @@ class _FakePerceptionPipeline:
         return _Snapshot()
 
 
+
+class _FakeClosableObjectDetector:
+    backend_label = "fake_hailo"
+
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _FakePerceptionPipelineWithClosableObject(_FakePerceptionPipeline):
+    @classmethod
+    def from_config(cls, config):
+        del config
+        instance = cls()
+        instance.object_detector = _FakeClosableObjectDetector()
+        return instance
+
+
 class _FakeBehaviorPipeline:
     def __init__(self) -> None:
         self.calls = 0
@@ -204,6 +224,25 @@ class CameraServiceTests(unittest.TestCase):
 
         self.assertTrue(service._reader.closed)
         self.assertTrue(service.status()["closed"])
+
+
+    @patch("modules.devices.vision.camera_service.service.VisionSessionTracker", _FakeSessionTracker)
+    @patch("modules.devices.vision.camera_service.service.BehaviorStabilizer", _FakeStabilizer)
+    @patch("modules.devices.vision.camera_service.service.BehaviorPipeline", _FakeBehaviorPipeline)
+    @patch(
+        "modules.devices.vision.camera_service.service.PerceptionPipeline",
+        _FakePerceptionPipelineWithClosableObject,
+    )
+    @patch("modules.devices.vision.camera_service.service.VisionCaptureReader", _FakeReader)
+    def test_close_closes_object_detector_when_detector_exposes_close(self) -> None:
+        from modules.devices.vision.camera_service import CameraService
+
+        service = CameraService(config={"enabled": True})
+        detector = service._perception.object_detector
+
+        self.assertFalse(detector.closed)
+        service.close()
+        self.assertTrue(detector.closed)
 
 
 if __name__ == "__main__":

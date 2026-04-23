@@ -234,27 +234,71 @@ class HealthSystemChecks(HealthCheckHelpers):
             )
 
         people_enabled = bool(vision_cfg.get("people_detection_enabled", False))
-        people_backend = str(vision_cfg.get("people_detector_backend", "opencv_hog") or "opencv_hog").strip().lower()
+        people_backend = str(
+            vision_cfg.get("people_detector_backend", "opencv_hog") or "opencv_hog"
+        ).strip().lower()
+        face_enabled = bool(vision_cfg.get("face_detection_enabled", False))
+        face_backend = str(
+            vision_cfg.get("face_detector_backend", "opencv_haar") or "opencv_haar"
+        ).strip().lower()
         object_enabled = bool(vision_cfg.get("object_detection_enabled", False))
-        object_backend = str(vision_cfg.get("object_detector_backend", "null") or "null").strip().lower()
+        object_backend = str(
+            vision_cfg.get("object_detector_backend", "null") or "null"
+        ).strip().lower()
 
-        if people_enabled and people_backend not in {"opencv_hog", "null", "none"}:
+        if people_enabled and people_backend not in {
+            "opencv_hog",
+            "hybrid_face_primary",
+            "null",
+            "none",
+        }:
             return self._error(
                 "vision",
                 f"unsupported people detector backend: {people_backend}",
             )
 
-        if object_enabled and object_backend not in {"null", "none"}:
+        if face_enabled and face_backend not in {"opencv_haar", "null", "none"}:
+            return self._error(
+                "vision",
+                f"unsupported face detector backend: {face_backend}",
+            )
+
+        if object_enabled and object_backend not in {"hailo_yolov11", "null", "none"}:
             return self._error(
                 "vision",
                 f"unsupported object detector backend: {object_backend}",
             )
 
-        if people_enabled and people_backend == "opencv_hog" and not self._module_exists("cv2"):
+        opencv_required = (
+            (people_enabled and people_backend in {"opencv_hog", "hybrid_face_primary"})
+            or (face_enabled and face_backend == "opencv_haar")
+        )
+        if opencv_required and not self._module_exists("cv2"):
             return self._error(
                 "vision",
-                "people detector backend 'opencv_hog' requires opencv-python",
+                "configured face/people detector backends require opencv-python",
             )
+
+        if object_enabled and object_backend == "hailo_yolov11":
+            if not self._module_exists("hailo_platform"):
+                return self._error(
+                    "vision",
+                    "Hailo object detector backend 'hailo_yolov11' requires hailo_platform",
+                )
+
+            hef_path_value = str(
+                vision_cfg.get(
+                    "object_detector_hailo_hef_path",
+                    "/usr/share/hailo-models/yolov11m_h10.hef",
+                )
+                or ""
+            ).strip()
+            hef_path = self._resolve_local_path(hef_path_value)
+            if hef_path is None or not hef_path.exists():
+                return self._error(
+                    "vision",
+                    f"missing Hailo HEF model: {hef_path_value}",
+                )
 
         camera_index = int(vision_cfg.get("camera_index", 0))
 
@@ -277,6 +321,7 @@ class HealthSystemChecks(HealthCheckHelpers):
         detector_text = ", ".join(
             [
                 f"people={people_backend if people_enabled else 'null'}",
+                f"face={face_backend if face_enabled else 'null'}",
                 f"objects={object_backend if object_enabled else 'null'}",
                 "scene=zone_rules",
             ]
