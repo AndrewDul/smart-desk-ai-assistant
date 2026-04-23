@@ -48,65 +48,74 @@ class DialogueFlowOrchestrator(
         self._active_dialogue_request = request
         self._last_dialogue_result = None
 
-        assistant.voice_session.set_state(
-            "routing",
-            detail=f"dialogue_plan:{route.kind.value}",
+        assistant._enter_ai_broker_conversation_answer_mode(
+            reason=f"dialogue_route_started:{route.kind.value}",
         )
 
-        assistant._thinking_ack_start(language=lang, detail="dialogue_plan")
         try:
-            plan = self._build_dialogue_plan(
-                route=route,
-                request=request,
-                user_profile=dialogue_profile,
-                language=lang,
+            assistant.voice_session.set_state(
+                "routing",
+                detail=f"dialogue_plan:{route.kind.value}",
             )
-        except Exception as error:
-            LOGGER.exception("Dialogue plan build failed: %s", error)
-            plan = self._build_dialogue_fallback_plan(
-                route=route,
-                language=lang,
-                reason="dialogue_plan_build_failed",
-            )
-        finally:
-            assistant._thinking_ack_stop()
 
-        delivered = bool(
-            assistant.deliver_response_plan(
-                plan,
+            assistant._thinking_ack_start(language=lang, detail="dialogue_plan")
+            try:
+                plan = self._build_dialogue_plan(
+                    route=route,
+                    request=request,
+                    user_profile=dialogue_profile,
+                    language=lang,
+                )
+            except Exception as error:
+                LOGGER.exception("Dialogue plan build failed: %s", error)
+                plan = self._build_dialogue_fallback_plan(
+                    route=route,
+                    language=lang,
+                    reason="dialogue_plan_build_failed",
+                )
+            finally:
+                assistant._thinking_ack_stop()
+
+            delivered = bool(
+                assistant.deliver_response_plan(
+                    plan,
+                    source="dialogue_flow",
+                    remember=True,
+                    extra_metadata=self._route_memory_metadata(route, lang, source="dialogue_flow"),
+                )
+            )
+            self._last_dialogue_result = DialogueResult(
+                handled=True,
+                delivered=delivered,
+                status="completed" if delivered else "delivery_failed",
                 source="dialogue_flow",
-                remember=True,
-                extra_metadata=self._route_memory_metadata(route, lang, source="dialogue_flow"),
+                metadata={
+                    "turn_id": request.turn_id,
+                    "route_kind": request.kind.value,
+                    "primary_intent": request.primary_intent,
+                    "capture_phase": request.capture_phase,
+                    "capture_mode": request.capture_mode,
+                    "capture_backend": request.capture_backend,
+                    "reply_mode": request.reply_mode,
+                },
             )
-        )
-        self._last_dialogue_result = DialogueResult(
-            handled=True,
-            delivered=delivered,
-            status="completed" if delivered else "delivery_failed",
-            source="dialogue_flow",
-            metadata={
-                "turn_id": request.turn_id,
-                "route_kind": request.kind.value,
-                "primary_intent": request.primary_intent,
-                "capture_phase": request.capture_phase,
-                "capture_mode": request.capture_mode,
-                "capture_backend": request.capture_backend,
-                "reply_mode": request.reply_mode,
-            },
-        )
 
-        if not delivered:
-            LOGGER.error(
-                "Dialogue response delivery returned False. "
-                "Keeping runtime alive. turn_id=%s route_kind=%s",
-                route.turn_id,
-                route.kind.value,
-            )
+            if not delivered:
+                LOGGER.error(
+                    "Dialogue response delivery returned False. "
+                    "Keeping runtime alive. turn_id=%s route_kind=%s",
+                    route.turn_id,
+                    route.kind.value,
+                )
+                self._active_dialogue_request = None
+                return True
+
             self._active_dialogue_request = None
             return True
-
-        self._active_dialogue_request = None
-        return True
+        finally:
+            assistant._enter_ai_broker_idle_baseline(
+                reason=f"dialogue_route_finished:{route.kind.value}",
+            )
 
     def handle_conversation_route(self, *, route: RouteDecision, language: str) -> bool:
         self.assistant.pending_follow_up = None

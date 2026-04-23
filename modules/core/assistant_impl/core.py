@@ -30,6 +30,7 @@ from modules.shared.persistence.repositories import (
     UserProfileRepository,
 )
 
+from .ai_broker_mixin import CoreAssistantAiBrokerMixin
 from .helpers_mixin import CoreAssistantHelpersMixin
 from .interaction_mixin import CoreAssistantInteractionMixin
 from .lifecycle_mixin import CoreAssistantLifecycleMixin
@@ -45,6 +46,7 @@ class CoreAssistant(
     CoreAssistantMemoryBackgroundMixin,
     CoreAssistantRoutingMixin,
     CoreAssistantResponseMixin,
+    CoreAssistantAiBrokerMixin,
     CoreAssistantInteractionMixin,
     CoreAssistantLifecycleMixin,
 ):
@@ -103,6 +105,7 @@ class CoreAssistant(
         self._last_session_continuity_snapshot: dict[str, Any] = {}
         self._last_interrupt_snapshot: dict[str, Any] = {}
         self._last_audio_runtime_snapshot: dict[str, Any] = {}
+        self._last_ai_broker_snapshot: dict[str, Any] = {}
 
         self.turn_benchmark_service = TurnBenchmarkService(
             enabled=bool(benchmark_cfg.get("enabled", True)),
