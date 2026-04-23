@@ -538,6 +538,11 @@ class CoreAssistantResponseMixin:
         self._save_state()
 
         if timer_type == "focus":
+            self._enter_ai_broker_focus_sentinel_mode(
+                reason="focus_timer_started",
+            )
+
+        if timer_type == "focus":
             spoken = self._localized(
                 lang,
                 f"Rozpoczynam tryb skupienia na {self._minutes_text(minutes, 'pl')}.",
@@ -584,6 +589,11 @@ class CoreAssistantResponseMixin:
         self._save_state()
 
         if timer_type == "focus":
+            self._enter_ai_broker_idle_baseline(
+                reason="focus_timer_finished",
+            )
+
+        if timer_type == "focus":
             spoken = self._localized(
                 lang,
                 f"Tryb skupienia zakończony po {self._minutes_text(minutes, 'pl')}.",
@@ -627,6 +637,11 @@ class CoreAssistantResponseMixin:
         self.state["focus_mode"] = False
         self.state["break_mode"] = False
         self._save_state()
+
+        if timer_type == "focus":
+            self._enter_ai_broker_idle_baseline(
+                reason="focus_timer_stopped",
+            )
 
         spoken = self._localized(
             lang,

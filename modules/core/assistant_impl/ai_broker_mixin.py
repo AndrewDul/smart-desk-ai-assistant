@@ -84,3 +84,14 @@ class CoreAssistantAiBrokerMixin:
             reason=reason or "vision_action_requested",
             log_label="vision_action",
         )
+
+    def _enter_ai_broker_focus_sentinel_mode(
+        self,
+        *,
+        reason: str = "",
+    ) -> dict[str, Any] | None:
+        return self._apply_ai_broker_transition(
+            method_name="enter_focus_sentinel_mode",
+            reason=reason or "focus_sentinel_requested",
+            log_label="focus_sentinel",
+        )

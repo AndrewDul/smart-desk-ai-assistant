@@ -48,6 +48,19 @@ class _FakeBroker:
             },
         }
 
+    def enter_focus_sentinel_mode(self, *, reason: str = "") -> dict[str, object]:
+        self.calls.append(("focus", reason))
+        return {
+            "mode": "focus_sentinel",
+            "owner": "monitor_path",
+            "profile": {
+                "heavy_lane_cadence_hz": 1.0,
+                "keep_fast_lane_alive": True,
+                "llm_priority": "low",
+                "notes": [],
+            },
+        }
+
 
 class _Host(CoreAssistantAiBrokerMixin):
     def __init__(self) -> None:
@@ -91,6 +104,18 @@ class CoreAssistantAiBrokerMixinTests(unittest.TestCase):
         self.assertEqual(snapshot["mode"], "vision_action")
         self.assertEqual(host.ai_broker.calls, [("vision", "action_route_started:look_direction")])
         self.assertEqual(host._last_ai_broker_snapshot["owner"], "vision_path")
+
+    def test_enter_focus_sentinel_mode_updates_snapshot(self) -> None:
+        host = _Host()
+
+        snapshot = host._enter_ai_broker_focus_sentinel_mode(
+            reason="focus_timer_started",
+        )
+
+        self.assertIsInstance(snapshot, dict)
+        self.assertEqual(snapshot["mode"], "focus_sentinel")
+        self.assertEqual(host.ai_broker.calls, [("focus", "focus_timer_started")])
+        self.assertEqual(host._last_ai_broker_snapshot["owner"], "monitor_path")
 
 
 if __name__ == "__main__":
