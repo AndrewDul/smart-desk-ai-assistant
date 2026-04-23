@@ -268,39 +268,105 @@ class OpenWakeWordGateHelpers:
         vad_threshold: float,
         enable_speex_noise_suppression: bool,
     ) -> Any:
-        modern_kwargs: dict[str, Any] = {
-            "wakeword_models": [str(self.model_path)],
-            "inference_framework": "onnx",
-        }
+        """
+        Build an openwakeword Model that actually has the NeXa wake word
+        loaded, across both the 1.x+ and 0.4.x APIs.
 
+        Notes:
+        - openwakeword 1.x+ takes 'wakeword_model_paths' and does NOT know
+          'inference_framework'.
+        - openwakeword 0.4.x takes 'wakeword_models' and 'inference_framework'.
+        - Both Model.__init__ accept **kwargs, so unknown keyword arguments
+          do not raise — the constructor can quietly return an empty model.
+          Every candidate path below is therefore verified against
+          model.models after construction. If no variant produces a model
+          that actually loaded the wake word, we raise so wake_gate_mixin
+          can surface the real reason instead of silently falling through
+          to the compatibility path.
+        """
+        expected_key = str(self.model_name or "").strip().lower()
+        model_path_str = str(self.model_path)
+
+        attempts: list[tuple[str, dict[str, Any]]] = []
+
+        # 1.x+ path — current releases. No 'inference_framework' keyword.
+        modern_kwargs: dict[str, Any] = {"wakeword_model_paths": [model_path_str]}
         if vad_threshold > 0.0:
             modern_kwargs["vad_threshold"] = vad_threshold
-
         if enable_speex_noise_suppression:
             modern_kwargs["enable_speex_noise_suppression"] = True
+        attempts.append(("openwakeword 1.x+ dedicated API", modern_kwargs))
 
-        try:
-            model = model_class(**modern_kwargs)
-            LOGGER.info("OpenWakeWordGate using modern model API.")
-            return model
-        except TypeError as error:
-            LOGGER.info("OpenWakeWord modern API unavailable, falling back to legacy API: %s", error)
-
+        # 0.4.x path — kept for backwards compatibility. Uses
+        # 'wakeword_models' plus the 'inference_framework' selector.
         legacy_kwargs: dict[str, Any] = {
-            "wakeword_model_paths": [str(self.model_path)],
+            "wakeword_models": [model_path_str],
+            "inference_framework": "onnx",
         }
         if vad_threshold > 0.0:
             legacy_kwargs["vad_threshold"] = vad_threshold
+        if enable_speex_noise_suppression:
+            legacy_kwargs["enable_speex_noise_suppression"] = True
+        attempts.append(("openwakeword 0.4.x legacy API", legacy_kwargs))
 
-        try:
-            model = model_class(**legacy_kwargs)
-            LOGGER.info("OpenWakeWordGate using legacy 0.4.x model API.")
+        # Last-resort path — no extras at all. Helps when a future
+        # version changes optional keywords but still honours the model
+        # paths kwarg.
+        attempts.append(
+            ("openwakeword minimal API", {"wakeword_model_paths": [model_path_str]})
+        )
+
+        last_error: Exception | None = None
+        for label, kwargs in attempts:
+            try:
+                model = model_class(**kwargs)
+            except TypeError as error:
+                last_error = error
+                LOGGER.info(
+                    "OpenWakeWordGate: %s rejected (%s). Trying next path.",
+                    label,
+                    error,
+                )
+                continue
+            except Exception as error:
+                last_error = error
+                LOGGER.warning(
+                    "OpenWakeWordGate: %s raised unexpectedly (%s). Trying next path.",
+                    label,
+                    error,
+                )
+                continue
+
+            loaded_keys = list(getattr(model, "models", {}) or {})
+            if not loaded_keys:
+                last_error = RuntimeError(
+                    f"{label} produced a Model with no loaded wake words. "
+                    "The kwargs were likely swallowed by **kwargs."
+                )
+                LOGGER.info("OpenWakeWordGate: %s produced empty model. Trying next path.", label)
+                continue
+
+            if expected_key and expected_key not in {str(k).lower() for k in loaded_keys}:
+                LOGGER.warning(
+                    "OpenWakeWordGate: %s loaded unexpected wake word keys %s, "
+                    "expected '%s'. Using the model as-is, downstream code "
+                    "may need to adapt if this persists.",
+                    label,
+                    loaded_keys,
+                    expected_key,
+                )
+
+            LOGGER.info(
+                "OpenWakeWordGate using %s (loaded=%s).",
+                label,
+                loaded_keys,
+            )
             return model
-        except TypeError:
-            legacy_kwargs.pop("vad_threshold", None)
-            model = model_class(**legacy_kwargs)
-            LOGGER.info("OpenWakeWordGate using minimal legacy model API.")
-            return model
+
+        raise RuntimeError(
+            "OpenWakeWord Model could not be constructed with any known API. "
+            f"Last error: {last_error}"
+        )
 
 
 __all__ = ["LOGGER", "OpenWakeWordGateHelpers"]

@@ -1,5 +1,9 @@
 from __future__ import annotations
+from __future__ import annotations
 
+import re
+
+from dataclasses import dataclass, field
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -12,6 +16,10 @@ from modules.runtime.contracts import (
     create_turn_id,
 )
 from modules.shared.logging.logger import get_logger
+from modules.core.session.fast_calculator import (
+    looks_like_arithmetic,
+    try_handle_arithmetic,
+)
 from modules.understanding.parsing.normalization import (
     is_exit_request,
     is_micro_reply,
@@ -81,6 +89,7 @@ class FastCommandLane:
         "confirm_yes",
         "confirm_no",
         "look_direction",
+        
     }
 
     ALL_ACTIONS = TEMPORAL_ACTIONS | DIRECT_ACTIONS
@@ -89,10 +98,77 @@ class FastCommandLane:
         self.enabled = bool(enabled)
 
     def try_handle(self, *, prepared: dict[str, Any], assistant: Any) -> bool | None:
+        if not self.enabled:
+            return None
+
+        raw_text = str(
+            prepared.get("raw_text") or prepared.get("routing_text") or ""
+        ).strip()
+        if raw_text and looks_like_arithmetic(raw_text):
+            language = assistant._normalize_lang(prepared.get("language") or "en")
+            if self._handle_arithmetic(
+                assistant=assistant,
+                raw_text=raw_text,
+                language=language,
+            ):
+                return True
+
         decision = self.classify(prepared=prepared, assistant=assistant)
         if decision is None:
             return None
         return self.execute(assistant=assistant, decision=decision)
+
+    def _handle_arithmetic(
+        self,
+        *,
+        assistant: Any,
+        raw_text: str,
+        language: str,
+    ) -> bool:
+        clear_context = getattr(assistant, "_clear_interaction_context", None)
+        if callable(clear_context):
+            try:
+                clear_context(close_active_window=False)
+            except TypeError:
+                try:
+                    clear_context()
+                except Exception:
+                    pass
+            except Exception:
+                pass
+        else:
+            assistant.pending_confirmation = None
+            assistant.pending_follow_up = None
+
+        assistant.voice_session.set_state("routing", detail="fast_lane:calculate")
+        assistant._commit_language(language)
+
+        LOGGER.info(
+            "Fast command lane arithmetic: text=%s, language=%s",
+            raw_text,
+            language,
+        )
+
+        assistant._last_fast_lane_route_snapshot = {
+            "route_kind": "action",
+            "route_confidence": 0.95,
+            "primary_intent": "calculate",
+            "topics": [],
+            "route_notes": ["deterministic_fast_calculator"],
+            "route_metadata": {
+                "lane": "fast_command",
+                "action": "calculate",
+                "source": "fast_calculator",
+            },
+        }
+
+        return bool(
+            try_handle_arithmetic(
+                assistant=assistant,
+                raw_text=raw_text,
+                language=language,
+            )
+        )
 
     def classify(self, *, prepared: dict[str, Any], assistant: Any) -> FastCommandDecision | None:
         if not self.enabled:
@@ -219,6 +295,8 @@ class FastCommandLane:
             action = self._match_simple_action(normalized_text)
             if action:
                 confidence = 0.94 if is_micro_reply(normalized_text) else 0.90
+
+        
 
         if not action:
             return None
@@ -509,5 +587,20 @@ class FastCommandLane:
         }
         return mapping.get(str(action).strip().lower(), "")
 
+
+    _ARITHMETIC_RE = re.compile(
+        r"\d+(?:[.,]\d+)?\s*"
+        r"(?:[+\-*/xX×·÷:]|plus|minus|razy|dodać|dodac|odjąć|odjac|"
+        r"pomnożyć|pomnozyc|podzielić|podzielic|przez|times|divided|over)"
+        r"\s*\d+(?:[.,]\d+)?",
+        flags=re.IGNORECASE,
+    )
+
+    @classmethod
+    def _looks_like_arithmetic(cls, text: str) -> bool:
+        cleaned = str(text or "").strip()
+        if not cleaned:
+            return False
+        return bool(cls._ARITHMETIC_RE.search(cleaned))
 
 __all__ = ["FastCommandDecision", "FastCommandLane"]

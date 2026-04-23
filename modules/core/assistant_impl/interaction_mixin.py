@@ -124,15 +124,16 @@ class CoreAssistantInteractionMixin:
             }
 
             routing_started = time.perf_counter()
-            self._thinking_ack_start(language=command_lang, detail="route_command")
-            try:
-                routed = self._route_command(
-                    routing_text,
-                    preferred_language=command_lang,
-                    context=route_context,
-                )
-            finally:
-                self._thinking_ack_stop()
+            # Router itself is fast (deterministic + optional semantic classifier).
+            # Thinking-ack here used to fire for every non-fast-lane turn, which
+            # caused audible overlap with the real reply. The dialogue flow arms
+            # its own thinking-ack only when an LLM generation is actually in
+            # progress, which is the only case where the user can hear silence.
+            routed = self._route_command(
+                routing_text,
+                preferred_language=command_lang,
+                context=route_context,
+            )
             telemetry["router_ms"] = self._elapsed_ms(routing_started)
 
             route = self._coerce_route_decision(
