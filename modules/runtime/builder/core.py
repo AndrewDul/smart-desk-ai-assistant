@@ -5,6 +5,7 @@ from typing import Any
 from modules.runtime.contracts import RuntimeServices
 from modules.shared.config.settings import load_settings
 
+from .ai_broker_mixin import RuntimeBuilderAiBrokerMixin
 from .audio_coordination_mixin import RuntimeBuilderAudioCoordinationMixin
 from .display_mixin import RuntimeBuilderDisplayMixin
 from .features_mixin import RuntimeBuilderFeaturesMixin
@@ -23,6 +24,7 @@ class RuntimeBuilder(
     RuntimeBuilderUnderstandingMixin,
     RuntimeBuilderFeaturesMixin,
     RuntimeBuilderAudioCoordinationMixin,
+    RuntimeBuilderAiBrokerMixin,
     RuntimeBuilderVoiceInputMixin,
     RuntimeBuilderWakeGateMixin,
     RuntimeBuilderVoiceOutputMixin,
@@ -70,6 +72,7 @@ class RuntimeBuilder(
         voice_output_cfg = self._cfg("voice_output")
         display_cfg = self._cfg("display")
         vision_cfg = self._cfg("vision")
+        ai_broker_cfg = self._cfg("ai_broker")
         pan_tilt_cfg = self._cfg("pan_tilt")
         mobility_cfg = self._cfg("mobility")
 
@@ -82,6 +85,10 @@ class RuntimeBuilder(
         voice_output, voice_output_status = self._build_voice_output(voice_output_cfg)
         display, display_status = self._build_display(display_cfg)
         vision, vision_status = self._build_vision(vision_cfg)
+        ai_broker, ai_broker_status = self._build_ai_broker(
+            ai_broker_cfg,
+            vision_backend=vision,
+        )
         pan_tilt, pan_tilt_status = self._build_pan_tilt(pan_tilt_cfg)
         mobility, mobility_status = self._build_mobility(mobility_cfg)
 
@@ -95,6 +102,7 @@ class RuntimeBuilder(
             "voice_output": voice_output_status,
             "display": display_status,
             "vision": vision_status,
+            "ai_broker": ai_broker_status,
             "pan_tilt": pan_tilt_status,
             "mobility": mobility_status,
         }
@@ -122,6 +130,7 @@ class RuntimeBuilder(
             metadata={
                 "audio_coordinator": audio_coordinator,
                 "vision_backend": vision,
+                "ai_broker": ai_broker,
                 "pan_tilt_backend": pan_tilt,
                 "mobility_backend": mobility,
                 "wake_backend": wake_gate,

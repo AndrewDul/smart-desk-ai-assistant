@@ -132,6 +132,72 @@ class NullWakeGate:
         return None
 
 
+
+class NullAiBroker:
+    """
+    Safe broker fallback used when AI broker initialization is disabled or fails.
+    """
+
+    def _payload(self) -> dict[str, object]:
+        return {
+            "mode": "idle_baseline",
+            "owner": "balanced",
+            "profile": {
+                "heavy_lane_cadence_hz": 0.0,
+                "keep_fast_lane_alive": True,
+                "llm_priority": "normal",
+                "notes": [],
+            },
+            "recovery_window_active": False,
+            "recovery_until_monotonic": None,
+            "last_reason": "null_ai_broker",
+            "last_error": None,
+            "vision_control_available": False,
+            "metadata": {
+                "vision_profile_applied": False,
+                "supported_modes": [],
+            },
+        }
+
+    def enter_idle_baseline(self, *, reason: str = "") -> dict[str, object]:
+        del reason
+        return self._payload()
+
+    def enter_conversation_answer_mode(self, *, reason: str = "") -> dict[str, object]:
+        del reason
+        return self._payload()
+
+    def enter_vision_action_mode(self, *, reason: str = "") -> dict[str, object]:
+        del reason
+        return self._payload()
+
+    def enter_focus_sentinel_mode(self, *, reason: str = "") -> dict[str, object]:
+        del reason
+        return self._payload()
+
+    def enter_recovery_window(
+        self,
+        *,
+        reason: str = "",
+        return_to_mode=None,
+        seconds: float | None = None,
+    ) -> dict[str, object]:
+        del reason, return_to_mode, seconds
+        return self._payload()
+
+    def tick(self) -> dict[str, object]:
+        return self._payload()
+
+    def snapshot(self) -> dict[str, object]:
+        return self._payload()
+
+    def status(self) -> dict[str, object]:
+        return self._payload()
+
+    def close(self) -> None:
+        return None
+
+
 class NullVisionBackend:
     """
     Placeholder backend until the camera stack is fully enabled.
@@ -198,6 +264,7 @@ class NullMobilityBackend:
 
 
 __all__ = [
+    "NullAiBroker",
     "NullDisplay",
     "NullMobilityBackend",
     "NullPanTiltBackend",

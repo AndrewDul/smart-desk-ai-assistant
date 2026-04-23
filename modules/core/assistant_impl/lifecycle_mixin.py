@@ -161,6 +161,55 @@ class CoreAssistantLifecycleMixin:
         except Exception as error:
             log_exception("Failed to start vision backend during boot", error)
 
+    def _apply_ai_broker_boot_baseline(self) -> None:
+        """
+        Apply the broker-owned idle baseline after the vision backend starts.
+
+        This makes the broker the central ownership authority from boot onward,
+        while keeping the runtime behavior conservative and low-risk.
+        """
+        broker = getattr(self, "ai_broker", None)
+        if broker is None:
+            return
+
+        enter_method = getattr(broker, "enter_idle_baseline", None)
+        if not callable(enter_method):
+            return
+
+        try:
+            snapshot = enter_method(reason="assistant_boot_idle_baseline")
+            if isinstance(snapshot, dict):
+                profile = dict(snapshot.get("profile", {}) or {})
+                append_log(
+                    "AI broker idle baseline applied during boot: "
+                    f"mode={snapshot.get('mode', '')}, "
+                    f"owner={snapshot.get('owner', '')}, "
+                    f"heavy_lane={profile.get('heavy_lane_cadence_hz', '')}"
+                )
+            else:
+                append_log("AI broker idle baseline applied during boot.")
+        except Exception as error:
+            log_exception("Failed to apply AI broker idle baseline during boot", error)
+
+    def _close_ai_broker(self) -> None:
+        """
+        Close the AI broker lifecycle if it exposes a close() hook.
+        Never raises — shutdown must complete even if broker cleanup fails.
+        """
+        broker = getattr(self, "ai_broker", None)
+        if broker is None:
+            return
+
+        close_method = getattr(broker, "close", None)
+        if not callable(close_method):
+            return
+
+        try:
+            close_method()
+            append_log("AI broker closed.")
+        except Exception as error:
+            log_exception("Failed to close AI broker during shutdown", error)
+
     def _close_vision_backend(self) -> None:
         """
         Close the vision backend lifecycle if it exposes a close() hook.
@@ -200,6 +249,7 @@ class CoreAssistantLifecycleMixin:
             self._reminder_thread.start()
 
         self._start_vision_backend()
+        self._apply_ai_broker_boot_baseline()
 
         self._clear_developer_overlay()
         self.display.show_block(
@@ -310,6 +360,7 @@ class CoreAssistantLifecycleMixin:
         except Exception as error:
             log_exception("Failed to update voice session during shutdown", error)
 
+        self._close_ai_broker()
         self._close_vision_backend()
 
         self._mark_runtime_state("mark_stopped", "assistant shut down")
