@@ -23,6 +23,9 @@ class ComputerWorkInterpreter:
     active_threshold: float = 0.65
     computer_object_labels: frozenset[str] = frozenset(_DEFAULT_COMPUTER_OBJECT_LABELS)
     phone_object_labels: frozenset[str] = frozenset(_DEFAULT_PHONE_OBJECT_LABELS)
+    downward_attention_penalty: float = 0.16
+    explicit_screen_downward_penalty_multiplier: float = 0.35
+    explicit_screen_attention_recovery_bonus: float = 0.08
 
     @classmethod
     def from_mapping(cls, raw: dict[str, Any] | None) -> "ComputerWorkInterpreter":
@@ -45,6 +48,18 @@ class ComputerWorkInterpreter:
                     _DEFAULT_PHONE_OBJECT_LABELS,
                 ),
                 fallback=_DEFAULT_PHONE_OBJECT_LABELS,
+            ),
+            downward_attention_penalty=max(
+                0.0,
+                float(payload.get("computer_work_downward_attention_penalty", 0.16)),
+            ),
+            explicit_screen_downward_penalty_multiplier=max(
+                0.0,
+                float(payload.get("computer_work_explicit_screen_downward_penalty_multiplier", 0.35)),
+            ),
+            explicit_screen_attention_recovery_bonus=max(
+                0.0,
+                float(payload.get("computer_work_explicit_screen_attention_recovery_bonus", 0.08)),
             ),
         )
 
@@ -100,9 +115,14 @@ class ComputerWorkInterpreter:
             confidence += 0.20
             confidence += max((obj.confidence for obj in computer_objects), default=0.0) * 0.25
 
+        applied_downward_penalty = 0.0
         if downward_attention_proxy:
             reasons.append("downward_attention_proxy")
-            confidence -= 0.16
+            applied_downward_penalty = self.downward_attention_penalty
+            if explicit_screen_evidence:
+                applied_downward_penalty *= self.explicit_screen_downward_penalty_multiplier
+                reasons.append("explicit_screen_evidence_softens_downward_attention")
+            confidence -= applied_downward_penalty
 
         if (
             desk_activity.active
@@ -112,6 +132,14 @@ class ComputerWorkInterpreter:
         ):
             reasons.append("desk_screen_posture_proxy")
             confidence += 0.18
+
+        if (
+            explicit_screen_evidence
+            and not phone_like_evidence
+            and downward_attention_proxy
+        ):
+            reasons.append("explicit_screen_attention_recovery")
+            confidence += self.explicit_screen_attention_recovery_bonus
 
         if phone_like_evidence:
             reasons.append("phone_like_evidence_present")
@@ -140,7 +168,10 @@ class ComputerWorkInterpreter:
                 "engagement_face_count": engagement_face_count,
                 "phone_like_evidence": phone_like_evidence,
                 "downward_attention_proxy": downward_attention_proxy,
+                "downward_attention_penalty_applied": applied_downward_penalty,
                 "inference_mode": inference_mode,
                 "active_threshold": self.active_threshold,
+                "explicit_screen_downward_penalty_multiplier": self.explicit_screen_downward_penalty_multiplier,
+                "explicit_screen_attention_recovery_bonus": self.explicit_screen_attention_recovery_bonus,
             },
         )

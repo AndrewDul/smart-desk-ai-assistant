@@ -132,5 +132,41 @@ class ComputerWorkInterpreterTests(unittest.TestCase):
         self.assertFalse(signal.active)
         self.assertEqual(signal.metadata["active_threshold"], 0.9)
 
+    def test_computer_work_can_stay_active_with_explicit_screen_evidence_even_with_downward_attention(self) -> None:
+        perception = PerceptionSnapshot(
+            frame_width=1280,
+            frame_height=720,
+            faces=(
+                FaceDetection(
+                    bounding_box=BoundingBox(left=520, top=250, right=700, bottom=520),
+                    confidence=0.87,
+                ),
+            ),
+            objects=(
+                ObjectDetection(
+                    label="laptop",
+                    bounding_box=BoundingBox(left=360, top=180, right=920, bottom=430),
+                    confidence=0.88,
+                ),
+            ),
+            scene=SceneContext(
+                engagement_face_count=1,
+                screen_candidate_count=0,
+                handheld_candidate_count=0,
+            ),
+        )
+
+        signal = ComputerWorkInterpreter().interpret(
+            perception=perception,
+            presence=ActivitySignal(active=True, confidence=0.9),
+            desk_activity=ActivitySignal(active=True, confidence=0.78),
+        )
+
+        self.assertTrue(signal.active)
+        self.assertIn("downward_attention_proxy", signal.reasons)
+        self.assertIn("explicit_screen_evidence_softens_downward_attention", signal.reasons)
+        self.assertIn("explicit_screen_attention_recovery", signal.reasons)
+        self.assertEqual(signal.metadata["inference_mode"], "hybrid")
+
 if __name__ == "__main__":
     unittest.main()

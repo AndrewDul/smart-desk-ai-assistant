@@ -129,3 +129,23 @@
 [2026-04-23 17:21:02.765] [25710] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
 [2026-04-23 17:21:03.835] [25710] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
 [2026-04-23 17:21:04.910] [25710] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:28:49.555] [26840] [HailoRT] [info] [vdevice.cpp:227] [create] Creating vdevice with params: device_count: 1, scheduling_algorithm: ROUND_ROBIN, multi_process_service: false
+[2026-04-23 17:28:49.577] [26840] [HailoRT] [info] [device.cpp:53] [Device] OS Version: Linux 6.12.75+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.75-1+rpt1 (2026-03-11) aarch64
+[2026-04-23 17:28:49.693] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:28:49.693] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:28:49.962] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:28:49.962] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:28:49.962] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:28:49.962] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:28:49.976] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:28:51.145] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:28:52.312] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:28:53.375] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:28:54.426] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:28:55.486] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:28:56.566] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:28:57.628] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:28:58.728] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:28:59.869] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:29:01.015] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
+[2026-04-23 17:29:02.091] [26840] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11m
