@@ -1,13 +1,56 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Any, Iterable
+
 from modules.devices.vision.behavior.models import ActivitySignal
 from modules.devices.vision.behavior.shared import has_downward_attention_proxy
 from modules.devices.vision.perception.models import PerceptionSnapshot
 
-_PHONE_OBJECT_LABELS = {"phone", "cell phone", "mobile phone", "smartphone"}
+_DEFAULT_PHONE_OBJECT_LABELS = ("phone", "cell phone", "mobile phone", "smartphone")
 
 
+def _normalized_label_set(values: Iterable[str], *, fallback: tuple[str, ...]) -> frozenset[str]:
+    normalized = {str(value).strip().lower() for value in values if str(value).strip()}
+    if not normalized:
+        normalized = set(fallback)
+    return frozenset(normalized)
+
+
+@dataclass(slots=True)
 class PhoneUsageInterpreter:
+    active_threshold: float = 0.60
+    phone_object_labels: frozenset[str] = frozenset(_DEFAULT_PHONE_OBJECT_LABELS)
+    computer_work_active_penalty: float = 0.18
+    screen_visible_penalty: float = 0.08
+    no_screen_bonus: float = 0.05
+
+    @classmethod
+    def from_mapping(cls, raw: dict[str, Any] | None) -> "PhoneUsageInterpreter":
+        payload = dict(raw or {})
+        return cls(
+            active_threshold=max(
+                0.0,
+                min(1.0, float(payload.get("phone_usage_active_threshold", 0.60))),
+            ),
+            phone_object_labels=_normalized_label_set(
+                payload.get("phone_usage_object_labels", _DEFAULT_PHONE_OBJECT_LABELS),
+                fallback=_DEFAULT_PHONE_OBJECT_LABELS,
+            ),
+            computer_work_active_penalty=max(
+                0.0,
+                float(payload.get("phone_usage_computer_work_active_penalty", 0.18)),
+            ),
+            screen_visible_penalty=max(
+                0.0,
+                float(payload.get("phone_usage_screen_visible_penalty", 0.08)),
+            ),
+            no_screen_bonus=max(
+                0.0,
+                float(payload.get("phone_usage_no_screen_bonus", 0.05)),
+            ),
+        )
+
     def interpret(
         self,
         perception: PerceptionSnapshot,
@@ -29,7 +72,7 @@ class PhoneUsageInterpreter:
         phone_objects = tuple(
             obj
             for obj in perception.objects
-            if obj.label.strip().lower() in _PHONE_OBJECT_LABELS
+            if obj.label.strip().lower() in self.phone_object_labels
         )
         engagement_face_count = perception.scene.engagement_face_count
         handheld_candidate_count = perception.scene.handheld_candidate_count
@@ -72,6 +115,7 @@ class PhoneUsageInterpreter:
                     "downward_attention_proxy": downward_attention_proxy,
                     "visual_phone_evidence": False,
                     "inference_mode": "inactive_no_visual_evidence",
+                    "active_threshold": self.active_threshold,
                 },
             )
 
@@ -100,16 +144,16 @@ class PhoneUsageInterpreter:
             confidence += 0.08
         else:
             reasons.append("computer_work_active")
-            confidence -= 0.18
+            confidence -= self.computer_work_active_penalty
 
         if screen_candidate_count == 0:
             reasons.append("no_screen_candidate_visible")
-            confidence += 0.05
+            confidence += self.no_screen_bonus
         else:
             reasons.append("screen_candidate_visible")
-            confidence -= 0.08
+            confidence -= self.screen_visible_penalty
 
-        active = confidence >= 0.60
+        active = confidence >= self.active_threshold
 
         return ActivitySignal(
             active=active,
@@ -123,5 +167,9 @@ class PhoneUsageInterpreter:
                 "downward_attention_proxy": downward_attention_proxy,
                 "visual_phone_evidence": True,
                 "inference_mode": "confirmed_phone_object",
+                "active_threshold": self.active_threshold,
+                "computer_work_active_penalty": self.computer_work_active_penalty,
+                "screen_visible_penalty": self.screen_visible_penalty,
+                "no_screen_bonus": self.no_screen_bonus,
             },
         )

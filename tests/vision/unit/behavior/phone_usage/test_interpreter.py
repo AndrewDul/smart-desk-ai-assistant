@@ -125,5 +125,33 @@ class PhoneUsageInterpreterTests(unittest.TestCase):
         self.assertIn("phone_object_detected", signal.reasons)
 
 
+    def test_phone_usage_threshold_can_be_tightened_from_mapping(self) -> None:
+        perception = PerceptionSnapshot(
+            frame_width=1280,
+            frame_height=720,
+            objects=(
+                ObjectDetection(
+                    label="phone",
+                    bounding_box=BoundingBox(left=500, top=420, right=660, bottom=650),
+                    confidence=0.9,
+                ),
+            ),
+            scene=SceneContext(handheld_candidate_count=1),
+        )
+
+        signal = PhoneUsageInterpreter.from_mapping(
+            {
+                "phone_usage_active_threshold": 0.9,
+            }
+        ).interpret(
+            perception=perception,
+            presence=ActivitySignal(active=True, confidence=0.9),
+            desk_activity=ActivitySignal(active=False, confidence=0.5),
+            computer_work=ActivitySignal(active=False, confidence=0.2),
+        )
+
+        self.assertFalse(signal.active)
+        self.assertEqual(signal.metadata["active_threshold"], 0.9)
+
 if __name__ == "__main__":
     unittest.main()

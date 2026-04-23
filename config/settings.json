@@ -11,7 +11,7 @@
     "enabled": true,
     "engine": "faster_whisper",
     "wake_engine": "openwakeword",
-    "single_capture_mode": true,
+    "single_capture_mode": false,
     "wake_prefer_dedicated_gate":true,
     "wake_model_path": "models/wake/nexa.onnx",
     "wake_threshold": 0.24,

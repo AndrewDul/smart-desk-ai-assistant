@@ -128,6 +128,99 @@ class DiagnosticsSnapshotBuilderTests(unittest.TestCase):
         self.assertEqual(payload["detections"]["faces"][0]["kind"], "face")
         self.assertEqual(payload["sessions"]["presence"]["current_active_seconds"], 8.5)
 
+    def test_diagnostics_snapshot_preserves_inference_mode_metadata_for_behavior_signals(self) -> None:
+        packet = FramePacket(
+            pixels=[[0]],
+            width=1280,
+            height=720,
+            channels=3,
+            backend_label="picamera2",
+            captured_at=200.0,
+            metadata={},
+        )
+        perception = PerceptionSnapshot(
+            frame_width=1280,
+            frame_height=720,
+            scene=SceneContext(
+                desk_zone_people_count=1,
+                engagement_face_count=1,
+                screen_candidate_count=1,
+                handheld_candidate_count=0,
+            ),
+        )
+        raw_behavior = BehaviorSnapshot(
+            presence=ActivitySignal(active=True, confidence=0.9),
+            desk_activity=ActivitySignal(active=True, confidence=0.8),
+            computer_work=ActivitySignal(
+                active=True,
+                confidence=0.72,
+                metadata={"inference_mode": "desk_face_proxy"},
+            ),
+            phone_usage=ActivitySignal(
+                active=False,
+                confidence=0.0,
+                metadata={"inference_mode": "inactive_no_visual_evidence"},
+            ),
+            study_activity=ActivitySignal(
+                active=True,
+                confidence=0.74,
+                metadata={"inference_mode": "desk_screen_supported"},
+            ),
+        )
+        stabilized_behavior = BehaviorSnapshot(
+            presence=ActivitySignal(active=True, confidence=0.9),
+            desk_activity=ActivitySignal(active=True, confidence=0.8),
+            computer_work=ActivitySignal(
+                active=True,
+                confidence=0.72,
+                metadata={
+                    "inference_mode": "desk_face_proxy",
+                    "stable_active": True,
+                },
+            ),
+            phone_usage=ActivitySignal(
+                active=False,
+                confidence=0.0,
+                metadata={
+                    "inference_mode": "inactive_no_visual_evidence",
+                    "stable_active": False,
+                },
+            ),
+            study_activity=ActivitySignal(
+                active=True,
+                confidence=0.74,
+                metadata={
+                    "inference_mode": "desk_screen_supported",
+                    "stable_active": True,
+                },
+            ),
+        )
+        sessions = VisionSessionSnapshot()
+
+        payload = build_diagnostics_snapshot(
+            packet,
+            perception=perception,
+            raw_behavior=raw_behavior,
+            behavior=stabilized_behavior,
+            sessions=sessions,
+        ).to_dict()
+
+        self.assertEqual(
+            payload["signals"]["computer_work"]["metadata"]["inference_mode"],
+            "desk_face_proxy",
+        )
+        self.assertEqual(
+            payload["signals"]["computer_work"]["metadata"]["raw_metadata"]["inference_mode"],
+            "desk_face_proxy",
+        )
+        self.assertEqual(
+            payload["signals"]["phone_usage"]["metadata"]["inference_mode"],
+            "inactive_no_visual_evidence",
+        )
+        self.assertEqual(
+            payload["signals"]["study_activity"]["metadata"]["inference_mode"],
+            "desk_screen_supported",
+        )
 
 if __name__ == "__main__":
     unittest.main()

@@ -42,44 +42,46 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _build_runtime_config(args: argparse.Namespace) -> VisionRuntimeConfig:
-    return VisionRuntimeConfig.from_mapping(
-        {
-            "enabled": True,
-            "backend": args.backend,
-            "fallback_backend": "opencv",
-            "camera_index": args.camera_index,
-            "frame_width": args.width,
-            "frame_height": args.height,
-            "lazy_start": True,
-            "people_detection_enabled": True,
-            "people_detector_backend": "opencv_hog",
-            "people_detector_min_confidence": 0.40,
-            "people_detector_min_area_ratio": 0.02,
-            "people_detector_min_height_ratio": 0.15,
-            "people_detector_max_width_ratio": 0.85,
-            "people_detector_use_clahe": True,
-            "people_detector_upscale_factor": 1.5,
-            "people_detector_desk_roi_enabled": True,
-            "people_detector_roi_x_min": 0.10,
-            "people_detector_roi_y_min": 0.08,
-            "people_detector_roi_x_max": 0.90,
-            "people_detector_roi_y_max": 0.98,
-            "face_detection_enabled": True,
-            "face_detector_backend": "opencv_haar",
-            "face_detector_min_area_ratio": 0.002,
-            "face_detector_use_clahe": True,
-            "face_detector_roi_enabled": True,
-            "object_detection_enabled": False,
-            "object_detector_backend": "null",
-            "scene_understanding_enabled": True,
-            "behavior_interpretation_enabled": True,
-            "temporal_stabilization_enabled": True,
-            "temporal_stabilization_activation_hits": 2,
-            "temporal_stabilization_deactivation_hits": 2,
-            "temporal_stabilization_hold_seconds": 1.25,
-        }
-    )
+def _build_runtime_mapping(args: argparse.Namespace) -> dict[str, object]:
+    return {
+        "enabled": True,
+        "backend": args.backend,
+        "fallback_backend": "opencv",
+        "camera_index": args.camera_index,
+        "frame_width": args.width,
+        "frame_height": args.height,
+        "lazy_start": True,
+        "people_detection_enabled": True,
+        "people_detector_backend": "opencv_hog",
+        "people_detector_min_confidence": 0.40,
+        "people_detector_min_area_ratio": 0.02,
+        "people_detector_min_height_ratio": 0.15,
+        "people_detector_max_width_ratio": 0.85,
+        "people_detector_use_clahe": True,
+        "people_detector_upscale_factor": 1.5,
+        "people_detector_desk_roi_enabled": True,
+        "people_detector_roi_x_min": 0.10,
+        "people_detector_roi_y_min": 0.08,
+        "people_detector_roi_x_max": 0.90,
+        "people_detector_roi_y_max": 0.98,
+        "face_detection_enabled": True,
+        "face_detector_backend": "opencv_haar",
+        "face_detector_min_area_ratio": 0.002,
+        "face_detector_use_clahe": True,
+        "face_detector_roi_enabled": True,
+        "object_detection_enabled": False,
+        "object_detector_backend": "null",
+        "scene_understanding_enabled": True,
+        "behavior_interpretation_enabled": True,
+        "temporal_stabilization_enabled": True,
+        "temporal_stabilization_activation_hits": 2,
+        "temporal_stabilization_deactivation_hits": 2,
+        "temporal_stabilization_hold_seconds": 1.25,
+    }
+
+
+def _build_runtime_config(raw_config: dict[str, object]) -> VisionRuntimeConfig:
+    return VisionRuntimeConfig.from_mapping(raw_config)
 
 
 def _packet_pixels_to_preview_bgr(packet) -> object:
@@ -127,11 +129,18 @@ def _save_snapshot(*, output_dir: Path, image, diagnostics: dict[str, object]) -
 def main() -> None:
     args = _build_arg_parser().parse_args()
     output_dir = Path(args.output_dir)
-    config = _build_runtime_config(args)
+    raw_config = _build_runtime_mapping(args)
+    config = _build_runtime_config(raw_config)
 
     reader = VisionCaptureReader(config=config)
     perception = PerceptionPipeline.from_config(config)
-    behavior = BehaviorPipeline()
+
+    behavior_factory = getattr(BehaviorPipeline, "from_mapping", None)
+    if callable(behavior_factory):
+        behavior = behavior_factory(raw_config)
+    else:
+        behavior = BehaviorPipeline()
+
     stabilizer = BehaviorStabilizer.from_config(config)
     sessions = VisionSessionTracker()
 

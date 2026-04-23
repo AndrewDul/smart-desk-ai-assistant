@@ -100,5 +100,81 @@ class BehaviorPipelineTests(unittest.TestCase):
         self.assertEqual(snapshot.metadata["computer_work_active_threshold"], 0.9)
         self.assertFalse(snapshot.computer_work.active)
 
+    def test_behavior_pipeline_can_be_built_from_mapping_with_phone_usage_threshold(self) -> None:
+        perception = PerceptionSnapshot(
+            frame_width=1280,
+            frame_height=720,
+            people=(
+                PersonDetection(
+                    bounding_box=BoundingBox(left=360, top=140, right=860, bottom=700),
+                    confidence=0.88,
+                ),
+            ),
+            objects=(
+                ObjectDetection(
+                    label="phone",
+                    bounding_box=BoundingBox(left=500, top=420, right=660, bottom=650),
+                    confidence=0.9,
+                ),
+            ),
+            scene=SceneContext(
+                desk_zone_people_count=0,
+                engagement_face_count=0,
+                handheld_candidate_count=1,
+                screen_candidate_count=0,
+            ),
+        )
+
+        snapshot = BehaviorPipeline.from_mapping(
+            {
+                "phone_usage_active_threshold": 0.9,
+            }
+        ).analyze(perception)
+
+        self.assertEqual(snapshot.metadata["behavior_pipeline_version"], 2)
+        self.assertEqual(snapshot.metadata["phone_usage_active_threshold"], 0.9)
+        self.assertFalse(snapshot.phone_usage.active)
+
+    def test_behavior_pipeline_can_be_built_from_mapping_with_study_activity_threshold(self) -> None:
+        perception = PerceptionSnapshot(
+            frame_width=1280,
+            frame_height=720,
+            people=(
+                PersonDetection(
+                    bounding_box=BoundingBox(left=320, top=120, right=860, bottom=700),
+                    confidence=0.92,
+                ),
+            ),
+            faces=(
+                FaceDetection(
+                    bounding_box=BoundingBox(left=480, top=80, right=640, bottom=260),
+                    confidence=0.85,
+                ),
+            ),
+            objects=(
+                ObjectDetection(
+                    label="laptop",
+                    bounding_box=BoundingBox(left=360, top=180, right=920, bottom=430),
+                    confidence=0.88,
+                ),
+            ),
+            scene=SceneContext(
+                desk_zone_people_count=1,
+                engagement_face_count=1,
+                screen_candidate_count=1,
+                handheld_candidate_count=0,
+            ),
+        )
+
+        snapshot = BehaviorPipeline.from_mapping(
+            {
+                "study_activity_active_threshold": 1.0,
+            }
+        ).analyze(perception)
+
+        self.assertEqual(snapshot.metadata["behavior_pipeline_version"], 2)
+        self.assertEqual(snapshot.metadata["study_activity_active_threshold"], 1.0)
+        self.assertFalse(snapshot.study_activity.active)
+
 if __name__ == "__main__":
     unittest.main()

@@ -91,7 +91,14 @@ class OpenWakeWordGate(OpenWakeWordGateListener):
         self.device_name = str(input_info["name"])
         self.dtype = "int16"
         self.available_input_channels = max(1, int(input_info.get("max_input_channels", 1)))
-        self.channels = min(2, self.available_input_channels)
+        # Always request a single channel from the USB capture device.
+        # Some USB mic arrays (e.g. reSpeaker XVF3800) expose 2 channels but
+        # sample them with enough inter-channel skew that downstream spectral
+        # recognition degrades when the host mixes stereo -> mono on its own.
+        # Letting ALSA's plug layer produce a clean mono stream matches the
+        # isolation-test behaviour that scored 0.456 on the same wake model,
+        # while host-side channel mixing scored 0.001.
+        self.channels = 1
         self.audio_queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=24)
 
         default_input_rate = int(round(float(input_info.get("default_samplerate", self.MODEL_SAMPLE_RATE))))

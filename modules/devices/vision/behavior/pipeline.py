@@ -26,6 +26,8 @@ class BehaviorPipeline:
         payload = dict(raw or {})
         return cls(
             computer_work_interpreter=ComputerWorkInterpreter.from_mapping(payload),
+            phone_usage_interpreter=PhoneUsageInterpreter.from_mapping(payload),
+            study_activity_interpreter=StudyActivityInterpreter.from_mapping(payload),
             version=2,
         )
 
@@ -56,5 +58,7 @@ class BehaviorPipeline:
             metadata={
                 "behavior_pipeline_version": self.version,
                 "computer_work_active_threshold": self.computer_work_interpreter.active_threshold,
+                "phone_usage_active_threshold": self.phone_usage_interpreter.active_threshold,
+                "study_activity_active_threshold": self.study_activity_interpreter.active_threshold,
             },
         )
