@@ -35,6 +35,19 @@ class _FakeBroker:
             },
         }
 
+    def enter_vision_action_mode(self, *, reason: str = "") -> dict[str, object]:
+        self.calls.append(("vision", reason))
+        return {
+            "mode": "vision_action",
+            "owner": "vision_path",
+            "profile": {
+                "heavy_lane_cadence_hz": 6.0,
+                "keep_fast_lane_alive": True,
+                "llm_priority": "low",
+                "notes": [],
+            },
+        }
+
 
 class _Host(CoreAssistantAiBrokerMixin):
     def __init__(self) -> None:
@@ -66,6 +79,18 @@ class CoreAssistantAiBrokerMixinTests(unittest.TestCase):
         self.assertEqual(snapshot["mode"], "idle_baseline")
         self.assertEqual(host.ai_broker.calls, [("idle", "dialogue_route_finished:conversation")])
         self.assertEqual(host._last_ai_broker_snapshot["owner"], "balanced")
+
+    def test_enter_vision_action_mode_updates_snapshot(self) -> None:
+        host = _Host()
+
+        snapshot = host._enter_ai_broker_vision_action_mode(
+            reason="action_route_started:look_direction",
+        )
+
+        self.assertIsInstance(snapshot, dict)
+        self.assertEqual(snapshot["mode"], "vision_action")
+        self.assertEqual(host.ai_broker.calls, [("vision", "action_route_started:look_direction")])
+        self.assertEqual(host._last_ai_broker_snapshot["owner"], "vision_path")
 
 
 if __name__ == "__main__":

@@ -158,6 +158,33 @@ class ActionFlowOrchestrator(
             assistant.settings.get("streaming", {}).get("max_display_chars_per_line", 20)
         )
 
+    _VISION_PRIORITY_ACTIONS = frozenset({
+        "look_direction",
+    })
+    _VISION_PRIORITY_SOURCE_PREFIXES = (
+        "pan_tilt.",
+        "vision.",
+        "camera.",
+    )
+
+    def _should_use_vision_action_mode(self, *, request: SkillRequest) -> bool:
+        action = str(getattr(request, "action", "") or "").strip().lower()
+        if action in self._VISION_PRIORITY_ACTIONS:
+            return True
+
+        source = str(getattr(request, "source", "") or "").strip().lower()
+        if source.startswith(self._VISION_PRIORITY_SOURCE_PREFIXES):
+            return True
+
+        route = getattr(request, "route", None)
+        tool_invocations = list(getattr(route, "tool_invocations", []) or [])
+        for tool in tool_invocations:
+            tool_name = str(getattr(tool, "tool_name", "") or "").strip().lower()
+            if tool_name.startswith(self._VISION_PRIORITY_SOURCE_PREFIXES):
+                return True
+
+        return False
+
     def execute(
         self,
         *,
@@ -198,6 +225,11 @@ class ActionFlowOrchestrator(
         self._active_route = route
         self._active_resolved_action = resolved
         self._active_skill_request = request
+        vision_action_mode_requested = self._should_use_vision_action_mode(request=request)
+        if vision_action_mode_requested:
+            self.assistant._enter_ai_broker_vision_action_mode(
+                reason=f"action_route_started:{request.action}",
+            )
 
         self.LOGGER.info(
             "Action flow executing: action=%s source=%s route_kind=%s capture_phase=%s capture_backend=%s confidence=%.3f payload_keys=%s",
@@ -280,6 +312,10 @@ class ActionFlowOrchestrator(
                 )
                 return bool(self._last_skill_result)
         finally:
+            if vision_action_mode_requested:
+                self.assistant._enter_ai_broker_idle_baseline(
+                    reason=f"action_route_finished:{request.action}",
+                )
             self._active_route = None
             self._active_resolved_action = None
             self._active_skill_request = None

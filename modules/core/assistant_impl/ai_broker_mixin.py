@@ -73,3 +73,14 @@ class CoreAssistantAiBrokerMixin:
             reason=reason or "conversation_answer_requested",
             log_label="conversation_answer",
         )
+
+    def _enter_ai_broker_vision_action_mode(
+        self,
+        *,
+        reason: str = "",
+    ) -> dict[str, Any] | None:
+        return self._apply_ai_broker_transition(
+            method_name="enter_vision_action_mode",
+            reason=reason or "vision_action_requested",
+            log_label="vision_action",
+        )
