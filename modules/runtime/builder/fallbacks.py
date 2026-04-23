@@ -154,6 +154,20 @@ class NullVisionBackend:
             "last_error": None,
         }
 
+    def object_detector_status(self) -> dict[str, object] | None:
+        return None
+
+    def set_object_detection_cadence_hz(self, hz: float) -> bool:
+        del hz
+        return False
+
+    def pause_object_detection(self) -> bool:
+        return False
+
+    def resume_object_detection(self, hz: float | None = None) -> bool:
+        del hz
+        return False
+
     def close(self) -> None:
         return None
 

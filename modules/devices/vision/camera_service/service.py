@@ -182,6 +182,48 @@ class CameraService:
             return detector.status()
         return None
 
+    def set_object_detection_cadence_hz(self, hz: float) -> bool:
+        """
+        Public broker-facing control surface for the heavy vision lane.
+
+        Returns True when the active detector accepted the cadence update.
+        Returns False when no cadence-aware detector is active.
+        """
+        with self._pipeline_lock:
+            detector = getattr(self._perception, "object_detector", None)
+            method = getattr(detector, "set_inference_cadence_hz", None)
+            if not callable(method):
+                return False
+
+            method(float(hz))
+            return True
+
+    def pause_object_detection(self) -> bool:
+        """
+        Pause heavy object detection through the active detector, if supported.
+        """
+        with self._pipeline_lock:
+            detector = getattr(self._perception, "object_detector", None)
+            method = getattr(detector, "pause", None)
+            if not callable(method):
+                return False
+
+            method()
+            return True
+
+    def resume_object_detection(self, hz: float | None = None) -> bool:
+        """
+        Resume heavy object detection through the active detector, if supported.
+        """
+        with self._pipeline_lock:
+            detector = getattr(self._perception, "object_detector", None)
+            method = getattr(detector, "resume", None)
+            if not callable(method):
+                return False
+
+            method(hz)
+            return True
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
