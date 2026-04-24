@@ -3,8 +3,11 @@ extends Node2D
 const VisualStates = preload("res://scripts/state/visual_states.gd")
 const EyeFormation = preload("res://scripts/formations/eye_formation.gd")
 const FaceContourFormation = preload("res://scripts/formations/face_contour_formation.gd")
+const ListeningBehaviour = preload("res://scripts/behaviours/listening_behaviour.gd")
+const ThinkingBehaviour = preload("res://scripts/behaviours/thinking_behaviour.gd")
 const EyeBehaviour = preload("res://scripts/behaviours/eye_behaviour.gd")
 const FaceContourBehaviour = preload("res://scripts/behaviours/face_contour_behaviour.gd")
+const SpeakingBehaviour = preload("res://scripts/behaviours/speaking_behaviour.gd")
 const VisualPalette = preload("res://scripts/palette/visual_palette.gd")
 
 export(int) var particle_count = 2200
@@ -81,11 +84,11 @@ func _update_state_intensity(delta: float) -> void:
 	var target = 0.0
 
 	if visual_state == VisualStates.LISTENING_CLOUD:
-		target = 0.75
+		target = 0.78
 	elif visual_state == VisualStates.THINKING_SWARM:
-		target = 0.9
+		target = 0.94
 	elif visual_state == VisualStates.SPEAKING_PULSE:
-		target = 0.85
+		target = 0.88
 	elif visual_state == VisualStates.SCANNING_EYES:
 		target = 1.0
 	elif visual_state == VisualStates.SHOW_SELF_EYES:
@@ -165,29 +168,28 @@ func _face_base_position(particle) -> Vector2:
 
 func _state_motion_for_particle(base: Vector2, depth: float) -> Vector2:
 	if visual_state == VisualStates.LISTENING_CLOUD:
-		var ring_wave = sin(time * 3.4 + base.length() * 0.035)
-		var outward = base.normalized() * (22.0 + ring_wave * 14.0)
-		var vertical_attention = Vector2(
-			0.0,
-			sin(time * 2.2 + base.x * 0.025) * 8.0
+		return ListeningBehaviour.state_motion(
+			time,
+			base,
+			depth,
+			state_intensity
 		)
 
-		return (outward + vertical_attention) * state_intensity * depth
-
 	if visual_state == VisualStates.THINKING_SWARM:
-		var tangent = Vector2(-base.y, base.x).normalized()
-		var inward = -base.normalized() * 20.0
-		var spiral_wave = sin(time * 4.0 + base.length() * 0.05)
-
-		return (
-			(tangent * 44.0)
-			+ inward
-			+ (base.normalized() * spiral_wave * 18.0)
-		) * state_intensity * depth
+		return ThinkingBehaviour.state_motion(
+			time,
+			base,
+			depth,
+			state_intensity
+		)
 
 	if visual_state == VisualStates.SPEAKING_PULSE:
-		var pulse = sin(time * 8.0 + base.length() * 0.035)
-		return base.normalized() * pulse * 26.0 * state_intensity * depth
+		return SpeakingBehaviour.state_motion(
+			time,
+			base,
+			depth,
+			state_intensity
+		)
 
 	if VisualStates.is_eye_formation_state(visual_state):
 		return EyeBehaviour.state_motion(visual_state, time, base, depth)
@@ -224,14 +226,17 @@ func _draw() -> void:
 			alpha += FaceContourBehaviour.alpha_bonus(state_intensity)
 			size += FaceContourBehaviour.size_bonus(state_intensity)
 
+		elif visual_state == VisualStates.LISTENING_CLOUD:
+			alpha += ListeningBehaviour.alpha_bonus(time, position, state_intensity)
+			size += ListeningBehaviour.size_bonus(time, position, state_intensity)
+
 		elif visual_state == VisualStates.THINKING_SWARM:
-			alpha += 0.16 * state_intensity
+			alpha += ThinkingBehaviour.alpha_bonus(time, position, state_intensity)
+			size += ThinkingBehaviour.size_bonus(time, position, state_intensity)
 
 		elif visual_state == VisualStates.SPEAKING_PULSE:
-			size += 0.16 * state_intensity
-
-		elif visual_state == VisualStates.LISTENING_CLOUD:
-			alpha += 0.10 * state_intensity
+			alpha += SpeakingBehaviour.alpha_bonus(time, position, state_intensity)
+			size += SpeakingBehaviour.size_bonus(time, position, state_intensity)
 
 		elif visual_state == VisualStates.ERROR_DEGRADED:
 			alpha *= 0.78

@@ -130,3 +130,44 @@ def test_godot_shell_has_face_contour_formation() -> None:
     assert "is_face_formation_state" in visual_states
     assert 'preload("res://scripts/formations/face_contour_formation.gd")' in particle_cloud
     assert 'preload("res://scripts/behaviours/face_contour_behaviour.gd")' in particle_cloud
+
+
+def test_godot_shell_has_speaking_behaviour_module() -> None:
+    speaking_behaviour = GODOT_APP_DIR / "scripts" / "behaviours" / "speaking_behaviour.gd"
+    particle_cloud = (GODOT_APP_DIR / "scripts" / "particle_cloud.gd").read_text(encoding="utf-8")
+
+    assert speaking_behaviour.is_file()
+
+    speaking_content = speaking_behaviour.read_text(encoding="utf-8")
+
+    assert "voice_energy" in speaking_content
+    assert "state_motion" in speaking_content
+    assert "alpha_bonus" in speaking_content
+    assert "size_bonus" in speaking_content
+    assert 'preload("res://scripts/behaviours/speaking_behaviour.gd")' in particle_cloud
+    assert "SpeakingBehaviour.state_motion" in particle_cloud
+
+
+def test_godot_shell_has_listening_and_thinking_behaviour_modules() -> None:
+    listening_behaviour = GODOT_APP_DIR / "scripts" / "behaviours" / "listening_behaviour.gd"
+    thinking_behaviour = GODOT_APP_DIR / "scripts" / "behaviours" / "thinking_behaviour.gd"
+    particle_cloud = (GODOT_APP_DIR / "scripts" / "particle_cloud.gd").read_text(encoding="utf-8")
+
+    assert listening_behaviour.is_file()
+    assert thinking_behaviour.is_file()
+
+    listening_content = listening_behaviour.read_text(encoding="utf-8")
+    thinking_content = thinking_behaviour.read_text(encoding="utf-8")
+
+    assert "state_motion" in listening_content
+    assert "alpha_bonus" in listening_content
+    assert "size_bonus" in listening_content
+
+    assert "state_motion" in thinking_content
+    assert "alpha_bonus" in thinking_content
+    assert "size_bonus" in thinking_content
+
+    assert 'preload("res://scripts/behaviours/listening_behaviour.gd")' in particle_cloud
+    assert 'preload("res://scripts/behaviours/thinking_behaviour.gd")' in particle_cloud
+    assert "ListeningBehaviour.state_motion" in particle_cloud
+    assert "ThinkingBehaviour.state_motion" in particle_cloud
