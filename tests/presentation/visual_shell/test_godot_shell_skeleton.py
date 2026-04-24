@@ -105,15 +105,14 @@ def test_godot_shell_has_eye_behaviour_module() -> None:
     assert 'preload("res://scripts/behaviours/eye_behaviour.gd")' in particle_cloud
 
 
-def test_show_self_and_scanning_have_separate_eye_behaviour() -> None:
+def test_show_self_eyes_remains_a_calm_eye_behaviour() -> None:
     eye_behaviour = (
         GODOT_APP_DIR / "scripts" / "behaviours" / "eye_behaviour.gd"
     ).read_text(encoding="utf-8")
 
-    assert "VisualStates.SCANNING_EYES" in eye_behaviour
     assert "VisualStates.SHOW_SELF_EYES" in eye_behaviour
-    assert "scan_x" in eye_behaviour
     assert "calm_x" in eye_behaviour
+    assert "calm_y" in eye_behaviour
 
 
 def test_godot_shell_has_face_contour_formation() -> None:
@@ -171,3 +170,23 @@ def test_godot_shell_has_listening_and_thinking_behaviour_modules() -> None:
     assert 'preload("res://scripts/behaviours/thinking_behaviour.gd")' in particle_cloud
     assert "ListeningBehaviour.state_motion" in particle_cloud
     assert "ThinkingBehaviour.state_motion" in particle_cloud
+
+
+def test_godot_shell_has_scanning_behaviour_module() -> None:
+    scanning_behaviour = GODOT_APP_DIR / "scripts" / "behaviours" / "scanning_behaviour.gd"
+    particle_cloud = (GODOT_APP_DIR / "scripts" / "particle_cloud.gd").read_text(encoding="utf-8")
+
+    assert scanning_behaviour.is_file()
+
+    scanning_content = scanning_behaviour.read_text(encoding="utf-8")
+
+    assert "attention_offset" in scanning_content
+    assert "formation_strength" in scanning_content
+    assert "state_motion" in scanning_content
+    assert "overlay_alpha" in scanning_content
+    assert "overlay_y" in scanning_content
+    assert "overlay_color" in scanning_content
+
+    assert 'preload("res://scripts/behaviours/scanning_behaviour.gd")' in particle_cloud
+    assert "ScanningBehaviour.state_motion" in particle_cloud
+    assert "_draw_scanning_overlay" in particle_cloud

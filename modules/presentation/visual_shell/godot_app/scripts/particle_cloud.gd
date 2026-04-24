@@ -5,9 +5,10 @@ const EyeFormation = preload("res://scripts/formations/eye_formation.gd")
 const FaceContourFormation = preload("res://scripts/formations/face_contour_formation.gd")
 const ListeningBehaviour = preload("res://scripts/behaviours/listening_behaviour.gd")
 const ThinkingBehaviour = preload("res://scripts/behaviours/thinking_behaviour.gd")
+const SpeakingBehaviour = preload("res://scripts/behaviours/speaking_behaviour.gd")
+const ScanningBehaviour = preload("res://scripts/behaviours/scanning_behaviour.gd")
 const EyeBehaviour = preload("res://scripts/behaviours/eye_behaviour.gd")
 const FaceContourBehaviour = preload("res://scripts/behaviours/face_contour_behaviour.gd")
-const SpeakingBehaviour = preload("res://scripts/behaviours/speaking_behaviour.gd")
 const VisualPalette = preload("res://scripts/palette/visual_palette.gd")
 
 export(int) var particle_count = 2200
@@ -131,22 +132,34 @@ func _update_particles() -> void:
 
 func _eye_base_position(particle) -> Vector2:
 	var blink_scale = EyeBehaviour.blink_scale(blink_timer, blink_duration)
-	var attention_offset = EyeBehaviour.attention_offset(
-		visual_state,
-		time,
-		particle.base_position
-	)
+	var attention_offset = Vector2.ZERO
+	var formation_strength = particle.formation_strength
+
+	if visual_state == VisualStates.SCANNING_EYES:
+		attention_offset = ScanningBehaviour.attention_offset(
+			time,
+			particle.base_position
+		)
+		formation_strength = ScanningBehaviour.formation_strength(
+			particle.formation_strength,
+			state_intensity
+		)
+	else:
+		attention_offset = EyeBehaviour.attention_offset(
+			visual_state,
+			time,
+			particle.base_position
+		)
+		formation_strength = EyeBehaviour.formation_strength_for_state(
+			particle.formation_strength,
+			visual_state,
+			state_intensity
+		)
 
 	var eye_position = Vector2(
 		particle.eye_position.x,
 		particle.eye_position.y * blink_scale
 	) + attention_offset
-
-	var formation_strength = EyeBehaviour.formation_strength_for_state(
-		particle.formation_strength,
-		visual_state,
-		state_intensity
-	)
 
 	return particle.base_position.linear_interpolate(
 		eye_position,
@@ -191,6 +204,14 @@ func _state_motion_for_particle(base: Vector2, depth: float) -> Vector2:
 			state_intensity
 		)
 
+	if visual_state == VisualStates.SCANNING_EYES:
+		return ScanningBehaviour.state_motion(
+			time,
+			base,
+			depth,
+			state_intensity
+		)
+
 	if VisualStates.is_eye_formation_state(visual_state):
 		return EyeBehaviour.state_motion(visual_state, time, base, depth)
 
@@ -215,7 +236,15 @@ func _draw() -> void:
 		var alpha = 0.30 + particle.depth * 0.42
 		var size = particle_size * particle.depth
 
-		if VisualStates.is_eye_formation_state(visual_state):
+		if visual_state == VisualStates.SCANNING_EYES:
+			alpha += ScanningBehaviour.alpha_bonus(time, position, state_intensity)
+			size += ScanningBehaviour.size_bonus(time, position, state_intensity)
+
+			if particle.is_pupil:
+				size += ScanningBehaviour.pupil_size_bonus()
+				alpha = 0.94
+
+		elif VisualStates.is_eye_formation_state(visual_state):
 			alpha += EyeBehaviour.alpha_bonus(visual_state, state_intensity)
 
 			if particle.is_pupil:
@@ -252,3 +281,29 @@ func _draw() -> void:
 				clamp(alpha, 0.0, 1.0)
 			)
 		)
+
+	if visual_state == VisualStates.SCANNING_EYES:
+		_draw_scanning_overlay()
+
+
+func _draw_scanning_overlay() -> void:
+	var alpha = ScanningBehaviour.overlay_alpha(time, state_intensity)
+	var y = ScanningBehaviour.overlay_y(time, radius)
+	var width = ScanningBehaviour.overlay_width(radius)
+	var color = ScanningBehaviour.overlay_color(alpha)
+
+	draw_line(
+		Vector2(-width, y),
+		Vector2(width, y),
+		color,
+		1.0,
+		true
+	)
+
+	draw_line(
+		Vector2(-width * 0.62, y + 18.0),
+		Vector2(width * 0.62, y + 18.0),
+		ScanningBehaviour.overlay_color(alpha * 0.38),
+		1.0,
+		true
+	)
