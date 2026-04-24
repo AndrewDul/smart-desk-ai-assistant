@@ -74,17 +74,28 @@ def test_main_shell_uses_real_docked_window_mode() -> None:
     window_controller = (
         GODOT_APP_DIR / "scripts" / "desktop" / "desktop_window_controller.gd"
     )
+    shell_layout = GODOT_APP_DIR / "scripts" / "desktop" / "shell_layout.gd"
 
     assert window_controller.is_file()
+    assert shell_layout.is_file()
+    assert 'preload("res://scripts/desktop/shell_layout.gd")' in main_shell
     assert "DesktopWindowController.enter_docked_window()" in main_shell
     assert "DesktopWindowController.enter_fullscreen()" in main_shell
-    assert "_enter_desktop_docked_mode" in main_shell
-    assert "_return_to_fullscreen_shell" in main_shell
+    assert "_apply_shell_layout" in main_shell
+    assert "_apply_desktop_state" in main_shell
+    assert "_is_desktop_layout_state" in main_shell
+    assert "ShellLayout.DOCKED" in main_shell
+    assert "ShellLayout.FULLSCREEN" in main_shell
     assert "particle_cloud.set_shell_compact_mode(true)" in main_shell
     assert "particle_cloud.set_shell_compact_mode(false)" in main_shell
     assert "KEY_0" in main_shell
     assert "KEY_MINUS" in main_shell
-
+    assert 'preload("res://scripts/desktop/shell_layout.gd")' in main_shell
+    assert "_apply_shell_layout" in main_shell
+    assert "_apply_desktop_state" in main_shell
+    assert "_is_desktop_layout_state" in main_shell
+    assert "ShellLayout.DOCKED" in main_shell
+    assert "ShellLayout.FULLSCREEN" in main_shell
 
 def test_desktop_window_controller_controls_actual_window() -> None:
     window_controller = (
