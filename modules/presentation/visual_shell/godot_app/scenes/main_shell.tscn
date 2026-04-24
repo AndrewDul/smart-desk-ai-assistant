@@ -14,7 +14,7 @@ anchor_bottom = 1.0
 color = Color( 0.003, 0.006, 0.012, 1 )
 
 [node name="ParticleCloud" type="Node2D" parent="."]
-position = Vector2( 640, 400 )
+position = Vector2( 665, 400 )
 script = ExtResource( 2 )
 
 [node name="StatusLabel" type="Label" parent="."]
