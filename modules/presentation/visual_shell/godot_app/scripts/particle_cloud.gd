@@ -2,12 +2,12 @@ extends Node2D
 
 export(int) var particle_count := 1200
 export(float) var radius := 250.0
-export(float) var noise_strength := 16.0
-export(float) var drift_speed := 0.25
 export(float) var particle_size := 0.65
 
 var particles := []
 var time := 0.0
+var visual_state := "IDLE_PARTICLE_CLOUD"
+var state_intensity := 0.0
 
 
 class Particle:
@@ -24,8 +24,13 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	time += delta
-	_update_particles(delta)
+	_update_state_intensity(delta)
+	_update_particles()
 	update()
+
+
+func set_visual_state(new_state: String) -> void:
+	visual_state = new_state
 
 
 func _generate_particles() -> void:
@@ -44,19 +49,56 @@ func _generate_particles() -> void:
 		particles.append(particle)
 
 
-func _update_particles(_delta: float) -> void:
-	for particle in particles:
-		var wave = sin(time * 0.65 + particle.base_position.length() * 0.045)
+func _update_state_intensity(delta: float) -> void:
+	var target := 0.0
 
-		var noise = Vector2(
-			sin(time * 0.8 + particle.base_position.x * 0.018),
-			cos(time * 0.8 + particle.base_position.y * 0.018)
-		) * noise_strength * 0.18 * particle.depth
+	if visual_state == "LISTENING_CLOUD":
+		target = 0.35
+	elif visual_state == "THINKING_SWARM":
+		target = 0.65
+	elif visual_state == "SPEAKING_PULSE":
+		target = 0.8
+	elif visual_state == "SCANNING_EYES":
+		target = 1.0
+
+	state_intensity = lerp(state_intensity, target, delta * 3.0)
+
+
+func _update_particles() -> void:
+	for particle in particles:
+		var base = particle.base_position
+
+		var breathing = sin(time * 0.65 + base.length() * 0.045)
+		var organic_noise = Vector2(
+			sin(time * 0.8 + base.x * 0.018),
+			cos(time * 0.8 + base.y * 0.018)
+		) * 2.8 * particle.depth
+
+		var state_motion = _state_motion_for_particle(base, particle.depth)
 
 		particle.offset = particle.offset.linear_interpolate(
-			noise + Vector2(wave, wave) * 2.2,
+			organic_noise + Vector2(breathing, breathing) * 2.2 + state_motion,
 			0.045
 		)
+
+
+func _state_motion_for_particle(base: Vector2, depth: float) -> Vector2:
+	if visual_state == "LISTENING_CLOUD":
+		return base.normalized() * 18.0 * state_intensity * depth
+
+	if visual_state == "THINKING_SWARM":
+		var tangent = Vector2(-base.y, base.x).normalized()
+		return tangent * 32.0 * state_intensity * depth
+
+	if visual_state == "SPEAKING_PULSE":
+		var pulse = sin(time * 8.0 + base.length() * 0.035)
+		return base.normalized() * pulse * 26.0 * state_intensity * depth
+
+	if visual_state == "SCANNING_EYES":
+		var scan = sin(time * 2.5 + base.x * 0.02)
+		return Vector2(scan * 28.0, 0.0) * state_intensity * depth
+
+	return Vector2.ZERO
 
 
 func _draw() -> void:
@@ -65,4 +107,11 @@ func _draw() -> void:
 		var alpha = 0.35 + particle.depth * 0.45
 		var size = particle_size * particle.depth
 
-		draw_circle(position, size, Color(0.78, 0.88, 1.0, alpha))
+		if visual_state == "THINKING_SWARM":
+			alpha += 0.12 * state_intensity
+		elif visual_state == "SPEAKING_PULSE":
+			size += 0.18 * state_intensity
+		elif visual_state == "SCANNING_EYES":
+			alpha += 0.18 * state_intensity
+
+		draw_circle(position, size, Color(0.78, 0.88, 1.0, clamp(alpha, 0.0, 1.0)))
