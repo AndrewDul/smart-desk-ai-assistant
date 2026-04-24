@@ -7,6 +7,8 @@ const ShellLayout = preload("res://scripts/desktop/shell_layout.gd")
 
 const BOOT_STATE = VisualStates.IDLE_PARTICLE_CLOUD
 const BOOT_LAYOUT = ShellLayout.FULLSCREEN
+const TEMPERATURE_DEMO_VALUE_C = 58
+const BATTERY_DEMO_PERCENT = 82
 
 onready var background: ColorRect = $Background
 onready var status_label: Label = $StatusLabel
@@ -56,6 +58,10 @@ func _input(event: InputEvent) -> void:
 		_apply_desktop_state(VisualStates.DESKTOP_DOCKED)
 	elif event.scancode == KEY_MINUS:
 		_apply_desktop_state(VisualStates.DESKTOP_HIDDEN)
+	elif event.scancode == KEY_T:
+		display_temperature_value(TEMPERATURE_DEMO_VALUE_C)
+	elif event.scancode == KEY_B:
+		display_battery_percent(BATTERY_DEMO_PERCENT)
 	elif event.scancode == KEY_ESCAPE:
 		get_tree().quit()
 
@@ -74,6 +80,16 @@ func _set_visual_state(new_state: String) -> void:
 		return
 
 	state_machine.set_state(new_state)
+
+
+func display_temperature_value(value_c: int) -> void:
+	particle_cloud.set_temperature_metric(value_c)
+	state_machine.set_state(VisualStates.TEMPERATURE_GLYPH)
+
+
+func display_battery_percent(percent: int) -> void:
+	particle_cloud.set_battery_metric(percent)
+	state_machine.set_state(VisualStates.BATTERY_GLYPH)
 
 
 func _apply_desktop_state(desktop_state: String) -> void:
@@ -132,4 +148,4 @@ func _build_status_text(current_state: String) -> String:
 		+ current_state \
 		+ "\nlayout: " \
 		+ shell_layout \
-		+ "\n1 idle  2 listen  3 think  4 speak  5 scan  6 eyes  7 error  8 face  9 micro  0 dock  - return"
+		+ "\n1 idle  2 listen  3 think  4 speak  5 scan  6 eyes  7 error  8 face  9 micro  0 dock  - return  T temp  B battery"

@@ -49,6 +49,8 @@ def test_godot_shell_has_visual_state_registry() -> None:
         "DESKTOP_DOCKED",
         "DESKTOP_RETURNING",
         "ERROR_DEGRADED",
+        "TEMPERATURE_GLYPH",
+        "BATTERY_GLYPH",
     }
 
     assert state_registry.is_file()
@@ -96,6 +98,12 @@ def test_main_shell_uses_real_docked_window_mode() -> None:
     assert "_is_desktop_layout_state" in main_shell
     assert "ShellLayout.DOCKED" in main_shell
     assert "ShellLayout.FULLSCREEN" in main_shell
+    assert "display_temperature_value" in main_shell
+    assert "display_battery_percent" in main_shell
+    assert "KEY_T" in main_shell
+    assert "KEY_B" in main_shell
+    assert "VisualStates.TEMPERATURE_GLYPH" in main_shell
+    assert "VisualStates.BATTERY_GLYPH" in main_shell
 
 def test_desktop_window_controller_controls_actual_window() -> None:
     window_controller = (
@@ -298,3 +306,34 @@ def test_godot_shell_has_desktop_dock_behaviour_module() -> None:
     assert "DesktopDockBehaviour.particle_size_multiplier" in particle_cloud
     assert "DesktopDockBehaviour.state_motion" in particle_cloud
     assert "_draw_compact_orb_background" in particle_cloud
+
+
+def test_godot_shell_has_metric_display_modules() -> None:
+    glyph_formation = GODOT_APP_DIR / "scripts" / "formations" / "glyph_formation.gd"
+    metric_behaviour = GODOT_APP_DIR / "scripts" / "behaviours" / "metric_display_behaviour.gd"
+    particle_cloud = (GODOT_APP_DIR / "scripts" / "particle_cloud.gd").read_text(encoding="utf-8")
+    visual_states = (GODOT_APP_DIR / "scripts" / "state" / "visual_states.gd").read_text(
+        encoding="utf-8"
+    )
+
+    assert glyph_formation.is_file()
+    assert metric_behaviour.is_file()
+
+    glyph_content = glyph_formation.read_text(encoding="utf-8")
+    metric_content = metric_behaviour.read_text(encoding="utf-8")
+
+    assert "assign_text_targets" in glyph_content
+    assert "PARTICLES_PER_DOT" in glyph_content
+
+    assert "battery_color_for_percent" in metric_content
+    assert "BATTERY_GREEN" in metric_content
+    assert "BATTERY_BLUE" in metric_content
+    assert "BATTERY_YELLOW" in metric_content
+    assert "BATTERY_RED" in metric_content
+
+    assert "is_metric_display_state" in visual_states
+    assert 'preload("res://scripts/formations/glyph_formation.gd")' in particle_cloud
+    assert 'preload("res://scripts/behaviours/metric_display_behaviour.gd")' in particle_cloud
+    assert "set_temperature_metric" in particle_cloud
+    assert "set_battery_metric" in particle_cloud
+    assert "_metric_base_position" in particle_cloud

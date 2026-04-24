@@ -3,6 +3,7 @@ extends Node2D
 const VisualStates = preload("res://scripts/state/visual_states.gd")
 const EyeFormation = preload("res://scripts/formations/eye_formation.gd")
 const FaceContourFormation = preload("res://scripts/formations/face_contour_formation.gd")
+const GlyphFormation = preload("res://scripts/formations/glyph_formation.gd")
 const ListeningBehaviour = preload("res://scripts/behaviours/listening_behaviour.gd")
 const ThinkingBehaviour = preload("res://scripts/behaviours/thinking_behaviour.gd")
 const SpeakingBehaviour = preload("res://scripts/behaviours/speaking_behaviour.gd")
@@ -11,6 +12,7 @@ const EyeBehaviour = preload("res://scripts/behaviours/eye_behaviour.gd")
 const FaceContourBehaviour = preload("res://scripts/behaviours/face_contour_behaviour.gd")
 const BoredMicroBehaviour = preload("res://scripts/behaviours/bored_micro_behaviour.gd")
 const DesktopDockBehaviour = preload("res://scripts/behaviours/desktop_dock_behaviour.gd")
+const MetricDisplayBehaviour = preload("res://scripts/behaviours/metric_display_behaviour.gd")
 const VisualPalette = preload("res://scripts/palette/visual_palette.gd")
 
 export(int) var particle_count = 2200
@@ -28,6 +30,10 @@ var blink_duration = 0.28
 var shell_compact_mode = false
 var visual_scale = 1.0
 
+var metric_temperature_c = 58
+var metric_battery_percent = 82
+var metric_text = "58°"
+
 var idle_micro_timer = 0.0
 var idle_micro_delay = 32.0
 var idle_micro_age = 0.0
@@ -41,9 +47,11 @@ class Particle:
 	var target_position = Vector2.ZERO
 	var eye_position = Vector2.ZERO
 	var face_position = Vector2.ZERO
+	var glyph_position = Vector2.ZERO
 	var depth = 1.0
 	var formation_strength = 1.0
 	var is_pupil = false
+	var is_metric_particle = false
 
 
 func _ready() -> void:
@@ -51,6 +59,7 @@ func _ready() -> void:
 	_generate_particles()
 	EyeFormation.assign_eye_targets(particles, particle_count)
 	FaceContourFormation.assign_face_targets(particles, particle_count)
+	_assign_metric_targets(metric_text)
 	_schedule_next_idle_micro()
 
 
@@ -92,6 +101,22 @@ func set_shell_compact_mode(enabled: bool) -> void:
 	shell_compact_mode = enabled
 
 
+func set_temperature_metric(value_c: int) -> void:
+	metric_temperature_c = value_c
+	metric_text = str(metric_temperature_c) + "°"
+	_assign_metric_targets(metric_text)
+
+
+func set_battery_metric(percent: int) -> void:
+	metric_battery_percent = int(clamp(percent, 0, 100))
+	metric_text = str(metric_battery_percent) + "%"
+	_assign_metric_targets(metric_text)
+
+
+func _assign_metric_targets(display_text: String) -> void:
+	GlyphFormation.assign_text_targets(particles, display_text)
+
+
 func _generate_particles() -> void:
 	particles.clear()
 
@@ -102,9 +127,9 @@ func _generate_particles() -> void:
 		var particle = Particle.new()
 		particle.base_position = Vector2(cos(angle) * dist, sin(angle) * dist)
 		particle.target_position = particle.base_position
+		particle.glyph_position = particle.base_position
 		particle.depth = rand_range(0.45, 1.0)
 
-		# Most particles form focused shapes. Some remain as a loose living aura.
 		particle.formation_strength = 1.0
 		if randf() < 0.16:
 			particle.formation_strength = rand_range(0.08, 0.35)
@@ -185,6 +210,10 @@ func _update_state_intensity(delta: float) -> void:
 		target = 0.82
 	elif visual_state == VisualStates.BORED_MICRO_ANIMATION:
 		target = 0.72
+	elif visual_state == VisualStates.TEMPERATURE_GLYPH:
+		target = 0.90
+	elif visual_state == VisualStates.BATTERY_GLYPH:
+		target = 0.92
 	elif visual_state == VisualStates.ERROR_DEGRADED:
 		target = 0.65
 
@@ -213,13 +242,21 @@ func _update_particles() -> void:
 		elif VisualStates.is_face_formation_state(visual_state):
 			base = _face_base_position(particle)
 
+		elif VisualStates.is_metric_display_state(visual_state):
+			base = _metric_base_position(particle)
+
 		var breathing = sin(time * 0.55 + base.length() * 0.038)
 		var organic_noise = Vector2(
 			sin(time * 0.75 + base.x * 0.018),
 			cos(time * 0.75 + base.y * 0.018)
 		) * 2.4 * particle.depth
 
-		var state_motion = _state_motion_for_particle(base, particle.depth)
+		var state_motion = _state_motion_for_particle(
+			base,
+			particle.depth,
+			particle.is_metric_particle
+		)
+
 		var desired_position = base \
 			+ organic_noise \
 			+ Vector2(breathing, breathing) * 1.8 \
@@ -280,7 +317,20 @@ func _face_base_position(particle) -> Vector2:
 	)
 
 
-func _state_motion_for_particle(base: Vector2, depth: float) -> Vector2:
+func _metric_base_position(particle) -> Vector2:
+	var formation_strength = MetricDisplayBehaviour.formation_strength(
+		particle.formation_strength,
+		state_intensity,
+		particle.is_metric_particle
+	)
+
+	return particle.base_position.linear_interpolate(
+		particle.glyph_position,
+		formation_strength
+	)
+
+
+func _state_motion_for_particle(base: Vector2, depth: float, is_metric_particle: bool) -> Vector2:
 	if visual_state == VisualStates.LISTENING_CLOUD:
 		return ListeningBehaviour.state_motion(
 			time,
@@ -324,6 +374,15 @@ func _state_motion_for_particle(base: Vector2, depth: float) -> Vector2:
 			state_intensity
 		)
 
+	if VisualStates.is_metric_display_state(visual_state):
+		return MetricDisplayBehaviour.state_motion(
+			time,
+			base,
+			depth,
+			state_intensity,
+			is_metric_particle
+		)
+
 	if visual_state == VisualStates.IDLE_PARTICLE_CLOUD and idle_micro_active:
 		return BoredMicroBehaviour.state_motion(
 			time,
@@ -364,6 +423,7 @@ func _draw() -> void:
 		var position = particle.target_position
 		var alpha = 0.30 + particle.depth * 0.42
 		var size = particle_size * particle.depth
+		var particle_color = Color(1, 1, 1, 1)
 
 		if visual_state == VisualStates.SCANNING_EYES:
 			alpha += ScanningBehaviour.alpha_bonus(time, position, state_intensity)
@@ -383,6 +443,18 @@ func _draw() -> void:
 		elif VisualStates.is_face_formation_state(visual_state):
 			alpha += FaceContourBehaviour.alpha_bonus(state_intensity)
 			size += FaceContourBehaviour.size_bonus(state_intensity)
+
+		elif VisualStates.is_metric_display_state(visual_state):
+			alpha += MetricDisplayBehaviour.alpha_bonus(
+				time,
+				position,
+				state_intensity,
+				particle.is_metric_particle
+			)
+			size += MetricDisplayBehaviour.size_bonus(
+				state_intensity,
+				particle.is_metric_particle
+			)
 
 		elif visual_state == VisualStates.LISTENING_CLOUD:
 			alpha += ListeningBehaviour.alpha_bonus(time, position, state_intensity)
@@ -432,16 +504,28 @@ func _draw() -> void:
 			)
 			size += DesktopDockBehaviour.size_bonus(state_intensity)
 
-		draw_circle(
-			_to_visual_position(position),
-			_to_visual_size(size),
-			VisualPalette.color_for_particle(
+		alpha = clamp(alpha, 0.0, 1.0)
+
+		if VisualStates.is_metric_display_state(visual_state):
+			particle_color = MetricDisplayBehaviour.color_for_particle(
+				visual_state,
+				particle.is_metric_particle,
+				metric_battery_percent,
+				alpha
+			)
+		else:
+			particle_color = VisualPalette.color_for_particle(
 				particle,
 				visual_state,
 				position,
 				radius,
-				clamp(alpha, 0.0, 1.0)
+				alpha
 			)
+
+		draw_circle(
+			_to_visual_position(position),
+			_to_visual_size(size),
+			particle_color
 		)
 
 	if visual_state == VisualStates.SCANNING_EYES:

@@ -8,12 +8,14 @@ const SCANNING_EYES = "SCANNING_EYES"
 const SHOW_SELF_EYES = "SHOW_SELF_EYES"
 const FACE_CONTOUR = "FACE_CONTOUR"
 const BORED_MICRO_ANIMATION = "BORED_MICRO_ANIMATION"
+const TEMPERATURE_GLYPH = "TEMPERATURE_GLYPH"
+const BATTERY_GLYPH = "BATTERY_GLYPH"
 const DESKTOP_HIDDEN = "DESKTOP_HIDDEN"
 const DESKTOP_DOCKED = "DESKTOP_DOCKED"
 const DESKTOP_RETURNING = "DESKTOP_RETURNING"
 const ERROR_DEGRADED = "ERROR_DEGRADED"
 
-const ALL_STATES = [
+const SUPPORTED_STATES = [
 	IDLE_PARTICLE_CLOUD,
 	LISTENING_CLOUD,
 	THINKING_SWARM,
@@ -22,6 +24,8 @@ const ALL_STATES = [
 	SHOW_SELF_EYES,
 	FACE_CONTOUR,
 	BORED_MICRO_ANIMATION,
+	TEMPERATURE_GLYPH,
+	BATTERY_GLYPH,
 	DESKTOP_HIDDEN,
 	DESKTOP_DOCKED,
 	DESKTOP_RETURNING,
@@ -29,29 +33,26 @@ const ALL_STATES = [
 ]
 
 
-static func is_valid_state(value: String) -> bool:
-	return ALL_STATES.has(value)
+static func coerce_state(state_name: String) -> String:
+	var normalized = String(state_name).strip_edges().to_upper()
 
-
-static func coerce_state(value: String) -> String:
-	var normalized = String(value).strip_edges().to_upper()
-
-	if is_valid_state(normalized):
+	if SUPPORTED_STATES.has(normalized):
 		return normalized
 
 	return IDLE_PARTICLE_CLOUD
 
 
-static func is_eye_formation_state(value: String) -> bool:
-	return value == SCANNING_EYES or value == SHOW_SELF_EYES
+static func is_eye_formation_state(state_name: String) -> bool:
+	var normalized = coerce_state(state_name)
+
+	return normalized == SCANNING_EYES or normalized == SHOW_SELF_EYES
 
 
-static func is_face_formation_state(value: String) -> bool:
-	return value == FACE_CONTOUR
+static func is_face_formation_state(state_name: String) -> bool:
+	return coerce_state(state_name) == FACE_CONTOUR
 
 
-static func is_reserved_future_state(value: String) -> bool:
-	return value == BORED_MICRO_ANIMATION \
-		or value == DESKTOP_HIDDEN \
-		or value == DESKTOP_DOCKED \
-		or value == DESKTOP_RETURNING
+static func is_metric_display_state(state_name: String) -> bool:
+	var normalized = coerce_state(state_name)
+
+	return normalized == TEMPERATURE_GLYPH or normalized == BATTERY_GLYPH
