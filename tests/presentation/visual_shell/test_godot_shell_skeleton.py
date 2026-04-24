@@ -337,3 +337,49 @@ def test_godot_shell_has_metric_display_modules() -> None:
     assert "set_temperature_metric" in particle_cloud
     assert "set_battery_metric" in particle_cloud
     assert "_metric_base_position" in particle_cloud
+
+
+
+def test_godot_shell_has_tcp_transport_receiver_module() -> None:
+    transport_server = (
+        GODOT_APP_DIR
+        / "scripts"
+        / "transport"
+        / "visual_shell_tcp_server.gd"
+    )
+    main_shell = (GODOT_APP_DIR / "scripts" / "main_shell.gd").read_text(
+        encoding="utf-8"
+    )
+
+    assert transport_server.is_file()
+
+    transport_content = transport_server.read_text(encoding="utf-8")
+
+    assert "TCP_Server.new()" in transport_content
+    assert "server.listen(port, bind_address)" in transport_content
+    assert "visual_message_received" in transport_content
+    assert "visual_transport_error" in transport_content
+    assert "JSON.parse" in transport_content
+    assert "_parse_and_emit_message" in transport_content
+
+    assert 'preload("res://scripts/transport/visual_shell_tcp_server.gd")' in main_shell
+    assert "_setup_visual_transport" in main_shell
+    assert "_on_visual_transport_message" in main_shell
+    assert "_apply_visual_command" in main_shell
+    assert "_apply_visual_state_message" in main_shell
+
+
+def test_main_shell_routes_transport_commands_to_visual_actions() -> None:
+    main_shell = (GODOT_APP_DIR / "scripts" / "main_shell.gd").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'command == "SET_STATE"' in main_shell
+    assert 'command == "SHOW_DESKTOP"' in main_shell
+    assert 'command == "HIDE_DESKTOP"' in main_shell
+    assert 'command == "SHOW_TEMPERATURE"' in main_shell
+    assert 'command == "SHOW_BATTERY"' in main_shell
+    assert 'command == "START_SCANNING"' in main_shell
+    assert 'command == "RETURN_TO_IDLE"' in main_shell
+    assert "display_temperature_value" in main_shell
+    assert "display_battery_percent" in main_shell

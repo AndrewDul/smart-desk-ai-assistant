@@ -4,6 +4,7 @@ const VisualStates = preload("res://scripts/state/visual_states.gd")
 const VisualStateMachineScript = preload("res://scripts/visual_state_machine.gd")
 const DesktopWindowController = preload("res://scripts/desktop/desktop_window_controller.gd")
 const ShellLayout = preload("res://scripts/desktop/shell_layout.gd")
+const VisualShellTcpServerScript = preload("res://scripts/transport/visual_shell_tcp_server.gd")
 
 const BOOT_STATE = VisualStates.IDLE_PARTICLE_CLOUD
 const BOOT_LAYOUT = ShellLayout.FULLSCREEN
@@ -15,11 +16,13 @@ onready var status_label: Label = $StatusLabel
 onready var particle_cloud: Node2D = $ParticleCloud
 
 var state_machine = null
+var visual_transport_server = null
 var shell_layout = BOOT_LAYOUT
 
 
 func _ready() -> void:
 	_setup_state_machine()
+	_setup_visual_transport()
 	_apply_shell_layout(BOOT_LAYOUT)
 	state_machine.set_state(BOOT_STATE, true)
 	_sync_scene_layout()
@@ -72,6 +75,22 @@ func _setup_state_machine() -> void:
 	add_child(state_machine)
 	state_machine.connect("visual_state_changed", self, "_on_visual_state_changed")
 	state_machine.connect("visual_state_rejected", self, "_on_visual_state_rejected")
+
+
+func _setup_visual_transport() -> void:
+	visual_transport_server = VisualShellTcpServerScript.new()
+	visual_transport_server.name = "VisualShellTcpServer"
+	visual_transport_server.connect(
+		"visual_message_received",
+		self,
+		"_on_visual_transport_message"
+	)
+	visual_transport_server.connect(
+		"visual_transport_error",
+		self,
+		"_on_visual_transport_error"
+	)
+	add_child(visual_transport_server)
 
 
 func _set_visual_state(new_state: String) -> void:
@@ -133,6 +152,90 @@ func _on_visual_state_changed(new_state: String) -> void:
 
 func _on_visual_state_rejected(requested_state: String, fallback_state: String) -> void:
 	print("Visual Shell rejected unsupported state: ", requested_state, " -> ", fallback_state)
+
+
+func _on_visual_transport_message(message: Dictionary) -> void:
+	var command = String(message.get("command", "")).strip_edges().to_upper()
+	var message_type = String(message.get("type", "")).strip_edges().to_lower()
+	var payload = _payload_from_message(message)
+
+	if command == "" and message_type == "visual_state":
+		_apply_visual_state_message(message, payload)
+		return
+
+	if command == "" and message_type == "visual_command":
+		command = String(message.get("command", "")).strip_edges().to_upper()
+
+	_apply_visual_command(command, payload, message)
+
+
+func _payload_from_message(message: Dictionary) -> Dictionary:
+	var raw_payload = message.get("payload", {})
+
+	if typeof(raw_payload) == TYPE_DICTIONARY:
+		return raw_payload
+
+	return {}
+
+
+func _apply_visual_state_message(message: Dictionary, payload: Dictionary) -> void:
+	var state_name = String(message.get("state", ""))
+	if state_name == "":
+		state_name = String(payload.get("state", ""))
+
+	_set_visual_state(state_name)
+
+
+func _apply_visual_command(command: String, payload: Dictionary, raw_message: Dictionary) -> void:
+	if command == "SET_STATE":
+		var state_name = String(payload.get("state", ""))
+		if state_name == "":
+			state_name = String(raw_message.get("state", ""))
+
+		_set_visual_state(state_name)
+		return
+
+	if command == "SHOW_DESKTOP":
+		_apply_desktop_state(VisualStates.DESKTOP_DOCKED)
+		return
+
+	if command == "HIDE_DESKTOP":
+		_apply_desktop_state(VisualStates.DESKTOP_HIDDEN)
+		return
+
+	if command == "SHOW_SELF" or command == "SHOW_EYES":
+		_set_visual_state(VisualStates.SHOW_SELF_EYES)
+		return
+
+	if command == "SHOW_FACE_CONTOUR":
+		_set_visual_state(VisualStates.FACE_CONTOUR)
+		return
+
+	if command == "START_SCANNING":
+		_set_visual_state(VisualStates.SCANNING_EYES)
+		return
+
+	if command == "RETURN_TO_IDLE":
+		_set_visual_state(VisualStates.IDLE_PARTICLE_CLOUD)
+		return
+
+	if command == "REPORT_DEGRADED":
+		_set_visual_state(VisualStates.ERROR_DEGRADED)
+		return
+
+	if command == "SHOW_TEMPERATURE":
+		display_temperature_value(int(payload.get("value_c", TEMPERATURE_DEMO_VALUE_C)))
+		return
+
+	if command == "SHOW_BATTERY":
+		display_battery_percent(int(payload.get("percent", BATTERY_DEMO_PERCENT)))
+		return
+
+	print("Visual Shell ignored unsupported transport command: ", command)
+
+
+func _on_visual_transport_error(error_message: String) -> void:
+	print("Visual Shell transport warning: ", error_message)
 
 
 func _sync_scene_layout() -> void:
