@@ -69,3 +69,21 @@ def test_particle_cloud_uses_show_self_eyes_as_eye_formation() -> None:
 
     assert "VisualStates.is_eye_formation_state(visual_state)" in particle_cloud
     assert "VisualStates.SHOW_SELF_EYES" in particle_cloud
+
+
+def test_godot_shell_has_modular_eye_formation() -> None:
+    eye_formation = GODOT_APP_DIR / "scripts" / "formations" / "eye_formation.gd"
+    particle_cloud = (GODOT_APP_DIR / "scripts" / "particle_cloud.gd").read_text(encoding="utf-8")
+
+    assert eye_formation.is_file()
+    assert "assign_eye_targets" in eye_formation.read_text(encoding="utf-8")
+    assert 'preload("res://scripts/formations/eye_formation.gd")' in particle_cloud
+
+
+def test_godot_shell_has_visual_palette_module() -> None:
+    visual_palette = GODOT_APP_DIR / "scripts" / "palette" / "visual_palette.gd"
+    particle_cloud = (GODOT_APP_DIR / "scripts" / "particle_cloud.gd").read_text(encoding="utf-8")
+
+    assert visual_palette.is_file()
+    assert "color_for_particle" in visual_palette.read_text(encoding="utf-8")
+    assert 'preload("res://scripts/palette/visual_palette.gd")' in particle_cloud

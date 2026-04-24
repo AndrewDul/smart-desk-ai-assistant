@@ -1,13 +1,14 @@
 extends Node2D
 
 const VisualStates := preload("res://scripts/state/visual_states.gd")
+const EyeFormation := preload("res://scripts/formations/eye_formation.gd")
+const VisualPalette := preload("res://scripts/palette/visual_palette.gd")
 
 export(int) var particle_count := 2200
 export(float) var radius := 265.0
 export(float) var particle_size := 0.58
 
 var particles := []
-var eye_targets := []
 var time := 0.0
 var visual_state := VisualStates.IDLE_PARTICLE_CLOUD
 var state_intensity := 0.0
@@ -28,12 +29,13 @@ class Particle:
 func _ready() -> void:
 	randomize()
 	_generate_particles()
-	_generate_eye_targets()
+	EyeFormation.assign_eye_targets(particles, particle_count)
 
 
 func _process(delta: float) -> void:
 	time += delta
 	blink_timer += delta
+
 	if blink_timer > blink_interval:
 		blink_timer = 0.0
 
@@ -50,10 +52,10 @@ func _generate_particles() -> void:
 	particles.clear()
 
 	for _i in range(particle_count):
-		var angle = randf() * PI * 2.0
-		var dist = pow(randf(), 0.62) * radius
+		var angle := randf() * PI * 2.0
+		var dist := pow(randf(), 0.62) * radius
 
-		var particle = Particle.new()
+		var particle := Particle.new()
 		particle.base_position = Vector2(cos(angle) * dist, sin(angle) * dist)
 		particle.target_position = particle.base_position
 		particle.depth = rand_range(0.45, 1.0)
@@ -64,77 +66,6 @@ func _generate_particles() -> void:
 			particle.formation_strength = rand_range(0.08, 0.35)
 
 		particles.append(particle)
-
-
-func _generate_eye_targets() -> void:
-	eye_targets.clear()
-
-	var left_eye = _make_eye_points(Vector2(-105.0, -20.0), 95.0, 38.0, int(particle_count * 0.42))
-	var right_eye = _make_eye_points(Vector2(105.0, -20.0), 95.0, 38.0, int(particle_count * 0.42))
-	var pupils = _make_pupil_points()
-
-	eye_targets.append_array(left_eye)
-	eye_targets.append_array(right_eye)
-	eye_targets.append_array(pupils)
-
-	var fallback_size = eye_targets.size()
-	var index := 0
-
-	for i in range(particles.size()):
-		if i < eye_targets.size():
-			particles[i].eye_position = eye_targets[i]["position"]
-			particles[i].is_pupil = eye_targets[i]["is_pupil"]
-		else:
-			particles[i].eye_position = eye_targets[index]["position"]
-			particles[i].is_pupil = eye_targets[index]["is_pupil"]
-			index += 1
-			if index >= fallback_size:
-				index = 0
-
-
-func _make_eye_points(center: Vector2, width: float, height: float, point_count: int) -> Array:
-	var points := []
-
-	for i in range(point_count):
-		var t = float(i) / float(max(1, point_count - 1))
-		var angle = t * PI * 2.0
-
-		var outline = Vector2(cos(angle) * width, sin(angle) * height)
-		var lid_wave = sin(t * PI * 2.0) * 5.0
-		var jitter = Vector2(rand_range(-2.8, 2.8), rand_range(-1.8, 1.8))
-
-		points.append({
-			"position": center + outline + Vector2(0.0, lid_wave) + jitter,
-			"is_pupil": false,
-		})
-
-	return points
-
-
-func _make_pupil_points() -> Array:
-	var points := []
-	var pupil_count_per_eye := int(particle_count * 0.08)
-
-	points.append_array(_make_single_pupil(Vector2(-105.0, -20.0), 18.0, pupil_count_per_eye))
-	points.append_array(_make_single_pupil(Vector2(105.0, -20.0), 18.0, pupil_count_per_eye))
-
-	return points
-
-
-func _make_single_pupil(center: Vector2, pupil_radius: float, point_count: int) -> Array:
-	var points := []
-
-	for i in range(point_count):
-		var angle = randf() * PI * 2.0
-		var dist = sqrt(randf()) * pupil_radius
-		var position = center + Vector2(cos(angle) * dist, sin(angle) * dist)
-
-		points.append({
-			"position": position,
-			"is_pupil": true,
-		})
-
-	return points
 
 
 func _update_state_intensity(delta: float) -> void:
@@ -158,68 +89,84 @@ func _update_state_intensity(delta: float) -> void:
 
 func _update_particles() -> void:
 	for particle in particles:
-		var base = particle.base_position
+		var base := particle.base_position
 
 		if VisualStates.is_eye_formation_state(visual_state):
-			var blink_scale = _blink_scale()
-			var eye_position = Vector2(
+			var blink_scale := _blink_scale()
+			var eye_position := Vector2(
 				particle.eye_position.x,
 				particle.eye_position.y * blink_scale
 			)
+
 			base = particle.base_position.linear_interpolate(
 				eye_position,
 				particle.formation_strength
 			)
 
-		var breathing = sin(time * 0.55 + base.length() * 0.038)
-		var organic_noise = Vector2(
+		var breathing := sin(time * 0.55 + base.length() * 0.038)
+		var organic_noise := Vector2(
 			sin(time * 0.75 + base.x * 0.018),
 			cos(time * 0.75 + base.y * 0.018)
 		) * 2.4 * particle.depth
 
-		var state_motion = _state_motion_for_particle(base, particle.depth)
-		var desired_position = base + organic_noise + Vector2(breathing, breathing) * 1.8 + state_motion
+		var state_motion := _state_motion_for_particle(base, particle.depth)
+		var desired_position := base \
+			+ organic_noise \
+			+ Vector2(breathing, breathing) * 1.8 \
+			+ state_motion
 
-		particle.target_position = particle.target_position.linear_interpolate(desired_position, 0.045)
+		particle.target_position = particle.target_position.linear_interpolate(
+			desired_position,
+			0.045
+		)
 
 
 func _blink_scale() -> float:
 	if blink_timer > blink_duration:
 		return 1.0
 
-	var progress = blink_timer / blink_duration
-	var close_open = sin(progress * PI)
+	var progress := blink_timer / blink_duration
+	var close_open := sin(progress * PI)
 
 	return max(0.12, 1.0 - close_open * 0.88)
 
 
 func _state_motion_for_particle(base: Vector2, depth: float) -> Vector2:
 	if visual_state == VisualStates.LISTENING_CLOUD:
-		var ring_wave = sin(time * 3.4 + base.length() * 0.035)
-		var outward = base.normalized() * (22.0 + ring_wave * 14.0)
-		var vertical_attention = Vector2(0.0, sin(time * 2.2 + base.x * 0.025) * 8.0)
+		var ring_wave := sin(time * 3.4 + base.length() * 0.035)
+		var outward := base.normalized() * (22.0 + ring_wave * 14.0)
+		var vertical_attention := Vector2(
+			0.0,
+			sin(time * 2.2 + base.x * 0.025) * 8.0
+		)
+
 		return (outward + vertical_attention) * state_intensity * depth
 
 	if visual_state == VisualStates.THINKING_SWARM:
-		var tangent = Vector2(-base.y, base.x).normalized()
-		var inward = -base.normalized() * 20.0
-		var spiral_wave = sin(time * 4.0 + base.length() * 0.05)
-		return ((tangent * 44.0) + inward + (base.normalized() * spiral_wave * 18.0)) * state_intensity * depth
+		var tangent := Vector2(-base.y, base.x).normalized()
+		var inward := -base.normalized() * 20.0
+		var spiral_wave := sin(time * 4.0 + base.length() * 0.05)
+
+		return (
+			(tangent * 44.0)
+			+ inward
+			+ (base.normalized() * spiral_wave * 18.0)
+		) * state_intensity * depth
 
 	if visual_state == VisualStates.SPEAKING_PULSE:
-		var pulse = sin(time * 8.0 + base.length() * 0.035)
+		var pulse := sin(time * 8.0 + base.length() * 0.035)
 		return base.normalized() * pulse * 26.0 * state_intensity * depth
 
 	if visual_state == VisualStates.SCANNING_EYES:
-		var scan = sin(time * 2.5 + base.x * 0.02)
+		var scan := sin(time * 2.5 + base.x * 0.02)
 		return Vector2(scan * 4.0, 0.0) * depth
 
 	if visual_state == VisualStates.SHOW_SELF_EYES:
-		var calm_attention = sin(time * 1.6 + base.x * 0.012)
+		var calm_attention := sin(time * 1.6 + base.x * 0.012)
 		return Vector2(calm_attention * 1.8, 0.0) * depth
 
 	if visual_state == VisualStates.ERROR_DEGRADED:
-		var weak_drift = sin(time * 0.8 + base.length() * 0.018)
+		var weak_drift := sin(time * 0.8 + base.length() * 0.018)
 		return base.normalized() * weak_drift * 5.0 * state_intensity * depth
 
 	return Vector2.ZERO
@@ -227,9 +174,9 @@ func _state_motion_for_particle(base: Vector2, depth: float) -> Vector2:
 
 func _draw() -> void:
 	for particle in particles:
-		var position = particle.target_position
-		var alpha = 0.30 + particle.depth * 0.42
-		var size = particle_size * particle.depth
+		var position := particle.target_position
+		var alpha := 0.30 + particle.depth * 0.42
+		var size := particle_size * particle.depth
 
 		if VisualStates.is_eye_formation_state(visual_state):
 			alpha += 0.22 * state_intensity
@@ -245,28 +192,14 @@ func _draw() -> void:
 		elif visual_state == VisualStates.ERROR_DEGRADED:
 			alpha *= 0.78
 
-		draw_circle(position, size, _color_for_particle(particle, position, clamp(alpha, 0.0, 1.0)))
-
-
-func _color_for_particle(particle: Particle, position: Vector2, alpha: float) -> Color:
-	var gradient_factor = clamp((position.y + radius) / (radius * 2.0), 0.0, 1.0)
-
-	if VisualStates.is_eye_formation_state(visual_state):
-		if particle.is_pupil:
-			return Color(0.25, 0.72, 1.0, alpha)
-
-		return Color(0.58, 0.92, 1.0, alpha).linear_interpolate(Color(0.02, 0.20, 0.75, alpha), gradient_factor)
-
-	if visual_state == VisualStates.SPEAKING_PULSE:
-		return Color(0.32, 0.72, 1.0, alpha).linear_interpolate(Color(1.0, 0.48, 0.16, alpha), gradient_factor)
-
-	if visual_state == VisualStates.THINKING_SWARM:
-		return Color(0.60, 1.0, 0.72, alpha).linear_interpolate(Color(0.05, 0.45, 0.22, alpha), gradient_factor)
-
-	if visual_state == VisualStates.LISTENING_CLOUD:
-		return Color(0.92, 0.98, 1.0, alpha).linear_interpolate(Color(0.38, 0.78, 1.0, alpha), gradient_factor)
-
-	if visual_state == VisualStates.ERROR_DEGRADED:
-		return Color(1.0, 0.48, 0.20, alpha).linear_interpolate(Color(0.52, 0.12, 0.05, alpha), gradient_factor)
-
-	return Color(0.92, 0.96, 1.0, alpha)
+		draw_circle(
+			position,
+			size,
+			VisualPalette.color_for_particle(
+				particle,
+				visual_state,
+				position,
+				radius,
+				clamp(alpha, 0.0, 1.0)
+			)
+		)
