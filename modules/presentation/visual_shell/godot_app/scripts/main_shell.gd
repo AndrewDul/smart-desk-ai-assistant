@@ -40,6 +40,8 @@ func _input(event: InputEvent) -> void:
 		state_machine.set_state(VisualStates.ERROR_DEGRADED)
 	elif event.scancode == KEY_8:
 		state_machine.set_state(VisualStates.FACE_CONTOUR)
+	elif event.scancode == KEY_9:
+		state_machine.set_state(VisualStates.BORED_MICRO_ANIMATION)
 	elif event.scancode == KEY_ESCAPE:
 		get_tree().quit()
 
@@ -64,4 +66,4 @@ func _on_visual_state_rejected(requested_state: String, fallback_state: String) 
 func _build_status_text(current_state: String) -> String:
 	return "NEXA VISUAL SHELL\n" \
 		+ current_state \
-		+ "\n1 idle  2 listen  3 think  4 speak  5 scan  6 eyes  7 error  8 face"
+		+ "\n1 idle  2 listen  3 think  4 speak  5 scan  6 eyes  7 error  8 face  9 micro"

@@ -62,8 +62,10 @@ def test_main_shell_routes_manual_keys_through_state_machine() -> None:
     assert "VisualStateMachineScript" in main_shell
     assert "state_machine.set_state(VisualStates.SHOW_SELF_EYES)" in main_shell
     assert "state_machine.set_state(VisualStates.FACE_CONTOUR)" in main_shell
+    assert "state_machine.set_state(VisualStates.BORED_MICRO_ANIMATION)" in main_shell
     assert "KEY_6" in main_shell
     assert "KEY_8" in main_shell
+    assert "KEY_9" in main_shell
 
 
 def test_particle_cloud_uses_show_self_eyes_as_eye_formation() -> None:
@@ -190,3 +192,28 @@ def test_godot_shell_has_scanning_behaviour_module() -> None:
     assert 'preload("res://scripts/behaviours/scanning_behaviour.gd")' in particle_cloud
     assert "ScanningBehaviour.state_motion" in particle_cloud
     assert "_draw_scanning_overlay" in particle_cloud
+
+
+def test_godot_shell_has_bored_micro_behaviour_module() -> None:
+    bored_micro_behaviour = (
+        GODOT_APP_DIR / "scripts" / "behaviours" / "bored_micro_behaviour.gd"
+    )
+    particle_cloud = (GODOT_APP_DIR / "scripts" / "particle_cloud.gd").read_text(
+        encoding="utf-8"
+    )
+
+    assert bored_micro_behaviour.is_file()
+
+    bored_content = bored_micro_behaviour.read_text(encoding="utf-8")
+
+    assert "next_delay" in bored_content
+    assert "next_duration" in bored_content
+    assert "pick_kind" in bored_content
+    assert "state_motion" in bored_content
+    assert "alpha_bonus" in bored_content
+    assert "size_bonus" in bored_content
+
+    assert 'preload("res://scripts/behaviours/bored_micro_behaviour.gd")' in particle_cloud
+    assert "_schedule_next_idle_micro" in particle_cloud
+    assert "_current_idle_micro_intensity" in particle_cloud
+    assert "BoredMicroBehaviour.state_motion" in particle_cloud

@@ -9,6 +9,7 @@ const SpeakingBehaviour = preload("res://scripts/behaviours/speaking_behaviour.g
 const ScanningBehaviour = preload("res://scripts/behaviours/scanning_behaviour.gd")
 const EyeBehaviour = preload("res://scripts/behaviours/eye_behaviour.gd")
 const FaceContourBehaviour = preload("res://scripts/behaviours/face_contour_behaviour.gd")
+const BoredMicroBehaviour = preload("res://scripts/behaviours/bored_micro_behaviour.gd")
 const VisualPalette = preload("res://scripts/palette/visual_palette.gd")
 
 export(int) var particle_count = 2200
@@ -22,6 +23,13 @@ var state_intensity = 0.0
 var blink_timer = 0.0
 var blink_interval = 25.0
 var blink_duration = 0.28
+
+var idle_micro_timer = 0.0
+var idle_micro_delay = 32.0
+var idle_micro_age = 0.0
+var idle_micro_duration = 0.0
+var idle_micro_kind = BoredMicroBehaviour.KIND_SOFT_WAVE
+var idle_micro_active = false
 
 
 class Particle:
@@ -39,6 +47,7 @@ func _ready() -> void:
 	_generate_particles()
 	EyeFormation.assign_eye_targets(particles, particle_count)
 	FaceContourFormation.assign_face_targets(particles, particle_count)
+	_schedule_next_idle_micro()
 
 
 func _process(delta: float) -> void:
@@ -48,6 +57,7 @@ func _process(delta: float) -> void:
 	if blink_timer > blink_interval:
 		blink_timer = 0.0
 
+	_update_idle_micro(delta)
 	_update_state_intensity(delta)
 	_update_particles()
 	update()
@@ -59,6 +69,12 @@ func set_visual_state(new_state: String) -> void:
 
 	if visual_state == VisualStates.SHOW_SELF_EYES and previous_state != visual_state:
 		blink_timer = 0.0
+
+	if visual_state == VisualStates.BORED_MICRO_ANIMATION and previous_state != visual_state:
+		_start_idle_micro(
+			BoredMicroBehaviour.KIND_ORBIT_GLINT,
+			4.0
+		)
 
 
 func _generate_particles() -> void:
@@ -81,6 +97,62 @@ func _generate_particles() -> void:
 		particles.append(particle)
 
 
+func _schedule_next_idle_micro() -> void:
+	idle_micro_timer = 0.0
+	idle_micro_delay = BoredMicroBehaviour.next_delay()
+	idle_micro_age = 0.0
+	idle_micro_duration = 0.0
+	idle_micro_active = false
+
+
+func _start_idle_micro(kind: String, duration: float) -> void:
+	idle_micro_kind = kind
+	idle_micro_duration = duration
+	idle_micro_age = 0.0
+	idle_micro_timer = 0.0
+	idle_micro_active = true
+
+
+func _update_idle_micro(delta: float) -> void:
+	if visual_state != VisualStates.IDLE_PARTICLE_CLOUD \
+			and visual_state != VisualStates.BORED_MICRO_ANIMATION:
+		idle_micro_active = false
+		idle_micro_age = 0.0
+		idle_micro_timer = 0.0
+		return
+
+	if visual_state == VisualStates.BORED_MICRO_ANIMATION:
+		if idle_micro_active:
+			idle_micro_age += delta
+		return
+
+	if idle_micro_active:
+		idle_micro_age += delta
+
+		if idle_micro_age >= idle_micro_duration:
+			_schedule_next_idle_micro()
+
+		return
+
+	idle_micro_timer += delta
+
+	if idle_micro_timer >= idle_micro_delay:
+		_start_idle_micro(
+			BoredMicroBehaviour.pick_kind(),
+			BoredMicroBehaviour.next_duration()
+		)
+
+
+func _current_idle_micro_intensity() -> float:
+	if not idle_micro_active:
+		return 0.0
+
+	return BoredMicroBehaviour.envelope(
+		idle_micro_age,
+		idle_micro_duration
+	)
+
+
 func _update_state_intensity(delta: float) -> void:
 	var target = 0.0
 
@@ -96,6 +168,8 @@ func _update_state_intensity(delta: float) -> void:
 		target = 0.92
 	elif visual_state == VisualStates.FACE_CONTOUR:
 		target = 0.82
+	elif visual_state == VisualStates.BORED_MICRO_ANIMATION:
+		target = 0.72
 	elif visual_state == VisualStates.ERROR_DEGRADED:
 		target = 0.65
 
@@ -223,6 +297,24 @@ func _state_motion_for_particle(base: Vector2, depth: float) -> Vector2:
 			state_intensity
 		)
 
+	if visual_state == VisualStates.IDLE_PARTICLE_CLOUD and idle_micro_active:
+		return BoredMicroBehaviour.state_motion(
+			time,
+			base,
+			depth,
+			_current_idle_micro_intensity(),
+			idle_micro_kind
+		)
+
+	if visual_state == VisualStates.BORED_MICRO_ANIMATION:
+		return BoredMicroBehaviour.state_motion(
+			time,
+			base,
+			depth,
+			state_intensity,
+			idle_micro_kind
+		)
+
 	if visual_state == VisualStates.ERROR_DEGRADED:
 		var weak_drift = sin(time * 0.8 + base.length() * 0.018)
 		return base.normalized() * weak_drift * 5.0 * state_intensity * depth
@@ -266,6 +358,31 @@ func _draw() -> void:
 		elif visual_state == VisualStates.SPEAKING_PULSE:
 			alpha += SpeakingBehaviour.alpha_bonus(time, position, state_intensity)
 			size += SpeakingBehaviour.size_bonus(time, position, state_intensity)
+
+		elif visual_state == VisualStates.IDLE_PARTICLE_CLOUD and idle_micro_active:
+			var micro_intensity = _current_idle_micro_intensity()
+			alpha += BoredMicroBehaviour.alpha_bonus(
+				time,
+				position,
+				micro_intensity,
+				idle_micro_kind
+			)
+			size += BoredMicroBehaviour.size_bonus(
+				micro_intensity,
+				idle_micro_kind
+			)
+
+		elif visual_state == VisualStates.BORED_MICRO_ANIMATION:
+			alpha += BoredMicroBehaviour.alpha_bonus(
+				time,
+				position,
+				state_intensity,
+				idle_micro_kind
+			)
+			size += BoredMicroBehaviour.size_bonus(
+				state_intensity,
+				idle_micro_kind
+			)
 
 		elif visual_state == VisualStates.ERROR_DEGRADED:
 			alpha *= 0.78
