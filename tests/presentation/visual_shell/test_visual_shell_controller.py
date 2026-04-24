@@ -1,10 +1,16 @@
 from modules.presentation.visual_shell.contracts import (
+    VisualCommand,
+    VisualCommandName,
     VisualEvent,
     VisualEventName,
     VisualState,
 )
 from modules.presentation.visual_shell.controller import VisualShellController
-from modules.presentation.visual_shell.transport import InMemoryVisualShellTransport
+from modules.presentation.visual_shell.transport import (
+    InMemoryVisualShellTransport,
+    TcpVisualShellTransport,
+    VisualShellMessageCodec,
+)
 
 
 def test_visual_shell_controller_maps_wake_event_to_listening_state() -> None:
@@ -31,4 +37,61 @@ def test_visual_shell_controller_can_set_scanning_state_directly() -> None:
 
     assert result is True
     assert transport.sent_messages[0]["payload"]["state"] == "SCANNING_EYES"
-    
+
+
+def test_visual_state_supports_metric_glyph_states() -> None:
+    assert VisualState.coerce("temperature_glyph") == VisualState.TEMPERATURE_GLYPH
+    assert VisualState.coerce("battery_glyph") == VisualState.BATTERY_GLYPH
+
+
+def test_visual_command_supports_temperature_and_battery_commands() -> None:
+    temperature_command = VisualCommand(
+        command=VisualCommandName.SHOW_TEMPERATURE,
+        payload={"value_c": 57},
+    )
+    battery_command = VisualCommand(
+        command=VisualCommandName.SHOW_BATTERY,
+        payload={"percent": 82},
+    )
+
+    assert temperature_command.to_dict() == {
+        "command": "SHOW_TEMPERATURE",
+        "payload": {"value_c": 57},
+        "source": "nexa-runtime",
+    }
+    assert battery_command.to_dict() == {
+        "command": "SHOW_BATTERY",
+        "payload": {"percent": 82},
+        "source": "nexa-runtime",
+    }
+
+
+def test_visual_shell_message_codec_supports_line_delimited_json() -> None:
+    message = {
+        "command": "SET_STATE",
+        "payload": {"state": "SPEAKING_PULSE"},
+        "source": "test",
+    }
+
+    encoded = VisualShellMessageCodec.encode_line(message)
+
+    assert encoded.endswith(b"\n")
+    assert VisualShellMessageCodec.decode_line(encoded) == message
+
+
+def test_tcp_visual_shell_transport_fails_softly_when_renderer_is_unavailable() -> None:
+    transport = TcpVisualShellTransport(
+        host="127.0.0.1",
+        port=1,
+        timeout_sec=0.01,
+    )
+
+    result = transport.send(
+        {
+            "command": "SET_STATE",
+            "payload": {"state": "IDLE_PARTICLE_CLOUD"},
+            "source": "test",
+        }
+    )
+
+    assert result is False

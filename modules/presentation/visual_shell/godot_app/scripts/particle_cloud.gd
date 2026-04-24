@@ -15,9 +15,9 @@ const DesktopDockBehaviour = preload("res://scripts/behaviours/desktop_dock_beha
 const MetricDisplayBehaviour = preload("res://scripts/behaviours/metric_display_behaviour.gd")
 const VisualPalette = preload("res://scripts/palette/visual_palette.gd")
 
-export(int) var particle_count = 2200
+export(int) var particle_count = 1800
 export(float) var radius = 265.0
-export(float) var particle_size = 0.58
+export(float) var particle_size = 0.87
 
 var particles = []
 var time = 0.0
@@ -543,6 +543,12 @@ func _to_visual_size(size: float) -> float:
 
 
 func _draw_compact_orb_background() -> void:
+	if not shell_compact_mode:
+		return
+
+	if VisualStates.is_metric_display_state(visual_state):
+		return
+
 	if not DesktopDockBehaviour.should_draw_soft_orb(visual_scale):
 		return
 

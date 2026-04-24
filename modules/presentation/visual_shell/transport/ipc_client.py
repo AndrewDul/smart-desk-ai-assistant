@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import socket
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -28,9 +29,43 @@ class InMemoryVisualShellTransport:
 
 @dataclass(slots=True)
 class EncodedVisualShellTransport:
-    """Base transport helper for future socket/WebSocket implementations."""
+    """Base transport helper for socket/WebSocket implementations."""
 
     codec: VisualShellMessageCodec = field(default_factory=VisualShellMessageCodec)
 
     def encode_message(self, message: dict[str, object]) -> str:
         return self.codec.encode(message)
+
+    def encode_message_line(self, message: dict[str, object]) -> bytes:
+        return self.codec.encode_line(message)
+
+
+@dataclass(slots=True)
+class TcpVisualShellTransport(EncodedVisualShellTransport):
+    """Best-effort local TCP transport for the Godot Visual Shell.
+
+    The transport intentionally fails softly by default. Visual Shell must never
+    become a hard dependency for the core assistant runtime.
+    """
+
+    host: str = "127.0.0.1"
+    port: int = 8765
+    timeout_sec: float = 0.15
+    raise_on_failure: bool = False
+
+    def send(self, message: dict[str, object]) -> bool:
+        payload = self.encode_message_line(message)
+
+        try:
+            with socket.create_connection(
+                (self.host, self.port),
+                timeout=self.timeout_sec,
+            ) as sock:
+                sock.sendall(payload)
+            return True
+
+        except OSError:
+            if self.raise_on_failure:
+                raise
+
+            return False

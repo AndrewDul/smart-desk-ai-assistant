@@ -1,14 +1,18 @@
 extends Reference
 
-const DOT_SPACING = 14.0
-const LETTER_SPACING = 14.0
-const PARTICLES_PER_DOT = 4
+const DOT_SPACING = 9.5
+const LETTER_SPACING = 5.0
+const PARTICLES_PER_DOT = 8
 
 const DOT_OFFSETS = [
-	Vector2(-2.0, -2.0),
-	Vector2(2.0, -2.0),
-	Vector2(-2.0, 2.0),
-	Vector2(2.0, 2.0),
+	Vector2(-2.4, -2.4),
+	Vector2(0.0, -2.9),
+	Vector2(2.4, -2.4),
+	Vector2(-2.9, 0.0),
+	Vector2(0.0, 0.0),
+	Vector2(2.9, 0.0),
+	Vector2(-2.4, 2.4),
+	Vector2(2.4, 2.4),
 ]
 
 const GLYPHS = {
@@ -200,8 +204,8 @@ static func _build_text_targets(text: String) -> Array:
 		(min_y + max_y) * 0.5
 	)
 
-	for index in range(positions.size()):
-		positions[index] -= center
+	for target_index in range(positions.size()):
+		positions[target_index] -= center
 
 	return positions
 
