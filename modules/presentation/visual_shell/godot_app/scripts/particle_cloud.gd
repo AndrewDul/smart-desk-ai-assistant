@@ -10,6 +10,7 @@ const ScanningBehaviour = preload("res://scripts/behaviours/scanning_behaviour.g
 const EyeBehaviour = preload("res://scripts/behaviours/eye_behaviour.gd")
 const FaceContourBehaviour = preload("res://scripts/behaviours/face_contour_behaviour.gd")
 const BoredMicroBehaviour = preload("res://scripts/behaviours/bored_micro_behaviour.gd")
+const DesktopDockBehaviour = preload("res://scripts/behaviours/desktop_dock_behaviour.gd")
 const VisualPalette = preload("res://scripts/palette/visual_palette.gd")
 
 export(int) var particle_count = 2200
@@ -23,6 +24,9 @@ var state_intensity = 0.0
 var blink_timer = 0.0
 var blink_interval = 25.0
 var blink_duration = 0.28
+
+var shell_compact_mode = false
+var visual_scale = 1.0
 
 var idle_micro_timer = 0.0
 var idle_micro_delay = 32.0
@@ -59,6 +63,7 @@ func _process(delta: float) -> void:
 
 	_update_idle_micro(delta)
 	_update_state_intensity(delta)
+	_update_shell_transform(delta)
 	_update_particles()
 	update()
 
@@ -66,6 +71,12 @@ func _process(delta: float) -> void:
 func set_visual_state(new_state: String) -> void:
 	var previous_state = visual_state
 	visual_state = VisualStates.coerce_state(new_state)
+
+	if visual_state == VisualStates.DESKTOP_DOCKED \
+			or visual_state == VisualStates.DESKTOP_RETURNING \
+			or visual_state == VisualStates.DESKTOP_HIDDEN:
+		visual_state = previous_state
+		return
 
 	if visual_state == VisualStates.SHOW_SELF_EYES and previous_state != visual_state:
 		blink_timer = 0.0
@@ -75,6 +86,10 @@ func set_visual_state(new_state: String) -> void:
 			BoredMicroBehaviour.KIND_ORBIT_GLINT,
 			4.0
 		)
+
+
+func set_shell_compact_mode(enabled: bool) -> void:
+	shell_compact_mode = enabled
 
 
 func _generate_particles() -> void:
@@ -174,6 +189,18 @@ func _update_state_intensity(delta: float) -> void:
 		target = 0.65
 
 	state_intensity = lerp(state_intensity, target, delta * 2.8)
+
+
+func _update_shell_transform(delta: float) -> void:
+	var viewport_size = get_viewport_rect().size
+	var target_scale = DesktopDockBehaviour.target_scale(
+		shell_compact_mode,
+		viewport_size,
+		radius
+	)
+	var speed = DesktopDockBehaviour.transform_speed(not shell_compact_mode)
+
+	visual_scale = lerp(visual_scale, target_scale, delta * speed)
 
 
 func _update_particles() -> void:
@@ -315,6 +342,14 @@ func _state_motion_for_particle(base: Vector2, depth: float) -> Vector2:
 			idle_micro_kind
 		)
 
+	if shell_compact_mode:
+		return DesktopDockBehaviour.state_motion(
+			time,
+			base,
+			depth,
+			state_intensity
+		)
+
 	if visual_state == VisualStates.ERROR_DEGRADED:
 		var weak_drift = sin(time * 0.8 + base.length() * 0.018)
 		return base.normalized() * weak_drift * 5.0 * state_intensity * depth
@@ -323,6 +358,8 @@ func _state_motion_for_particle(base: Vector2, depth: float) -> Vector2:
 
 
 func _draw() -> void:
+	_draw_compact_orb_background()
+
 	for particle in particles:
 		var position = particle.target_position
 		var alpha = 0.30 + particle.depth * 0.42
@@ -387,9 +424,17 @@ func _draw() -> void:
 		elif visual_state == VisualStates.ERROR_DEGRADED:
 			alpha *= 0.78
 
+		if shell_compact_mode:
+			alpha += DesktopDockBehaviour.alpha_bonus(
+				time,
+				position,
+				state_intensity
+			)
+			size += DesktopDockBehaviour.size_bonus(state_intensity)
+
 		draw_circle(
-			position,
-			size,
+			_to_visual_position(position),
+			_to_visual_size(size),
 			VisualPalette.color_for_particle(
 				particle,
 				visual_state,
@@ -403,6 +448,30 @@ func _draw() -> void:
 		_draw_scanning_overlay()
 
 
+func _to_visual_position(position: Vector2) -> Vector2:
+	return position * visual_scale
+
+
+func _to_visual_size(size: float) -> float:
+	var multiplier = DesktopDockBehaviour.particle_size_multiplier(shell_compact_mode)
+
+	return max(size * visual_scale * multiplier, 0.34)
+
+
+func _draw_compact_orb_background() -> void:
+	if not DesktopDockBehaviour.should_draw_soft_orb(visual_scale):
+		return
+
+	var alpha = DesktopDockBehaviour.orb_alpha(visual_scale)
+	var compact_radius = DesktopDockBehaviour.orb_radius(radius, visual_scale)
+
+	draw_circle(
+		Vector2.ZERO,
+		compact_radius,
+		DesktopDockBehaviour.orb_color(alpha)
+	)
+
+
 func _draw_scanning_overlay() -> void:
 	var alpha = ScanningBehaviour.overlay_alpha(time, state_intensity)
 	var y = ScanningBehaviour.overlay_y(time, radius)
@@ -410,16 +479,16 @@ func _draw_scanning_overlay() -> void:
 	var color = ScanningBehaviour.overlay_color(alpha)
 
 	draw_line(
-		Vector2(-width, y),
-		Vector2(width, y),
+		_to_visual_position(Vector2(-width, y)),
+		_to_visual_position(Vector2(width, y)),
 		color,
 		1.0,
 		true
 	)
 
 	draw_line(
-		Vector2(-width * 0.62, y + 18.0),
-		Vector2(width * 0.62, y + 18.0),
+		_to_visual_position(Vector2(-width * 0.62, y + 18.0)),
+		_to_visual_position(Vector2(width * 0.62, y + 18.0)),
 		ScanningBehaviour.overlay_color(alpha * 0.38),
 		1.0,
 		true

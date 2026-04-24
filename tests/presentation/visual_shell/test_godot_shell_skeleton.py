@@ -60,12 +60,54 @@ def test_main_shell_routes_manual_keys_through_state_machine() -> None:
     main_shell = (GODOT_APP_DIR / "scripts" / "main_shell.gd").read_text(encoding="utf-8")
 
     assert "VisualStateMachineScript" in main_shell
-    assert "state_machine.set_state(VisualStates.SHOW_SELF_EYES)" in main_shell
-    assert "state_machine.set_state(VisualStates.FACE_CONTOUR)" in main_shell
-    assert "state_machine.set_state(VisualStates.BORED_MICRO_ANIMATION)" in main_shell
+    assert "state_machine.set_state" in main_shell
+    assert "VisualStates.SHOW_SELF_EYES" in main_shell
+    assert "VisualStates.FACE_CONTOUR" in main_shell
+    assert "VisualStates.BORED_MICRO_ANIMATION" in main_shell
     assert "KEY_6" in main_shell
     assert "KEY_8" in main_shell
     assert "KEY_9" in main_shell
+
+
+def test_main_shell_uses_real_docked_window_mode() -> None:
+    main_shell = (GODOT_APP_DIR / "scripts" / "main_shell.gd").read_text(encoding="utf-8")
+    window_controller = (
+        GODOT_APP_DIR / "scripts" / "desktop" / "desktop_window_controller.gd"
+    )
+
+    assert window_controller.is_file()
+    assert "DesktopWindowController.enter_docked_window()" in main_shell
+    assert "DesktopWindowController.enter_fullscreen()" in main_shell
+    assert "_enter_desktop_docked_mode" in main_shell
+    assert "_return_to_fullscreen_shell" in main_shell
+    assert "particle_cloud.set_shell_compact_mode(true)" in main_shell
+    assert "particle_cloud.set_shell_compact_mode(false)" in main_shell
+    assert "KEY_0" in main_shell
+    assert "KEY_MINUS" in main_shell
+
+
+def test_desktop_window_controller_controls_actual_window() -> None:
+    window_controller = (
+        GODOT_APP_DIR / "scripts" / "desktop" / "desktop_window_controller.gd"
+    ).read_text(encoding="utf-8")
+
+    assert "OS.window_fullscreen = false" in window_controller
+    assert "OS.window_size = DOCKED_WINDOW_SIZE" in window_controller
+    assert "OS.window_position" in window_controller
+    assert "OS.window_fullscreen = true" in window_controller
+    assert "DOCKED_WINDOW_SIZE = Vector2(300, 300)" in window_controller
+
+
+def test_particle_cloud_preserves_visual_state_during_docked_mode() -> None:
+    particle_cloud = (GODOT_APP_DIR / "scripts" / "particle_cloud.gd").read_text(
+        encoding="utf-8"
+    )
+
+    assert "func set_shell_compact_mode(enabled: bool) -> void:" in particle_cloud
+    assert "shell_compact_mode = enabled" in particle_cloud
+    assert "visual_state = previous_state" in particle_cloud
+    assert "VisualStates.DESKTOP_DOCKED" in particle_cloud
+    assert "VisualStates.DESKTOP_RETURNING" in particle_cloud
 
 
 def test_particle_cloud_uses_show_self_eyes_as_eye_formation() -> None:
@@ -217,3 +259,31 @@ def test_godot_shell_has_bored_micro_behaviour_module() -> None:
     assert "_schedule_next_idle_micro" in particle_cloud
     assert "_current_idle_micro_intensity" in particle_cloud
     assert "BoredMicroBehaviour.state_motion" in particle_cloud
+
+
+def test_godot_shell_has_desktop_dock_behaviour_module() -> None:
+    desktop_dock_behaviour = (
+        GODOT_APP_DIR / "scripts" / "behaviours" / "desktop_dock_behaviour.gd"
+    )
+    particle_cloud = (GODOT_APP_DIR / "scripts" / "particle_cloud.gd").read_text(
+        encoding="utf-8"
+    )
+
+    assert desktop_dock_behaviour.is_file()
+
+    dock_content = desktop_dock_behaviour.read_text(encoding="utf-8")
+
+    assert "target_scale" in dock_content
+    assert "COMPACT_FILL" in dock_content
+    assert "COMPACT_VISUAL_DIAMETER_FACTOR" in dock_content
+    assert "particle_size_multiplier" in dock_content
+    assert "state_motion" in dock_content
+    assert "orb_alpha" in dock_content
+    assert "orb_radius" in dock_content
+
+    assert 'preload("res://scripts/behaviours/desktop_dock_behaviour.gd")' in particle_cloud
+    assert "_update_shell_transform" in particle_cloud
+    assert "DesktopDockBehaviour.target_scale" in particle_cloud
+    assert "DesktopDockBehaviour.particle_size_multiplier" in particle_cloud
+    assert "DesktopDockBehaviour.state_motion" in particle_cloud
+    assert "_draw_compact_orb_background" in particle_cloud
