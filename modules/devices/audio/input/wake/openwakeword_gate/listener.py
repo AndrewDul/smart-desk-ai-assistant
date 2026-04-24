@@ -59,10 +59,32 @@ class OpenWakeWordGateListener(
             self._reset_runtime_state()
             return None
 
-        try:
-            self._ensure_stream_open()
-        except Exception as error:
-            LOGGER.error("Failed to start wake input stream: %s", error)
+        # ALSA may still be releasing the mic from voice_input (STT) when
+        # we try to reopen it for wake capture. Retry briefly with small
+        # backoff before giving up. Suppress repeated error logs within a
+        # short window to avoid spamming the terminal after every turn.
+        stream_opened = False
+        last_error: Exception | None = None
+        for attempt in range(6):
+            try:
+                self._ensure_stream_open()
+                stream_opened = True
+                break
+            except Exception as error:
+                last_error = error
+                time.sleep(0.08 + attempt * 0.05)  # 80ms, 130ms, 180ms, 230ms, 280ms, 330ms
+
+        if not stream_opened:
+            now = time.monotonic()
+            recent = getattr(self, "_last_stream_error_log", 0.0)
+            # Log at most once every 10 seconds
+            if now - recent > 10.0:
+                LOGGER.warning(
+                    "Wake input stream unavailable after retries: %s. "
+                    "Mic likely still held by another component.",
+                    last_error,
+                )
+                self._last_stream_error_log = now
             self._close_stream()
             self._clear_audio_queue()
             self._reset_runtime_state()
