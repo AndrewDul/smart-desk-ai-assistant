@@ -1,0 +1,29 @@
+{
+  "enabled": true,
+  "renderer": "godot",
+  "startup_mode": "fullscreen",
+  "default_state": "IDLE_PARTICLE_CLOUD",
+  "dock_position": "top-right",
+  "display": {
+    "target_width": 1280,
+    "target_height": 800,
+    "fullscreen": true,
+    "fps_limit": 60
+  },
+  "particles": {
+    "quality": "balanced",
+    "idle_particle_count": 600,
+    "low_power_particle_count": 300,
+    "max_particle_count": 1200
+  },
+  "behaviour": {
+    "enable_bored_micro_animations": true,
+    "bored_micro_animation_min_interval_sec": 45,
+    "bored_micro_animation_max_interval_sec": 180
+  },
+  "transport": {
+    "type": "in_memory",
+    "host": "127.0.0.1",
+    "port": 8765
+  }
+}

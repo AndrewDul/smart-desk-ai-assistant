@@ -140,13 +140,28 @@ def try_handle_arithmetic(*, assistant: Any, raw_text: str, language: str) -> bo
     from modules.runtime.contracts import RouteKind
 
     lang = str(language or "en").strip().lower() or "en"
+    # Display uses unicode math symbols; speech uses words Piper can pronounce.
     display_expr = outcome.expression.replace("*", "×").replace("/", ":")
 
     if lang.startswith("pl"):
-        spoken = f"{display_expr} to {outcome.result}."
+        spoken_op = (
+            outcome.expression
+            .replace("+", " plus ")
+            .replace("-", " minus ")
+            .replace("*", " razy ")
+            .replace("/", " podzielić przez ")
+        )
+        spoken = f"{spoken_op} to {outcome.result}."
         display_title = "KALKULATOR"
     else:
-        spoken = f"{display_expr} is {outcome.result}."
+        spoken_op = (
+            outcome.expression
+            .replace("+", " plus ")
+            .replace("-", " minus ")
+            .replace("*", " times ")
+            .replace("/", " divided by ")
+        )
+        spoken = f"{spoken_op} is {outcome.result}."
         display_title = "CALCULATOR"
 
     metadata = {
