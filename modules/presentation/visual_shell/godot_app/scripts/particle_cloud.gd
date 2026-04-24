@@ -2,7 +2,9 @@ extends Node2D
 
 const VisualStates = preload("res://scripts/state/visual_states.gd")
 const EyeFormation = preload("res://scripts/formations/eye_formation.gd")
+const FaceContourFormation = preload("res://scripts/formations/face_contour_formation.gd")
 const EyeBehaviour = preload("res://scripts/behaviours/eye_behaviour.gd")
+const FaceContourBehaviour = preload("res://scripts/behaviours/face_contour_behaviour.gd")
 const VisualPalette = preload("res://scripts/palette/visual_palette.gd")
 
 export(int) var particle_count = 2200
@@ -22,6 +24,7 @@ class Particle:
 	var base_position = Vector2.ZERO
 	var target_position = Vector2.ZERO
 	var eye_position = Vector2.ZERO
+	var face_position = Vector2.ZERO
 	var depth = 1.0
 	var formation_strength = 1.0
 	var is_pupil = false
@@ -31,6 +34,7 @@ func _ready() -> void:
 	randomize()
 	_generate_particles()
 	EyeFormation.assign_eye_targets(particles, particle_count)
+	FaceContourFormation.assign_face_targets(particles, particle_count)
 
 
 func _process(delta: float) -> void:
@@ -65,7 +69,7 @@ func _generate_particles() -> void:
 		particle.target_position = particle.base_position
 		particle.depth = rand_range(0.45, 1.0)
 
-		# Most particles form the eyes. Some remain as a loose living aura.
+		# Most particles form focused shapes. Some remain as a loose living aura.
 		particle.formation_strength = 1.0
 		if randf() < 0.16:
 			particle.formation_strength = rand_range(0.08, 0.35)
@@ -86,6 +90,8 @@ func _update_state_intensity(delta: float) -> void:
 		target = 1.0
 	elif visual_state == VisualStates.SHOW_SELF_EYES:
 		target = 0.92
+	elif visual_state == VisualStates.FACE_CONTOUR:
+		target = 0.82
 	elif visual_state == VisualStates.ERROR_DEGRADED:
 		target = 0.65
 
@@ -97,24 +103,10 @@ func _update_particles() -> void:
 		var base = particle.base_position
 
 		if VisualStates.is_eye_formation_state(visual_state):
-			var blink_scale = EyeBehaviour.blink_scale(blink_timer, blink_duration)
-			var attention_offset = EyeBehaviour.attention_offset(visual_state, time, base)
+			base = _eye_base_position(particle)
 
-			var eye_position = Vector2(
-				particle.eye_position.x,
-				particle.eye_position.y * blink_scale
-			) + attention_offset
-
-			var formation_strength = EyeBehaviour.formation_strength_for_state(
-				particle.formation_strength,
-				visual_state,
-				state_intensity
-			)
-
-			base = particle.base_position.linear_interpolate(
-				eye_position,
-				formation_strength
-			)
+		elif VisualStates.is_face_formation_state(visual_state):
+			base = _face_base_position(particle)
 
 		var breathing = sin(time * 0.55 + base.length() * 0.038)
 		var organic_noise = Vector2(
@@ -132,6 +124,43 @@ func _update_particles() -> void:
 			desired_position,
 			0.045
 		)
+
+
+func _eye_base_position(particle) -> Vector2:
+	var blink_scale = EyeBehaviour.blink_scale(blink_timer, blink_duration)
+	var attention_offset = EyeBehaviour.attention_offset(
+		visual_state,
+		time,
+		particle.base_position
+	)
+
+	var eye_position = Vector2(
+		particle.eye_position.x,
+		particle.eye_position.y * blink_scale
+	) + attention_offset
+
+	var formation_strength = EyeBehaviour.formation_strength_for_state(
+		particle.formation_strength,
+		visual_state,
+		state_intensity
+	)
+
+	return particle.base_position.linear_interpolate(
+		eye_position,
+		formation_strength
+	)
+
+
+func _face_base_position(particle) -> Vector2:
+	var formation_strength = FaceContourBehaviour.formation_strength(
+		particle.formation_strength,
+		state_intensity
+	)
+
+	return particle.base_position.linear_interpolate(
+		particle.face_position,
+		formation_strength
+	)
 
 
 func _state_motion_for_particle(base: Vector2, depth: float) -> Vector2:
@@ -163,6 +192,14 @@ func _state_motion_for_particle(base: Vector2, depth: float) -> Vector2:
 	if VisualStates.is_eye_formation_state(visual_state):
 		return EyeBehaviour.state_motion(visual_state, time, base, depth)
 
+	if VisualStates.is_face_formation_state(visual_state):
+		return FaceContourBehaviour.state_motion(
+			time,
+			base,
+			depth,
+			state_intensity
+		)
+
 	if visual_state == VisualStates.ERROR_DEGRADED:
 		var weak_drift = sin(time * 0.8 + base.length() * 0.018)
 		return base.normalized() * weak_drift * 5.0 * state_intensity * depth
@@ -182,12 +219,20 @@ func _draw() -> void:
 			if particle.is_pupil:
 				size += EyeBehaviour.pupil_size_bonus(visual_state)
 				alpha = 0.92
+
+		elif VisualStates.is_face_formation_state(visual_state):
+			alpha += FaceContourBehaviour.alpha_bonus(state_intensity)
+			size += FaceContourBehaviour.size_bonus(state_intensity)
+
 		elif visual_state == VisualStates.THINKING_SWARM:
 			alpha += 0.16 * state_intensity
+
 		elif visual_state == VisualStates.SPEAKING_PULSE:
 			size += 0.16 * state_intensity
+
 		elif visual_state == VisualStates.LISTENING_CLOUD:
 			alpha += 0.10 * state_intensity
+
 		elif visual_state == VisualStates.ERROR_DEGRADED:
 			alpha *= 0.78
 

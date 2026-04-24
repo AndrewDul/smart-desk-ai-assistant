@@ -1,6 +1,6 @@
 extends Reference
 
-const VisualStates := preload("res://scripts/state/visual_states.gd")
+const VisualStates = preload("res://scripts/state/visual_states.gd")
 
 
 static func color_for_particle(
@@ -10,7 +10,7 @@ static func color_for_particle(
 	radius: float,
 	alpha: float
 ) -> Color:
-	var gradient_factor := clamp((position.y + radius) / (radius * 2.0), 0.0, 1.0)
+	var gradient_factor = clamp((position.y + radius) / (radius * 2.0), 0.0, 1.0)
 
 	if visual_state == VisualStates.SCANNING_EYES:
 		if particle.is_pupil:
@@ -27,6 +27,12 @@ static func color_for_particle(
 
 		return Color(0.72, 0.94, 1.0, alpha).linear_interpolate(
 			Color(0.12, 0.32, 0.82, alpha),
+			gradient_factor
+		)
+
+	if visual_state == VisualStates.FACE_CONTOUR:
+		return Color(0.78, 0.92, 1.0, alpha).linear_interpolate(
+			Color(0.20, 0.42, 0.92, alpha),
 			gradient_factor
 		)
 

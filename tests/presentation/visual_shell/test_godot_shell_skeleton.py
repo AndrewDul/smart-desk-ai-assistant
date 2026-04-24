@@ -61,7 +61,9 @@ def test_main_shell_routes_manual_keys_through_state_machine() -> None:
 
     assert "VisualStateMachineScript" in main_shell
     assert "state_machine.set_state(VisualStates.SHOW_SELF_EYES)" in main_shell
+    assert "state_machine.set_state(VisualStates.FACE_CONTOUR)" in main_shell
     assert "KEY_6" in main_shell
+    assert "KEY_8" in main_shell
 
 
 def test_particle_cloud_uses_show_self_eyes_as_eye_formation() -> None:
@@ -112,3 +114,19 @@ def test_show_self_and_scanning_have_separate_eye_behaviour() -> None:
     assert "VisualStates.SHOW_SELF_EYES" in eye_behaviour
     assert "scan_x" in eye_behaviour
     assert "calm_x" in eye_behaviour
+
+
+def test_godot_shell_has_face_contour_formation() -> None:
+    face_formation = GODOT_APP_DIR / "scripts" / "formations" / "face_contour_formation.gd"
+    face_behaviour = GODOT_APP_DIR / "scripts" / "behaviours" / "face_contour_behaviour.gd"
+    particle_cloud = (GODOT_APP_DIR / "scripts" / "particle_cloud.gd").read_text(encoding="utf-8")
+    visual_states = (GODOT_APP_DIR / "scripts" / "state" / "visual_states.gd").read_text(
+        encoding="utf-8"
+    )
+
+    assert face_formation.is_file()
+    assert face_behaviour.is_file()
+    assert "assign_face_targets" in face_formation.read_text(encoding="utf-8")
+    assert "is_face_formation_state" in visual_states
+    assert 'preload("res://scripts/formations/face_contour_formation.gd")' in particle_cloud
+    assert 'preload("res://scripts/behaviours/face_contour_behaviour.gd")' in particle_cloud

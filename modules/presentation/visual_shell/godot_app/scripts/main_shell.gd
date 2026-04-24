@@ -1,14 +1,14 @@
 extends Control
 
-const VisualStates := preload("res://scripts/state/visual_states.gd")
-const VisualStateMachineScript := preload("res://scripts/visual_state_machine.gd")
+const VisualStates = preload("res://scripts/state/visual_states.gd")
+const VisualStateMachineScript = preload("res://scripts/visual_state_machine.gd")
 
-const BOOT_STATE := VisualStates.IDLE_PARTICLE_CLOUD
+const BOOT_STATE = VisualStates.IDLE_PARTICLE_CLOUD
 
 onready var status_label: Label = $StatusLabel
 onready var particle_cloud: Node2D = $ParticleCloud
 
-var state_machine: Node = null
+var state_machine = null
 
 
 func _ready() -> void:
@@ -38,6 +38,8 @@ func _input(event: InputEvent) -> void:
 		state_machine.set_state(VisualStates.SHOW_SELF_EYES)
 	elif event.scancode == KEY_7:
 		state_machine.set_state(VisualStates.ERROR_DEGRADED)
+	elif event.scancode == KEY_8:
+		state_machine.set_state(VisualStates.FACE_CONTOUR)
 	elif event.scancode == KEY_ESCAPE:
 		get_tree().quit()
 
@@ -62,4 +64,4 @@ func _on_visual_state_rejected(requested_state: String, fallback_state: String) 
 func _build_status_text(current_state: String) -> String:
 	return "NEXA VISUAL SHELL\n" \
 		+ current_state \
-		+ "\n1 idle  2 listen  3 think  4 speak  5 scan  6 eyes  7 error"
+		+ "\n1 idle  2 listen  3 think  4 speak  5 scan  6 eyes  7 error  8 face"
