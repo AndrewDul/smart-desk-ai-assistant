@@ -602,8 +602,15 @@ class FasterWhisperInputBackend(
         return "nexa"
 
     def release_capture_ownership(self) -> bool:
+        # Close the InputStream so the wake gate (separate process on the
+        # same USB mic) can reopen it. On Linux ALSA without PipeWire, a
+        # second client cannot open a capture device that another client
+        # is still holding — even if the first client is "idle". Previous
+        # behaviour (clear queue but keep stream alive) worked under Pulse
+        # but causes the wake gate to fail silently on bare ALSA.
         self._clear_audio_queue()
-        return self._stream is not None
+        self._close_stream()
+        return True
 
     def close(self) -> None:
         self._clear_audio_queue()

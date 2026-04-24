@@ -65,14 +65,17 @@ class OpenWakeWordGateListener(
         # short window to avoid spamming the terminal after every turn.
         stream_opened = False
         last_error: Exception | None = None
-        for attempt in range(6):
+        # 3 quick retries ~150ms total — enough for ALSA to release the mic
+        # after voice_input finishes, but short enough not to delay wake
+        # responsiveness perceptibly.
+        for attempt in range(3):
             try:
                 self._ensure_stream_open()
                 stream_opened = True
                 break
             except Exception as error:
                 last_error = error
-                time.sleep(0.08 + attempt * 0.05)  # 80ms, 130ms, 180ms, 230ms, 280ms, 330ms
+                time.sleep(0.05 * (attempt + 1))  # 50ms, 100ms, 150ms
 
         if not stream_opened:
             now = time.monotonic()
@@ -129,13 +132,12 @@ class OpenWakeWordGateListener(
                 frame = self._resampled_buffer[: self.model_frame_samples]
                 self._resampled_buffer = self._resampled_buffer[self.frame_hop_samples :]
 
-                if not self._frame_has_enough_energy(frame):
-                    skipped_low_energy_frames += 1
-                    consecutive_hits = max(0, consecutive_hits - 1)
-                    self._soft_decay_state()
-                    continue
-
-                voiced_frames += 1
+                # openwakeword maintains an internal rolling audio embedding
+                # buffer. Skipping frames during silence creates gaps in
+                # that buffer and degrades detection on subsequent voiced
+                # frames. Feed EVERY frame to the model so its state stays
+                # coherent; skip only the wake-scoring on silent frames.
+                is_low_energy = not self._frame_has_enough_energy(frame)
 
                 try:
                     raw_prediction = self.model.predict(frame)
@@ -145,6 +147,14 @@ class OpenWakeWordGateListener(
                     self._clear_audio_queue()
                     self._reset_runtime_state()
                     return None
+
+                if is_low_energy:
+                    skipped_low_energy_frames += 1
+                    consecutive_hits = max(0, consecutive_hits - 1)
+                    self._soft_decay_state()
+                    continue
+
+                voiced_frames += 1
 
                 raw_score = self._extract_score(raw_prediction)
                 smoothed_score = self._smoothed_score(raw_score)
