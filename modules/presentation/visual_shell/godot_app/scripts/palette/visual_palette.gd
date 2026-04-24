@@ -12,12 +12,21 @@ static func color_for_particle(
 ) -> Color:
 	var gradient_factor := clamp((position.y + radius) / (radius * 2.0), 0.0, 1.0)
 
-	if VisualStates.is_eye_formation_state(visual_state):
+	if visual_state == VisualStates.SCANNING_EYES:
 		if particle.is_pupil:
-			return Color(0.25, 0.72, 1.0, alpha)
+			return Color(0.20, 0.70, 1.0, alpha)
 
-		return Color(0.58, 0.92, 1.0, alpha).linear_interpolate(
-			Color(0.02, 0.20, 0.75, alpha),
+		return Color(0.50, 0.92, 1.0, alpha).linear_interpolate(
+			Color(0.02, 0.16, 0.82, alpha),
+			gradient_factor
+		)
+
+	if visual_state == VisualStates.SHOW_SELF_EYES:
+		if particle.is_pupil:
+			return Color(0.35, 0.76, 1.0, alpha)
+
+		return Color(0.72, 0.94, 1.0, alpha).linear_interpolate(
+			Color(0.12, 0.32, 0.82, alpha),
 			gradient_factor
 		)
 

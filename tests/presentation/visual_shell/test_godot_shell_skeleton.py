@@ -87,3 +87,28 @@ def test_godot_shell_has_visual_palette_module() -> None:
     assert visual_palette.is_file()
     assert "color_for_particle" in visual_palette.read_text(encoding="utf-8")
     assert 'preload("res://scripts/palette/visual_palette.gd")' in particle_cloud
+
+
+def test_godot_shell_has_eye_behaviour_module() -> None:
+    eye_behaviour = GODOT_APP_DIR / "scripts" / "behaviours" / "eye_behaviour.gd"
+    particle_cloud = (GODOT_APP_DIR / "scripts" / "particle_cloud.gd").read_text(encoding="utf-8")
+
+    assert eye_behaviour.is_file()
+
+    eye_behaviour_content = eye_behaviour.read_text(encoding="utf-8")
+
+    assert "attention_offset" in eye_behaviour_content
+    assert "formation_strength_for_state" in eye_behaviour_content
+    assert "state_motion" in eye_behaviour_content
+    assert 'preload("res://scripts/behaviours/eye_behaviour.gd")' in particle_cloud
+
+
+def test_show_self_and_scanning_have_separate_eye_behaviour() -> None:
+    eye_behaviour = (
+        GODOT_APP_DIR / "scripts" / "behaviours" / "eye_behaviour.gd"
+    ).read_text(encoding="utf-8")
+
+    assert "VisualStates.SCANNING_EYES" in eye_behaviour
+    assert "VisualStates.SHOW_SELF_EYES" in eye_behaviour
+    assert "scan_x" in eye_behaviour
+    assert "calm_x" in eye_behaviour
