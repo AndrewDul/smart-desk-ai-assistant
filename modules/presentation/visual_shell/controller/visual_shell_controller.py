@@ -9,6 +9,10 @@ from modules.presentation.visual_shell.contracts import (
     VisualState,
 )
 from modules.presentation.visual_shell.controller.state_mapper import VisualStateMapper
+from modules.presentation.visual_shell.controller.voice_command_router import (
+    VisualShellVoiceCommandRouter,
+    VisualVoiceAction,
+)
 from modules.presentation.visual_shell.service import VisualShellSystemMetricsProvider
 from modules.presentation.visual_shell.transport.ipc_client import VisualShellTransport
 
@@ -22,10 +26,63 @@ class VisualShellController:
     metrics_provider: VisualShellSystemMetricsProvider = field(
         default_factory=VisualShellSystemMetricsProvider
     )
+    voice_command_router: VisualShellVoiceCommandRouter = field(
+        default_factory=VisualShellVoiceCommandRouter
+    )
 
     def handle_event(self, event: VisualEvent) -> bool:
         command = self.state_mapper.command_for_event(event)
         return self.send_command(command)
+
+    def handle_voice_text(
+        self,
+        text: str,
+        *,
+        source: str = "nexa-voice-builtins",
+    ) -> bool:
+        match = self.voice_command_router.match(text)
+        if match is None:
+            return False
+
+        return self.handle_voice_action(match.action, source=source)
+
+    def handle_voice_action(
+        self,
+        action: VisualVoiceAction,
+        *,
+        source: str = "nexa-voice-builtins",
+    ) -> bool:
+        if action == VisualVoiceAction.SHOW_TEMPERATURE:
+            return self.show_current_temperature(source=source)
+
+        if action == VisualVoiceAction.SHOW_BATTERY:
+            return self.show_current_battery(source=source)
+
+        if action == VisualVoiceAction.SHOW_DESKTOP:
+            return self.show_desktop(source=source)
+
+        if action == VisualVoiceAction.HIDE_DESKTOP:
+            return self.hide_desktop(source=source)
+
+        if action == VisualVoiceAction.SHOW_SELF:
+            return self.show_self(source=source)
+
+        if action == VisualVoiceAction.SHOW_EYES:
+            return self.show_eyes(source=source, ensure_fullscreen=True)
+
+        if action == VisualVoiceAction.LOOK_AT_USER:
+            return self.show_eyes(source=source, ensure_fullscreen=False)
+
+        if action == VisualVoiceAction.SHOW_FACE_CONTOUR:
+            return self.show_face_contour(source=source)
+
+        if action == VisualVoiceAction.START_SCANNING:
+            return self.start_scanning(source=source)
+
+        if action == VisualVoiceAction.RETURN_TO_IDLE:
+            return self.return_to_idle(source=source)
+
+        return False
 
     def set_state(
         self,
@@ -35,6 +92,101 @@ class VisualShellController:
     ) -> bool:
         command = self.state_mapper.command_for_state(state, source=source)
         return self.send_command(command)
+
+    def show_desktop(self, *, source: str = "nexa-runtime") -> bool:
+        return self.send_command(
+            VisualCommand(
+                command=VisualCommandName.SHOW_DESKTOP,
+                payload={},
+                source=source,
+            )
+        )
+
+    def hide_desktop(self, *, source: str = "nexa-runtime") -> bool:
+        return self.send_command(
+            VisualCommand(
+                command=VisualCommandName.HIDE_DESKTOP,
+                payload={},
+                source=source,
+            )
+        )
+
+    def show_self(self, *, source: str = "nexa-runtime") -> bool:
+        return self.send_command_sequence(
+            [
+                VisualCommand(
+                    command=VisualCommandName.HIDE_DESKTOP,
+                    payload={},
+                    source=source,
+                ),
+                VisualCommand(
+                    command=VisualCommandName.SHOW_SELF,
+                    payload={},
+                    source=source,
+                ),
+            ]
+        )
+
+    def show_eyes(
+        self,
+        *,
+        source: str = "nexa-runtime",
+        ensure_fullscreen: bool = True,
+    ) -> bool:
+        commands: list[VisualCommand] = []
+
+        if ensure_fullscreen:
+            commands.append(
+                VisualCommand(
+                    command=VisualCommandName.HIDE_DESKTOP,
+                    payload={},
+                    source=source,
+                )
+            )
+
+        commands.append(
+            VisualCommand(
+                command=VisualCommandName.SHOW_EYES,
+                payload={},
+                source=source,
+            )
+        )
+
+        return self.send_command_sequence(commands)
+
+    def show_face_contour(self, *, source: str = "nexa-runtime") -> bool:
+        return self.send_command_sequence(
+            [
+                VisualCommand(
+                    command=VisualCommandName.HIDE_DESKTOP,
+                    payload={},
+                    source=source,
+                ),
+                VisualCommand(
+                    command=VisualCommandName.SHOW_FACE_CONTOUR,
+                    payload={},
+                    source=source,
+                ),
+            ]
+        )
+
+    def start_scanning(self, *, source: str = "nexa-runtime") -> bool:
+        return self.send_command(
+            VisualCommand(
+                command=VisualCommandName.START_SCANNING,
+                payload={},
+                source=source,
+            )
+        )
+
+    def return_to_idle(self, *, source: str = "nexa-runtime") -> bool:
+        return self.send_command(
+            VisualCommand(
+                command=VisualCommandName.RETURN_TO_IDLE,
+                payload={},
+                source=source,
+            )
+        )
 
     def show_temperature(
         self,
@@ -102,3 +254,7 @@ class VisualShellController:
 
     def send_command(self, command: VisualCommand) -> bool:
         return self.transport.send(command.to_dict())
+
+    def send_command_sequence(self, commands: list[VisualCommand]) -> bool:
+        results = [self.send_command(command) for command in commands]
+        return all(results)
