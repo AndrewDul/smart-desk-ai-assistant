@@ -1,0 +1,22 @@
+; Engine configuration file.
+; This project is the native animated Visual Shell for NEXA.
+
+config_version=4
+
+[application]
+
+config/name="NEXA Visual Shell"
+run/main_scene="res://scenes/main_shell.tscn"
+config/icon=""
+
+[display]
+
+window/size/width=1280
+window/size/height=800
+window/size/fullscreen=true
+window/stretch/mode="2d"
+window/stretch/aspect="expand"
+
+[rendering]
+
+quality/driver/driver_name="GLES2"
