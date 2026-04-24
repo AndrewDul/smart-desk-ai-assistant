@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from modules.presentation.visual_shell.contracts import (
     VisualCommand,
     VisualCommandName,
@@ -6,11 +8,31 @@ from modules.presentation.visual_shell.contracts import (
     VisualState,
 )
 from modules.presentation.visual_shell.controller import VisualShellController
+from modules.presentation.visual_shell.service import BatteryReading, TemperatureReading
 from modules.presentation.visual_shell.transport import (
     InMemoryVisualShellTransport,
     TcpVisualShellTransport,
     VisualShellMessageCodec,
 )
+
+
+@dataclass(slots=True)
+class StubMetricsProvider:
+    temperature: TemperatureReading | None = TemperatureReading(
+        value_c=57,
+        raw_value_c=57.4,
+        source="stub",
+    )
+    battery: BatteryReading | None = BatteryReading(
+        percent=82,
+        source="stub",
+    )
+
+    def read_temperature(self) -> TemperatureReading | None:
+        return self.temperature
+
+    def read_battery(self) -> BatteryReading | None:
+        return self.battery
 
 
 def test_visual_shell_controller_maps_wake_event_to_listening_state() -> None:
@@ -64,6 +86,114 @@ def test_visual_command_supports_temperature_and_battery_commands() -> None:
         "payload": {"percent": 82},
         "source": "nexa-runtime",
     }
+
+
+def test_visual_shell_controller_sends_explicit_temperature_metric() -> None:
+    transport = InMemoryVisualShellTransport()
+    controller = VisualShellController(transport=transport)
+
+    result = controller.show_temperature(58)
+
+    assert result is True
+    assert transport.sent_messages == [
+        {
+            "command": "SHOW_TEMPERATURE",
+            "payload": {"value_c": 58},
+            "source": "nexa-runtime",
+        }
+    ]
+
+
+def test_visual_shell_controller_sends_explicit_battery_metric() -> None:
+    transport = InMemoryVisualShellTransport()
+    controller = VisualShellController(transport=transport)
+
+    result = controller.show_battery(141)
+
+    assert result is True
+    assert transport.sent_messages == [
+        {
+            "command": "SHOW_BATTERY",
+            "payload": {"percent": 100},
+            "source": "nexa-runtime",
+        }
+    ]
+
+
+def test_visual_shell_controller_sends_current_temperature_metric() -> None:
+    transport = InMemoryVisualShellTransport()
+    controller = VisualShellController(
+        transport=transport,
+        metrics_provider=StubMetricsProvider(),
+    )
+
+    result = controller.show_current_temperature()
+
+    assert result is True
+    assert transport.sent_messages == [
+        {
+            "command": "SHOW_TEMPERATURE",
+            "payload": {"value_c": 57},
+            "source": "nexa-runtime",
+        }
+    ]
+
+
+def test_visual_shell_controller_sends_current_battery_metric() -> None:
+    transport = InMemoryVisualShellTransport()
+    controller = VisualShellController(
+        transport=transport,
+        metrics_provider=StubMetricsProvider(),
+    )
+
+    result = controller.show_current_battery()
+
+    assert result is True
+    assert transport.sent_messages == [
+        {
+            "command": "SHOW_BATTERY",
+            "payload": {"percent": 82},
+            "source": "nexa-runtime",
+        }
+    ]
+
+
+def test_visual_shell_controller_reports_degraded_when_temperature_is_unavailable() -> None:
+    transport = InMemoryVisualShellTransport()
+    controller = VisualShellController(
+        transport=transport,
+        metrics_provider=StubMetricsProvider(temperature=None),
+    )
+
+    result = controller.show_current_temperature()
+
+    assert result is True
+    assert transport.sent_messages == [
+        {
+            "command": "REPORT_DEGRADED",
+            "payload": {"reason": "temperature_unavailable"},
+            "source": "nexa-runtime",
+        }
+    ]
+
+
+def test_visual_shell_controller_reports_degraded_when_battery_is_unavailable() -> None:
+    transport = InMemoryVisualShellTransport()
+    controller = VisualShellController(
+        transport=transport,
+        metrics_provider=StubMetricsProvider(battery=None),
+    )
+
+    result = controller.show_current_battery()
+
+    assert result is True
+    assert transport.sent_messages == [
+        {
+            "command": "REPORT_DEGRADED",
+            "payload": {"reason": "battery_unavailable"},
+            "source": "nexa-runtime",
+        }
+    ]
 
 
 def test_visual_shell_message_codec_supports_line_delimited_json() -> None:
