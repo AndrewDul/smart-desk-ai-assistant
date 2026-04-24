@@ -205,6 +205,16 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "fast_command_lane": {
         "enabled": True,
     },
+    "visual_shell": {
+        "enabled": True,
+        "voice_commands_enabled": True,
+        "transport": {
+            "type": "tcp",
+            "host": "127.0.0.1",
+            "port": 8765,
+            "timeout_sec": 0.10,
+        },
+    },
     "vision": {
         "enabled": False,
         "backend": "picamera2",

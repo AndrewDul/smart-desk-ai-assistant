@@ -55,6 +55,9 @@ class _FakeAssistant(CoreAssistantInteractionMixin):
         self.route_calls = 0
         self.dispatched: list[tuple[str, str]] = []
         self.finished_telemetry = None
+    
+    def _tick_ai_broker(self) -> None:
+        return None
 
     def _prepare_command(self, text: str, **kwargs):
         return {

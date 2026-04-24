@@ -10,6 +10,7 @@ from modules.core.flows.dialogue_flow import DialogueFlowOrchestrator
 from modules.core.flows.notification_flow import NotificationFlowOrchestrator
 from modules.core.flows.pending_flow import PendingFlowOrchestrator
 from modules.core.session.fast_command_lane import FastCommandLane
+from modules.core.session.visual_shell_command_lane import VisualShellCommandLane
 from modules.core.session.interrupt_controller import InteractionInterruptController
 from modules.core.session.voice_session import VoiceSessionController
 
@@ -250,6 +251,9 @@ class CoreAssistant(
         self.notification_flow = NotificationFlowOrchestrator(self)
         self.fast_command_lane = FastCommandLane(
             enabled=bool(self.settings.get("fast_command_lane", {}).get("enabled", True)),
+            visual_shell_lane=VisualShellCommandLane.from_settings(
+                self.settings.get("visual_shell", {})
+            ),
         )
 
         self._boot_report_ok = all(status.ok for status in self.backend_statuses.values())

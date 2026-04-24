@@ -1,11 +1,11 @@
 from __future__ import annotations
-from __future__ import annotations
 
 import re
 
 from dataclasses import dataclass, field
-from dataclasses import dataclass, field
 from typing import Any
+
+from modules.core.session.visual_shell_command_lane import VisualShellCommandLane
 
 from modules.runtime.contracts import (
     EntityValue,
@@ -94,12 +94,25 @@ class FastCommandLane:
 
     ALL_ACTIONS = TEMPORAL_ACTIONS | DIRECT_ACTIONS
 
-    def __init__(self, *, enabled: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        enabled: bool = True,
+        visual_shell_lane: VisualShellCommandLane | None = None,
+    ) -> None:
         self.enabled = bool(enabled)
+        self.visual_shell_lane = visual_shell_lane
 
     def try_handle(self, *, prepared: dict[str, Any], assistant: Any) -> bool | None:
         if not self.enabled:
             return None
+
+        visual_shell_result = self._try_handle_visual_shell(
+            prepared=prepared,
+            assistant=assistant,
+        )
+        if visual_shell_result is not None:
+            return visual_shell_result
 
         raw_text = str(
             prepared.get("raw_text") or prepared.get("routing_text") or ""
@@ -117,6 +130,26 @@ class FastCommandLane:
         if decision is None:
             return None
         return self.execute(assistant=assistant, decision=decision)
+
+
+    def _try_handle_visual_shell(
+        self,
+        *,
+        prepared: dict[str, Any],
+        assistant: Any,
+    ) -> bool | None:
+        if self.visual_shell_lane is None:
+            return None
+
+        try:
+            return self.visual_shell_lane.try_handle(
+                prepared=prepared,
+                assistant=assistant,
+            )
+        except Exception as error:
+            LOGGER.warning("Visual Shell command lane failed safely: %s", error)
+            return None
+
 
     def _handle_arithmetic(
         self,
