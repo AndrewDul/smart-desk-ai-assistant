@@ -90,7 +90,23 @@ class PiperDaemon:
             wav_path.parent.mkdir(parents=True, exist_ok=True)
             with lock:
                 with wave.open(str(wav_path), "wb") as wav_file:
-                    voice.synthesize(clean_text, wav_file)
+                    # Piper API changed between 1.2.x and 1.3+:
+                    # - old: voice.synthesize(text, wav_file_handle) wrote directly
+                    # - new: voice.synthesize(text) returns Iterable[AudioChunk];
+                    #        voice.synthesize_wav(text, wav_file_handle) writes directly
+                    # Prefer synthesize_wav if present, fall back to chunk iteration.
+                    if hasattr(voice, "synthesize_wav"):
+                        voice.synthesize_wav(clean_text, wav_file)
+                    else:
+                        # Legacy API path
+                        sample_rate = getattr(voice, "sample_rate", None)
+                        if sample_rate is None:
+                            cfg = getattr(voice, "config", None)
+                            sample_rate = getattr(cfg, "sample_rate", 22050) if cfg else 22050
+                        wav_file.setnchannels(1)
+                        wav_file.setsampwidth(2)
+                        wav_file.setframerate(int(sample_rate))
+                        voice.synthesize(clean_text, wav_file)
         except Exception as error:
             append_log(
                 f"Piper daemon synthesis failed: lang={lang}, error={error}"

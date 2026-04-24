@@ -105,7 +105,13 @@ class OpenWakeWordGate(OpenWakeWordGateListener):
         self.input_sample_rate = self._resolve_supported_input_sample_rate(default_input_rate)
 
         self.model_frame_samples = int(self.MODEL_SAMPLE_RATE * (self.block_ms / 1000.0))
-        self.frame_hop_samples = max(1, self.model_frame_samples // 2)
+        # openwakeword Model has stateful internal buffers (mel-spectrogram
+        # and embedding features). Feeding overlapping frames corrupts the
+        # internal state and collapses scores to ~0.001 even on perfect
+        # audio. Must use non-overlapping consecutive frames.
+        # Isolation test: hop=1280 (no overlap) scored 0.698;
+        # hop=640 (50% overlap) scored 0.001 on identical audio.
+        self.frame_hop_samples = self.model_frame_samples
         self.input_blocksize = max(1, int(self.input_sample_rate * (self.block_ms / 1000.0)))
         self._resampled_buffer = np.array([], dtype=np.int16)
 
@@ -151,9 +157,15 @@ class OpenWakeWordGate(OpenWakeWordGateListener):
         )
 
     def release_capture_ownership(self) -> bool:
+        was_open = self._stream is not None
+        # Close the input stream so voice_input (faster-whisper) can open
+        # the same USB microphone for command capture. Without this, the
+        # wake gate keeps an exclusive hold on the device and downstream
+        # ALSA opens fail with "Device unavailable" (PaErrorCode -9985).
+        self._close_stream()
         self._clear_audio_queue()
         self._reset_runtime_state()
-        return self._stream is not None
+        return was_open
 
     def close(self) -> None:
         self._clear_audio_queue()

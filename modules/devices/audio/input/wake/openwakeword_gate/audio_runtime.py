@@ -116,12 +116,14 @@ class OpenWakeWordGateAudioRuntime(OpenWakeWordGateHelpers):
         self._resampled_buffer = np.array([], dtype=np.int16)
         self._score_history.clear()
 
-        reset_method = getattr(self.model, "reset", None)
-        if callable(reset_method):
-            try:
-                reset_method()
-            except Exception as error:
-                LOGGER.debug("OpenWakeWord model reset warning: %s", error)
+        # DO NOT call model.reset() here. openwakeword.Model maintains an
+        # internal rolling buffer of audio embeddings that needs several
+        # seconds of context to produce valid scores. Calling reset() on
+        # every listen_for_wake_phrase() cycle (fires every ~2 s due to
+        # timeout) destroys that context, so the model returns 0.0 for
+        # every frame even on clean speech.
+        # Isolation test without reset: peak 0.698 on 'NeXa'.
+        # Listener with reset every 2 s: peak 0.000 on identical audio.
 
 
 __all__ = ["OpenWakeWordGateAudioRuntime"]
