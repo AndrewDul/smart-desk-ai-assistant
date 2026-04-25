@@ -36,6 +36,10 @@ class TTSPipelineWavPlaybackMixin:
         except Exception:
             return False
 
+    def _should_try_sounddevice_playback(self) -> bool:
+        return bool(getattr(self, "_direct_sounddevice_playback_enabled", False))
+
+
     def _sounddevice_playback_available(self) -> bool:
         cached = getattr(self, "_sounddevice_playback_ready", None)
         if isinstance(cached, bool):
@@ -203,7 +207,7 @@ class TTSPipelineWavPlaybackMixin:
 
         playback_started_at = time.monotonic()
 
-        if self._sounddevice_playback_available():
+        if self._should_try_sounddevice_playback() and self._sounddevice_playback_available():
             ok, first_audio_started_at = self._play_wav_with_sounddevice(Path(wav_path))
             if ok:
                 if bool(getattr(self, "_tts_hot_path_success_log_enabled", False)):

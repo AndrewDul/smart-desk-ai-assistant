@@ -17,7 +17,6 @@ def test_godot_shell_uses_main_shell_scene() -> None:
 
     assert 'run/main_scene="res://scenes/main_shell.tscn"' in content
 
-
 def test_visual_shell_launcher_exists() -> None:
     launcher = (
         REPO_ROOT
@@ -28,8 +27,13 @@ def test_visual_shell_launcher_exists() -> None:
         / "run_visual_shell.sh"
     )
 
+    content = launcher.read_text(encoding="utf-8")
+
     assert launcher.is_file()
-    assert "godot3 --path ." in launcher.read_text(encoding="utf-8")
+    assert "godot3" in content
+    assert "--path ." in content
+    assert "--audio-driver" in content
+    assert "NEXA_VISUAL_SHELL_AUDIO_DRIVER" in content
 
 
 def test_godot_shell_has_visual_state_registry() -> None:
@@ -383,3 +387,47 @@ def test_main_shell_routes_transport_commands_to_visual_actions() -> None:
     assert 'command == "RETURN_TO_IDLE"' in main_shell
     assert "display_temperature_value" in main_shell
     assert "display_battery_percent" in main_shell
+
+
+def test_godot_shell_has_raspberry_pi_performance_cap() -> None:
+    main_shell = (GODOT_APP_DIR / "scripts" / "main_shell.gd").read_text(
+        encoding="utf-8"
+    )
+    particle_cloud = (GODOT_APP_DIR / "scripts" / "particle_cloud.gd").read_text(
+        encoding="utf-8"
+    )
+    project_file = (GODOT_APP_DIR / "project.godot").read_text(encoding="utf-8")
+
+    assert "const TARGET_RENDER_FPS = 24" in main_shell
+    assert "Engine.target_fps = TARGET_RENDER_FPS" in main_shell
+    assert "OS.low_processor_usage_mode = false" in main_shell
+    assert "OS.vsync_enabled = true" in main_shell
+    assert "OS.delay_msec" not in main_shell
+    assert "_mark_visual_activity" not in main_shell
+    assert "_update_performance_mode" not in main_shell
+    assert "_set_performance_active" not in main_shell
+    assert "const SHOW_DEBUG_STATUS_LABEL = false" in main_shell
+    assert "export(int) var particle_count = 620" in particle_cloud
+    assert "export(int) var target_update_fps = 24" in particle_cloud
+    assert "idle_update_fps" not in particle_cloud
+    assert "active_update_fps" not in particle_cloud
+    assert "set_performance_active" not in particle_cloud
+    assert "frame_accumulator" in particle_cloud
+    assert 'driver/driver="Dummy"' in project_file
+    assert "driver/enable_input=false" in project_file
+    assert "run/max_fps=24" in project_file
+    assert "run/low_processor_mode=false" in project_file
+    assert "run/frame_delay_msec=0" in project_file
+
+
+def test_particle_cloud_public_runtime_api_is_present() -> None:
+    particle_cloud = (GODOT_APP_DIR / "scripts" / "particle_cloud.gd").read_text(
+        encoding="utf-8"
+    )
+
+    assert "func set_visual_state(new_state: String) -> void:" in particle_cloud
+    assert "visual_state = VisualStates.coerce_state(new_state)" in particle_cloud
+    assert "func set_shell_compact_mode(enabled: bool) -> void:" in particle_cloud
+    assert "func set_temperature_metric(value_c: int) -> void:" in particle_cloud
+    assert "func set_battery_metric(percent: int) -> void:" in particle_cloud
+    assert "func _assign_metric_targets(display_text: String) -> void:" in particle_cloud

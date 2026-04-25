@@ -1,0 +1,25 @@
+[Unit]
+Description=NEXA Visual Shell
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/devdul/Projects/smart-desk-ai-assistant
+Environment=NEXA_VISUAL_SHELL_AUDIO_DRIVER=Dummy
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/devdul/.Xauthority
+ExecStartPre=/bin/mkdir -p /home/devdul/Projects/smart-desk-ai-assistant/var/logs
+ExecStart=/home/devdul/Projects/smart-desk-ai-assistant/modules/presentation/visual_shell/bin/run_visual_shell.sh
+Restart=always
+RestartSec=2
+KillSignal=SIGTERM
+TimeoutStopSec=10
+Nice=10
+CPUWeight=40
+IOSchedulingClass=idle
+StandardOutput=append:/home/devdul/Projects/smart-desk-ai-assistant/var/logs/visual_shell_service.log
+StandardError=append:/home/devdul/Projects/smart-desk-ai-assistant/var/logs/visual_shell_service.log
+
+[Install]
+WantedBy=default.target

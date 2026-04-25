@@ -67,6 +67,7 @@ class TTSPipeline(
         synthesis_poll_seconds: float = 0.005,
         playback_poll_seconds: float = 0.005,
         preferred_playback_backend: str = "",
+        direct_sounddevice_playback_enabled: bool = False,
         console_echo_enabled: bool = False,
         spoken_text_log_enabled: bool = False,
         hot_path_success_log_enabled: bool = False,
@@ -132,6 +133,7 @@ class TTSPipeline(
             self._detect_playback_backends()
         )
         self._preferred_playback_backend = str(preferred_playback_backend or "").strip()
+        self._direct_sounddevice_playback_enabled = bool(direct_sounddevice_playback_enabled)
         self._last_good_playback_backend: str | None = None
         self._sounddevice_playback_ready: bool | None = None
         self._console_echo_enabled = bool(console_echo_enabled)

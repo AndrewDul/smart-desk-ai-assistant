@@ -114,6 +114,7 @@ class _PlaybackProbe(TTSPipelineWavPlaybackMixin, TTSPipelineSynthesisMixin):
         self._last_good_playback_backend = None
         self._playback_timeout_seconds = 24.0
         self._playback_poll_seconds = 0.005
+        self._direct_sounddevice_playback_enabled = False
         self.playback_calls: list[dict[str, object]] = []
 
     def _run_process_interruptibly(self, args, **kwargs) -> bool:
@@ -138,6 +139,7 @@ class _PreferredPlaybackProbe(TTSPipelineWavPlaybackMixin, TTSPipelineSynthesisM
         self._output_stream_lock = threading.Lock()
         self._active_output_stream = None
         self._sounddevice_playback_ready = False
+        self._direct_sounddevice_playback_enabled = False
 
     def _run_process_interruptibly(self, args, **kwargs) -> bool:
         self.playback_calls.append({"args": list(args), **dict(kwargs)})
@@ -371,10 +373,33 @@ class TTSPipelinePriorityTests(unittest.TestCase):
             self.assertEqual(len(probe.playback_calls), 1)
             self.assertEqual(probe.playback_calls[0]["args"][:2], ["aplay", "-q"])
             self.assertEqual(probe._last_good_playback_backend, "aplay")
+    def test_playback_skips_sounddevice_when_direct_playback_is_disabled(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            probe = _PlaybackProbe()
+            probe._direct_sounddevice_playback_enabled = False
+            probe._sounddevice_playback_ready = True
+
+            def fail_sounddevice(_wav_path):
+                raise AssertionError("sounddevice playback should be disabled")
+
+            probe._play_wav_with_sounddevice = fail_sounddevice
+
+            wav_path = Path(temp_dir) / "reply.wav"
+            wav_path.write_bytes(b"RIFFtest")
+
+            ok, started_at = probe._play_wav(wav_path)
+
+            self.assertTrue(ok)
+            self.assertGreater(started_at, 0.0)
+            self.assertEqual(len(probe.playback_calls), 1)
+            self.assertEqual(probe.playback_calls[0]["args"][:2], ["aplay", "-q"])
+            self.assertEqual(probe._last_good_playback_backend, "aplay")
+
 
     def test_playback_uses_sounddevice_before_subprocess_backends(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             probe = _PlaybackProbe()
+            probe._direct_sounddevice_playback_enabled = True
             probe._sounddevice_playback_ready = True
             probe._play_wav_with_sounddevice = lambda wav_path: (True, 123.0)
             wav_path = Path(temp_dir) / "reply.wav"

@@ -82,6 +82,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "process_poll_seconds": 0.02,
         "playback_poll_seconds": 0.005,
         "preferred_playback_backend": "aplay",
+        "direct_sounddevice_playback_enabled": False,
     },
     "display": {
         "enabled": True,
@@ -208,11 +209,18 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "visual_shell": {
         "enabled": True,
         "voice_commands_enabled": True,
+        "speak_acknowledgements_enabled": True,
         "transport": {
-            "type": "tcp",
             "host": "127.0.0.1",
             "port": 8765,
             "timeout_sec": 0.10,
+        },
+        "autostart": {
+            "enabled": True,
+            "audio_driver": "Dummy",
+            "launch_command": [
+                "modules/presentation/visual_shell/bin/run_visual_shell.sh"
+            ],
         },
     },
     "vision": {

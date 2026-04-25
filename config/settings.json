@@ -134,7 +134,8 @@
     },
     "process_poll_seconds": 0.02,
     "playback_poll_seconds": 0.005,
-    "preferred_playback_backend": "aplay"
+    "preferred_playback_backend": "aplay",
+    "direct_sounddevice_playback_enabled": false
   },
   "display": {
     "enabled": true,
@@ -268,6 +269,23 @@
   },
   "fast_command_lane": {
     "enabled": true
+  },
+  "visual_shell": {
+    "enabled": true,
+    "voice_commands_enabled": true,
+    "speak_acknowledgements_enabled": true,
+    "transport": {
+      "host": "127.0.0.1",
+      "port": 8765,
+      "timeout_sec": 0.1
+    },
+    "autostart": {
+      "enabled": true,
+      "audio_driver": "Dummy",
+      "launch_command": [
+        "modules/presentation/visual_shell/bin/run_visual_shell.sh"
+      ]
+    }
   },
   "vision": {
     "enabled": true,

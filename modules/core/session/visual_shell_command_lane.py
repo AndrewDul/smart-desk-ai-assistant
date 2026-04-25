@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from dataclasses import dataclass, field
 from typing import Any
 
 from modules.presentation.visual_shell.controller import VisualShellController
@@ -9,6 +10,7 @@ from modules.presentation.visual_shell.controller.voice_command_router import (
     VisualVoiceCommandMatch,
 )
 from modules.presentation.visual_shell.transport import TcpVisualShellTransport
+from modules.core.session.visual_shell_responses import choose_visual_shell_response
 from modules.runtime.contracts import RouteKind
 from modules.shared.logging.logger import get_logger
 
@@ -30,6 +32,7 @@ class VisualShellCommandLane:
     host: str = "127.0.0.1"
     port: int = 8765
     timeout_sec: float = 0.10
+    speak_acknowledgements_enabled: bool = True
     controller: VisualShellController | None = None
     router: VisualShellVoiceCommandRouter = field(default_factory=VisualShellVoiceCommandRouter)
 
@@ -46,6 +49,9 @@ class VisualShellCommandLane:
             host=str(transport_settings.get("host", "127.0.0.1") or "127.0.0.1"),
             port=int(transport_settings.get("port", 8765) or 8765),
             timeout_sec=float(transport_settings.get("timeout_sec", 0.10) or 0.10),
+            speak_acknowledgements_enabled=bool(
+                visual_settings.get("speak_acknowledgements_enabled", True)
+            ),
         )
 
     def try_handle(self, *, prepared: dict[str, Any], assistant: Any) -> bool | None:
@@ -72,6 +78,11 @@ class VisualShellCommandLane:
         )
 
         if handled:
+            self._deliver_success_response(
+                assistant=assistant,
+                language=language,
+                match=match,
+            )
             return True
 
         LOGGER.warning(
@@ -203,6 +214,37 @@ class VisualShellCommandLane:
                 "source": "visual_shell_voice_router",
             },
         }
+
+    def _deliver_success_response(
+        self,
+        *,
+        assistant: Any,
+        language: str,
+        match: VisualVoiceCommandMatch,
+    ) -> None:
+        if not self.speak_acknowledgements_enabled:
+            return
+
+        deliver = getattr(assistant, "deliver_text_response", None)
+        if not callable(deliver):
+            return
+
+        text = choose_visual_shell_response(match.action, language=language)
+
+        try:
+            deliver(text, language=language)
+            return
+        except TypeError:
+            pass
+        except Exception as error:
+            LOGGER.debug("Visual Shell acknowledgement delivery failed: %s", error)
+            return
+
+        try:
+            deliver(text)
+        except Exception as error:
+            LOGGER.debug("Visual Shell acknowledgement fallback failed: %s", error)
+
 
     @staticmethod
     def _deliver_unavailable_response(

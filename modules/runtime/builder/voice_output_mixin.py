@@ -42,6 +42,9 @@ class RuntimeBuilderVoiceOutputMixin:
                 synthesis_poll_seconds=float(config.get("synthesis_poll_seconds", 0.005) or 0.005),
                 playback_poll_seconds=float(config.get("playback_poll_seconds", 0.005) or 0.005),
                 preferred_playback_backend=str(config.get("preferred_playback_backend", "") or ""),
+                direct_sounddevice_playback_enabled=bool(
+                    config.get("direct_sounddevice_playback_enabled", False)
+                ),
                 console_echo_enabled=bool(config.get("console_echo_enabled", False)),
                 spoken_text_log_enabled=bool(config.get("spoken_text_log_enabled", False)),
                 hot_path_success_log_enabled=bool(config.get("hot_path_success_log_enabled", False)),

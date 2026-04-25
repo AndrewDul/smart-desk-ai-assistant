@@ -10,6 +10,8 @@ const BOOT_STATE = VisualStates.IDLE_PARTICLE_CLOUD
 const BOOT_LAYOUT = ShellLayout.FULLSCREEN
 const TEMPERATURE_DEMO_VALUE_C = 58
 const BATTERY_DEMO_PERCENT = 82
+const TARGET_RENDER_FPS = 24
+const SHOW_DEBUG_STATUS_LABEL = false
 
 onready var background: ColorRect = $Background
 onready var status_label: Label = $StatusLabel
@@ -18,9 +20,11 @@ onready var particle_cloud: Node2D = $ParticleCloud
 var state_machine = null
 var visual_transport_server = null
 var shell_layout = BOOT_LAYOUT
-
+var last_viewport_size = Vector2.ZERO
 
 func _ready() -> void:
+	_apply_performance_policy()
+	_setup_scene_visibility()
 	_setup_state_machine()
 	_setup_visual_transport()
 	_apply_shell_layout(BOOT_LAYOUT)
@@ -28,8 +32,34 @@ func _ready() -> void:
 	_sync_scene_layout()
 
 
+func _apply_performance_policy() -> void:
+	Engine.target_fps = TARGET_RENDER_FPS
+	OS.low_processor_usage_mode = false
+	OS.vsync_enabled = true
+
+
 func _process(_delta: float) -> void:
-	_sync_scene_layout()
+	_sync_scene_layout_if_needed()
+
+
+
+func _setup_scene_visibility() -> void:
+	if background != null:
+		background.visible = true
+		background.show()
+
+	if particle_cloud != null:
+		particle_cloud.visible = true
+		particle_cloud.show()
+		particle_cloud.modulate = Color(1, 1, 1, 1)
+		particle_cloud.set_process(true)
+		particle_cloud.update()
+
+	if status_label != null:
+		status_label.visible = false
+
+
+
 
 
 func _input(event: InputEvent) -> void:
@@ -94,6 +124,8 @@ func _setup_visual_transport() -> void:
 
 
 func _set_visual_state(new_state: String) -> void:
+
+
 	if _is_desktop_layout_state(new_state):
 		_apply_desktop_state(new_state)
 		return
@@ -102,11 +134,13 @@ func _set_visual_state(new_state: String) -> void:
 
 
 func display_temperature_value(value_c: int) -> void:
+
 	particle_cloud.set_temperature_metric(value_c)
 	state_machine.set_state(VisualStates.TEMPERATURE_GLYPH)
 
 
 func display_battery_percent(percent: int) -> void:
+
 	particle_cloud.set_battery_metric(percent)
 	state_machine.set_state(VisualStates.BATTERY_GLYPH)
 
@@ -123,6 +157,7 @@ func _apply_desktop_state(desktop_state: String) -> void:
 
 
 func _apply_shell_layout(next_layout: String) -> void:
+
 	shell_layout = ShellLayout.coerce(next_layout)
 
 	if ShellLayout.is_docked(shell_layout):
@@ -238,17 +273,29 @@ func _on_visual_transport_error(error_message: String) -> void:
 	print("Visual Shell transport warning: ", error_message)
 
 
+func _sync_scene_layout_if_needed() -> void:
+	var viewport_size = get_viewport_rect().size
+
+	if viewport_size == last_viewport_size:
+		return
+
+	_sync_scene_layout()
+
+
 func _sync_scene_layout() -> void:
 	var viewport_size = get_viewport_rect().size
+	last_viewport_size = viewport_size
 	particle_cloud.position = viewport_size * 0.5
 
-	status_label.visible = ShellLayout.is_fullscreen(shell_layout)
+	status_label.visible = SHOW_DEBUG_STATUS_LABEL and ShellLayout.is_fullscreen(shell_layout)
 	background.visible = true
 
 
 func _build_status_text(current_state: String) -> String:
+	if not SHOW_DEBUG_STATUS_LABEL:
+		return ""
+
 	return "NEXA VISUAL SHELL\n" \
 		+ current_state \
 		+ "\nlayout: " \
-		+ shell_layout \
-		+ "\n1 idle  2 listen  3 think  4 speak  5 scan  6 eyes  7 error  8 face  9 micro  0 dock  - return  T temp  B battery"
+		+ shell_layout

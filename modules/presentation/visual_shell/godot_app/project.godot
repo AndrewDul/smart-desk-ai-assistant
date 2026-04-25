@@ -7,7 +7,20 @@ config_version=4
 
 config/name="NEXA Visual Shell"
 run/main_scene="res://scenes/main_shell.tscn"
+run/max_fps=24
+run/low_processor_mode=false
+run/frame_delay_msec=0
 config/icon=""
+
+[audio]
+
+driver/driver="Dummy"
+driver/enable_input=false
+
+[audio]
+
+driver/driver="Dummy"
+driver/enable_input=false
 
 [display]
 

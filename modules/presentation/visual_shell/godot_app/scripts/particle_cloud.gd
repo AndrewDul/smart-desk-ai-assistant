@@ -15,12 +15,14 @@ const DesktopDockBehaviour = preload("res://scripts/behaviours/desktop_dock_beha
 const MetricDisplayBehaviour = preload("res://scripts/behaviours/metric_display_behaviour.gd")
 const VisualPalette = preload("res://scripts/palette/visual_palette.gd")
 
-export(int) var particle_count = 1800
+export(int) var particle_count = 620
 export(float) var radius = 265.0
-export(float) var particle_size = 0.87
+export(float) var particle_size = 1.08
+export(int) var target_update_fps = 24
 
 var particles = []
 var time = 0.0
+var frame_accumulator = 0.0
 var visual_state = VisualStates.IDLE_PARTICLE_CLOUD
 var state_intensity = 0.0
 var blink_timer = 0.0
@@ -64,15 +66,24 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	time += delta
-	blink_timer += delta
+	frame_accumulator += delta
+
+	var frame_step = 1.0 / max(float(target_update_fps), 1.0)
+	if frame_accumulator < frame_step:
+		return
+
+	var frame_delta = min(frame_accumulator, frame_step * 2.5)
+	frame_accumulator = 0.0
+
+	time += frame_delta
+	blink_timer += frame_delta
 
 	if blink_timer > blink_interval:
 		blink_timer = 0.0
 
-	_update_idle_micro(delta)
-	_update_state_intensity(delta)
-	_update_shell_transform(delta)
+	_update_idle_micro(frame_delta)
+	_update_state_intensity(frame_delta)
+	_update_shell_transform(frame_delta)
 	_update_particles()
 	update()
 
