@@ -4664,3 +4664,83 @@ Stage 13 guarded legacy transcript tap,
 Voice Engine v2 shadow-mode JSONL telemetry,
 NEXA Voice Engine v2 requirement that architecture decisions must be backed by local runtime logs, benchmarks and tests,
 runtime-safety requirement that Voice Engine v2 must not execute actions while still in shadow mode.
+
+
+## 54. NEXA Voice Engine v2 — shadow telemetry inspector
+
+### Status
+
+Implemented.
+
+### What changed
+
+Stage 15 adds an offline inspection/report script for Voice Engine v2 shadow-mode telemetry.
+
+New files:
+
+```text
+scripts/inspect_voice_engine_v2_shadow_log.py
+tests/scripts/test_inspect_voice_engine_v2_shadow_log.py
+```
+
+The script reads:
+
+var/data/voice_engine_v2_shadow.jsonl
+
+It produces a human-readable report with:
+
+total record count,
+JSON load issue count,
+action-executed count,
+non-legacy-primary count,
+empty transcript count,
+intent mismatch count,
+route mismatch count,
+fallback count,
+language distribution,
+route path distribution,
+top legacy intents,
+top Voice Engine v2 intents,
+fallback reasons,
+latency summaries when present,
+sample records for mismatches and safety failures.
+Why this was needed
+
+Stage 14 validates whether shadow telemetry is safe.
+
+Stage 15 explains what the telemetry actually contains.
+
+This is needed before any production takeover decision because NEXA must not switch to Voice Engine v2 based only on synthetic tests. The system needs real transcript evidence from hardware shadow-mode runs.
+
+What NEXA gains
+
+NEXA gains a practical analysis tool for real hardware validation.
+
+The inspector helps answer:
+
+which built-in commands are already matching,
+which commands mismatch,
+whether fallback is being used too often,
+whether Polish and English inputs are both represented,
+whether shadow mode is still action-safe,
+whether latency metadata shows any problem.
+
+This supports the product goal of keeping NEXA fast, natural, measurable and local-first without slowing the runtime path.
+
+Removed or deprecated legacy path
+
+No legacy runtime path was removed.
+
+No production runtime path was changed.
+
+This stage adds only offline inspection tooling.
+
+Source / evidence
+
+This decision is based on:
+
+Stage 13 guarded legacy transcript tap,
+Stage 14 shadow telemetry validator,
+NEXA Voice Engine v2 requirement that runtime migration must be evidence-based,
+current benchmark acceptance for command-first path,
+requirement that Voice Engine v2 shadow mode must not execute actions or change the live route.
