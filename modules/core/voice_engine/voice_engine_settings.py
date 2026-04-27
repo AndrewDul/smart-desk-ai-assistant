@@ -28,6 +28,9 @@ class VoiceEngineSettings:
     runtime_candidate_intent_allowlist: tuple[str, ...] = (
         _DEFAULT_RUNTIME_CANDIDATE_INTENT_ALLOWLIST
     )
+    runtime_candidate_log_path: str = (
+        "var/data/voice_engine_v2_runtime_candidates.jsonl"
+    )
     legacy_removal_stage: str = "after_voice_engine_v2_runtime_acceptance"
 
     def __post_init__(self) -> None:
@@ -37,8 +40,8 @@ class VoiceEngineSettings:
             raise ValueError("only Voice Engine v2 settings are supported")
         if not self.mode.strip():
             raise ValueError("mode must not be empty")
-        if not self.shadow_log_path.strip():
-            raise ValueError("shadow_log_path must not be empty")
+        if not self.runtime_candidate_log_path.strip():
+            raise ValueError("runtime_candidate_log_path must not be empty")
         if not self.legacy_removal_stage.strip():
             raise ValueError("legacy_removal_stage must not be empty")
 
@@ -103,10 +106,10 @@ class VoiceEngineSettings:
             runtime_candidates_enabled=bool(
                 raw.get("runtime_candidates_enabled", False)
             ),
-            runtime_candidate_intent_allowlist=cls._normalize_intent_allowlist(
+            runtime_candidate_log_path=str(
                 raw.get(
-                    "runtime_candidate_intent_allowlist",
-                    _DEFAULT_RUNTIME_CANDIDATE_INTENT_ALLOWLIST,
+                    "runtime_candidate_log_path",
+                    "var/data/voice_engine_v2_runtime_candidates.jsonl",
                 )
             ),
             legacy_removal_stage=str(

@@ -101,14 +101,14 @@ def test_runtime_candidate_adapter_rejects_non_allowlisted_exit_by_default() -> 
     assert result.route_decision is None
 
 
-def test_runtime_candidate_adapter_rejects_exit_even_when_allowlisted_in_stage_19() -> None:
+def test_runtime_candidate_adapter_rejects_exit_even_when_requested_by_override() -> None:
     bundle = _bundle(
         runtime_candidates_enabled=True,
         allowlist=["assistant.identity", "system.current_time", "system.exit"],
     )
 
     result = bundle.runtime_candidate_adapter.process_transcript(
-        turn_id="turn-candidate-exit-allowlisted",
+        turn_id="turn-candidate-exit-override",
         transcript="exit.",
         language_hint=CommandLanguage.ENGLISH,
         started_monotonic=1.0,
@@ -116,7 +116,7 @@ def test_runtime_candidate_adapter_rejects_exit_even_when_allowlisted_in_stage_1
     )
 
     assert result.accepted is False
-    assert result.reason == "unsupported_candidate_intent:system.exit"
+    assert result.reason == "intent_not_allowlisted:system.exit"
     assert result.intent_key == "system.exit"
     assert result.route_decision is None
 

@@ -52,6 +52,10 @@ class VoiceEngineV2RuntimeBundle:
             "runtime_candidate_supported_intents": list(
                 self.runtime_candidate_adapter.supported_intents
             ),
+            "runtime_candidate_log_path": self.settings.runtime_candidate_log_path,
+            "runtime_candidate_telemetry_path": (
+                self.runtime_candidate_adapter.telemetry_path
+            ),
             "shadow_mode_enabled": self.settings.shadow_mode_enabled,
             "shadow_mode_can_run": self.settings.shadow_mode_can_run,
             "shadow_log_path": self.settings.shadow_log_path,

@@ -28,6 +28,10 @@ from modules.runtime.voice_engine_v2.runtime_candidates import (
     VoiceEngineV2RuntimeCandidateRequest,
     VoiceEngineV2RuntimeCandidateResult,
 )
+from modules.runtime.voice_engine_v2.runtime_candidate_telemetry import (
+    VoiceEngineV2RuntimeCandidateTelemetryRecord,
+    VoiceEngineV2RuntimeCandidateTelemetryWriter,
+)
 
 __all__ = [
     "VoiceEngineV2AcceptanceAdapter",
@@ -48,4 +52,6 @@ __all__ = [
     "VoiceEngineV2RuntimeCandidateAdapter",
     "VoiceEngineV2RuntimeCandidateRequest",
     "VoiceEngineV2RuntimeCandidateResult",
+    "VoiceEngineV2RuntimeCandidateTelemetryRecord",
+    "VoiceEngineV2RuntimeCandidateTelemetryWriter",
 ]

@@ -75,6 +75,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
             "assistant.identity",
             "system.current_time",
         ],
+        "runtime_candidate_log_path": (
+            "var/data/voice_engine_v2_runtime_candidates.jsonl"
+        ),
         "legacy_removal_stage": "after_voice_engine_v2_runtime_acceptance",
     },
     "voice_output": {

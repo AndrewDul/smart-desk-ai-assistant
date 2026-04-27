@@ -18,6 +18,10 @@ from modules.runtime.voice_engine_v2.runtime_candidate_executor import (
     RuntimeCandidateExecutionPlan,
     RuntimeCandidateExecutionPlanBuilder,
 )
+from modules.runtime.voice_engine_v2.runtime_candidate_telemetry import (
+    VoiceEngineV2RuntimeCandidateTelemetryRecord,
+    VoiceEngineV2RuntimeCandidateTelemetryWriter,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,12 +54,7 @@ class VoiceEngineV2RuntimeCandidateRequest:
 
 @dataclass(frozen=True, slots=True)
 class VoiceEngineV2RuntimeCandidateResult:
-    """Result for a guarded command-first runtime candidate decision.
-
-    The adapter only prepares a deterministic execution plan. The assistant
-    integration owns generic route dispatch, and ActionFlow owns actual action,
-    TTS and display behaviour.
-    """
+    """Result for a guarded command-first runtime candidate decision."""
 
     accepted: bool
     reason: str
@@ -63,6 +62,7 @@ class VoiceEngineV2RuntimeCandidateResult:
     request: VoiceEngineV2RuntimeCandidateRequest
     turn_result: VoiceTurnResult | None = None
     execution_plan: RuntimeCandidateExecutionPlan | None = None
+    telemetry_written: bool = False
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -89,15 +89,24 @@ class VoiceEngineV2RuntimeCandidateResult:
             return None
         return self.execution_plan.route_decision
 
+    def with_telemetry_written(
+        self,
+        telemetry_written: bool,
+    ) -> VoiceEngineV2RuntimeCandidateResult:
+        return VoiceEngineV2RuntimeCandidateResult(
+            accepted=self.accepted,
+            reason=self.reason,
+            legacy_runtime_primary=self.legacy_runtime_primary,
+            request=self.request,
+            turn_result=self.turn_result,
+            execution_plan=self.execution_plan,
+            telemetry_written=telemetry_written,
+            metadata=self.metadata,
+        )
+
 
 class VoiceEngineV2RuntimeCandidateAdapter:
-    """Guarded partial runtime adapter for selected command-first candidates.
-
-    This adapter is deliberately narrower than the full Voice Engine v2 runtime
-    path. It can only prepare allowlisted deterministic action routes while the
-    legacy runtime remains the fallback for every non-match, non-allowlisted or
-    unsafe case.
-    """
+    """Guarded partial runtime adapter for selected command-first candidates."""
 
     def __init__(
         self,
@@ -105,12 +114,14 @@ class VoiceEngineV2RuntimeCandidateAdapter:
         engine: VoiceEngine,
         settings: VoiceEngineSettings,
         execution_plan_builder: RuntimeCandidateExecutionPlanBuilder | None = None,
+        telemetry_writer: VoiceEngineV2RuntimeCandidateTelemetryWriter | None = None,
     ) -> None:
         self._engine = engine
         self._settings = settings
         self._execution_plan_builder = (
             execution_plan_builder or RuntimeCandidateExecutionPlanBuilder()
         )
+        self._telemetry_writer = telemetry_writer
 
     @property
     def settings(self) -> VoiceEngineSettings:
@@ -123,6 +134,12 @@ class VoiceEngineV2RuntimeCandidateAdapter:
     @property
     def supported_intents(self) -> tuple[str, ...]:
         return self._execution_plan_builder.supported_intents
+
+    @property
+    def telemetry_path(self) -> str:
+        if self._telemetry_writer is None:
+            return ""
+        return str(self._telemetry_writer.path)
 
     def process_transcript(
         self,
@@ -149,24 +166,28 @@ class VoiceEngineV2RuntimeCandidateAdapter:
         request: VoiceEngineV2RuntimeCandidateRequest,
     ) -> VoiceEngineV2RuntimeCandidateResult:
         if not self._settings.runtime_candidates_enabled:
-            return self._rejected(
-                request=request,
-                reason="runtime_candidates_disabled",
-                metadata={"runtime_candidates_enabled": False},
+            return self._finalize(
+                self._rejected(
+                    request=request,
+                    reason="runtime_candidates_disabled",
+                    metadata={"runtime_candidates_enabled": False},
+                )
             )
 
         if not self._settings.runtime_candidates_can_run:
-            return self._rejected(
-                request=request,
-                reason="runtime_candidates_not_safe",
-                metadata={
-                    "runtime_candidates_enabled": self._settings.runtime_candidates_enabled,
-                    "runtime_candidates_can_run": False,
-                    "enabled": self._settings.enabled,
-                    "mode": self._settings.mode,
-                    "command_first_enabled": self._settings.command_first_enabled,
-                    "fallback_to_legacy_enabled": self._settings.fallback_to_legacy_enabled,
-                },
+            return self._finalize(
+                self._rejected(
+                    request=request,
+                    reason="runtime_candidates_not_safe",
+                    metadata={
+                        "runtime_candidates_enabled": self._settings.runtime_candidates_enabled,
+                        "runtime_candidates_can_run": False,
+                        "enabled": self._settings.enabled,
+                        "mode": self._settings.mode,
+                        "command_first_enabled": self._settings.command_first_enabled,
+                        "fallback_to_legacy_enabled": self._settings.fallback_to_legacy_enabled,
+                    },
+                )
             )
 
         turn_result = self._engine.process_shadow_turn(
@@ -184,36 +205,44 @@ class VoiceEngineV2RuntimeCandidateAdapter:
             fallback_reason = ""
             if turn_result.fallback is not None:
                 fallback_reason = turn_result.fallback.reason
-            return self._rejected(
-                request=request,
-                reason=f"fallback_required:{fallback_reason or 'unknown'}",
-                turn_result=turn_result,
-                metadata={
-                    "route": turn_result.route.value,
-                    "fallback_used": turn_result.metrics.fallback_used,
-                    "fallback_reason": turn_result.metrics.fallback_reason,
-                },
+            return self._finalize(
+                self._rejected(
+                    request=request,
+                    reason=f"fallback_required:{fallback_reason or 'unknown'}",
+                    turn_result=turn_result,
+                    metadata={
+                        "route": turn_result.route.value,
+                        "fallback_used": turn_result.metrics.fallback_used,
+                        "fallback_reason": turn_result.metrics.fallback_reason,
+                    },
+                )
             )
 
         if turn_result.intent is None:
-            return self._rejected(
-                request=request,
-                reason="missing_intent",
-                turn_result=turn_result,
-                metadata={"route": turn_result.route.value},
+            return self._finalize(
+                self._rejected(
+                    request=request,
+                    reason="missing_intent",
+                    turn_result=turn_result,
+                    metadata={"route": turn_result.route.value},
+                )
             )
 
         intent_key = turn_result.intent.key
         if intent_key not in self._settings.runtime_candidate_intent_allowlist:
-            return self._rejected(
-                request=request,
-                reason=f"intent_not_allowlisted:{intent_key}",
-                turn_result=turn_result,
-                metadata={
-                    "route": turn_result.route.value,
-                    "intent_key": intent_key,
-                    "allowlist": list(self._settings.runtime_candidate_intent_allowlist),
-                },
+            return self._finalize(
+                self._rejected(
+                    request=request,
+                    reason=f"intent_not_allowlisted:{intent_key}",
+                    turn_result=turn_result,
+                    metadata={
+                        "route": turn_result.route.value,
+                        "intent_key": intent_key,
+                        "allowlist": list(
+                            self._settings.runtime_candidate_intent_allowlist
+                        ),
+                    },
+                )
             )
 
         execution_plan = self._execution_plan_builder.build_plan(
@@ -222,35 +251,158 @@ class VoiceEngineV2RuntimeCandidateAdapter:
             metadata=request.metadata,
         )
         if execution_plan is None:
-            return self._rejected(
-                request=request,
-                reason=f"unsupported_candidate_intent:{intent_key}",
-                turn_result=turn_result,
-                metadata={
-                    "route": turn_result.route.value,
-                    "intent_key": intent_key,
-                    "supported_intents": list(self.supported_intents),
-                },
+            return self._finalize(
+                self._rejected(
+                    request=request,
+                    reason=f"unsupported_candidate_intent:{intent_key}",
+                    turn_result=turn_result,
+                    metadata={
+                        "route": turn_result.route.value,
+                        "intent_key": intent_key,
+                        "supported_intents": list(self.supported_intents),
+                    },
+                )
             )
 
-        return VoiceEngineV2RuntimeCandidateResult(
-            accepted=True,
-            reason="accepted",
-            legacy_runtime_primary=True,
-            request=request,
-            turn_result=turn_result,
-            execution_plan=execution_plan,
-            metadata={
-                **dict(request.metadata),
-                "runtime_candidate": True,
-                "runtime_candidates_can_run": True,
-                "intent_key": intent_key,
-                "legacy_action": execution_plan.spec.legacy_action,
-                "tool_name": execution_plan.spec.tool_name,
-                "route": execution_plan.route_decision.kind.value,
-                "language": turn_result.language.value,
-            },
+        return self._finalize(
+            VoiceEngineV2RuntimeCandidateResult(
+                accepted=True,
+                reason="accepted",
+                legacy_runtime_primary=True,
+                request=request,
+                turn_result=turn_result,
+                execution_plan=execution_plan,
+                metadata={
+                    **dict(request.metadata),
+                    "runtime_candidate": True,
+                    "runtime_candidates_can_run": True,
+                    "intent_key": intent_key,
+                    "legacy_action": execution_plan.spec.legacy_action,
+                    "tool_name": execution_plan.spec.tool_name,
+                    "route": execution_plan.route_decision.kind.value,
+                    "language": turn_result.language.value,
+                },
+            )
         )
+
+    def _finalize(
+        self,
+        result: VoiceEngineV2RuntimeCandidateResult,
+    ) -> VoiceEngineV2RuntimeCandidateResult:
+        if self._telemetry_writer is None:
+            return result
+
+        record = self._record_from_result(result)
+        telemetry_written = self._telemetry_writer.write_safely(record)
+        return result.with_telemetry_written(telemetry_written)
+
+    @staticmethod
+    def _record_from_result(
+        result: VoiceEngineV2RuntimeCandidateResult,
+    ) -> VoiceEngineV2RuntimeCandidateTelemetryRecord:
+        turn_result = result.turn_result
+        route = ""
+        language = ""
+        fallback_reason = ""
+        metrics: dict[str, Any] = {}
+        if turn_result is not None:
+            route = turn_result.route.value
+            language = turn_result.language.value
+            fallback_reason = str(
+                getattr(turn_result.metrics, "fallback_reason", "") or ""
+            )
+            metrics = VoiceEngineV2RuntimeCandidateAdapter._metrics_snapshot(
+                turn_result.metrics
+            )
+
+        intent_key = ""
+        intent_action = ""
+        if turn_result is not None and turn_result.intent is not None:
+            intent_key = turn_result.intent.key
+            intent_action = turn_result.intent.action
+
+        route_kind = ""
+        primary_intent = ""
+        llm_prevented = False
+        if result.route_decision is not None:
+            route_kind = str(
+                getattr(
+                    result.route_decision.kind,
+                    "value",
+                    result.route_decision.kind,
+                )
+            )
+            primary_intent = str(result.route_decision.primary_intent or "")
+            llm_prevented = bool(
+                result.route_decision.metadata.get("llm_prevented", False)
+            )
+
+        return VoiceEngineV2RuntimeCandidateTelemetryRecord.create(
+            turn_id=result.request.turn_id,
+            transcript=result.request.transcript,
+            accepted=result.accepted,
+            reason=result.reason,
+            legacy_runtime_primary=result.legacy_runtime_primary,
+            voice_engine_route=route,
+            voice_engine_intent=intent_key,
+            voice_engine_action=intent_action,
+            language=language,
+            fallback_reason=fallback_reason,
+            route_kind=route_kind,
+            primary_intent=primary_intent,
+            llm_prevented=llm_prevented,
+            metrics=metrics,
+            metadata={**dict(result.request.metadata), **dict(result.metadata)},
+        )
+
+
+
+    @staticmethod
+    def _metrics_snapshot(metrics: Any) -> dict[str, Any]:
+        """Return a stable telemetry snapshot without depending on one metric name.
+
+        Runtime candidate telemetry must never break command execution if the
+        VoiceEngineMetrics model changes. Keep both the Stage 20B compatibility
+        key and the current canonical metric key when possible.
+        """
+
+        speech_end_to_finish_ms = getattr(
+            metrics,
+            "speech_end_to_finish_ms",
+            None,
+        )
+        speech_end_to_action_ms = getattr(
+            metrics,
+            "speech_end_to_action_ms",
+            speech_end_to_finish_ms,
+        )
+
+        command_stt_ms = getattr(
+            metrics,
+            "command_stt_ms",
+            getattr(metrics, "command_recognition_ms", None),
+        )
+        resolver_ms = getattr(
+            metrics,
+            "resolver_ms",
+            getattr(metrics, "intent_resolver_ms", None),
+        )
+        action_dispatch_ms = getattr(
+            metrics,
+            "action_dispatch_ms",
+            getattr(metrics, "action_ms", None),
+        )
+
+        return {
+            "speech_end_to_action_ms": speech_end_to_action_ms,
+            "speech_end_to_finish_ms": speech_end_to_finish_ms,
+            "command_stt_ms": command_stt_ms,
+            "resolver_ms": resolver_ms,
+            "action_dispatch_ms": action_dispatch_ms,
+            "fallback_used": bool(getattr(metrics, "fallback_used", False)),
+            "fallback_reason": str(getattr(metrics, "fallback_reason", "") or ""),
+        }
+
 
     @staticmethod
     def _rejected(

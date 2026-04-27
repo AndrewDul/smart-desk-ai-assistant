@@ -26,6 +26,9 @@ from modules.runtime.voice_engine_v2.shadow_runtime_hook import (
 from modules.runtime.voice_engine_v2.shadow_telemetry import (
     VoiceEngineV2ShadowTelemetryWriter,
 )
+from modules.runtime.voice_engine_v2.runtime_candidate_telemetry import (
+    VoiceEngineV2RuntimeCandidateTelemetryWriter,
+)
 
 
 def build_voice_engine_v2_runtime(
@@ -56,9 +59,14 @@ def build_voice_engine_v2_runtime(
         settings=voice_engine_settings,
         execution_adapter=execution_adapter,
     )
+    runtime_candidate_telemetry_writer = VoiceEngineV2RuntimeCandidateTelemetryWriter(
+        voice_engine_settings.runtime_candidate_log_path,
+        enabled=voice_engine_settings.runtime_candidates_enabled,
+    )
     runtime_candidate_adapter = VoiceEngineV2RuntimeCandidateAdapter(
         engine=engine,
         settings=voice_engine_settings,
+        telemetry_writer=runtime_candidate_telemetry_writer,
     )
     shadow_telemetry_writer = VoiceEngineV2ShadowTelemetryWriter(
         voice_engine_settings.shadow_log_path,
@@ -118,6 +126,7 @@ def _build_status(settings: VoiceEngineSettings) -> RuntimeBackendStatus:
                 "runtime_candidate_intent_allowlist": list(
                     settings.runtime_candidate_intent_allowlist
                 ),
+                "runtime_candidate_log_path": settings.runtime_candidate_log_path,
             },
         )
 
