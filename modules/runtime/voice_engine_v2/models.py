@@ -10,6 +10,9 @@ from modules.runtime.voice_engine_v2.acceptance import (
 from modules.runtime.voice_engine_v2.shadow_mode import (
     VoiceEngineV2ShadowModeAdapter,
 )
+from modules.runtime.voice_engine_v2.shadow_runtime_hook import (
+    VoiceEngineV2ShadowRuntimeHook,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +24,7 @@ class VoiceEngineV2RuntimeBundle:
     status: RuntimeBackendStatus
     acceptance_adapter: VoiceEngineV2AcceptanceAdapter
     shadow_mode_adapter: VoiceEngineV2ShadowModeAdapter
+    shadow_runtime_hook: VoiceEngineV2ShadowRuntimeHook
 
     @property
     def enabled(self) -> bool:
@@ -47,6 +51,8 @@ class VoiceEngineV2RuntimeBundle:
             "legacy_removal_stage": self.settings.legacy_removal_stage,
             "acceptance_adapter_available": True,
             "shadow_mode_adapter_available": True,
+            "shadow_runtime_hook_available": True,
+            "shadow_runtime_hook_action_safe": self.shadow_runtime_hook.action_safe,
             "registered_acceptance_actions": list(
                 self.acceptance_adapter.registered_actions
             ),

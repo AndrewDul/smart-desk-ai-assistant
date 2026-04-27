@@ -149,3 +149,26 @@ def test_voice_engine_v2_factory_attaches_shadow_telemetry_writer() -> None:
     assert writer is not None
     assert writer.enabled is True
     assert str(writer.path) == "var/data/test_shadow.jsonl"
+
+
+
+def test_voice_engine_v2_factory_exposes_shadow_runtime_hook_metadata() -> None:
+    bundle = build_voice_engine_v2_runtime(
+        {
+            "voice_engine": {
+                "enabled": True,
+                "version": "v2",
+                "mode": "v2",
+                "command_first_enabled": True,
+                "shadow_mode_enabled": True,
+                "shadow_log_path": "var/data/test_shadow.jsonl",
+                "fallback_to_legacy_enabled": True,
+            }
+        }
+    )
+
+    metadata = bundle.to_metadata()
+
+    assert metadata["shadow_runtime_hook_available"] is True
+    assert metadata["shadow_runtime_hook_action_safe"] is True
+    assert bundle.shadow_runtime_hook.action_safe is True

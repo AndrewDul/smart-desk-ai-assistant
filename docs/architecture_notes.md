@@ -4393,3 +4393,83 @@ NEXA Voice Engine v2 execution rules,
 Stage 10 hardware-safe shadow mode,
 benchmark results showing command_success_rate=1.0, fallback_count=0, p95_speech_end_to_action_ms=50.0 and endpoint_delay_ms=260.0,
 the need to collect Raspberry Pi runtime evidence before replacing the legacy voice path.
+
+
+## 51. NEXA Voice Engine v2 — hardware shadow-mode runtime hook
+
+### Status
+
+Partially implemented.
+
+### What changed
+
+The project now has a hardware-safe runtime hook for feeding legacy runtime transcripts into Voice Engine v2 shadow mode.
+
+New module:
+
+```text
+modules/runtime/voice_engine_v2/shadow_runtime_hook.py
+```
+The hook layer includes:
+
+VoiceEngineV2ShadowRuntimeObservation — passive observation object for a legacy voice turn,
+VoiceEngineV2ShadowRuntimeHook — passive runtime hook that forwards transcripts to shadow mode,
+VoiceEngineV2RuntimeBundle.shadow_runtime_hook — runtime-visible hook attached to the Voice Engine v2 bundle,
+runtime metadata key voice_engine_v2_shadow_runtime_hook.
+
+The hook can observe:
+
+legacy transcript
+→ legacy route
+→ legacy intent key
+→ Voice Engine v2 shadow decision
+→ JSONL telemetry
+
+It never executes actions.
+
+Why this was needed
+
+Stage 11 added persistent shadow-mode telemetry, but the runtime still needed a safe hook object that can later be called from the legacy voice path after transcript routing.
+
+This hook creates that bridge without changing production behaviour.
+
+It is safe for Raspberry Pi validation because it does not:
+
+execute Visual Shell actions,
+trigger TTS,
+change wake word,
+replace FasterWhisper capture/STT,
+change legacy routing,
+affect runtime readiness.
+What NEXA gains
+
+NEXA gains:
+
+a safe runtime-facing shadow-mode observation hook,
+a clear bridge between legacy transcripts and Voice Engine v2 decision comparison,
+persistent telemetry from real runtime turns once connected,
+no action execution during shadow validation,
+a better evidence path before enabling command-first execution,
+a future cleanup path for duplicated Visual Shell phrase matching.
+Removed or deprecated legacy path
+
+No legacy runtime path was removed in this stage.
+
+The existing wake word, FasterWhisper capture/STT, TTS and Visual Shell runtime remain active.
+
+Temporary legacy retention rule:
+
+legacy runtime remains primary,
+shadow runtime hook only observes,
+hook returns None for empty transcripts,
+hook never executes actions,
+legacy Visual Shell phrase matching remains until hardware shadow telemetry proves Voice Engine v2 correctness.
+Source / evidence
+
+This decision is based on:
+
+NEXA Voice Engine v2 execution rules,
+Stage 10 hardware-safe shadow mode,
+Stage 11 shadow-mode telemetry persistence,
+benchmark evidence showing command_success_rate=1.0, fallback_count=0, p95_speech_end_to_action_ms=50.0 and endpoint_delay_ms=260.0,
+the requirement to avoid breaking current wake/STT/TTS/Visual Shell runtime.

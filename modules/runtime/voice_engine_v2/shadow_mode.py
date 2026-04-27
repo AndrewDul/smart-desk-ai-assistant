@@ -211,6 +211,7 @@ class VoiceEngineV2ShadowModeAdapter:
                 fallback_reason=fallback_reason,
                 turn_result=turn_result,
                 metadata={
+                    **dict(request.metadata),
                     "legacy_route": request.legacy_route,
                     "legacy_intent_key": request.legacy_intent_key,
                     "voice_engine_route": turn_result.route.value,

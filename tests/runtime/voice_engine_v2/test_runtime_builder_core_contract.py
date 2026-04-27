@@ -38,3 +38,12 @@ def test_runtime_builder_exposes_voice_engine_v2_shadow_mode_adapter_in_metadata
 
     assert '"voice_engine_v2_shadow_mode_adapter": (' in source
     assert "voice_engine_v2_bundle.shadow_mode_adapter" in source
+
+
+
+
+def test_runtime_builder_exposes_voice_engine_v2_shadow_runtime_hook_in_metadata() -> None:
+    source = RUNTIME_BUILDER_CORE.read_text(encoding="utf-8")
+
+    assert '"voice_engine_v2_shadow_runtime_hook": (' in source
+    assert "voice_engine_v2_bundle.shadow_runtime_hook" in source
