@@ -3988,3 +3988,77 @@ Stage 3 bilingual command recognizer grammar,
 Stage 4 deterministic command intent resolver,
 Stage 5 command-first pipeline contract,
 the requirement to avoid breaking current wake/STT/TTS/Visual Shell runtime.
+
+
+## 46. NEXA Voice Engine v2 — visual-action-first execution adapter
+
+### Status
+
+Partially implemented.
+
+### What changed
+
+The project now has a visual-action-first execution adapter for NEXA Voice Engine v2.
+
+New modules were added under:
+
+```text
+modules/core/voice_engine/execution/
+```
+
+The execution layer includes:
+
+IntentExecutionRequest — execution request for a resolved command intent,
+IntentExecutionResult — execution result with action-first and TTS-order metadata,
+IntentExecutionStatus — executed, no-handler, failed and rejected states,
+IntentExecutionAdapter — registry-based executor for resolved intent actions,
+VisualActionFirstExecutor — executor that runs deterministic command actions before optional spoken acknowledgement,
+visual_shell_actions.py — Visual Shell action classification for commands that should not wait for TTS acknowledgement.
+
+The new executor enforces the product rule:
+
+resolved command intent
+→ execute action first
+→ optional spoken acknowledgement later
+
+For Visual Shell commands such as show_desktop and show_shell, spoken acknowledgement is disabled by default at this layer because the visual state change itself is the immediate feedback.
+
+Why this was needed
+
+NEXA must feel fast and premium.
+
+For built-in visual commands, the user should not wait for Piper/TTS before seeing the desktop, shell, eyes or other Visual Shell state changes.
+
+The previous architecture could still allow spoken confirmation or downstream response delivery to influence perceived action timing. Voice Engine v2 needs a dedicated execution contract where deterministic actions are executed first, and spoken acknowledgement is optional and secondary.
+
+What NEXA gains
+
+NEXA gains:
+
+an action-first execution contract for resolved Voice Engine v2 intents,
+a clear place to connect future Visual Shell execution handlers,
+explicit metadata showing whether an action executed before TTS,
+no dependency on TTS for fast visual commands,
+safer future runtime integration because execution handlers are injected and testable,
+cleaner separation between command recognition, intent resolution and execution.
+Removed or deprecated legacy path
+
+No legacy runtime path was removed in this stage.
+
+The existing Visual Shell router and visual_shell_command_lane.py remain active because Voice Engine v2 is still not the primary production command path.
+
+Temporary legacy retention rule:
+
+legacy Visual Shell execution remains until Voice Engine v2 execution integration is validated,
+new Voice Engine v2 command execution should use modules/core/voice_engine/execution/,
+visual commands must execute before optional TTS acknowledgement,
+duplicated Visual Shell phrase matching should be removed only after runtime acceptance tests pass.
+Source / evidence
+
+This decision is based on:
+
+NEXA Voice Engine v2 execution rules,
+Stage 5 command-first pipeline contract,
+current config keeping voice_engine.enabled=false,
+product requirement that built-in commands respond within 2 seconds, with premium target 300–900 ms,
+observed runtime problem where long silence and pre-routing delays hurt perceived responsiveness.
