@@ -13,6 +13,8 @@ def test_voice_engine_settings_from_full_settings_reads_voice_engine_block() -> 
                 "command_first_enabled": True,
                 "fallback_to_legacy_enabled": True,
                 "metrics_enabled": True,
+                "shadow_mode_enabled": True,
+                "shadow_log_path": "var/data/test_shadow.jsonl",
                 "legacy_removal_stage": "after_acceptance",
             }
         }
@@ -23,7 +25,10 @@ def test_voice_engine_settings_from_full_settings_reads_voice_engine_block() -> 
     assert settings.realtime_audio_bus_enabled is True
     assert settings.vad_endpointing_enabled is True
     assert settings.command_first_enabled is True
+    assert settings.shadow_mode_enabled is True
+    assert settings.shadow_log_path == "var/data/test_shadow.jsonl"
     assert settings.command_pipeline_can_run is True
+    assert settings.shadow_mode_can_run is True
 
 
 def test_voice_engine_settings_keep_command_pipeline_disabled_by_default() -> None:
@@ -32,4 +37,6 @@ def test_voice_engine_settings_keep_command_pipeline_disabled_by_default() -> No
     assert settings.enabled is False
     assert settings.mode == "legacy"
     assert settings.command_first_enabled is False
+    assert settings.shadow_mode_enabled is False
     assert settings.command_pipeline_can_run is False
+    assert settings.shadow_mode_can_run is False

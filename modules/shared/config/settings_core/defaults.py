@@ -68,6 +68,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "command_first_enabled": False,
         "fallback_to_legacy_enabled": True,
         "metrics_enabled": True,
+        "shadow_mode_enabled": False,
+        "shadow_log_path": "var/data/voice_engine_v2_shadow.jsonl",
         "legacy_removal_stage": "after_voice_engine_v2_runtime_acceptance",
     },
     "voice_output": {

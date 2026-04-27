@@ -121,6 +121,8 @@
     "command_first_enabled": false,
     "fallback_to_legacy_enabled": true,
     "metrics_enabled": true,
+    "shadow_mode_enabled": false,
+    "shadow_log_path": "var/data/voice_engine_v2_shadow.jsonl",
     "legacy_removal_stage": "after_voice_engine_v2_runtime_acceptance"
   },
   "voice_output": {

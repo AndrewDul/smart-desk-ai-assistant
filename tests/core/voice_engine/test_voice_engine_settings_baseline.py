@@ -27,3 +27,11 @@ def test_voice_engine_v2_has_explicit_legacy_removal_stage() -> None:
         voice_engine["legacy_removal_stage"]
         == "after_voice_engine_v2_runtime_acceptance"
     )
+
+
+
+def test_voice_engine_v2_shadow_mode_defaults_are_safe() -> None:
+    voice_engine = DEFAULT_SETTINGS["voice_engine"]
+
+    assert voice_engine["shadow_mode_enabled"] is False
+    assert voice_engine["shadow_log_path"] == "var/data/voice_engine_v2_shadow.jsonl"

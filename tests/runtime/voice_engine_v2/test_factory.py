@@ -99,3 +99,29 @@ def test_voice_engine_v2_bundle_exposes_acceptance_adapter_metadata() -> None:
     assert metadata["acceptance_adapter_available"] is True
     assert metadata["registered_acceptance_actions"] == []
     assert bundle.acceptance_adapter.settings.enabled is False
+
+
+
+
+def test_voice_engine_v2_bundle_exposes_shadow_mode_metadata() -> None:
+    bundle = build_voice_engine_v2_runtime(
+        {
+            "voice_engine": {
+                "enabled": True,
+                "version": "v2",
+                "mode": "v2",
+                "command_first_enabled": True,
+                "shadow_mode_enabled": True,
+                "shadow_log_path": "var/data/test_shadow.jsonl",
+                "fallback_to_legacy_enabled": True,
+            }
+        }
+    )
+
+    metadata = bundle.to_metadata()
+
+    assert metadata["shadow_mode_adapter_available"] is True
+    assert metadata["shadow_mode_enabled"] is True
+    assert metadata["shadow_mode_can_run"] is True
+    assert metadata["shadow_log_path"] == "var/data/test_shadow.jsonl"
+    assert bundle.shadow_mode_adapter.settings.shadow_mode_enabled is True

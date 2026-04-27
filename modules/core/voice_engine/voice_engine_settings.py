@@ -16,6 +16,8 @@ class VoiceEngineSettings:
     command_first_enabled: bool = False
     fallback_to_legacy_enabled: bool = True
     metrics_enabled: bool = True
+    shadow_mode_enabled: bool = False
+    shadow_log_path: str = "var/data/voice_engine_v2_shadow.jsonl"
     legacy_removal_stage: str = "after_voice_engine_v2_runtime_acceptance"
 
     def __post_init__(self) -> None:
@@ -25,6 +27,8 @@ class VoiceEngineSettings:
             raise ValueError("only Voice Engine v2 settings are supported")
         if not self.mode.strip():
             raise ValueError("mode must not be empty")
+        if not self.shadow_log_path.strip():
+            raise ValueError("shadow_log_path must not be empty")
         if not self.legacy_removal_stage.strip():
             raise ValueError("legacy_removal_stage must not be empty")
 
@@ -35,6 +39,10 @@ class VoiceEngineSettings:
             and self.mode == "v2"
             and self.command_first_enabled
         )
+
+    @property
+    def shadow_mode_can_run(self) -> bool:
+        return self.shadow_mode_enabled and self.command_pipeline_can_run
 
     @classmethod
     def from_settings(cls, settings: dict[str, Any]) -> VoiceEngineSettings:
@@ -52,6 +60,13 @@ class VoiceEngineSettings:
                 raw.get("fallback_to_legacy_enabled", True)
             ),
             metrics_enabled=bool(raw.get("metrics_enabled", True)),
+            shadow_mode_enabled=bool(raw.get("shadow_mode_enabled", False)),
+            shadow_log_path=str(
+                raw.get(
+                    "shadow_log_path",
+                    "var/data/voice_engine_v2_shadow.jsonl",
+                )
+            ),
             legacy_removal_stage=str(
                 raw.get(
                     "legacy_removal_stage",

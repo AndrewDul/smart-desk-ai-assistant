@@ -143,6 +143,9 @@ class RuntimeBuilder(
                 "voice_engine_v2_acceptance_adapter": (
                     voice_engine_v2_bundle.acceptance_adapter
                 ),
+                "voice_engine_v2_shadow_mode_adapter": (
+                    voice_engine_v2_bundle.shadow_mode_adapter
+                ),
                 "wake_backend": wake_gate,
                 "single_capture_mode": self._single_capture_mode_enabled(voice_input_cfg),
                 "provider_inventory": provider_inventory,

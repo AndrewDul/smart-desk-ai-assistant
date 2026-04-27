@@ -16,6 +16,7 @@ from modules.devices.audio.command_asr import (
 from modules.runtime.contracts import RuntimeBackendStatus
 from modules.runtime.voice_engine_v2.acceptance import VoiceEngineV2AcceptanceAdapter
 from modules.runtime.voice_engine_v2.models import VoiceEngineV2RuntimeBundle
+from modules.runtime.voice_engine_v2.shadow_mode import VoiceEngineV2ShadowModeAdapter
 
 
 def build_voice_engine_v2_runtime(
@@ -46,6 +47,10 @@ def build_voice_engine_v2_runtime(
         settings=voice_engine_settings,
         execution_adapter=execution_adapter,
     )
+    shadow_mode_adapter = VoiceEngineV2ShadowModeAdapter(
+        engine=engine,
+        settings=voice_engine_settings,
+    )
 
     status = _build_status(voice_engine_settings)
 
@@ -54,6 +59,7 @@ def build_voice_engine_v2_runtime(
         settings=voice_engine_settings,
         status=status,
         acceptance_adapter=acceptance_adapter,
+        shadow_mode_adapter=shadow_mode_adapter,
     )
 
 
@@ -81,6 +87,10 @@ def _build_status(settings: VoiceEngineSettings) -> RuntimeBackendStatus:
                 "realtime_audio_bus_enabled": settings.realtime_audio_bus_enabled,
                 "vad_endpointing_enabled": settings.vad_endpointing_enabled,
                 "command_first_enabled": settings.command_first_enabled,
+                "shadow_mode_enabled": settings.shadow_mode_enabled,
+                "shadow_mode_can_run": settings.shadow_mode_can_run,
+            "shadow_mode_enabled": settings.shadow_mode_enabled,
+            "shadow_mode_can_run": settings.shadow_mode_can_run,
             },
         )
 

@@ -4229,3 +4229,80 @@ Stage 6 safe runtime integration adapter,
 Stage 7 visual-action-first execution adapter,
 Stage 8 command latency benchmark gates,
 current benchmark results showing command_success_rate=1.0, fallback_count=0, p95_speech_end_to_action_ms=50.0 and endpoint_delay_ms=260.0 in deterministic tests.
+
+
+## 49. NEXA Voice Engine v2 — hardware-safe shadow mode
+
+### Status
+
+Partially implemented.
+
+### What changed
+
+The project now has hardware-safe shadow mode for NEXA Voice Engine v2.
+
+Shadow mode lets the runtime observe transcripts and compare Voice Engine v2 decisions against the legacy runtime decision without executing any action.
+
+New runtime module:
+
+```text
+modules/runtime/voice_engine_v2/shadow_mode.py
+```
+The shadow mode layer includes:
+
+VoiceEngineV2ShadowRequest — transcript observation request,
+VoiceEngineV2ShadowResult — comparison result between legacy routing and Voice Engine v2,
+VoiceEngineV2ShadowModeAdapter — safe observer that runs Voice Engine v2 decision logic without executing actions.
+
+New configuration keys:
+
+voice_engine.shadow_mode_enabled=false
+voice_engine.shadow_log_path="var/data/voice_engine_v2_shadow.jsonl"
+
+The adapter is also exposed through runtime metadata as:
+
+voice_engine_v2_shadow_mode_adapter
+Why this was needed
+
+The next risky step is real runtime integration.
+
+Before replacing any part of the production wake/capture/STT path, NEXA needs a safe way to compare what legacy routing does versus what Voice Engine v2 would do.
+
+Shadow mode allows this without:
+
+executing actions,
+changing Visual Shell state,
+using TTS,
+changing wake word,
+replacing FasterWhisper capture/STT,
+affecting production runtime readiness.
+What NEXA gains
+
+NEXA gains:
+
+hardware-safe validation before runtime takeover,
+a way to detect mismatches between legacy routing and Voice Engine v2,
+a safe path for Raspberry Pi testing,
+no accidental action execution during shadow checks,
+clearer evidence for when legacy phrase matching can later be removed,
+stronger confidence before enabling command-first runtime execution.
+Removed or deprecated legacy path
+
+No legacy runtime path was removed in this stage.
+
+The existing wake word, FasterWhisper capture/STT, TTS and Visual Shell runtime remain active.
+
+Temporary legacy retention rule:
+
+legacy runtime remains primary,
+shadow mode only observes,
+shadow mode never executes actions,
+old Visual Shell phrase matching remains until real hardware shadow-mode validation proves Voice Engine v2 decisions are correct.
+Source / evidence
+
+This decision is based on:
+
+NEXA Voice Engine v2 execution rules,
+Stage 8 benchmark results showing command_success_rate=1.0, fallback_count=0, p95_speech_end_to_action_ms=50.0 and endpoint_delay_ms=260.0,
+the need to avoid breaking wake word, audio input, TTS and Visual Shell,
+the product requirement that built-in commands must be deterministic before LLM fallback.
