@@ -4062,3 +4062,90 @@ Stage 5 command-first pipeline contract,
 current config keeping voice_engine.enabled=false,
 product requirement that built-in commands respond within 2 seconds, with premium target 300–900 ms,
 observed runtime problem where long silence and pre-routing delays hurt perceived responsiveness.
+
+
+## 47. NEXA Voice Engine v2 — command latency benchmark gates
+
+### Status
+
+Partially implemented.
+
+### What changed
+
+The project now has benchmark gates for NEXA Voice Engine v2 command-first responsiveness.
+
+New benchmark modules were added under:
+
+```text
+benchmarks/voice/
+```
+
+The benchmark layer includes:
+
+benchmark_command_latency.py — deterministic command-first latency benchmark,
+benchmark_endpointing_latency.py — deterministic VAD endpointing latency benchmark,
+benchmark_full_voice_turn.py — combined command + endpointing benchmark gate.
+
+The command benchmark measures:
+
+speech_end_to_action_ms,
+command_recognition_ms,
+intent_resolution_ms,
+command success rate,
+fallback usage for built-in commands.
+
+The endpointing benchmark measures:
+
+speech start detection delay,
+speech end / endpoint delay.
+
+The combined benchmark provides one high-level acceptance result for Voice Engine v2 command turns.
+
+Why this was needed
+
+NEXA Voice Engine v2 is performance-driven. The product target is not only architectural cleanliness; built-in commands must feel fast.
+
+The project target is:
+
+Built-in commands:
+- required: <= 2 seconds from speech end to action
+- premium target: 300–900 ms from speech end to action
+
+Without benchmark gates, Voice Engine v2 could accidentally drift back toward slow behaviour where clear built-in commands wait for full STT, routing or LLM fallback.
+
+This stage makes command speed measurable before production runtime integration.
+
+What NEXA gains
+
+NEXA gains:
+
+measurable command-first responsiveness,
+explicit acceptance gates for built-in commands,
+detection of accidental fallback usage for clear commands,
+benchmark evidence before enabling Voice Engine v2 in runtime,
+a safer route toward premium latency targets,
+a repeatable validation tool for future changes.
+Removed or deprecated legacy path
+
+No legacy runtime path was removed in this stage.
+
+The existing wake word, FasterWhisper capture/STT, TTS and Visual Shell runtime remain active.
+
+Temporary legacy retention rule:
+
+legacy runtime remains primary while voice_engine.enabled=false,
+benchmark gates validate Voice Engine v2 before runtime replacement,
+old Visual Shell phrase matching should only be removed after Voice Engine v2 command execution passes runtime acceptance tests.
+Source / evidence
+
+This decision is based on:
+
+NEXA Voice Engine v2 execution rules,
+Stage 1 realtime audio bus foundation,
+Stage 2 VAD endpointing foundation,
+Stage 3 bilingual command recognizer grammar,
+Stage 4 deterministic command intent resolver,
+Stage 5 command-first pipeline contract,
+Stage 6 safe runtime integration adapter,
+Stage 7 visual-action-first execution adapter,
+local runtime observations showing that perceived delay happens before routing.
