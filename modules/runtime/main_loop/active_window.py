@@ -537,6 +537,54 @@ def _capture_transcript_with_speech_service(
 
     return result
 
+def _observe_voice_engine_v2_vad_shadow(assistant: CoreAssistant) -> dict[str, object]:
+    runtime = getattr(assistant, "runtime", None)
+    runtime_metadata = getattr(runtime, "metadata", {}) if runtime is not None else {}
+
+    observer = getattr(assistant, "voice_engine_v2_vad_shadow_observer", None)
+    if observer is None and isinstance(runtime_metadata, dict):
+        observer = runtime_metadata.get("voice_engine_v2_vad_shadow_observer")
+
+    observe = getattr(observer, "observe", None)
+    if not callable(observe):
+        return {
+            "enabled": False,
+            "observed": False,
+            "reason": "vad_shadow_observer_unavailable",
+            "action_executed": False,
+            "full_stt_prevented": False,
+            "runtime_takeover": False,
+        }
+
+    try:
+        snapshot = observe(assistant)
+    except Exception as error:
+        append_log(f"Voice Engine v2 VAD shadow failed safely: {error}")
+        return {
+            "enabled": True,
+            "observed": False,
+            "reason": f"vad_shadow_failed:{type(error).__name__}",
+            "action_executed": False,
+            "full_stt_prevented": False,
+            "runtime_takeover": False,
+            "error": str(error),
+        }
+
+    assistant._last_voice_engine_v2_vad_shadow = snapshot
+    to_json_dict = getattr(snapshot, "to_json_dict", None)
+    if callable(to_json_dict):
+        return dict(to_json_dict())
+
+    return {
+        "enabled": True,
+        "observed": False,
+        "reason": "vad_shadow_snapshot_not_serializable",
+        "action_executed": False,
+        "full_stt_prevented": False,
+        "runtime_takeover": False,
+    }
+
+
 def _observe_voice_engine_v2_pre_stt_shadow(
     assistant: CoreAssistant,
     *,
@@ -581,6 +629,7 @@ def _observe_voice_engine_v2_pre_stt_shadow(
         turn_id = str(current_turn_id)
 
     audio_bus_probe = probe_realtime_audio_bus(assistant)
+    vad_shadow_snapshot = _observe_voice_engine_v2_vad_shadow(assistant)
 
     try:
         result = observe_pre_stt(
@@ -596,6 +645,7 @@ def _observe_voice_engine_v2_pre_stt_shadow(
                 "voice_session_state": str(
                     getattr(voice_session, "state", "") if voice_session is not None else ""
                 ),
+                "vad_shadow": vad_shadow_snapshot,
             },
         )
     except Exception as error:

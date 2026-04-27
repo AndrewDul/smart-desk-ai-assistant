@@ -6,6 +6,9 @@ from modules.runtime.contracts import RuntimeServices
 from modules.runtime.voice_engine_v2.faster_whisper_audio_bus_tap import (
     configure_faster_whisper_audio_bus_shadow_tap,
 )
+from modules.runtime.voice_engine_v2.vad_shadow import (
+    build_voice_engine_v2_vad_shadow_observer,
+)
 from modules.shared.config.settings import load_settings
 
 from .ai_broker_mixin import RuntimeBuilderAiBrokerMixin
@@ -104,6 +107,9 @@ class RuntimeBuilder(
                 settings=self.settings,
             )
         )
+        vad_shadow_observer = build_voice_engine_v2_vad_shadow_observer(
+            self.settings
+        )
 
         self._attach_audio_coordinator(voice_input, audio_coordinator)
         self._attach_audio_coordinator(wake_gate, audio_coordinator)
@@ -155,6 +161,7 @@ class RuntimeBuilder(
             "voice_engine_v2_audio_bus_tap_status": (
                 audio_bus_tap_status.to_metadata()
             ),
+            "voice_engine_v2_vad_shadow_observer": vad_shadow_observer,
             "wake_backend": wake_gate,
             "single_capture_mode": self._single_capture_mode_enabled(voice_input_cfg),
             "provider_inventory": provider_inventory,

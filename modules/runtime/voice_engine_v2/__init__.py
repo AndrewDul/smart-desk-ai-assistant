@@ -43,6 +43,12 @@ from modules.runtime.voice_engine_v2.realtime_audio_bus_probe import (
     find_realtime_audio_bus,
     probe_realtime_audio_bus,
 )
+from modules.runtime.voice_engine_v2.vad_shadow import (
+    SileroOnnxVadScoreProvider,
+    VoiceEngineV2VadShadowObserver,
+    VoiceEngineV2VadShadowSnapshot,
+    build_voice_engine_v2_vad_shadow_observer,
+)
 from modules.runtime.voice_engine_v2.faster_whisper_audio_bus_tap import (
     FasterWhisperAudioBusTapStatus,
     configure_faster_whisper_audio_bus_shadow_tap,
@@ -78,6 +84,10 @@ __all__ = [
     "RealtimeAudioBusProbeSnapshot",
     "find_realtime_audio_bus",
     "probe_realtime_audio_bus",
+    "SileroOnnxVadScoreProvider",
+    "VoiceEngineV2VadShadowObserver",
+    "VoiceEngineV2VadShadowSnapshot",
+    "build_voice_engine_v2_vad_shadow_observer",
     "FasterWhisperAudioBusTapStatus",
     "configure_faster_whisper_audio_bus_shadow_tap",
 ]

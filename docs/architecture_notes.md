@@ -5725,3 +5725,142 @@ Stage 23B must not execute pre-STT actions, must not prevent FasterWhisper and m
 
 
 ---
+
+
+## Stage 24A — Silero VAD shadow endpointing over RealtimeAudioBus
+
+### Status
+
+Implemented behind config, disabled by default.
+
+### What changed
+
+Stage 24A added an observe-only VAD shadow observer over the hardware-validated `RealtimeAudioBus`.
+
+New file:
+
+```text
+modules/runtime/voice_engine_v2/vad_shadow.py
+```
+
+The observer can read copied PCM frames from the runtime-owned realtime audio bus and run VAD endpointing telemetry without changing the production runtime path.
+
+New config keys were added with safe defaults:
+
+voice_engine.vad_shadow_enabled=false
+voice_engine.vad_shadow_max_frames_per_observation=96
+voice_engine.vad_shadow_speech_threshold=0.5
+voice_engine.vad_shadow_min_speech_ms=120
+voice_engine.vad_shadow_min_silence_ms=250
+
+The observer is attached through runtime metadata and is called from the pre-STT shadow boundary. Its result is stored in pre-STT shadow metadata under:
+
+metadata.vad_shadow
+Why this was needed
+
+Stage 23B proved that the existing FasterWhisper microphone callback can mirror copied PCM chunks into RealtimeAudioBus without starting a second microphone stream.
+
+Stage 24A starts using that bus for the real Voice Engine v2 target path:
+
+RealtimeAudioBus
+→ Silero VAD ONNX endpointing
+→ Vosk command recognizer PL/EN
+→ CommandIntentResolver
+→ fast action
+
+This stage only implements the VAD shadow part.
+
+FasterWhisper is still not used as the fast-command recognizer. FasterWhisper remains the fallback path for full STT, conversation and LLM routing.
+
+What NEXA gains
+
+NEXA now has the first observe-only endpointing layer connected to the realtime audio foundation.
+
+This allows future hardware validation of:
+
+real PCM frames
+→ VAD speech/silence decisions
+→ speech_started / speech_ended events
+
+without preventing legacy FasterWhisper capture and without executing actions.
+
+This is a key migration step toward reducing the current 5–10 second command latency, because future stages can use VAD endpointing before full STT.
+
+Removed or deprecated legacy path
+
+None.
+
+No wake word path was removed.
+No FasterWhisper path was removed.
+No TTS path was changed.
+No Visual Shell path was changed.
+No command-first live execution was enabled.
+
+The VAD shadow observer is disabled by default and remains telemetry-only.
+
+Source / evidence
+
+Stage 23B hardware validation confirmed that RealtimeAudioBus receives real PCM frames from the existing FasterWhisper callback:
+
+audio_bus_present=true
+source=runtime.metadata.realtime_audio_bus
+frame_count=46
+duration_seconds=2.944
+snapshot_byte_count=6144
+probe_error=""
+legacy_runtime_primary=true
+action_executed=false
+full_stt_prevented=false
+
+Stage 24A unit tests validated the VAD shadow observer in these states:
+
+disabled by default
+missing audio bus
+audio bus available but no new frames
+speech_started and speech_ended event emission
+incremental frame reads
+fail-open score provider errors
+safe config loading
+Validation
+pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
+pytest -q tests/runtime/voice_engine_v2/test_realtime_audio_bus_probe.py
+pytest -q tests/runtime/voice_engine_v2/test_pre_stt_shadow.py
+pytest -q tests/runtime/voice_engine_v2/test_faster_whisper_audio_bus_tap.py
+pytest -q tests/devices/audio/input/faster_whisper/test_realtime_audio_bus_shadow_tap.py
+pytest -q tests/runtime/voice_engine_v2
+
+pytest -q tests/core/voice_engine
+pytest -q tests/core/command_intents
+pytest -q tests/devices/audio/vad
+pytest -q tests/devices/audio/realtime
+pytest -q tests/devices/audio/command_asr
+pytest -q tests/scripts/test_set_voice_engine_v2_audio_bus_tap.py
+pytest -q tests/test_interaction_route_dispatch.py
+pytest -q tests/benchmarks/voice
+
+Expected and observed result:
+
+all tests passed
+Follow-up
+
+Stage 24B should add a guarded safety switch for VAD shadow hardware validation.
+
+Stage 24B hardware validation should enable only:
+
+voice_engine.pre_stt_shadow_enabled=true
+voice_engine.faster_whisper_audio_bus_tap_enabled=true
+voice_engine.vad_shadow_enabled=true
+
+The expected hardware result is:
+
+audio_bus_present=true
+vad_shadow.enabled=true
+vad_shadow.observed=true
+vad_shadow.action_executed=false
+vad_shadow.full_stt_prevented=false
+vad_shadow.runtime_takeover=false
+
+Stage 24B must not execute actions, must not prevent FasterWhisper and must not run Vosk yet.
+
+
+---
