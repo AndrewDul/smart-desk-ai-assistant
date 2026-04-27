@@ -5207,3 +5207,62 @@ Existing ActionFlow already owns safe identity/time execution, so Stage 19 bridg
 Stage 19 regression tests confirmed disabled config preserves legacy behaviour and enabled runtime candidates only accept allowlisted deterministic commands.
 
 
+## Stage 20A — Runtime candidate safety switch and runbook
+
+### Status
+
+Implemented.
+
+### What changed
+
+NEXA now has a controlled safety switch for the guarded Voice Engine v2 runtime-candidate path.
+
+New script:
+
+```text
+scripts/set_voice_engine_v2_runtime_candidates.py
+
+The script supports:
+
+--status
+--enable
+--disable
+
+It enables only the Stage 20A runtime candidate allowlist:
+
+assistant.identity
+system.current_time
+
+The script refuses to enable runtime candidates unless the runtime remains in the safe migration state:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+
+A validation runbook was added:
+
+docs/validation/voice-engine-v2-runtime-candidates-runbook.md
+Why this was needed
+
+Stage 19 added the guarded runtime candidate execution contract, but enabling that path manually by editing config would be too risky for hardware testing.
+
+Stage 20A adds a controlled operational switch so runtime candidates can be enabled only when the full Voice Engine v2 production path is still disabled and legacy fallback remains active.
+
+What NEXA gains
+Safer hardware validation for Stage 19 runtime candidates.
+No manual config editing required for candidate testing.
+A fast disable path after testing.
+Protection against accidentally enabling full Voice Engine v2 production mode.
+Better operational discipline before any live runtime experiment.
+Removed or deprecated legacy path
+
+None.
+
+Legacy runtime remains primary. Wake word, audio input, FasterWhisper, TTS and Visual Shell remain unchanged.
+
+Source / evidence
+Stage 19 regression tests confirmed that runtime candidates are fail-open and allowlisted.
+Stage 18 hardware telemetry showed that identity and current-time commands are useful first candidates.
+Project execution rules require guarded config gates, cleanup, tests, architecture notes and no blind production takeover.
+Validation
