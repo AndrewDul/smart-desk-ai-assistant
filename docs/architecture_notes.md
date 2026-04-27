@@ -3900,3 +3900,91 @@ Stage 2 VAD endpointing foundation,
 Stage 3 bilingual command recognizer grammar,
 Stage 4 deterministic command intent resolver,
 local runtime evidence that the latency bottleneck is before routing, not inside Visual Shell command dispatch.
+
+
+## 45. NEXA Voice Engine v2 — safe runtime integration adapter
+
+### Status
+
+Partially implemented.
+
+### What changed
+
+The project now has a safe runtime integration adapter for NEXA Voice Engine v2.
+
+New modules were added under:
+
+```text
+modules/runtime/voice_engine_v2/
+```
+
+The adapter can build an isolated Voice Engine v2 runtime bundle from existing project settings:
+
+VoiceEngineV2RuntimeBundle — isolated runtime bundle containing the engine, typed settings and status,
+build_voice_engine_v2_runtime() — factory that constructs the command-first pipeline from settings,
+RuntimeBuilderVoiceEngineV2Mixin — builder mixin that creates the Voice Engine v2 bundle,
+RuntimeBuilder metadata integration — exposes Voice Engine v2 in runtime.metadata.
+
+The production runtime path is not replaced in this stage.
+
+Voice Engine v2 is exposed only through metadata keys:
+
+voice_engine_v2
+voice_engine_v2_settings
+voice_engine_v2_status
+voice_engine_v2_metadata
+
+It is intentionally not added to backend_statuses yet, so it does not affect startup readiness, product readiness or premium readiness.
+
+Why this was needed
+
+Earlier stages created the internal Voice Engine v2 foundations:
+
+Stage 1: RealtimeAudioBus
+Stage 2: VAD endpointing
+Stage 3: bilingual command recognizer grammar
+Stage 4: CommandIntentResolver
+Stage 5: command-first pipeline contract
+
+This stage gives the runtime builder a safe way to construct Voice Engine v2 without switching production traffic to it.
+
+This is required before any real runtime integration because NEXA must not break:
+
+wake word,
+audio input,
+FasterWhisper STT,
+TTS,
+Visual Shell command execution.
+What NEXA gains
+
+NEXA gains:
+
+a safe runtime-visible Voice Engine v2 adapter,
+typed Voice Engine v2 settings built from existing config,
+clear metadata showing whether the new command pipeline can run,
+no impact on current production voice behaviour,
+a controlled bridge toward future runtime integration.
+Removed or deprecated legacy path
+
+No legacy runtime path was removed in this stage.
+
+The existing wake word, FasterWhisper capture/STT, TTS and Visual Shell runtime remain active.
+
+Temporary legacy retention rule:
+
+legacy runtime remains primary while voice_engine.enabled=false,
+Voice Engine v2 is visible in metadata only,
+Voice Engine v2 must not be added to startup/premium readiness gates until runtime acceptance tests are created,
+old Visual Shell phrase matching remains until command-first execution integration is validated.
+Source / evidence
+
+This decision is based on:
+
+NEXA Voice Engine v2 execution rules,
+current config keeping voice_engine.enabled=false,
+Stage 1 realtime audio bus foundation,
+Stage 2 VAD endpointing foundation,
+Stage 3 bilingual command recognizer grammar,
+Stage 4 deterministic command intent resolver,
+Stage 5 command-first pipeline contract,
+the requirement to avoid breaking current wake/STT/TTS/Visual Shell runtime.

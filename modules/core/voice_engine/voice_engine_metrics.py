@@ -81,7 +81,9 @@ class VoiceEngineMetrics:
     def _duration_ms(start: float | None, end: float | None) -> float | None:
         if start is None or end is None:
             return None
-        return max(0.0, (end - start) * 1000.0)
+
+        duration_ms = max(0.0, (end - start) * 1000.0)
+        return round(duration_ms, 3)
 
     @staticmethod
     def _validate_timestamp(timestamp_monotonic: float) -> None:

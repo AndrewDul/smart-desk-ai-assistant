@@ -14,6 +14,7 @@ from .pan_tilt_mixin import RuntimeBuilderPanTiltMixin
 from .understanding_mixin import RuntimeBuilderUnderstandingMixin
 from .utils_mixin import RuntimeBuilderUtilsMixin
 from .vision_mixin import RuntimeBuilderVisionMixin
+from .voice_engine_v2_mixin import RuntimeBuilderVoiceEngineV2Mixin
 from .voice_input_mixin import RuntimeBuilderVoiceInputMixin
 from .voice_output_mixin import RuntimeBuilderVoiceOutputMixin
 from .wake_gate_mixin import RuntimeBuilderWakeGateMixin
@@ -25,6 +26,7 @@ class RuntimeBuilder(
     RuntimeBuilderFeaturesMixin,
     RuntimeBuilderAudioCoordinationMixin,
     RuntimeBuilderAiBrokerMixin,
+    RuntimeBuilderVoiceEngineV2Mixin,
     RuntimeBuilderVoiceInputMixin,
     RuntimeBuilderWakeGateMixin,
     RuntimeBuilderVoiceOutputMixin,
@@ -91,6 +93,7 @@ class RuntimeBuilder(
         )
         pan_tilt, pan_tilt_status = self._build_pan_tilt(pan_tilt_cfg)
         mobility, mobility_status = self._build_mobility(mobility_cfg)
+        voice_engine_v2_bundle = self._build_voice_engine_v2()
 
         self._attach_audio_coordinator(voice_input, audio_coordinator)
         self._attach_audio_coordinator(wake_gate, audio_coordinator)
@@ -133,6 +136,10 @@ class RuntimeBuilder(
                 "ai_broker": ai_broker,
                 "pan_tilt_backend": pan_tilt,
                 "mobility_backend": mobility,
+                "voice_engine_v2": voice_engine_v2_bundle.engine,
+                "voice_engine_v2_settings": voice_engine_v2_bundle.settings,
+                "voice_engine_v2_status": voice_engine_v2_bundle.status,
+                "voice_engine_v2_metadata": voice_engine_v2_bundle.to_metadata(),
                 "wake_backend": wake_gate,
                 "single_capture_mode": self._single_capture_mode_enabled(voice_input_cfg),
                 "provider_inventory": provider_inventory,
