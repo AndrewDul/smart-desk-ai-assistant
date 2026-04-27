@@ -4744,3 +4744,221 @@ Stage 14 shadow telemetry validator,
 NEXA Voice Engine v2 requirement that runtime migration must be evidence-based,
 current benchmark acceptance for command-first path,
 requirement that Voice Engine v2 shadow mode must not execute actions or change the live route.
+
+
+# NEXA Voice Engine v2 — controlled hardware shadow validation runbook
+
+## Purpose
+
+This runbook describes how to run a controlled hardware validation pass for NEXA Voice Engine v2 shadow mode.
+
+The goal is to collect real legacy transcripts and compare them with Voice Engine v2 command-first intent resolution without making Voice Engine v2 production-primary.
+
+Correct runtime rule:
+
+```text
+legacy transcript
+→ legacy route decision
+→ legacy live execution
+→ Voice Engine v2 shadow observation
+→ return original legacy result
+
+Voice Engine v2 shadow mode must not:
+
+execute actions,
+trigger TTS,
+change Visual Shell state,
+replace wake/capture/STT,
+change the live route,
+delay live execution.
+Safety requirements
+
+Before enabling shadow mode, the config must remain:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+
+Only this flag is allowed to change during the run:
+
+voice_engine.shadow_mode_enabled=true
+
+After validation, it must be restored to:
+
+voice_engine.shadow_mode_enabled=false
+Pre-flight
+
+Run from the repository root:
+
+cd ~/Projects/smart-desk-ai-assistant
+source .venv/bin/activate
+
+Check current status:
+
+python scripts/set_voice_engine_v2_shadow_mode.py --status
+
+Expected safe status:
+
+safe_to_enable_shadow: True
+voice_engine.enabled: False
+voice_engine.mode: legacy
+voice_engine.command_first_enabled: False
+voice_engine.shadow_mode_enabled: False
+
+Run the offline tooling before the hardware run:
+
+python scripts/validate_voice_engine_v2_shadow_log.py --allow-missing
+python scripts/inspect_voice_engine_v2_shadow_log.py --allow-missing
+Enable shadow mode
+
+Enable shadow mode and archive any old telemetry log:
+
+python scripts/set_voice_engine_v2_shadow_mode.py --enable --archive-existing-log
+
+Check status again:
+
+python scripts/set_voice_engine_v2_shadow_mode.py --status
+
+Expected:
+
+voice_engine.shadow_mode_enabled: True
+safe_to_enable_shadow: True
+Run NEXA
+
+Start NEXA exactly the same way as in normal runtime testing.
+
+Do not change wake word, audio input, FasterWhisper, TTS, Visual Shell or runtime launch mode for this validation.
+
+The only intended difference is:
+
+voice_engine.shadow_mode_enabled=true
+Fixed command set
+
+Speak each command naturally after the wake word.
+
+English commands:
+
+show desktop
+show shell
+what time is it
+what is today's date
+help
+what is your name
+battery
+temperature
+start focus mode for five minutes
+stop focus mode
+
+Polish commands:
+
+pokaż pulpit
+pokaż shell
+która godzina
+jaka jest dzisiaj data
+pomoc
+jak się nazywasz
+bateria
+temperatura
+włącz tryb skupienia na pięć minut
+zatrzymaj tryb skupienia
+
+STT recovery variants to try once if time allows:
+
+pulpit
+pulpid
+pulbit
+pokaż pulpid
+pokaż pulbit
+Runtime expectations
+
+During the run:
+
+live actions must still happen through legacy runtime,
+Visual Shell state must still be changed only by legacy runtime,
+Voice Engine v2 must not speak,
+Voice Engine v2 must not execute actions,
+NEXA should feel as fast as before,
+no additional dead silence should appear.
+
+If NEXA becomes noticeably slower, stop the run and disable shadow mode.
+
+
+## 55. NEXA Voice Engine v2 — controlled hardware shadow mode safety switch
+
+### Status
+
+Implemented.
+
+### What changed
+
+Stage 16 adds a safe development tool and runbook for controlled hardware shadow-mode validation.
+
+New files:
+
+```text
+scripts/set_voice_engine_v2_shadow_mode.py
+tests/scripts/test_set_voice_engine_v2_shadow_mode.py
+docs/validation/voice-engine-v2-shadow-runbook.md
+
+The script can:
+
+print current Voice Engine v2 shadow-mode status,
+enable only voice_engine.shadow_mode_enabled,
+disable voice_engine.shadow_mode_enabled,
+create a backup of config/settings.json,
+archive an existing voice_engine_v2_shadow.jsonl log before a new run,
+refuse to enable shadow mode if production takeover flags are unsafe.
+
+The script refuses to enable shadow mode unless:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+Why this was needed
+
+Stages 13–15 made real transcript observation possible and added offline validator/inspector tooling.
+
+The next risk is operational: enabling shadow mode manually can lead to accidental config drift.
+
+Stage 16 reduces that risk by making controlled shadow-mode validation explicit, reversible and backup-protected.
+
+What NEXA gains
+
+NEXA gains a safer hardware validation workflow.
+
+This supports the Voice Engine v2 migration without slowing production runtime:
+
+no wake/capture/STT/TTS path is changed,
+no Visual Shell runtime path is changed,
+no background writer is added,
+no production takeover flag is changed,
+only shadow telemetry can be enabled for controlled validation.
+
+The runbook also defines a fixed bilingual command set for real hardware checks.
+
+Removed or deprecated legacy path
+
+No legacy path was removed.
+
+The following remain production-primary:
+
+modules/runtime/main_loop/*
+modules/devices/audio/input/faster_whisper/*
+modules/presentation/visual_shell/controller/voice_command_router.py
+modules/core/session/visual_shell_command_lane.py
+Source / evidence
+
+This decision is based on:
+
+Stage 13 guarded legacy transcript tap,
+Stage 14 shadow telemetry validator,
+Stage 15 shadow telemetry inspector,
+benchmark acceptance after Stage 15:
+command_success_rate=1.0,
+fallback_count=0,
+p50_speech_end_to_action_ms=50.0,
+p95_speech_end_to_action_ms=50.0,
+endpoint_delay_ms=260.0,
+requirement that Voice Engine v2 must not become production-primary without hardware shadow telemetry.
