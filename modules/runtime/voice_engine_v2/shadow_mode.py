@@ -13,6 +13,9 @@ from modules.core.voice_engine import (
     VoiceTurnRoute,
 )
 from modules.devices.audio.command_asr import CommandLanguage
+from modules.runtime.voice_engine_v2.shadow_telemetry import (
+    VoiceEngineV2ShadowTelemetryWriter,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,13 +98,19 @@ class VoiceEngineV2ShadowModeAdapter:
         *,
         engine: VoiceEngine,
         settings: VoiceEngineSettings,
+        telemetry_writer: VoiceEngineV2ShadowTelemetryWriter | None = None,
     ) -> None:
         self._engine = engine
         self._settings = settings
+        self._telemetry_writer = telemetry_writer
 
     @property
     def settings(self) -> VoiceEngineSettings:
         return self._settings
+
+    @property
+    def telemetry_writer(self) -> VoiceEngineV2ShadowTelemetryWriter | None:
+        return self._telemetry_writer
 
     def observe_transcript(
         self,
@@ -132,28 +141,34 @@ class VoiceEngineV2ShadowModeAdapter:
         request: VoiceEngineV2ShadowRequest,
     ) -> VoiceEngineV2ShadowResult:
         if not self._settings.shadow_mode_enabled:
-            return VoiceEngineV2ShadowResult(
-                enabled=False,
-                reason="shadow_mode_disabled",
-                request=request,
-                legacy_runtime_primary=True,
-                metadata={
-                    "shadow_mode_enabled": False,
-                    "command_pipeline_can_run": self._settings.command_pipeline_can_run,
-                },
+            return self._finalize(
+                VoiceEngineV2ShadowResult(
+                    enabled=False,
+                    reason="shadow_mode_disabled",
+                    request=request,
+                    legacy_runtime_primary=True,
+                    metadata={
+                        "shadow_mode_enabled": False,
+                        "command_pipeline_can_run": (
+                            self._settings.command_pipeline_can_run
+                        ),
+                    },
+                )
             )
 
         if not self._settings.command_pipeline_can_run:
-            return VoiceEngineV2ShadowResult(
-                enabled=False,
-                reason="voice_engine_v2_not_runnable",
-                request=request,
-                legacy_runtime_primary=True,
-                metadata={
-                    "shadow_mode_enabled": True,
-                    "command_pipeline_can_run": False,
-                    "mode": self._settings.mode,
-                },
+            return self._finalize(
+                VoiceEngineV2ShadowResult(
+                    enabled=False,
+                    reason="voice_engine_v2_not_runnable",
+                    request=request,
+                    legacy_runtime_primary=True,
+                    metadata={
+                        "shadow_mode_enabled": True,
+                        "command_pipeline_can_run": False,
+                        "mode": self._settings.mode,
+                    },
+                )
             )
 
         turn_result = self._engine.process_turn(
@@ -183,28 +198,38 @@ class VoiceEngineV2ShadowModeAdapter:
             matched_legacy_intent=matched_legacy_intent,
         )
 
-        return VoiceEngineV2ShadowResult(
-            enabled=True,
-            reason=reason,
-            request=request,
-            legacy_runtime_primary=True,
-            matched_legacy_intent=matched_legacy_intent,
-            voice_engine_route=turn_result.route,
-            voice_engine_intent_key=voice_engine_intent_key,
-            voice_engine_language=turn_result.language,
-            fallback_reason=fallback_reason,
-            turn_result=turn_result,
-            metadata={
-                "legacy_route": request.legacy_route,
-                "legacy_intent_key": request.legacy_intent_key,
-                "voice_engine_route": turn_result.route.value,
-                "voice_engine_intent_key": voice_engine_intent_key,
-                "voice_engine_language": turn_result.language.value,
-                "fallback_used": turn_result.metrics.fallback_used,
-                "fallback_reason": turn_result.metrics.fallback_reason,
-                "action_executed": False,
-            },
+        return self._finalize(
+            VoiceEngineV2ShadowResult(
+                enabled=True,
+                reason=reason,
+                request=request,
+                legacy_runtime_primary=True,
+                matched_legacy_intent=matched_legacy_intent,
+                voice_engine_route=turn_result.route,
+                voice_engine_intent_key=voice_engine_intent_key,
+                voice_engine_language=turn_result.language,
+                fallback_reason=fallback_reason,
+                turn_result=turn_result,
+                metadata={
+                    "legacy_route": request.legacy_route,
+                    "legacy_intent_key": request.legacy_intent_key,
+                    "voice_engine_route": turn_result.route.value,
+                    "voice_engine_intent_key": voice_engine_intent_key,
+                    "voice_engine_language": turn_result.language.value,
+                    "fallback_used": turn_result.metrics.fallback_used,
+                    "fallback_reason": turn_result.metrics.fallback_reason,
+                    "action_executed": False,
+                },
+            )
         )
+
+    def _finalize(
+        self,
+        result: VoiceEngineV2ShadowResult,
+    ) -> VoiceEngineV2ShadowResult:
+        if result.enabled and self._telemetry_writer is not None:
+            self._telemetry_writer.write_result(result)
+        return result
 
     @staticmethod
     def _compare_legacy_intent(

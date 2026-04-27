@@ -10,6 +10,10 @@ from modules.runtime.voice_engine_v2.shadow_mode import (
     VoiceEngineV2ShadowRequest,
     VoiceEngineV2ShadowResult,
 )
+from modules.runtime.voice_engine_v2.shadow_telemetry import (
+    VoiceEngineV2ShadowTelemetryRecord,
+    VoiceEngineV2ShadowTelemetryWriter,
+)
 
 __all__ = [
     "VoiceEngineV2AcceptanceAdapter",
@@ -19,5 +23,7 @@ __all__ = [
     "VoiceEngineV2ShadowModeAdapter",
     "VoiceEngineV2ShadowRequest",
     "VoiceEngineV2ShadowResult",
+    "VoiceEngineV2ShadowTelemetryRecord",
+    "VoiceEngineV2ShadowTelemetryWriter",
     "build_voice_engine_v2_runtime",
 ]

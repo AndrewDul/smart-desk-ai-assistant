@@ -4306,3 +4306,90 @@ NEXA Voice Engine v2 execution rules,
 Stage 8 benchmark results showing command_success_rate=1.0, fallback_count=0, p95_speech_end_to_action_ms=50.0 and endpoint_delay_ms=260.0,
 the need to avoid breaking wake word, audio input, TTS and Visual Shell,
 the product requirement that built-in commands must be deterministic before LLM fallback.
+
+
+## 50. NEXA Voice Engine v2 — shadow-mode telemetry persistence
+
+### Status
+
+Partially implemented.
+
+### What changed
+
+The project now persists Voice Engine v2 shadow-mode observations to JSONL.
+
+New module:
+
+```text
+modules/runtime/voice_engine_v2/shadow_telemetry.py
+```
+The telemetry layer includes:
+
+VoiceEngineV2ShadowTelemetryRecord — serializable shadow-mode observation record,
+VoiceEngineV2ShadowTelemetryWriter — append-only JSONL writer,
+integration with VoiceEngineV2ShadowModeAdapter.
+
+Shadow-mode records are written to:
+
+var/data/voice_engine_v2_shadow.jsonl
+
+or to the configured value of:
+
+voice_engine.shadow_log_path
+
+Each record includes:
+
+turn ID,
+transcript,
+legacy route,
+legacy intent key,
+Voice Engine v2 route,
+Voice Engine v2 intent key,
+Voice Engine v2 language,
+fallback reason,
+match/mismatch status against legacy intent,
+action execution flag,
+command recognition timing,
+intent resolution timing,
+speech-end-to-finish timing.
+
+Shadow mode still never executes actions.
+
+Why this was needed
+
+Shadow mode is useful only if it creates evidence.
+
+Before enabling Voice Engine v2 in production runtime, NEXA needs hardware-safe telemetry showing how Voice Engine v2 decisions compare against legacy runtime decisions on the Raspberry Pi.
+
+The telemetry file makes it possible to review real spoken-command behaviour without changing the live wake/capture/STT/TTS path.
+
+What NEXA gains
+
+NEXA gains:
+
+persistent hardware validation evidence,
+JSONL logs for comparing legacy routing with Voice Engine v2,
+safer decision-making before runtime takeover,
+proof that shadow mode does not execute actions,
+measurable timing data for command-first processing,
+a cleanup path for later removing duplicated legacy phrase matching.
+Removed or deprecated legacy path
+
+No legacy runtime path was removed in this stage.
+
+The existing wake word, FasterWhisper capture/STT, TTS and Visual Shell runtime remain active.
+
+Temporary legacy retention rule:
+
+legacy runtime remains primary,
+shadow mode only observes and logs,
+telemetry is written only for enabled shadow-mode observations,
+legacy Visual Shell phrase matching remains until hardware shadow telemetry proves Voice Engine v2 is stable and correct.
+Source / evidence
+
+This decision is based on:
+
+NEXA Voice Engine v2 execution rules,
+Stage 10 hardware-safe shadow mode,
+benchmark results showing command_success_rate=1.0, fallback_count=0, p95_speech_end_to_action_ms=50.0 and endpoint_delay_ms=260.0,
+the need to collect Raspberry Pi runtime evidence before replacing the legacy voice path.
