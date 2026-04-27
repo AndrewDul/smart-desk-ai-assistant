@@ -14,14 +14,14 @@
     "single_capture_mode": false,
     "wake_prefer_dedicated_gate":true,
     "wake_model_path": "models/wake/nexa.onnx",
-    "wake_threshold": 0.15,
-    "wake_trigger_level": 1,
+    "wake_threshold": 0.16,
+    "wake_trigger_level": 2,
     "wake_block_ms": 80,
     "capture_handoff_force_close": true,
     "wake_vad_threshold": 0.0,
     "wake_energy_rms_threshold": 0.003,
     "wake_enable_speex_noise_suppression": false,
-    "wake_debug": true,
+    "wake_debug": false,
     "wake_barge_in_enabled": true,
     "wake_barge_in_timeout_seconds": 0.18,
     "wake_barge_in_min_output_age_seconds": 0.35,
@@ -33,7 +33,7 @@
     "device_index":2,
     "device_name_contains": "reSpeaker",
     "timeout_seconds": 7,
-    "active_listen_window_seconds": 6.0,
+    "active_listen_window_seconds": 3.8,
     "thinking_ack_seconds": 1.8,
     "wake_ack_prefetch_on_boot": true,
     "wake_ack_prefer_fast_phrase": true,
@@ -50,7 +50,7 @@
     "pre_roll_seconds": 0.45,
     "blocksize": 1024,
     "min_speech_seconds": 0.2,
-    "transcription_timeout_seconds": 10.0,
+    "transcription_timeout_seconds": 4.0,
     "threads": 4,
     "language": "auto",
     "vad_enabled": true,
@@ -69,34 +69,34 @@
     "device_discovery_poll_seconds": 0.35,
     "capture_profiles": {
       "command": {
-        "timeout_seconds": 5.2,
-        "end_silence_seconds": 0.4,
-        "min_speech_seconds": 0.14,
-        "pre_roll_seconds": 0.24
-      },
-      "inline_command_after_wake": {
-        "timeout_seconds": 4.2,
-        "end_silence_seconds": 0.32,
-        "min_speech_seconds": 0.12,
-        "pre_roll_seconds": 0.18
-      },
-      "wake_command": {
-        "timeout_seconds": 4.4,
-        "end_silence_seconds": 0.26,
+        "timeout_seconds": 3.2,
+        "end_silence_seconds": 0.22,
         "min_speech_seconds": 0.1,
         "pre_roll_seconds": 0.14
       },
+      "inline_command_after_wake": {
+        "timeout_seconds": 3.6,
+        "end_silence_seconds": 0.24,
+        "min_speech_seconds": 0.08,
+        "pre_roll_seconds": 0.12
+      },
+      "wake_command": {
+        "timeout_seconds": 2.8,
+        "end_silence_seconds": 0.18,
+        "min_speech_seconds": 0.08,
+        "pre_roll_seconds": 0.12
+      },
       "follow_up": {
-        "timeout_seconds": 4.8,
-        "end_silence_seconds": 0.34,
-        "min_speech_seconds": 0.12,
-        "pre_roll_seconds": 0.2
+        "timeout_seconds": 3.4,
+        "end_silence_seconds": 0.24,
+        "min_speech_seconds": 0.1,
+        "pre_roll_seconds": 0.14
       },
       "grace": {
-        "timeout_seconds": 3.2,
-        "end_silence_seconds": 0.28,
-        "min_speech_seconds": 0.1,
-        "pre_roll_seconds": 0.16
+        "timeout_seconds": 2.8,
+        "end_silence_seconds": 0.24,
+        "min_speech_seconds": 0.08,
+        "pre_roll_seconds": 0.12
       },
       "conversation": {
         "timeout_seconds": 6.5,
@@ -111,6 +111,17 @@
         "pre_roll_seconds": 0.1
       }
     }
+  },
+  "voice_engine": {
+    "enabled": false,
+    "version": "v2",
+    "mode": "legacy",
+    "realtime_audio_bus_enabled": false,
+    "vad_endpointing_enabled": false,
+    "command_first_enabled": false,
+    "fallback_to_legacy_enabled": true,
+    "metrics_enabled": true,
+    "legacy_removal_stage": "after_voice_engine_v2_runtime_acceptance"
   },
   "voice_output": {
     "enabled": true,
@@ -273,7 +284,7 @@
   "visual_shell": {
     "enabled": true,
     "voice_commands_enabled": true,
-    "speak_acknowledgements_enabled": true,
+    "speak_acknowledgements_enabled": false,
     "transport": {
       "host": "127.0.0.1",
       "port": 8765,

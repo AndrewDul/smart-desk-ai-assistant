@@ -2706,3 +2706,829 @@ NeXa should:
 - switch between these behaviours in a controlled way
 
 That is the architecture direction that best matches a premium local-first NeXa product on Raspberry Pi 5 with AI HAT+ 2.
+
+
+## 39. Current NeXa hardware stack and embodied platform baseline
+
+This section records the current practical hardware direction of NeXa.
+
+NeXa is no longer only a stationary Raspberry Pi voice assistant prototype.  
+The project has now moved toward a compact, premium, embodied, local-first AI assistant platform.
+
+The current hardware direction includes compute, display, vision, movement, battery-backed power, storage, and mechanical expression.
+
+### Current compute and AI foundation
+
+The current main compute and AI foundation is:
+
+- Raspberry Pi 5 16GB
+- Raspberry Pi AI HAT+ 2
+- SanDisk SSD 1TB
+
+The Raspberry Pi 5 remains the main orchestration node.
+
+Its responsibilities include:
+- runtime coordination
+- audio input and output coordination
+- wake/STT/TTS pipeline control
+- command routing
+- session state
+- persistence
+- Visual Shell control
+- hardware coordination
+- future system-control and mobility orchestration
+
+The AI HAT+ 2 remains part of the local-first AI acceleration direction.
+
+Its intended role is to support heavier local AI workloads such as:
+- local generative AI backend work
+- future vision inference
+- future perception and AI-broker-controlled workloads
+
+The SanDisk SSD 1TB is now part of the serious runtime foundation.
+
+The SSD matters because NeXa should not depend on weak or temporary storage for a premium runtime.  
+It gives the system a stronger base for:
+- project files
+- runtime state
+- models
+- logs
+- benchmark output
+- future perception and memory data
+
+### Current primary display direction
+
+The project now includes:
+
+- 8-inch HD DSI capacitive touch display
+- 1280x800 display target
+- touch-capable interaction direction
+
+This display is an important hardware upgrade because NeXa is no longer intended to feel like a small debug device.
+
+The 8-inch DSI display gives NeXa:
+- a much stronger visual presence
+- more space for a premium animated interface
+- better readability
+- better future touch interaction potential
+- a better foundation for desktop docking and system-control behaviour
+- a more product-like user experience
+
+The display should be treated as the primary visual identity surface for NeXa.
+
+Older OLED or small LCD display work remains useful as historical development context and fallback/diagnostic reference, but the current premium direction is centered on the 8-inch DSI display and the Visual Shell.
+
+### Current vision hardware
+
+The project now includes:
+
+- Raspberry Pi Camera Module 3
+
+The camera is part of the future vision and awareness direction.
+
+At the current architecture level, it should be described as:
+- physically part of the NeXa hardware stack
+- intended for future local vision features
+- suitable for perception, object detection, user awareness, and environment checks
+- not yet treated as a fully finished production vision runtime unless the dedicated vision service is implemented and validated
+
+This distinction is important.
+
+Having the camera installed or validated is not the same as having a complete production camera intelligence layer.  
+The final system still needs a clean vision service, perception contracts, AI broker integration, and runtime diagnostics.
+
+### Current mechanical expression hardware
+
+The project now includes:
+
+- Waveshare 360° Omnidirectional High-Torque 2-Axis Pan-Tilt
+
+This gives NeXa a physical expression layer.
+
+The pan-tilt module is important because NeXa should not only speak and show animations.  
+It should also be able to physically orient its head/display/camera direction in a controlled way.
+
+The intended role of pan-tilt is:
+- looking toward the user
+- looking around
+- supporting scan behaviour
+- supporting future camera framing
+- making the assistant feel more embodied
+- improving the feeling of presence during interaction
+
+The pan-tilt module should not be controlled directly from random assistant logic.
+
+The preferred architecture is:
+- assistant core decides intent
+- a dedicated motion or device-control layer executes movement
+- Visual Shell shows the matching visual state
+- future vision can provide feedback for where NeXa should look
+
+### Current mobility hardware
+
+The project now includes:
+
+- 6x4 off-road UGV mobile base
+- ESP32 driver board
+- USB/serial communication direction from Raspberry Pi to the chassis controller
+
+This means NeXa now has a real mobility direction.
+
+The mobile base should be treated as a chassis subsystem, not as raw motor logic inside the assistant core.
+
+The correct ownership boundary is:
+
+- Raspberry Pi owns high-level movement intent
+- ESP32 driver owns low-level motor/chassis control
+- communication happens through a clean transport boundary
+- future mobility skills should call a mobility service, not write raw serial commands directly from core assistant logic
+
+At the current stage, mobility should still be described as:
+- hardware-integrated
+- manually tested / calibration-oriented
+- not yet a complete autonomous navigation runtime
+- not yet a closed-loop production mobility system
+
+The next correct architecture step is to introduce or continue developing a dedicated mobility client/service boundary before exposing larger movement behaviours through normal assistant skills.
+
+### Current battery and power hardware
+
+The current battery-backed hardware direction includes:
+
+- SupTronics X1206 4-cell 21700 UPS
+- 21700 lithium-ion rechargeable cells, 4200mAh, 3.7V, 30A, x4
+- 18650 lithium-ion rechargeable cells, 3000mAh, 3.7V, 15A
+- TalentCell 12V LiFePO4 battery supply for the pan-tilt platform
+
+The X1206 UPS is part of the main Raspberry Pi power architecture.
+
+Its role is:
+- battery-backed operation
+- more embedded deployment behaviour
+- safer runtime continuity than a simple temporary power cable setup
+- future mobility-compatible power direction
+
+The 21700 cells belong to the main UPS-backed Raspberry Pi power direction.
+
+The 18650 cells belong to the wider hardware power ecosystem, especially where separate modules or external battery-powered devices require their own cells.
+
+The TalentCell 12V LiFePO4 supply is used as the dedicated pan-tilt power direction.
+
+This is important because the pan-tilt module should not overload or destabilise the Raspberry Pi power path.  
+Keeping the pan-tilt power path separate makes the hardware setup safer and easier to reason about.
+
+### Current embodied NeXa platform summary
+
+The current NeXa hardware platform can now be described as:
+
+- Raspberry Pi 5 16GB as the main runtime brain
+- AI HAT+ 2 as the local AI acceleration direction
+- SanDisk SSD 1TB as the main storage foundation
+- 8-inch HD DSI capacitive touch display as the premium visual surface
+- Raspberry Pi Camera Module 3 as the future vision input
+- Waveshare 360° 2-axis pan-tilt as the physical expression and camera/display orientation layer
+- 6x4 off-road UGV ESP32 driver base as the mobility foundation
+- SupTronics X1206 UPS with 21700 cells as the main battery-backed compute power path
+- separate TalentCell 12V LiFePO4 power for pan-tilt stability
+- additional 18650 cells as part of the wider battery hardware inventory
+
+This is a major architecture shift.
+
+NeXa is now moving from:
+
+- stationary voice assistant prototype
+
+toward:
+
+- compact local-first embodied AI assistant platform
+
+The system should therefore continue to be developed with strict boundaries between:
+- assistant logic
+- visual presentation
+- audio pipeline
+- vision
+- pan-tilt movement
+- mobility
+- power diagnostics
+- AI workload scheduling
+
+This is necessary to keep NeXa premium, reliable, maintainable, and safe to expand.
+
+---
+
+## 40. Visual Shell integration update
+
+This section records the addition of the NeXa Visual Shell direction.
+
+The Visual Shell is now part of the intended presentation architecture of NeXa.
+
+It should be treated as the premium animated system face of NeXa, not as a simple screen, not as a web dashboard, and not as a temporary animation.
+
+### Why the Visual Shell was added
+
+NeXa needs a visual identity that matches the quality of the intended product.
+
+A voice assistant that only speaks through a speaker and shows basic text on a small display does not match the target experience.
+
+The Visual Shell was added to give NeXa:
+- a premium animated presence
+- a clear visual state model
+- a system face
+- stronger user feedback
+- better interaction with the 8-inch DSI display
+- future desktop docking behaviour
+- a visual foundation for voice, vision, and system-control features
+
+The Visual Shell exists because the display should communicate what NeXa is doing.
+
+The user should be able to understand whether NeXa is:
+- idle
+- listening
+- thinking
+- speaking
+- scanning
+- showing itself
+- degraded
+- docked while the desktop is visible
+- returning to fullscreen assistant mode
+
+### Architectural role
+
+The Visual Shell belongs in the presentation layer.
+
+Its correct location is:
+
+```text
+modules/presentation/visual_shell/
+```
+
+It should not be treated as a low-level display driver.
+
+That is important because the Visual Shell is not only responsible for drawing pixels.
+It represents the assistant visually.
+
+The correct architecture boundary is:
+
+Python backend decides assistant state
+Python backend sends visual state or visual command messages
+Godot Visual Shell renders the state
+Godot does not decide assistant logic
+Visual Shell does not directly control Linux system actions
+Visual Shell does not directly control voice, vision, mobility, or pan-tilt
+Visual Shell only visualizes what the NeXa runtime tells it
+
+This keeps the assistant architecture clean.
+
+Current technology direction
+
+The Visual Shell direction uses a Godot-based visual runtime.
+
+The project should target Godot 3.6 for Raspberry Pi OS compatibility.
+
+Godot is used because it is suitable for:
+
+procedural animation
+particle systems
+smooth transitions
+fullscreen visual applications
+state-driven visual behaviour
+future touch interaction
+a more premium visual experience than a basic Python UI
+
+The Visual Shell should be launched through:
+
+modules/presentation/visual_shell/bin/run_visual_shell.sh
+
+The Visual Shell should later be controlled by the Python backend through a local transport layer.
+
+The preferred direction is:
+
+local message protocol
+local WebSocket, TCP, or IPC bridge
+clear visual state contracts
+health checks
+safe fallback if the shell is unavailable
+Current visual identity
+
+The current target visual identity is a dark premium screen with a living particle cloud.
+
+The default look should be:
+
+dark background
+central particle cloud
+smooth breathing motion
+elegant movement
+subtle glow
+no cheap neon overload
+no visible browser interface
+no unnecessary debug text
+no Linux desktop panels unless desktop mode is requested
+
+The particle cloud is the main identity of NeXa.
+
+It should feel like a living digital presence:
+
+calm in idle
+attentive while listening
+more active while thinking
+pulsing while speaking
+shaped into eyes when showing itself or scanning
+able to shrink into a docked orb when the desktop is shown
+
+The same particle system should transform between states instead of swapping unrelated animations.
+
+This makes NeXa feel like one consistent entity.
+
+Current Visual Shell behaviours
+
+The current Visual Shell behaviour direction includes these states:
+
+IDLE_PARTICLE_CLOUD
+
+NeXa is present but not actively interacting.
+
+Behaviour:
+
+calm particle cloud
+subtle breathing
+low activity
+central position
+premium idle presence
+LISTENING_CLOUD
+
+NeXa has detected wake word or is listening.
+
+Behaviour:
+
+cloud becomes more attentive
+slightly more open shape
+controlled pulse
+stronger visual focus
+THINKING_SWARM
+
+NeXa is routing, processing, using local AI, or preparing a response.
+
+Behaviour:
+
+cloud becomes more concentrated
+particles move with controlled swarm energy
+subtle processing motion
+no cheap loading spinner
+SPEAKING_PULSE
+
+NeXa is speaking through TTS.
+
+Behaviour:
+
+particle cloud pulses while speech is active
+intensity changes should feel like voice energy
+first version may use simulated pulse
+later version should use real audio amplitude or TTS envelope data
+SCANNING_EYES
+
+NeXa is using vision or preparing a visual inspection.
+
+Behaviour:
+
+cloud transforms into eyes
+eyes look focused
+subtle scan movement may appear
+state should support future camera/vision integration
+SHOW_SELF_EYES
+
+The user asks NeXa to show itself, show eyes, or reveal its face.
+
+Behaviour:
+
+cloud forms calm eyes
+eyes can blink
+expression should be elegant, not cartoonish
+NeXa can return to idle cloud after the moment ends
+FACE_CONTOUR
+
+NeXa forms a subtle abstract face from particles.
+
+Behaviour:
+
+minimal face outline
+premium abstract shape
+no realistic human face
+no uncanny look
+short duration unless explicitly requested
+BORED_MICRO_ANIMATION
+
+NeXa performs rare idle micro-behaviours.
+
+Behaviour:
+
+soft wave through particles
+gentle compression/release
+quick eye glimpse
+rare face contour
+subtle living presence
+
+Rules:
+
+not too frequent
+not distracting
+not chaotic
+performance-safe
+TEMPERATURE_GLYPH
+
+NeXa shows temperature visually using particles.
+
+Behaviour:
+
+temperature should be formed from dense readable particles
+should not rely on normal UI text as the primary expression
+uses Raspberry Pi thermal data where available
+useful for quick system-state presentation
+BATTERY_GLYPH
+
+NeXa shows battery visually using particles.
+
+Behaviour:
+
+battery level should be formed from dense readable particles
+colour/state rules should match battery state
+real battery data must come from a proper adapter
+current generic /sys/class/power_supply/*/capacity path may not be enough for the X1206 setup
+
+Important note:
+Do not guess the X1206 battery protocol.
+The final battery adapter must be implemented only after checking the real UPS documentation, I2C behaviour, sysfs exposure, CLI tools, services, or available Python packages.
+
+DESKTOP_HIDDEN
+
+NeXa owns the screen visually.
+
+Behaviour:
+
+fullscreen Visual Shell
+dark background
+central particle cloud
+desktop hidden behind the shell
+default assistant presentation mode
+DESKTOP_DOCKED
+
+The user asks to see the desktop.
+
+Behaviour:
+
+shell moves away from fullscreen presence
+particle cloud shrinks into a docked orb
+desktop becomes usable
+NeXa remains present as a small assistant orb
+current animation state should be preserved where possible
+
+This is a window/layout mode, not only a particle animation state.
+
+DESKTOP_RETURNING
+
+The user asks NeXa to hide the desktop or return to the main assistant screen.
+
+Behaviour:
+
+docked orb expands
+fullscreen dark interface returns
+particles return to central cloud
+previous assistant state can be restored cleanly
+ERROR_DEGRADED
+
+NeXa is degraded or some subsystem is unavailable.
+
+Behaviour:
+
+subtle error visual
+amber/red accent only when needed
+no aggressive flashing
+should look controlled, not broken
+What the Visual Shell can currently present
+
+At the current architecture level, the Visual Shell can be used to present:
+
+idle assistant presence
+listening state
+thinking state
+speaking state
+scanning/vision state
+show-eyes / show-self state
+face contour direction
+desktop docked / desktop hidden behaviour
+temperature glyph direction
+battery glyph direction
+degraded/error state
+
+This gives NeXa a real visual language.
+
+Instead of showing only text, NeXa can communicate state through motion, shape, density, intensity, and formation.
+
+Voice-controlled Visual Shell commands
+
+Visual Shell actions should be triggered by deterministic built-in command routing before the LLM.
+
+The LLM should not be required for basic visual actions.
+
+Important voice command groups include:
+
+Show desktop
+
+Examples:
+
+pokaż pulpit
+odsłoń pulpit
+zdejmij shell
+chcę zobaczyć pulpit
+daj mi dostęp do komputera
+daj mi dostęp do Linuxa
+show desktop
+open desktop
+
+Expected result:
+
+Visual Shell enters DESKTOP_DOCKED
+desktop becomes usable
+NeXa remains as a docked orb
+Hide desktop / return to NeXa
+
+Examples:
+
+schowaj pulpit
+wróć do siebie
+wróć na ekran NeXa
+zasłoń pulpit
+hide desktop
+return to NeXa
+
+Expected result:
+
+Visual Shell enters DESKTOP_RETURNING
+fullscreen assistant interface returns
+cloud becomes central again
+Show self / show eyes
+
+Examples:
+
+pokaż się
+pokaż oczy
+spójrz na mnie
+pokaż twarz
+show yourself
+show eyes
+look at me
+
+Expected result:
+
+Visual Shell enters SHOW_SELF_EYES or FACE_CONTOUR
+NeXa visually reveals itself through particles
+Temperature
+
+Examples:
+
+temperatura
+pokaż temperaturę
+jaka jest twoja temperatura
+czy jest ci za gorąco
+temperature
+show temperature
+
+Expected result:
+
+Visual Shell shows TEMPERATURE_GLYPH
+NeXa may also speak the current temperature
+Battery
+
+Examples:
+
+bateria
+pokaż baterię
+ile masz baterii
+czy jesteś zmęczona
+battery
+show battery
+
+Expected result:
+
+Visual Shell shows BATTERY_GLYPH
+NeXa may also speak the battery status
+real battery value requires a real X1206 adapter later
+Why deterministic routing matters
+
+Visual Shell commands must be fast.
+
+A command such as pokaż pulpit should not wait for a local LLM.
+It should be treated as a built-in system command.
+
+The correct flow is:
+
+wake word
+STT transcript
+transcript normalization
+deterministic Visual Shell command lane
+visual action sent to shell
+short spoken acknowledgement if appropriate
+LLM prevented for this command
+
+This protects speed and reliability.
+
+Required Visual Shell diagnostics
+
+The Visual Shell command path should include clear diagnostics.
+
+For every Visual Shell voice command, the runtime should eventually be able to log:
+
+heard_text
+normalized_text
+router_match
+matched_rule
+visual_action
+transport_result
+LLM_prevented
+response_emitted
+
+This is important because spoken commands may be mistranscribed.
+
+For example:
+
+pokaż pulpit may be heard incorrectly
+spójrz na mnie may be partially recognized
+short commands like bateria or temperatura may need robust matching
+
+Diagnostics are necessary to know whether the problem is:
+
+STT
+normalization
+command router
+transport to Godot
+Godot state handling
+runtime degradation
+audio feedback path
+Relationship with the 8-inch DSI display
+
+The 8-inch HD DSI capacitive touch display is now the correct primary surface for the Visual Shell.
+
+The display gives NeXa enough space for:
+
+full-screen particle cloud
+particle eyes
+face contour
+readable particle glyphs
+docked orb behaviour
+future touch controls
+future system-control confirmations
+future desktop coexistence
+
+This is why the Visual Shell should be designed around 1280x800 and performance-tested on real Raspberry Pi 5 hardware.
+
+Relationship with pan-tilt and camera
+
+The Visual Shell should visually support pan-tilt and camera behaviour, but not directly control them.
+
+Example:
+
+user says: spójrz na mnie
+assistant runtime routes the command
+pan-tilt service may orient the camera/display
+Visual Shell shows SHOW_SELF_EYES
+future vision service may confirm user presence
+
+Another example:
+
+user says: rozejrzyj się
+assistant runtime routes the command
+pan-tilt may scan
+camera/vision may analyse
+Visual Shell shows SCANNING_EYES
+
+The Visual Shell should present the state.
+It should not own the robotics logic.
+
+Current implementation boundary
+
+The current architecture rule is:
+
+Python backend owns assistant state and command decisions
+Visual Shell renders state and animation
+Godot should not make assistant decisions
+Python should not render particles
+built-in visual commands should run before LLM
+transport failures should degrade gracefully
+Visual Shell must not break wake, STT, TTS, runtime, or audio output
+
+This protects the architecture from becoming tangled.
+
+Current value added by the Visual Shell
+
+Adding Visual Shell gives NeXa several important improvements:
+
+stronger premium identity
+better user feedback
+clearer assistant state
+more natural interaction with the 8-inch display
+foundation for desktop docking
+foundation for visual command feedback
+foundation for future touch UI
+foundation for future camera-aware expression
+better product feel than simple text or static eyes
+
+The Visual Shell is therefore not cosmetic.
+
+It is part of NeXa's product architecture.
+
+Current limitations
+
+The Visual Shell direction still has limitations that must be handled carefully:
+
+performance must be tested on real Raspberry Pi 5 hardware
+particle count must be tuned for smoothness
+Godot version must stay compatible with Raspberry Pi OS
+desktop docking depends on Linux window behaviour
+transport must be robust
+Visual Shell must remain optional/degradable
+battery glyph needs a real X1206 data adapter later
+voice-command reliability needs diagnostics and robust transcript normalization
+shell startup/autostart needs systemd-level validation later
+Next architecture steps
+
+The next recommended Visual Shell steps are:
+
+keep the Godot Visual Shell compatible with Godot 3.6
+keep the shell under modules/presentation/visual_shell/
+keep Python/Godot separation strict
+finish deterministic Visual Shell voice command routing
+add complete diagnostics for visual commands
+validate shell launch with modules/presentation/visual_shell/bin/run_visual_shell.sh
+verify desktop docked/hidden behaviour on the real Raspberry Pi OS desktop
+keep animation smooth even if that means fewer particles
+connect speaking/listening/thinking/scanning states to real runtime events
+only implement real battery glyph after the X1206 battery data source is verified
+Final conclusion
+
+The Visual Shell moves NeXa from a voice assistant with a display into a visual AI presence.
+
+It gives NeXa a system face.
+
+The correct final direction is:
+
+dark premium full-screen interface
+living particle cloud
+smooth state-driven behaviour
+voice-controlled desktop docking
+particle eyes and face contour
+particle temperature and battery glyphs
+graceful degraded state
+strict backend/frontend separation
+no fragile UI hacks
+no LLM dependency for built-in visual commands
+
+This is a major step toward making NeXa feel like a serious premium local-first AI assistant rather than a Raspberry Pi prototype.
+
+
+## 39. NEXA Voice Engine v2 migration gate
+
+### Status
+
+Partially implemented.
+
+### What changed
+
+The project now has an explicit `voice_engine` configuration block that defines the migration gate for NEXA Voice Engine v2.
+
+The new configuration keeps Voice Engine v2 disabled by default:
+
+- `voice_engine.enabled=false`
+- `voice_engine.mode=legacy`
+- `voice_engine.realtime_audio_bus_enabled=false`
+- `voice_engine.vad_endpointing_enabled=false`
+- `voice_engine.command_first_enabled=false`
+- `voice_engine.fallback_to_legacy_enabled=true`
+
+This means the current wake word, audio input, FasterWhisper STT, TTS and Visual Shell runtime path remain active while the new Voice Engine v2 architecture is built safely beside the legacy path.
+
+### Why this was needed
+
+NEXA currently needs a major voice pipeline migration because the slow perceived response is mostly before routing:
+
+```text
+wake
+→ capture
+→ endpointing / waiting for speech end
+→ STT
+→ routing
+
+```
+
+## 40. NEXA Voice Engine v2 — RealtimeAudioBus foundation
+
+### Status
+
+Partially implemented.
+
+### What changed
+
+The project now has the first foundation layer for NEXA Voice Engine v2: a realtime audio bus.
+
+New modules were added under:
+
+```text
+modules/devices/audio/realtime/

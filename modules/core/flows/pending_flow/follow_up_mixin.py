@@ -440,7 +440,7 @@ class PendingFlowFollowUpMixin:
                     display.show_block(
                         self.assistant._localized(language, "DO WIDZENIA", "GOODBYE"),
                         [self.assistant._localized(language, "zamykam asystenta", "closing assistant")],
-                        duration=4.0,
+                        duration=1.0,
                     )
                 except Exception:
                     pass
@@ -448,8 +448,8 @@ class PendingFlowFollowUpMixin:
             self.assistant.deliver_text_response(
                 self.assistant._localized(
                     language,
-                    "Dobrze. Zamykam asystenta.",
-                    "Okay. Closing the assistant.",
+                    "Zamykam.",
+                    "Closing.",
                 ),
                 language=language,
                 route_kind=RouteKind.ACTION,
@@ -463,8 +463,8 @@ class PendingFlowFollowUpMixin:
             return self.assistant.deliver_text_response(
                 self.assistant._localized(
                     language,
-                    "Dobrze. Zostaję włączona.",
-                    "Okay. I will stay on.",
+                    "Zostaję.",
+                    "Staying on.",
                 ),
                 language=language,
                 route_kind=RouteKind.CONVERSATION,
@@ -533,8 +533,8 @@ class PendingFlowFollowUpMixin:
         return self.assistant.deliver_text_response(
             self.assistant._localized(
                 language,
-                "Powiedz tak albo nie.",
-                "Please say yes or no.",
+                "Tak albo nie.",
+                "Yes or no.",
             ),
             language=language,
             route_kind=RouteKind.CONVERSATION,

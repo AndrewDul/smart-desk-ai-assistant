@@ -44,6 +44,7 @@ class FakeAssistant:
     delivered_responses: list[dict[str, Any]] = field(default_factory=list)
     cleared_context: bool = False
     _last_fast_lane_route_snapshot: dict[str, Any] = field(default_factory=dict)
+    _last_visual_shell_command_trace: dict[str, Any] = field(default_factory=dict)
 
     def _normalize_lang(self, language: str | None) -> str:
         return str(language or "en").strip().lower() or "en"
@@ -113,6 +114,7 @@ def test_visual_shell_runtime_lane_handles_desktop_command_without_action_flow()
     assert assistant._last_fast_lane_route_snapshot["route_metadata"]["lane"] == (
         "visual_shell_command"
     )
+    assert assistant._last_fast_lane_route_snapshot["route_metadata"]["llm_prevented"] is True
     assert transport.sent_messages == [
         {
             "command": "SHOW_DESKTOP",
@@ -120,6 +122,29 @@ def test_visual_shell_runtime_lane_handles_desktop_command_without_action_flow()
             "source": "nexa-voice-builtins",
         }
     ]
+
+    trace = assistant._last_visual_shell_command_trace
+    assert trace["heard_text"] == "gdzie mój pulpit"
+    assert trace["normalized_text"] == "gdzie moj pulpit"
+    assert trace["router_match"] is True
+    assert trace["matched_rule"] == "show_desktop"
+    assert trace["visual_action"] == "SHOW_DESKTOP"
+    assert trace["transport_result"] == "ok"
+    assert trace["llm_prevented"] is True
+    assert trace["response_emitted"] is True
+    assert trace["language"] == "pl"
+    assert trace["reason"] == "handled"
+    assert trace["router_match_ms"] >= 0.0
+    assert trace["controller_ms"] >= 0.0
+    assert trace["response_ms"] >= 0.0
+    assert trace["non_response_ms"] >= 0.0
+    assert trace["elapsed_ms"] >= trace["response_ms"]
+
+    assert assistant.delivered_responses
+    assert assistant.delivered_responses[0]["source"] == "visual_shell_command_lane"
+    assert assistant.delivered_responses[0]["metadata"]["action"] == "SHOW_DESKTOP"
+    assert assistant.delivered_responses[0]["metadata"]["matched_rule"] == "show_desktop"
+    assert assistant.delivered_responses[0]["metadata"]["llm_prevented"] is True
 
 
 def test_visual_shell_runtime_lane_returns_none_for_non_visual_command() -> None:
@@ -136,6 +161,21 @@ def test_visual_shell_runtime_lane_returns_none_for_non_visual_command() -> None
     assert result is None
     assert transport.sent_messages == []
     assert assistant.action_flow.calls == 0
+
+    trace = assistant._last_visual_shell_command_trace
+    assert trace["heard_text"] == "opowiedz mi o czarnych dziurach"
+    assert trace["normalized_text"] == "opowiedz mi o czarnych dziurach"
+    assert trace["router_match"] is False
+    assert trace["matched_rule"] == ""
+    assert trace["visual_action"] == ""
+    assert trace["transport_result"] == "not_attempted"
+    assert trace["llm_prevented"] is False
+    assert trace["response_emitted"] is False
+    assert trace["reason"] == "no_visual_match"
+    assert trace["router_match_ms"] >= 0.0
+    assert trace["controller_ms"] == 0.0
+    assert trace["response_ms"] == 0.0
+    assert trace["non_response_ms"] >= 0.0
 
 
 def test_visual_shell_runtime_lane_does_not_fall_through_when_renderer_is_unavailable() -> None:
@@ -157,6 +197,19 @@ def test_visual_shell_runtime_lane_does_not_fall_through_when_renderer_is_unavai
     assert assistant.delivered_responses
     assert assistant.delivered_responses[0]["source"] == "visual_shell_command_lane"
     assert assistant.delivered_responses[0]["metadata"]["action"] == "SHOW_EYES"
+
+    trace = assistant._last_visual_shell_command_trace
+    assert trace["router_match"] is True
+    assert trace["matched_rule"] == "show_eyes"
+    assert trace["visual_action"] == "SHOW_EYES"
+    assert trace["transport_result"] == "failed"
+    assert trace["llm_prevented"] is True
+    assert trace["response_emitted"] is True
+    assert trace["reason"] == "renderer_unavailable"
+    assert trace["router_match_ms"] >= 0.0
+    assert trace["controller_ms"] >= 0.0
+    assert trace["response_ms"] >= 0.0
+    assert trace["non_response_ms"] >= 0.0
 
 
 def test_fast_command_lane_runs_visual_shell_lane_before_existing_action_flow() -> None:
@@ -183,3 +236,39 @@ def test_fast_command_lane_runs_visual_shell_lane_before_existing_action_flow() 
             "source": "nexa-voice-builtins",
         }
     ]
+
+    trace = assistant._last_visual_shell_command_trace
+    assert trace["router_match"] is True
+    assert trace["matched_rule"] == "look_at_user"
+    assert trace["visual_action"] == "LOOK_AT_USER"
+    assert trace["transport_result"] == "ok"
+    assert trace["llm_prevented"] is True
+    assert trace["response_emitted"] is True
+    assert trace["reason"] == "handled"
+
+
+def test_visual_shell_runtime_lane_records_trace_when_acknowledgements_are_disabled() -> None:
+    transport = InMemoryVisualShellTransport()
+    controller = VisualShellController(transport=transport)
+    lane = VisualShellCommandLane(
+        controller=controller,
+        speak_acknowledgements_enabled=False,
+    )
+    assistant = FakeAssistant()
+
+    result = lane.try_handle(
+        prepared=_prepared("pokaż pulpit"),
+        assistant=assistant,
+    )
+
+    assert result is True
+    assert assistant.delivered_responses == []
+
+    trace = assistant._last_visual_shell_command_trace
+    assert trace["router_match"] is True
+    assert trace["matched_rule"] == "show_desktop"
+    assert trace["visual_action"] == "SHOW_DESKTOP"
+    assert trace["transport_result"] == "ok"
+    assert trace["llm_prevented"] is True
+    assert trace["response_emitted"] is False
+    assert trace["reason"] == "handled"

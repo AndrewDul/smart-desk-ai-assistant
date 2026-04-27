@@ -109,8 +109,8 @@ class CompanionDialogueTemplatesMixin:
                 language,
                 self._text(
                     language,
-                    "Nie złapałam jeszcze dokładnie sensu tej komendy. Powiedz to trochę pełniej.",
-                    "I did not catch the meaning of that command yet. Say it a little more fully.",
+                    "Powtórz.",
+                    "Repeat.",
                 ),
                 display_title=self._text(language, "NIEJASNE", "UNCLEAR"),
                 source="template_unclear_short",
@@ -123,8 +123,8 @@ class CompanionDialogueTemplatesMixin:
             language,
             self._text(
                 language,
-                "Nie złapałam jeszcze dokładnie, o co chodzi. Powiedz to jeszcze raz trochę inaczej.",
-                "I did not catch exactly what you meant yet. Say it again a little differently.",
+                "Powtórz.",
+                "Repeat.",
             ),
             display_title=self._text(language, "NIEJASNE", "UNCLEAR"),
             source="template_unclear_generic",

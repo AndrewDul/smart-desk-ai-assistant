@@ -183,14 +183,8 @@ class DialogueFlowOrchestrator(
                 assistant.deliver_text_response(
                     assistant._localized(
                         lang,
-                        (
-                            "Nie mam jeszcze tej funkcji w obecnej wersji, ale nadal mogę pomóc. "
-                            "Mogę ustawić timer, przypomnienie, tryb skupienia, przerwę albo coś zapamiętać."
-                        ),
-                        (
-                            "I do not have that feature in this version yet, but I can still help. "
-                            "I can set a timer, create a reminder, start focus mode, begin a break, or remember something."
-                        ),
+                        "Nie obsługuję tego.",
+                        "Not supported.",
                     ),
                     language=lang,
                     route_kind=RouteKind.UNCLEAR,

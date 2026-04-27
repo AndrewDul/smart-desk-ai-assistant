@@ -59,6 +59,17 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "model_path": "models/ggml-base.bin",
         "vad_model_path": "models/ggml-silero-v6.2.0.bin",
     },
+    "voice_engine": {
+        "enabled": False,
+        "version": "v2",
+        "mode": "legacy",
+        "realtime_audio_bus_enabled": False,
+        "vad_endpointing_enabled": False,
+        "command_first_enabled": False,
+        "fallback_to_legacy_enabled": True,
+        "metrics_enabled": True,
+        "legacy_removal_stage": "after_voice_engine_v2_runtime_acceptance",
+    },
     "voice_output": {
         "enabled": True,
         "engine": "piper",

@@ -1,20 +1,79 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from modules.core.session.visual_shell_responses import choose_visual_shell_response
 from modules.presentation.visual_shell.controller import VisualShellController
 from modules.presentation.visual_shell.controller.voice_command_router import (
     VisualShellVoiceCommandRouter,
     VisualVoiceCommandMatch,
 )
 from modules.presentation.visual_shell.transport import TcpVisualShellTransport
-from modules.core.session.visual_shell_responses import choose_visual_shell_response
 from modules.runtime.contracts import RouteKind
 from modules.shared.logging.logger import get_logger
 
 LOGGER = get_logger(__name__)
+
+
+@dataclass(slots=True)
+class VisualShellCommandTrace:
+    """Structured diagnostics for one Visual Shell command lane attempt."""
+
+    heard_text: str = ""
+    normalized_text: str = ""
+    router_match: bool = False
+    matched_rule: str = ""
+    visual_action: str = ""
+    transport_result: str = "not_attempted"
+    llm_prevented: bool = False
+    response_emitted: bool = False
+    elapsed_ms: float = 0.0
+    router_match_ms: float = 0.0
+    controller_ms: float = 0.0
+    response_ms: float = 0.0
+    non_response_ms: float = 0.0
+    language: str = ""
+    reason: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "heard_text": self.heard_text,
+            "normalized_text": self.normalized_text,
+            "router_match": self.router_match,
+            "matched_rule": self.matched_rule,
+            "visual_action": self.visual_action,
+            "transport_result": self.transport_result,
+            "llm_prevented": self.llm_prevented,
+            "response_emitted": self.response_emitted,
+            "elapsed_ms": round(float(self.elapsed_ms), 3),
+            "router_match_ms": round(float(self.router_match_ms), 3),
+            "controller_ms": round(float(self.controller_ms), 3),
+            "response_ms": round(float(self.response_ms), 3),
+            "non_response_ms": round(float(self.non_response_ms), 3),
+            "language": self.language,
+            "reason": self.reason,
+        }
+
+    def log_summary(self) -> str:
+        return (
+            f"heard_text={self.heard_text!r} | "
+            f"normalized_text={self.normalized_text!r} | "
+            f"router_match={self.router_match} | "
+            f"matched_rule={self.matched_rule or '-'} | "
+            f"visual_action={self.visual_action or '-'} | "
+            f"transport_result={self.transport_result} | "
+            f"llm_prevented={self.llm_prevented} | "
+            f"response_emitted={self.response_emitted} | "
+            f"language={self.language or '-'} | "
+            f"reason={self.reason or '-'} | "
+            f"elapsed_ms={self.elapsed_ms:.1f} | "
+            f"router_match_ms={self.router_match_ms:.1f} | "
+            f"controller_ms={self.controller_ms:.1f} | "
+            f"response_ms={self.response_ms:.1f} | "
+            f"non_response_ms={self.non_response_ms:.1f}"
+        )
 
 
 @dataclass(slots=True)
@@ -55,45 +114,117 @@ class VisualShellCommandLane:
         )
 
     def try_handle(self, *, prepared: dict[str, Any], assistant: Any) -> bool | None:
-        if not self.enabled or not self.voice_commands_enabled:
+        started_at = time.perf_counter()
+        trace = VisualShellCommandTrace()
+
+        if not self.enabled:
+            trace.reason = "lane_disabled"
+            self._finish_trace(assistant=assistant, trace=trace, started_at=started_at)
+            return None
+
+        if not self.voice_commands_enabled:
+            trace.reason = "voice_commands_disabled"
+            self._finish_trace(assistant=assistant, trace=trace, started_at=started_at)
             return None
 
         text = self._routing_text(prepared)
+        trace.heard_text = text
+
         if not text:
+            trace.reason = "empty_text"
+            self._finish_trace(assistant=assistant, trace=trace, started_at=started_at)
             return None
 
+        trace.normalized_text = self.router.normalize(text)
+
+        router_started_at = time.perf_counter()
         match = self.router.match(text)
+        trace.router_match_ms = (time.perf_counter() - router_started_at) * 1000.0
+
         if match is None:
+            trace.reason = "no_visual_match"
+            self._finish_trace(
+                assistant=assistant,
+                trace=trace,
+                started_at=started_at,
+                matched=False,
+            )
             return None
 
-        language = self._language(prepared, assistant)
+        language = self._language(prepared, assistant, text=text, match=match)
+
+        trace.router_match = True
+        trace.matched_rule = match.matched_rule
+        trace.visual_action = match.action.value
+        trace.language = language
+        trace.normalized_text = match.normalized_text
+        trace.llm_prevented = True
+
         self._clear_pending_context(assistant)
         self._mark_routing(assistant, match)
         self._commit_language(assistant, language)
         self._store_route_snapshot(assistant, match)
 
-        handled = self._controller().handle_voice_action(
-            match.action,
-            source="nexa-voice-builtins",
-        )
+        handled = False
+        controller_started_at = time.perf_counter()
+        try:
+            handled = bool(
+                self._controller().handle_voice_action(
+                    match.action,
+                    source="nexa-voice-builtins",
+                )
+            )
+        except Exception as error:
+            trace.transport_result = "failed"
+            trace.reason = f"transport_exception:{type(error).__name__}"
+            LOGGER.warning(
+                "Visual Shell command transport failed safely: action=%s rule=%s error=%s",
+                match.action.value,
+                match.matched_rule,
+                error,
+            )
+        finally:
+            trace.controller_ms = (time.perf_counter() - controller_started_at) * 1000.0
 
         if handled:
-            self._deliver_success_response(
+            trace.transport_result = "ok"
+            trace.reason = "handled"
+            response_started_at = time.perf_counter()
+            trace.response_emitted = self._deliver_success_response(
                 assistant=assistant,
                 language=language,
                 match=match,
             )
+            trace.response_ms = (time.perf_counter() - response_started_at) * 1000.0
+            self._finish_trace(
+                assistant=assistant,
+                trace=trace,
+                started_at=started_at,
+                matched=True,
+            )
             return True
+
+        if trace.transport_result == "not_attempted":
+            trace.transport_result = "failed"
+            trace.reason = "renderer_unavailable"
 
         LOGGER.warning(
             "Visual Shell command matched but renderer command failed: action=%s rule=%s",
             match.action.value,
             match.matched_rule,
         )
-        self._deliver_unavailable_response(
+        response_started_at = time.perf_counter()
+        trace.response_emitted = self._deliver_unavailable_response(
             assistant=assistant,
             language=language,
             match=match,
+        )
+        trace.response_ms = (time.perf_counter() - response_started_at) * 1000.0
+        self._finish_trace(
+            assistant=assistant,
+            trace=trace,
+            started_at=started_at,
+            matched=True,
         )
         return True
 
@@ -119,8 +250,19 @@ class VisualShellCommandLane:
             or ""
         ).strip()
 
-    @staticmethod
-    def _language(prepared: dict[str, Any], assistant: Any) -> str:
+    @classmethod
+    def _language(
+        cls,
+        prepared: dict[str, Any],
+        assistant: Any,
+        *,
+        text: str,
+        match: VisualVoiceCommandMatch,
+    ) -> str:
+        inferred = cls._language_from_visual_command(text=text, match=match)
+        if inferred:
+            return inferred
+
         raw_language = str(
             prepared.get("language")
             or prepared.get("command_language")
@@ -136,6 +278,57 @@ class VisualShellCommandLane:
                 return raw_language or "en"
 
         return raw_language or "en"
+
+    @staticmethod
+    def _language_from_visual_command(
+        *,
+        text: str,
+        match: VisualVoiceCommandMatch,
+    ) -> str:
+        normalized = VisualShellVoiceCommandRouter.normalize(text)
+
+        polish_tokens = (
+            "pulpit",
+            "pokaz",
+            "schowaj",
+            "ukryj",
+            "zamknij",
+            "odslon",
+            "wroc",
+            "spojrz",
+            "patrz",
+            "temperatura",
+            "bateria",
+            "oczy",
+            "twarz",
+        )
+        english_tokens = (
+            "desktop",
+            "show",
+            "hide",
+            "close",
+            "open",
+            "switch",
+            "return",
+            "back",
+            "look",
+            "watch",
+            "temperature",
+            "battery",
+            "eyes",
+            "face",
+        )
+
+        if any(token in normalized for token in polish_tokens):
+            return "pl"
+
+        if any(token in normalized for token in english_tokens):
+            return "en"
+
+        if match.normalized_text in {"show desktop", "hide desktop", "desktop", "hide"}:
+            return "en"
+
+        return ""
 
     @staticmethod
     def _commit_language(assistant: Any, language: str) -> None:
@@ -212,6 +405,7 @@ class VisualShellCommandLane:
                 "matched_rule": match.matched_rule,
                 "normalized_text": match.normalized_text,
                 "source": "visual_shell_voice_router",
+                "llm_prevented": True,
             },
         }
 
@@ -221,30 +415,52 @@ class VisualShellCommandLane:
         assistant: Any,
         language: str,
         match: VisualVoiceCommandMatch,
-    ) -> None:
+    ) -> bool:
         if not self.speak_acknowledgements_enabled:
-            return
+            return False
 
         deliver = getattr(assistant, "deliver_text_response", None)
         if not callable(deliver):
-            return
+            return False
 
         text = choose_visual_shell_response(match.action, language=language)
+        metadata = {
+            "action": match.action.value,
+            "matched_rule": match.matched_rule,
+            "normalized_text": match.normalized_text,
+            "response_kind": "visual_shell_acknowledgement",
+            "llm_prevented": True,
+        }
 
         try:
-            deliver(text, language=language)
-            return
+            return bool(
+                deliver(
+                    text,
+                    language=language,
+                    route_kind=RouteKind.ACTION,
+                    source="visual_shell_command_lane",
+                    metadata=metadata,
+                )
+            )
         except TypeError:
             pass
         except Exception as error:
             LOGGER.debug("Visual Shell acknowledgement delivery failed: %s", error)
-            return
+            return False
 
         try:
-            deliver(text)
+            return bool(deliver(text, language=language))
+        except TypeError:
+            pass
         except Exception as error:
-            LOGGER.debug("Visual Shell acknowledgement fallback failed: %s", error)
+            LOGGER.debug("Visual Shell acknowledgement delivery fallback failed: %s", error)
+            return False
 
+        try:
+            return bool(deliver(text))
+        except Exception as error:
+            LOGGER.debug("Visual Shell acknowledgement final fallback failed: %s", error)
+            return False
 
     @staticmethod
     def _deliver_unavailable_response(
@@ -252,10 +468,10 @@ class VisualShellCommandLane:
         assistant: Any,
         language: str,
         match: VisualVoiceCommandMatch,
-    ) -> None:
+    ) -> bool:
         deliver = getattr(assistant, "deliver_text_response", None)
         if not callable(deliver):
-            return
+            return False
 
         text = (
             "Nie mogę teraz sterować ekranem NEXA, bo Visual Shell nie odpowiada."
@@ -263,25 +479,63 @@ class VisualShellCommandLane:
             else "I cannot control the NEXA screen right now because Visual Shell is not responding."
         )
 
+        metadata = {
+            "action": match.action.value,
+            "matched_rule": match.matched_rule,
+            "normalized_text": match.normalized_text,
+            "response_kind": "visual_shell_unavailable",
+            "llm_prevented": True,
+        }
+
         try:
-            deliver(
-                text,
-                language=language,
-                route_kind=RouteKind.ACTION,
-                source="visual_shell_command_lane",
-                metadata={
-                    "action": match.action.value,
-                    "matched_rule": match.matched_rule,
-                    "response_kind": "visual_shell_unavailable",
-                },
+            return bool(
+                deliver(
+                    text,
+                    language=language,
+                    route_kind=RouteKind.ACTION,
+                    source="visual_shell_command_lane",
+                    metadata=metadata,
+                )
             )
         except TypeError:
-            try:
-                deliver(text, language=language)
-            except Exception:
-                pass
+            pass
         except Exception as error:
             LOGGER.debug("Visual Shell unavailable response delivery failed: %s", error)
+            return False
+
+        try:
+            return bool(deliver(text, language=language))
+        except TypeError:
+            pass
+        except Exception:
+            return False
+
+        try:
+            return bool(deliver(text))
+        except Exception:
+            return False
+
+    @staticmethod
+    def _finish_trace(
+        *,
+        assistant: Any,
+        trace: VisualShellCommandTrace,
+        started_at: float,
+        matched: bool = False,
+    ) -> None:
+        trace.elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+        trace.non_response_ms = max(0.0, trace.elapsed_ms - trace.response_ms)
+        trace_dict = trace.to_dict()
+
+        try:
+            assistant._last_visual_shell_command_trace = trace_dict
+        except Exception:
+            pass
+
+        if matched:
+            LOGGER.info("VisualShellCommandTrace | %s", trace.log_summary())
+        else:
+            LOGGER.debug("VisualShellCommandTrace | %s", trace.log_summary())
 
 
-__all__ = ["VisualShellCommandLane"]
+__all__ = ["VisualShellCommandLane", "VisualShellCommandTrace"]

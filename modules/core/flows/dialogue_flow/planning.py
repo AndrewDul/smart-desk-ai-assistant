@@ -190,8 +190,8 @@ class DialogueFlowPlanning:
         elif route.kind == RouteKind.UNCLEAR:
             text = self.assistant._localized(
                 language,
-                "Nie złapałam jeszcze dokładnie, o co chodzi. Powiedz to jeszcze raz trochę inaczej, a spróbuję lepiej to uchwycić.",
-                "I did not catch exactly what you meant yet. Say it again a little differently, and I will try to catch it better.",
+                "Powtórz.",
+                "Repeat.",
             )
             title = self.assistant._localized(language, "NIEJASNE", "UNCLEAR")
         else:

@@ -1016,8 +1016,8 @@ class ActionSystemActionsMixin:
         self.assistant.pending_follow_up = {"type": "confirm_exit", "lang": language}
         spoken = self._localized(
             language,
-            "Czy chcesz, żebym zamknęła asystenta?",
-            "Do you want me to close the assistant?",
+            "Zamknąć?",
+            "Close?",
         )
         return self._deliver_action_follow_up_prompt(
             language=language,
@@ -1115,8 +1115,8 @@ class ActionSystemActionsMixin:
             action="unknown",
             spoken_text=self._localized(
                 language,
-                "Nie mam jeszcze tej funkcji w obecnej wersji, ale mogę pomóc z pamięcią, przypomnieniami, timerami, focus mode, break mode oraz czasem i datą.",
-                "I do not have that feature in this version yet, but I can help with memory, reminders, timers, focus mode, break mode, and time or date questions.",
+                "Tego jeszcze nie obsługuję.",
+                "I cannot do that yet.",
             ),
             display_title="ACTION",
             display_lines=self._localized_lines(
