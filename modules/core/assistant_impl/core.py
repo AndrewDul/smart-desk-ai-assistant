@@ -182,6 +182,9 @@ class CoreAssistant(
         self.ai_broker = self.runtime.metadata.get("ai_broker")
         self.pan_tilt = self.runtime.metadata.get("pan_tilt_backend")
         self.mobility = self.runtime.metadata.get("mobility_backend")
+        self.voice_engine_v2_runtime_candidate_adapter = self.runtime.metadata.get(
+            "voice_engine_v2_runtime_candidate_adapter"
+        )
         self.voice_engine_v2_shadow_runtime_hook = self.runtime.metadata.get(
             "voice_engine_v2_shadow_runtime_hook"
         )

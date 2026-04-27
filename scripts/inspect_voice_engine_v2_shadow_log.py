@@ -135,10 +135,10 @@ def _metric_summary(values: list[float]) -> dict[str, float | int | None]:
 def _counter_top(counter: Counter[str], limit: int) -> dict[str, int]:
     return {key: count for key, count in counter.most_common(max(1, limit))}
 
-
 _INTENT_ALIASES = {
     "introduce_self": "assistant.identity",
     "ask_time": "system.current_time",
+    "exit": "system.exit",
 }
 
 

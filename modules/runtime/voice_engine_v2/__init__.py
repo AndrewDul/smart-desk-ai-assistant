@@ -18,6 +18,16 @@ from modules.runtime.voice_engine_v2.shadow_telemetry import (
     VoiceEngineV2ShadowTelemetryRecord,
     VoiceEngineV2ShadowTelemetryWriter,
 )
+from modules.runtime.voice_engine_v2.runtime_candidate_executor import (
+    RuntimeCandidateActionSpec,
+    RuntimeCandidateExecutionPlan,
+    RuntimeCandidateExecutionPlanBuilder,
+)
+from modules.runtime.voice_engine_v2.runtime_candidates import (
+    VoiceEngineV2RuntimeCandidateAdapter,
+    VoiceEngineV2RuntimeCandidateRequest,
+    VoiceEngineV2RuntimeCandidateResult,
+)
 
 __all__ = [
     "VoiceEngineV2AcceptanceAdapter",
@@ -32,4 +42,10 @@ __all__ = [
     "VoiceEngineV2ShadowTelemetryRecord",
     "VoiceEngineV2ShadowTelemetryWriter",
     "build_voice_engine_v2_runtime",
+    "RuntimeCandidateActionSpec",
+    "RuntimeCandidateExecutionPlan",
+    "RuntimeCandidateExecutionPlanBuilder",
+    "VoiceEngineV2RuntimeCandidateAdapter",
+    "VoiceEngineV2RuntimeCandidateRequest",
+    "VoiceEngineV2RuntimeCandidateResult",
 ]

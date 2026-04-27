@@ -411,6 +411,80 @@ def build_default_command_grammar() -> CommandGrammar:
             tags=("assistant",),
         ),
 
+        # Assistant exit / sleep request.
+        CommandPhrase(
+            "system.exit",
+            "exit",
+            CommandLanguage.ENGLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "exit assistant",
+            CommandLanguage.ENGLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "close assistant",
+            CommandLanguage.ENGLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "close nexa",
+            CommandLanguage.ENGLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "go to sleep",
+            CommandLanguage.ENGLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "turn off assistant",
+            CommandLanguage.ENGLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "zamknij asystenta",
+            CommandLanguage.POLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "zamknij nexa",
+            CommandLanguage.POLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "idź spać",
+            CommandLanguage.POLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "idz spac",
+            CommandLanguage.POLISH,
+            tags=("system", "exit", "stt_recovery"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "odpocznij",
+            CommandLanguage.POLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "wyłącz asystenta",
+            CommandLanguage.POLISH,
+            tags=("system", "exit"),
+        ),
+
         # Focus mode.
         CommandPhrase(
             "focus.start",

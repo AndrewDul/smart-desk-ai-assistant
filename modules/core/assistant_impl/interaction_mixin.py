@@ -79,6 +79,21 @@ class CoreAssistantInteractionMixin:
                 telemetry["result"] = "pending_flow"
                 return bool(pending_result)
 
+            candidate_started = time.perf_counter()
+            candidate_result = self._try_handle_voice_engine_v2_runtime_candidate(
+                telemetry=telemetry,
+                prepared=prepared,
+                transcript=cleaned,
+                language=command_lang,
+            )
+            if candidate_result is not None:
+                telemetry["voice_engine_v2_candidate_ms"] = self._elapsed_ms(
+                    candidate_started
+                )
+                telemetry["result"] = "voice_engine_v2_runtime_candidate"
+                telemetry["handled"] = bool(candidate_result)
+                return bool(candidate_result)
+
             fast_lane_started = time.perf_counter()
             fast_lane_result = self._handle_fast_lane(prepared)
             telemetry["fast_lane_ms"] = self._elapsed_ms(fast_lane_started)
@@ -226,6 +241,215 @@ class CoreAssistantInteractionMixin:
 
         finally:
             self._finish_turn_telemetry(telemetry)
+
+    def _try_handle_voice_engine_v2_runtime_candidate(
+        self,
+        *,
+        telemetry: dict[str, Any],
+        prepared: dict[str, Any],
+        transcript: str,
+        language: str,
+    ) -> bool | None:
+        """Try a guarded Voice Engine v2 runtime candidate.
+
+        This is a partial, allowlisted command-first path. It is fail-open and
+        returns None for every disabled, unsafe or uncertain case so the legacy
+        runtime continues unchanged. Concrete action behaviour stays in
+        ActionFlow; this mixin only orchestrates the candidate gate and generic
+        route dispatch.
+        """
+
+        if not str(transcript or "").strip():
+            return None
+        if not self._voice_engine_v2_runtime_candidates_enabled():
+            return None
+
+        adapter = self._voice_engine_v2_runtime_candidate_adapter()
+        if adapter is None:
+            telemetry["voice_engine_v2_candidate_skipped"] = "adapter_unavailable"
+            return None
+
+        process_transcript = getattr(adapter, "process_transcript", None)
+        if not callable(process_transcript):
+            telemetry["voice_engine_v2_candidate_skipped"] = "process_unavailable"
+            return None
+
+        candidate_text = str(
+            prepared.get("routing_text")
+            or prepared.get("raw_text")
+            or transcript
+            or ""
+        ).strip()
+        if not candidate_text:
+            return None
+
+        try:
+            result = process_transcript(
+                turn_id=self._voice_engine_v2_shadow_turn_id(
+                    telemetry=telemetry,
+                    route_turn_id="",
+                ),
+                transcript=candidate_text,
+                language_hint=self._voice_engine_v2_shadow_language_hint(language),
+                started_monotonic=self._voice_engine_v2_shadow_started_monotonic(
+                    telemetry
+                ),
+                speech_end_monotonic=self._voice_engine_v2_shadow_speech_end_monotonic(
+                    telemetry
+                ),
+                metadata={
+                    "source": "voice_engine_v2_runtime_candidate",
+                    "input_source": str(telemetry.get("input_source", "") or ""),
+                    "capture_phase": str(telemetry.get("capture_phase", "") or ""),
+                    "capture_mode": str(telemetry.get("stt_mode", "") or ""),
+                    "capture_backend": str(telemetry.get("stt_backend", "") or ""),
+                },
+            )
+        except Exception as error:
+            telemetry["voice_engine_v2_candidate_error"] = type(error).__name__
+            log_exception("Voice Engine v2 runtime candidate failed safely", error)
+            return None
+
+        telemetry["voice_engine_v2_candidate_invoked"] = True
+        telemetry["voice_engine_v2_candidate_accepted"] = bool(
+            getattr(result, "accepted", False)
+        )
+        telemetry["voice_engine_v2_candidate_reason"] = str(
+            getattr(result, "reason", "") or ""
+        )
+
+        if not bool(getattr(result, "accepted", False)):
+            return None
+
+        route = getattr(result, "route_decision", None)
+        if route is None:
+            telemetry["voice_engine_v2_candidate_skipped"] = "missing_route_decision"
+            return None
+
+        self._store_voice_engine_v2_candidate_route_telemetry(
+            telemetry=telemetry,
+            route=route,
+            result=result,
+        )
+        self._note_voice_engine_v2_candidate_route(telemetry=telemetry)
+        self._clear_voice_engine_v2_candidate_context()
+        self._mark_voice_engine_v2_candidate_routing(route)
+        self._commit_language(str(getattr(route, "language", language) or language))
+
+        return bool(self._execute_action_route(route, str(route.language or language)))
+
+    def _voice_engine_v2_runtime_candidates_enabled(self) -> bool:
+        settings = getattr(self, "settings", {})
+        if isinstance(settings, dict):
+            voice_engine_cfg = settings.get("voice_engine", {})
+            if isinstance(voice_engine_cfg, dict):
+                return bool(voice_engine_cfg.get("runtime_candidates_enabled", False))
+        return False
+
+    def _voice_engine_v2_runtime_candidate_adapter(self) -> Any | None:
+        adapter = getattr(self, "voice_engine_v2_runtime_candidate_adapter", None)
+        if adapter is not None:
+            return adapter
+
+        runtime = getattr(self, "runtime", None)
+        runtime_metadata = getattr(runtime, "metadata", {}) if runtime is not None else {}
+        if isinstance(runtime_metadata, dict):
+            return runtime_metadata.get("voice_engine_v2_runtime_candidate_adapter")
+        return None
+
+    @staticmethod
+    def _store_voice_engine_v2_candidate_route_telemetry(
+        *,
+        telemetry: dict[str, Any],
+        route: Any,
+        result: Any,
+    ) -> None:
+        telemetry["route_kind"] = str(getattr(route.kind, "value", route.kind) or "")
+        telemetry["route_confidence"] = float(getattr(route, "confidence", 0.0) or 0.0)
+        telemetry["primary_intent"] = str(getattr(route, "primary_intent", "") or "")
+        telemetry["topics"] = list(getattr(route, "conversation_topics", []) or [])
+        telemetry["route_notes"] = list(getattr(route, "notes", []) or [])
+        telemetry["route_metadata"] = dict(getattr(route, "metadata", {}) or {})
+
+        turn_result = getattr(result, "turn_result", None)
+        intent = getattr(turn_result, "intent", None) if turn_result is not None else None
+        if intent is not None:
+            telemetry["voice_engine_v2_candidate_intent"] = str(
+                getattr(intent, "key", "") or ""
+            )
+
+    def _note_voice_engine_v2_candidate_route(
+        self,
+        *,
+        telemetry: dict[str, Any],
+    ) -> None:
+        benchmark_service = getattr(self, "turn_benchmark_service", None)
+        if benchmark_service is None:
+            return
+
+        note_route_resolved = getattr(benchmark_service, "note_route_resolved", None)
+        if not callable(note_route_resolved):
+            return
+
+        try:
+            note_route_resolved(
+                route_kind=str(telemetry.get("route_kind", "") or ""),
+                primary_intent=str(telemetry.get("primary_intent", "") or ""),
+                confidence=float(telemetry.get("route_confidence", 0.0) or 0.0),
+            )
+        except Exception as error:
+            log_exception(
+                "Failed to note Voice Engine v2 candidate route benchmark telemetry",
+                error,
+            )
+
+    def _clear_voice_engine_v2_candidate_context(self) -> None:
+        clear_context = getattr(self, "_clear_interaction_context", None)
+        if callable(clear_context):
+            try:
+                clear_context(close_active_window=False)
+                return
+            except TypeError:
+                try:
+                    clear_context()
+                    return
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+        if hasattr(self, "pending_confirmation"):
+            self.pending_confirmation = None
+        if hasattr(self, "pending_follow_up"):
+            self.pending_follow_up = None
+
+    def _mark_voice_engine_v2_candidate_routing(self, route: Any) -> None:
+        voice_session = getattr(self, "voice_session", None)
+        if voice_session is None:
+            return
+
+        detail = f"voice_engine_v2_candidate:{getattr(route, 'primary_intent', 'unknown')}"
+        set_state = getattr(voice_session, "set_state", None)
+        if callable(set_state):
+            try:
+                set_state("routing", detail=detail)
+                return
+            except TypeError:
+                try:
+                    set_state("routing")
+                    return
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+        transition_to_routing = getattr(voice_session, "transition_to_routing", None)
+        if callable(transition_to_routing):
+            try:
+                transition_to_routing(detail=detail)
+            except Exception:
+                pass
+
 
     def _observe_voice_engine_v2_shadow_turn(
         self,

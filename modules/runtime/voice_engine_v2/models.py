@@ -7,6 +7,9 @@ from modules.runtime.contracts import RuntimeBackendStatus
 from modules.runtime.voice_engine_v2.acceptance import (
     VoiceEngineV2AcceptanceAdapter,
 )
+from modules.runtime.voice_engine_v2.runtime_candidates import (
+    VoiceEngineV2RuntimeCandidateAdapter,
+)
 from modules.runtime.voice_engine_v2.shadow_mode import (
     VoiceEngineV2ShadowModeAdapter,
 )
@@ -23,6 +26,7 @@ class VoiceEngineV2RuntimeBundle:
     settings: VoiceEngineSettings
     status: RuntimeBackendStatus
     acceptance_adapter: VoiceEngineV2AcceptanceAdapter
+    runtime_candidate_adapter: VoiceEngineV2RuntimeCandidateAdapter
     shadow_mode_adapter: VoiceEngineV2ShadowModeAdapter
     shadow_runtime_hook: VoiceEngineV2ShadowRuntimeHook
 
@@ -40,6 +44,14 @@ class VoiceEngineV2RuntimeBundle:
             "version": self.settings.version,
             "mode": self.settings.mode,
             "command_pipeline_can_run": self.settings.command_pipeline_can_run,
+            "runtime_candidates_enabled": self.settings.runtime_candidates_enabled,
+            "runtime_candidates_can_run": self.settings.runtime_candidates_can_run,
+            "runtime_candidate_intent_allowlist": list(
+                self.settings.runtime_candidate_intent_allowlist
+            ),
+            "runtime_candidate_supported_intents": list(
+                self.runtime_candidate_adapter.supported_intents
+            ),
             "shadow_mode_enabled": self.settings.shadow_mode_enabled,
             "shadow_mode_can_run": self.settings.shadow_mode_can_run,
             "shadow_log_path": self.settings.shadow_log_path,
@@ -50,6 +62,7 @@ class VoiceEngineV2RuntimeBundle:
             "metrics_enabled": self.settings.metrics_enabled,
             "legacy_removal_stage": self.settings.legacy_removal_stage,
             "acceptance_adapter_available": True,
+            "runtime_candidate_adapter_available": True,
             "shadow_mode_adapter_available": True,
             "shadow_runtime_hook_available": True,
             "shadow_runtime_hook_action_safe": self.shadow_runtime_hook.action_safe,

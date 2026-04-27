@@ -58,6 +58,7 @@ def _as_text(value: Any) -> str:
 _INTENT_ALIASES = {
     "introduce_self": "assistant.identity",
     "ask_time": "system.current_time",
+    "exit": "system.exit",
 }
 
 

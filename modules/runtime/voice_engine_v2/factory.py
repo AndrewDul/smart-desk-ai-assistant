@@ -16,6 +16,9 @@ from modules.devices.audio.command_asr import (
 from modules.runtime.contracts import RuntimeBackendStatus
 from modules.runtime.voice_engine_v2.acceptance import VoiceEngineV2AcceptanceAdapter
 from modules.runtime.voice_engine_v2.models import VoiceEngineV2RuntimeBundle
+from modules.runtime.voice_engine_v2.runtime_candidates import (
+    VoiceEngineV2RuntimeCandidateAdapter,
+)
 from modules.runtime.voice_engine_v2.shadow_mode import VoiceEngineV2ShadowModeAdapter
 from modules.runtime.voice_engine_v2.shadow_runtime_hook import (
     VoiceEngineV2ShadowRuntimeHook,
@@ -53,6 +56,10 @@ def build_voice_engine_v2_runtime(
         settings=voice_engine_settings,
         execution_adapter=execution_adapter,
     )
+    runtime_candidate_adapter = VoiceEngineV2RuntimeCandidateAdapter(
+        engine=engine,
+        settings=voice_engine_settings,
+    )
     shadow_telemetry_writer = VoiceEngineV2ShadowTelemetryWriter(
         voice_engine_settings.shadow_log_path,
         enabled=voice_engine_settings.shadow_mode_enabled,
@@ -73,8 +80,10 @@ def build_voice_engine_v2_runtime(
         settings=voice_engine_settings,
         status=status,
         acceptance_adapter=acceptance_adapter,
+        runtime_candidate_adapter=runtime_candidate_adapter,
         shadow_mode_adapter=shadow_mode_adapter,
         shadow_runtime_hook=shadow_runtime_hook,
+
     )
 
 
@@ -104,6 +113,11 @@ def _build_status(settings: VoiceEngineSettings) -> RuntimeBackendStatus:
                 "command_first_enabled": settings.command_first_enabled,
                 "shadow_mode_enabled": settings.shadow_mode_enabled,
                 "shadow_mode_can_run": settings.shadow_mode_can_run,
+                "runtime_candidates_enabled": settings.runtime_candidates_enabled,
+                "runtime_candidates_can_run": settings.runtime_candidates_can_run,
+                "runtime_candidate_intent_allowlist": list(
+                    settings.runtime_candidate_intent_allowlist
+                ),
             },
         )
 

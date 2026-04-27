@@ -5056,6 +5056,7 @@ voice_engine.enabled=false
 voice_engine.mode=legacy
 voice_engine.command_first_enabled=false
 voice_engine.shadow_mode_enabled=true
+```
 
 The shadow log was created successfully:
 
@@ -5067,7 +5068,7 @@ Why this was needed
 
 Previous stages proved the shadow hook in unit tests and manual probes.
 
-Stage 18 proved that the real hardware runtime path can now feed accepted legacy transcripts into Voice Engine v2 shadow telemetry while legacy runtime remains primary.
+proved that the real hardware runtime path can now feed accepted legacy transcripts into Voice Engine v2 shadow telemetry while legacy runtime remains primary.
 
 What NEXA gains
 
@@ -5122,3 +5123,87 @@ validator output,
 inspector output,
 runtime logs showing FasterWhisper input overflow,
 benchmark gates still accepted.
+
+### 59  Guarded command-first runtime candidates
+
+### Status
+
+Implemented behind config, off by default.
+
+### What changed
+
+NEXA now has a guarded Voice Engine v2 runtime-candidate path for selected deterministic built-in commands.
+
+This is not a full Voice Engine v2 production takeover and it is not the final latency fix. The candidate path still starts after the existing STT transcript is available, so it does not yet solve the main hardware bottleneck in wake/capture/endpointing/FasterWhisper.
+
+The new path validates the live execution contract for selected deterministic commands:
+
+```text
+legacy STT transcript
+→ Voice Engine v2 command-first comparison
+→ allowlist gate
+→ runtime candidate execution plan
+→ legacy ActionFlow RouteDecision
+→ existing ActionFlow execution
+```
+
+The first supported runtime candidates are:
+
+assistant.identity mapped to existing legacy action introduce_self
+system.current_time mapped to existing legacy action ask_time
+
+The candidate executor does not implement TTS, display, time formatting or assistant response text. Those remain owned by existing ActionFlow handlers:
+
+_handle_introduce_self()
+_handle_ask_time()
+Why this was needed
+
+Stage 18 hardware shadow telemetry showed that Voice Engine v2 can correctly recognize selected deterministic built-ins, especially identity and current time. However, the real runtime is still slow because the bottleneck is earlier in the path:
+
+wake/capture/endpointing/FasterWhisper
+
+Stage 19 therefore acts as a safe live-candidate proof, not a performance victory claim. It proves that allowlisted deterministic commands can be safely bridged into real execution without enabling the full Voice Engine v2 runtime.
+
+What NEXA gains
+A safe bridge from Voice Engine v2 deterministic intent resolution into real ActionFlow execution.
+No ad hoc action logic inside interaction_mixin.py.
+No LLM route for allowlisted deterministic commands.
+Fail-open fallback to legacy for everything uncertain.
+Pending confirmations still have priority.
+A clear foundation for later moving the command-first recognizer before FasterWhisper.
+Safety gates
+
+Runtime candidates can run only when:
+
+voice_engine.runtime_candidates_enabled=true
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+allowlist is non-empty
+
+Default config keeps runtime candidates disabled.
+
+Default allowlist:
+
+assistant.identity
+system.current_time
+
+system.exit was added to grammar/intents for telemetry correctness, but it is not supported by the Stage 19 runtime candidate executor and is not in the default allowlist.
+
+Removed or deprecated legacy path
+
+None.
+
+Legacy runtime remains primary. No wake word, audio input, FasterWhisper, TTS or Visual Shell path was removed or replaced.
+
+Source / evidence
+Stage 18 hardware shadow telemetry:
+What is your name? matched assistant.identity
+What time is it? matched system.current_time
+exit. was handled by legacy but previously returned Voice Engine v2 fallback/no_match
+Runtime observation showed real user-facing delay still around 5–10 seconds because the bottleneck remains before routing.
+Existing ActionFlow already owns safe identity/time execution, so Stage 19 bridges into ActionFlow instead of duplicating action logic.
+Stage 19 regression tests confirmed disabled config preserves legacy behaviour and enabled runtime candidates only accept allowlisted deterministic commands.
+
+

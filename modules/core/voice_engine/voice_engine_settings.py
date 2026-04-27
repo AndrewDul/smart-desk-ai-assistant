@@ -4,6 +4,12 @@ from dataclasses import dataclass
 from typing import Any
 
 
+_DEFAULT_RUNTIME_CANDIDATE_INTENT_ALLOWLIST = (
+    "assistant.identity",
+    "system.current_time",
+)
+
+
 @dataclass(frozen=True, slots=True)
 class VoiceEngineSettings:
     """Voice Engine v2 feature-gate settings."""
@@ -18,6 +24,10 @@ class VoiceEngineSettings:
     metrics_enabled: bool = True
     shadow_mode_enabled: bool = False
     shadow_log_path: str = "var/data/voice_engine_v2_shadow.jsonl"
+    runtime_candidates_enabled: bool = False
+    runtime_candidate_intent_allowlist: tuple[str, ...] = (
+        _DEFAULT_RUNTIME_CANDIDATE_INTENT_ALLOWLIST
+    )
     legacy_removal_stage: str = "after_voice_engine_v2_runtime_acceptance"
 
     def __post_init__(self) -> None:
@@ -32,6 +42,12 @@ class VoiceEngineSettings:
         if not self.legacy_removal_stage.strip():
             raise ValueError("legacy_removal_stage must not be empty")
 
+        object.__setattr__(
+            self,
+            "runtime_candidate_intent_allowlist",
+            self._normalize_intent_allowlist(self.runtime_candidate_intent_allowlist),
+        )
+
     @property
     def command_pipeline_can_run(self) -> bool:
         """Return whether Voice Engine v2 may be used as the live command path."""
@@ -44,15 +60,22 @@ class VoiceEngineSettings:
 
     @property
     def shadow_mode_can_run(self) -> bool:
-        """Return whether shadow comparison may observe legacy transcripts.
-
-        Shadow observation is intentionally independent from the production
-        command-pipeline gate. During hardware validation, legacy runtime must
-        remain primary while Voice Engine v2 only compares deterministic command
-        intent decisions from already accepted legacy transcripts.
-        """
+        """Return whether shadow comparison may observe legacy transcripts."""
 
         return self.shadow_mode_enabled and self.fallback_to_legacy_enabled
+
+    @property
+    def runtime_candidates_can_run(self) -> bool:
+        """Return whether guarded runtime candidates may run before legacy fallback."""
+
+        return (
+            self.runtime_candidates_enabled
+            and not self.enabled
+            and self.mode == "legacy"
+            and not self.command_first_enabled
+            and self.fallback_to_legacy_enabled
+            and bool(self.runtime_candidate_intent_allowlist)
+        )
 
     @classmethod
     def from_settings(cls, settings: dict[str, Any]) -> VoiceEngineSettings:
@@ -77,6 +100,15 @@ class VoiceEngineSettings:
                     "var/data/voice_engine_v2_shadow.jsonl",
                 )
             ),
+            runtime_candidates_enabled=bool(
+                raw.get("runtime_candidates_enabled", False)
+            ),
+            runtime_candidate_intent_allowlist=cls._normalize_intent_allowlist(
+                raw.get(
+                    "runtime_candidate_intent_allowlist",
+                    _DEFAULT_RUNTIME_CANDIDATE_INTENT_ALLOWLIST,
+                )
+            ),
             legacy_removal_stage=str(
                 raw.get(
                     "legacy_removal_stage",
@@ -84,3 +116,23 @@ class VoiceEngineSettings:
                 )
             ),
         )
+
+    @staticmethod
+    def _normalize_intent_allowlist(value: Any) -> tuple[str, ...]:
+        if isinstance(value, str):
+            raw_items = value.split(",")
+        elif isinstance(value, (list, tuple, set, frozenset)):
+            raw_items = list(value)
+        else:
+            raw_items = []
+
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for item in raw_items:
+            cleaned = str(item or "").strip()
+            if not cleaned or cleaned in seen:
+                continue
+            normalized.append(cleaned)
+            seen.add(cleaned)
+
+        return tuple(normalized)
