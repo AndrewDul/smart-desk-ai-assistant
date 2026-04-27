@@ -4,7 +4,6 @@ import time
 from typing import Any
 
 
-from modules.core.session.voice_session import VOICE_STATE_ROUTING
 from modules.shared.logging.logger import append_log, log_exception
 
 
@@ -113,7 +112,18 @@ class CoreAssistantInteractionMixin:
                             log_exception("Failed to note fast-lane route benchmark telemetry", error)
 
                 telemetry["result"] = "fast_lane"
-                return bool(fast_lane_result)
+                telemetry["handled"] = bool(fast_lane_result)
+                legacy_result = bool(fast_lane_result)
+                self._observe_voice_engine_v2_shadow_turn(
+                    telemetry=telemetry,
+                    transcript=cleaned,
+                    language=command_lang,
+                    legacy_route=telemetry["route_kind"],
+                    legacy_intent_key=telemetry["primary_intent"] or None,
+                    route_turn_id="",
+                    route_path="fast_lane",
+                )
+                return legacy_result
 
             self.voice_session.transition_to_routing(detail="route_command")
 
@@ -202,10 +212,184 @@ class CoreAssistantInteractionMixin:
 
             telemetry["dispatch_ms"] = self._elapsed_ms(dispatch_started)
             telemetry["handled"] = bool(result)
-            return bool(result)
+            legacy_result = bool(result)
+            self._observe_voice_engine_v2_shadow_turn(
+                telemetry=telemetry,
+                transcript=cleaned,
+                language=command_lang,
+                legacy_route=telemetry["route_kind"],
+                legacy_intent_key=telemetry["primary_intent"] or None,
+                route_turn_id=str(getattr(route, "turn_id", "") or ""),
+                route_path="normal_route",
+            )
+            return legacy_result
 
         finally:
             self._finish_turn_telemetry(telemetry)
+
+    def _observe_voice_engine_v2_shadow_turn(
+        self,
+        *,
+        telemetry: dict[str, Any],
+        transcript: str,
+        language: str,
+        legacy_route: str,
+        legacy_intent_key: str | None,
+        route_turn_id: str,
+        route_path: str,
+    ) -> None:
+        """Observe a completed legacy turn in Voice Engine v2 shadow mode.
+
+        The legacy live path has already executed before this method is called.
+        This method is fail-open and must never change the legacy return value,
+        trigger TTS, execute Visual Shell actions, or raise into the live path.
+        """
+
+        if not str(transcript or "").strip():
+            return
+        if not self._voice_engine_v2_shadow_mode_enabled():
+            return
+
+        hook = self._voice_engine_v2_shadow_runtime_hook()
+        if hook is None:
+            telemetry["voice_engine_v2_shadow_skipped"] = "hook_unavailable"
+            return
+
+        observe_legacy_turn = getattr(hook, "observe_legacy_turn", None)
+        if not callable(observe_legacy_turn):
+            telemetry["voice_engine_v2_shadow_skipped"] = "observe_unavailable"
+            return
+
+        try:
+            result = observe_legacy_turn(
+                turn_id=self._voice_engine_v2_shadow_turn_id(
+                    telemetry=telemetry,
+                    route_turn_id=route_turn_id,
+                ),
+                transcript=str(transcript or "").strip(),
+                legacy_route=str(legacy_route or "").strip(),
+                legacy_intent_key=legacy_intent_key,
+                language_hint=self._voice_engine_v2_shadow_language_hint(language),
+                started_monotonic=self._voice_engine_v2_shadow_started_monotonic(
+                    telemetry
+                ),
+                speech_end_monotonic=self._voice_engine_v2_shadow_speech_end_monotonic(
+                    telemetry
+                ),
+                metadata={
+                    "source": "legacy_runtime_transcript_tap",
+                    "route_path": str(route_path or "").strip(),
+                    "handled": bool(telemetry.get("handled", False)),
+                    "legacy_result": str(telemetry.get("result", "") or ""),
+                    "route_kind": str(telemetry.get("route_kind", "") or ""),
+                    "primary_intent": str(telemetry.get("primary_intent", "") or ""),
+                    "dispatch_ms": self._safe_metric_float(
+                        telemetry.get("dispatch_ms", 0.0)
+                    ),
+                    "route_confidence": self._safe_metric_float(
+                        telemetry.get("route_confidence", 0.0)
+                    ),
+                    "input_source": str(telemetry.get("input_source", "") or ""),
+                    "capture_phase": str(telemetry.get("capture_phase", "") or ""),
+                },
+            )
+        except Exception as error:
+            telemetry["voice_engine_v2_shadow_error"] = type(error).__name__
+            log_exception("Voice Engine v2 shadow transcript tap failed safely", error)
+            return
+
+        telemetry["voice_engine_v2_shadow_invoked"] = True
+        if result is not None:
+            telemetry["voice_engine_v2_shadow_enabled"] = bool(
+                getattr(result, "enabled", False)
+            )
+            telemetry["voice_engine_v2_shadow_reason"] = str(
+                getattr(result, "reason", "") or ""
+            )
+            telemetry["voice_engine_v2_shadow_intent"] = str(
+                getattr(result, "voice_engine_intent_key", "") or ""
+            )
+            telemetry["voice_engine_v2_shadow_action_executed"] = bool(
+                getattr(result, "action_executed", False)
+            )
+
+    def _voice_engine_v2_shadow_mode_enabled(self) -> bool:
+        settings = getattr(self, "settings", {})
+        if isinstance(settings, dict):
+            voice_engine_cfg = settings.get("voice_engine", {})
+            if isinstance(voice_engine_cfg, dict):
+                return bool(voice_engine_cfg.get("shadow_mode_enabled", False))
+        return False
+
+    def _voice_engine_v2_shadow_runtime_hook(self) -> Any | None:
+        hook = getattr(self, "voice_engine_v2_shadow_runtime_hook", None)
+        if hook is not None:
+            return hook
+
+        runtime = getattr(self, "runtime", None)
+        runtime_metadata = getattr(runtime, "metadata", {}) if runtime is not None else {}
+        if isinstance(runtime_metadata, dict):
+            return runtime_metadata.get("voice_engine_v2_shadow_runtime_hook")
+        return None
+
+    @staticmethod
+    def _voice_engine_v2_shadow_language_hint(language: str):
+        from modules.devices.audio.command_asr import CommandLanguage
+
+        normalized = str(language or "").strip().lower()
+        if normalized.startswith("pl"):
+            return CommandLanguage.POLISH
+        if normalized.startswith("en"):
+            return CommandLanguage.ENGLISH
+        return CommandLanguage.UNKNOWN
+
+    @staticmethod
+    def _voice_engine_v2_shadow_turn_id(
+        *,
+        telemetry: dict[str, Any],
+        route_turn_id: str,
+    ) -> str:
+        for candidate in (
+            route_turn_id,
+            telemetry.get("benchmark_turn_id", ""),
+        ):
+            cleaned = str(candidate or "").strip()
+            if cleaned:
+                return cleaned
+
+        from modules.runtime.contracts import create_turn_id
+
+        return create_turn_id()
+
+    @staticmethod
+    def _voice_engine_v2_shadow_started_monotonic(telemetry: dict[str, Any]) -> float:
+        try:
+            return max(0.0, float(telemetry.get("started_at", 0.0) or 0.0))
+        except (TypeError, ValueError):
+            return 0.0
+
+    @staticmethod
+    def _voice_engine_v2_shadow_speech_end_monotonic(
+        telemetry: dict[str, Any],
+    ) -> float | None:
+        capture_metadata = telemetry.get("capture_metadata", {})
+        if not isinstance(capture_metadata, dict):
+            return None
+
+        for key in (
+            "capture_finished_at_monotonic",
+            "speech_end_monotonic",
+            "ended_at_monotonic",
+        ):
+            value = capture_metadata.get(key)
+            if value is None:
+                continue
+            try:
+                return max(0.0, float(value))
+            except (TypeError, ValueError):
+                continue
+        return None
+
 
     def request_interrupt(
         self,

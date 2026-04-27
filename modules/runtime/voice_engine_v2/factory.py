@@ -104,8 +104,6 @@ def _build_status(settings: VoiceEngineSettings) -> RuntimeBackendStatus:
                 "command_first_enabled": settings.command_first_enabled,
                 "shadow_mode_enabled": settings.shadow_mode_enabled,
                 "shadow_mode_can_run": settings.shadow_mode_can_run,
-            "shadow_mode_enabled": settings.shadow_mode_enabled,
-            "shadow_mode_can_run": settings.shadow_mode_can_run,
             },
         )
 

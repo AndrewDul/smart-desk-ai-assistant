@@ -4473,3 +4473,122 @@ Stage 10 hardware-safe shadow mode,
 Stage 11 shadow-mode telemetry persistence,
 benchmark evidence showing command_success_rate=1.0, fallback_count=0, p95_speech_end_to_action_ms=50.0 and endpoint_delay_ms=260.0,
 the requirement to avoid breaking current wake/STT/TTS/Visual Shell runtime.
+
+
+## 52. NEXA Voice Engine v2 — guarded legacy transcript tap
+
+### Status
+
+Partially implemented.
+
+### What changed
+
+Stage 13 adds a guarded transcript observation tap from the legacy runtime into Voice Engine v2 shadow mode.
+
+The tap is placed in:
+
+```text
+modules/core/assistant_impl/interaction_mixin.py
+```
+
+The hook is called only after the legacy live path has already executed.
+
+Correct flow:
+
+legacy transcript
+→ legacy route decision
+→ legacy live execution
+→ Voice Engine v2 shadow observation
+→ return original legacy result
+
+The tap handles both legacy execution branches:
+
+fast lane path
+normal RouteDecision path
+
+The hook forwards only lightweight metadata:
+
+turn id,
+transcript,
+legacy route,
+legacy primary intent,
+language hint,
+started monotonic timestamp,
+speech-end monotonic timestamp when available,
+handled flag,
+route path,
+dispatch latency,
+route confidence,
+input source,
+capture phase.
+
+It does not pass runtime objects, backend objects, audio bytes, capture buffers, Visual Shell objects, or large payloads.
+
+Why this was needed
+
+Stages 10–12 created hardware-safe shadow mode, JSONL telemetry, and the runtime hook object, but the real legacy runtime still did not feed accepted transcripts into the shadow path.
+
+Stage 13 connects the legacy runtime to shadow telemetry without making Voice Engine v2 production-primary.
+
+The hook is intentionally placed after live execution so Voice Engine v2 shadow mode cannot delay or block the live action.
+
+What NEXA gains
+
+NEXA gains real transcript evidence from the current production legacy path while preserving runtime safety.
+
+This enables comparison between:
+
+legacy route kind,
+legacy primary intent,
+Voice Engine v2 command-first route,
+Voice Engine v2 intent,
+fallback reason,
+language detection.
+
+This gives data needed before any future takeover decision.
+
+Runtime safety is preserved:
+
+wake word is unchanged,
+audio input is unchanged,
+FasterWhisper is unchanged,
+TTS is unchanged,
+Visual Shell live state is still controlled only by legacy runtime,
+Voice Engine v2 does not execute actions,
+Voice Engine v2 does not trigger TTS,
+Voice Engine v2 does not replace the live route.
+Removed or deprecated legacy path
+
+No legacy runtime code was removed.
+
+These files remain untouched as production-primary paths:
+
+modules/runtime/main_loop/*
+modules/devices/audio/input/faster_whisper/*
+modules/presentation/visual_shell/controller/voice_command_router.py
+modules/core/session/visual_shell_command_lane.py
+
+Cleanup performed:
+
+removed unused VOICE_STATE_ROUTING import from modules/core/assistant_impl/interaction_mixin.py,
+removed duplicated shadow_mode_enabled and shadow_mode_can_run metadata keys from modules/runtime/voice_engine_v2/factory.py.
+
+Planned removal point:
+
+Legacy command recognition and duplicated Visual Shell phrase handling can only be removed after hardware shadow telemetry proves that Voice Engine v2 matches or improves legacy behaviour across real bilingual turns.
+
+Source / evidence
+
+This decision is based on:
+
+NEXA Voice Engine v2 execution rules,
+Stage 10 hardware-safe shadow mode,
+Stage 11 shadow telemetry persistence,
+Stage 12 shadow runtime hook,
+current benchmark acceptance:
+command_success_rate=1.0,
+fallback_count=0,
+p50_speech_end_to_action_ms=50.0,
+p95_speech_end_to_action_ms=50.0,
+endpoint_delay_ms=260.0,
+source audit showing that CoreAssistantInteractionMixin.handle_command() has the safest post-route and post-execution observation point.
