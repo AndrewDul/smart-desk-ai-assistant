@@ -3815,3 +3815,88 @@ Stage 1 realtime audio bus foundation,
 Stage 2 VAD endpointing foundation,
 Stage 3 bilingual command recognizer grammar,
 the product requirement that built-in commands must be deterministic and execute before LLM fallback.
+
+
+## 44. NEXA Voice Engine v2 — command-first pipeline contract
+
+### Status
+
+Partially implemented.
+
+### What changed
+
+The project now has the first top-level Voice Engine v2 command-first pipeline contract.
+
+New modules were added under:
+
+```text
+modules/core/voice_engine/
+```
+
+The foundation includes:
+
+VoiceTurnState — lifecycle state enum for one voice turn,
+VoiceTurnRoute — final route enum for command, fallback or rejection,
+VoiceTurnInput — stable input contract for one Voice Engine v2 turn,
+VoiceTurnResult — stable output contract for command or fallback routing,
+VoiceEngineMetrics — per-turn timing and fallback metrics,
+VoiceEngineSettings — typed feature-gate settings for Voice Engine v2,
+VoiceLanguagePolicy — per-turn language selection policy,
+FallbackDecision and FallbackPipeline — explicit fallback contract,
+CommandFirstPipeline — pipeline that runs command recognition before fallback,
+VoiceEngine — top-level facade that respects the voice_engine migration gate.
+
+The new pipeline combines:
+
+CommandRecognizer
+→ CommandIntentResolver
+→ command result or fallback decision
+
+The production runtime is not changed in this stage.
+
+Why this was needed
+
+NEXA Voice Engine v2 needs a clean command-first pipeline before runtime integration.
+
+Earlier stages added separate foundations:
+
+Stage 1: RealtimeAudioBus
+Stage 2: VAD endpointing
+Stage 3: bilingual command grammar
+Stage 4: CommandIntentResolver
+
+This stage creates the first top-level pipeline contract that can coordinate recognition, intent resolution, language policy, fallback decisions and metrics.
+
+This avoids turning the existing runtime loop or Visual Shell router into a larger monolithic command system.
+
+What NEXA gains
+
+NEXA gains:
+
+a command-first pipeline that can resolve clear built-in commands before fallback,
+explicit fallback reasons for non-command turns,
+per-turn metrics such as command recognition time and intent resolution time,
+a typed settings layer that prevents accidental runtime replacement,
+a safer path toward future runtime integration,
+stronger separation between recognition, intent resolution, fallback and execution.
+Removed or deprecated legacy path
+
+No production runtime path was removed in this stage.
+
+The existing wake word, FasterWhisper capture/STT, TTS and Visual Shell runtime remain active.
+
+Temporary legacy retention rule:
+
+legacy runtime remains active while voice_engine.enabled=false,
+Voice Engine v2 command-first pipeline remains isolated until runtime integration tests pass,
+old Visual Shell phrase matching should be deprecated only after the command-first pipeline becomes the primary command path.
+Source / evidence
+
+This decision is based on:
+
+NEXA Voice Engine v2 execution rules,
+Stage 1 realtime audio bus foundation,
+Stage 2 VAD endpointing foundation,
+Stage 3 bilingual command recognizer grammar,
+Stage 4 deterministic command intent resolver,
+local runtime evidence that the latency bottleneck is before routing, not inside Visual Shell command dispatch.
