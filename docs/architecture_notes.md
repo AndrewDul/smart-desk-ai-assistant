@@ -3532,3 +3532,132 @@ New modules were added under:
 
 ```text
 modules/devices/audio/realtime/
+```
+
+### The foundation includes:
+
+AudioFrame — immutable PCM frame contract,
+AudioRingBuffer — thread-safe duration-limited audio frame buffer,
+AudioBus — central realtime audio publisher/subscriber bus,
+AudioBusSubscription — independent read cursor for consumers such as VAD, command ASR and fallback STT,
+AudioDeviceConfig — canonical realtime audio capture settings,
+AudioCaptureWorker — source-injected capture worker that can publish PCM frames to the bus.
+
+The capture worker is intentionally source-injected and not connected to sounddevice, PyAudio, FasterWhisper or the current wake runtime yet.
+
+### Why this was needed
+
+The current voice pipeline still depends too much on the legacy capture/STT path before built-in commands can be routed.
+
+### The long perceived delay is mainly before routing:
+
+wake
+→ capture
+→ endpointing / waiting for speech end
+→ STT
+→ routing
+
+Voice Engine v2 needs a central realtime audio foundation so that wake word, VAD endpointing, command-first recognition and fallback STT can consume the same audio stream without each subsystem owning its own incompatible capture logic.
+
+### What NEXA gains
+
+NEXA gains:
+
+a clean audio foundation for Voice Engine v2,
+independent audio consumers through subscriptions,
+safer future integration of VAD and command ASR,
+no runtime disruption because the new bus is not connected to the production voice path yet,
+better maintainability by separating realtime audio transport from STT backend logic.
+Removed or deprecated legacy path
+
+No legacy runtime path was removed in this stage.
+
+The existing wake word, FasterWhisper, TTS and Visual Shell paths remain active.
+
+### Temporary legacy retention rule:
+
+FasterWhisper capture remains the production path until Voice Engine v2 integration passes runtime acceptance tests,
+the realtime bus remains isolated behind the Voice Engine v2 migration plan,
+duplicated audio buffering helpers should be reviewed after VAD endpointing and command ASR are integrated.
+Source / evidence
+
+### This decision is based on:
+
+local NEXA runtime observations showing delay before routing,
+NEXA Voice Engine v2 execution rules,
+current project architecture where Visual Shell command dispatch is already fast but capture/STT path is still slow,
+the need to avoid breaking wake word, audio input, TTS and Visual Shell during migration.
+
+
+## 41. NEXA Voice Engine v2 — VAD endpointing foundation
+
+### Status
+
+Partially implemented.
+
+### What changed
+
+The project now has a first-class VAD endpointing foundation for NEXA Voice Engine v2.
+
+New modules were added under:
+
+```text
+modules/devices/audio/vad/
+```
+
+The foundation includes:
+
+VadDecision — frame-level speech/silence decision,
+VadEvent — endpointing event emitted from VAD decisions,
+VadEventType — stable event type enum for speech start, continuation, end and silence,
+VadEngine — protocol for VAD engines,
+SileroVadEngine — Silero-compatible adapter with injected score provider,
+EndpointingPolicy — stateful policy that turns frame-level VAD decisions into speech start/end events,
+EndpointingPolicyConfig — timing configuration for minimum speech and silence durations.
+
+The Silero adapter intentionally does not load a real model yet. It uses an injected score provider so the contract can be tested without changing the current production wake/STT runtime.
+
+### Why this was needed
+
+NEXA Voice Engine v2 needs to detect speech start and speech end quickly and consistently.
+
+The current perceived delay is mostly before command routing:
+
+wake
+→ capture
+→ endpointing / waiting for speech end
+→ STT
+→ routing
+
+The existing runtime still depends on the legacy capture/STT path, where endpointing behaviour is tied to capture timing and FasterWhisper flow. Voice Engine v2 needs endpointing as a separate architectural component so built-in commands can later be recognized before full STT/LLM fallback.
+
+### What NEXA gains
+
+NEXA gains:
+
+a dedicated VAD endpointing layer,
+a clean contract between realtime audio frames and speech boundary events,
+lower-risk future integration of command-first recognition,
+testable speech start/end timing rules,
+no disruption to the current wake word, FasterWhisper, TTS or Visual Shell runtime.
+Removed or deprecated legacy path
+
+### No legacy runtime path was removed in this stage.
+
+The existing FasterWhisper capture and endpointing logic remains active for production runtime until Voice Engine v2 integration passes runtime acceptance tests.
+
+### Temporary legacy retention rule:
+
+old capture timing remains only for legacy runtime mode,
+new VAD endpointing remains isolated until Voice Engine v2 is enabled,
+duplicated endpointing constants should be reviewed after the new pipeline starts consuming realtime audio frames.
+Source / evidence
+
+### This decision is based on:
+
+NEXA Voice Engine v2 execution rules,
+local NEXA runtime observations showing delay before routing,
+Stage 1 realtime audio bus foundation,
+the requirement that built-in commands must eventually execute before full STT/LLM fallback.
+
+
