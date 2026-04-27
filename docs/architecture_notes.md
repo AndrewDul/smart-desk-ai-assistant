@@ -5386,3 +5386,66 @@ Source / evidence
 Hardware runtime logs showed the main delay and overflow remain in the wake/capture/endpointing/FasterWhisper path.
 Stage 20C validated safe post-STT runtime candidates.
 Stage 21A establishes the next migration point before full STT while keeping it observation-only.
+
+
+## Stage 21B — Pre-STT shadow safety switch
+
+### Status
+
+Implemented and validated.
+
+### What changed
+
+NEXA now has a controlled safety switch for the Stage 21A pre-STT shadow hook.
+
+New script:
+
+```text
+scripts/set_voice_engine_v2_pre_stt_shadow.py
+
+The script supports:
+
+--status
+--enable
+--disable
+
+It safely controls:
+
+voice_engine.pre_stt_shadow_enabled
+
+The script refuses to enable pre-STT shadow unless the runtime remains in a safe migration state:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+voice_engine.runtime_candidates_enabled=false
+
+The additional runtime_candidates_enabled=false requirement keeps Stage 21B isolated from the post-STT runtime candidate experiment.
+
+A dedicated runbook was added:
+
+docs/validation/voice-engine-v2-pre-stt-shadow-runbook.md
+Why this was needed
+
+Stage 21A added the first hook before legacy full STT capture. Manually editing config/settings.json to test this on hardware would be risky.
+
+Stage 21B adds an operational safety switch so the pre-STT shadow hook can be enabled only in a controlled state and disabled immediately after testing.
+
+What NEXA gains
+Safe hardware validation path for the first pre-FasterWhisper hook.
+No manual config editing required.
+Isolation from runtime candidate experiments.
+No risk of accidentally enabling full Voice Engine v2 production mode.
+A clean operational path toward future realtime audio bus and VAD shadow integration.
+Removed or deprecated legacy path
+
+None.
+
+The legacy wake word, capture, FasterWhisper, TTS, ActionFlow and Visual Shell paths remain primary and unchanged.
+
+Source / evidence
+Stage 21A tests confirmed the hook is observe-only and never prevents full STT.
+Stage 20C confirmed post-STT runtime candidates are safe but separate.
+Runtime logs still show the real bottleneck is before routing, so Stage 21B prepares controlled hardware validation at the pre-STT boundary.
+Stage 21B status checks confirmed both pre_stt_shadow_enabled=false and runtime_candidates_enabled=false after validation.
