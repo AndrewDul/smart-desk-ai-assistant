@@ -3661,3 +3661,83 @@ Stage 1 realtime audio bus foundation,
 the requirement that built-in commands must eventually execute before full STT/LLM fallback.
 
 
+## 42. NEXA Voice Engine v2 — bilingual command recognizer grammar
+
+### Status
+
+Partially implemented.
+
+### What changed
+
+The project now has the first command-first recognition foundation for NEXA Voice Engine v2.
+
+New modules were added under:
+
+```text
+modules/devices/audio/command_asr/
+```
+
+The foundation includes:
+
+CommandLanguage — command language enum for Polish, English and unknown,
+detect_command_language() — lightweight language detection for short built-in command utterances,
+CommandPhrase — phrase-to-intent grammar entry,
+CommandRecognitionResult — stable result contract for command-first recognition,
+CommandRecognitionStatus — matched, no-match and ambiguous states,
+CommandGrammar — deterministic bilingual phrase matcher,
+GrammarCommandRecognizer — text-only recognizer backed by the command grammar,
+VoskCommandRecognizer — Vosk-compatible recognizer shell with injected PCM transcript provider,
+build_default_command_grammar() — first canonical bilingual grammar for built-in commands.
+
+The initial grammar covers key Polish and English command families:
+
+Visual Shell desktop access,
+returning to the assistant shell,
+battery state,
+temperature state,
+current time,
+current date,
+assistant help,
+assistant identity,
+focus mode start/stop.
+
+The grammar also includes explicit STT recovery variants for common misrecognitions such as pulpid / pulbit, so commands like pokaż pulpit can be handled more reliably later without adding more patches inside the Visual Shell router.
+
+Why this was needed
+
+NEXA currently depends too much on full STT output and downstream routing for clear built-in commands.
+
+Voice Engine v2 requires a command-first recognizer so short deterministic commands can be recognized before full LLM or conversation fallback.
+
+This stage creates the command grammar as a future canonical source of command phrases, instead of continuing to duplicate phrase lists across Visual Shell routing, session routing and fallback parsing.
+
+What NEXA gains
+
+NEXA gains:
+
+a bilingual command-first recognition contract,
+a cleaner place to add Polish and English built-in command variants,
+deterministic matching for clear system commands,
+explicit no-match behaviour for open questions that should go to STT/LLM fallback,
+a safer migration path toward fast built-in command execution,
+less pressure to keep patching Visual Shell router phrase lists.
+Removed or deprecated legacy path
+
+No runtime path was removed in this stage.
+
+The existing Visual Shell command router phrase matching remains active only because Voice Engine v2 is not yet integrated into production runtime.
+
+Temporary legacy retention rule:
+
+old Visual Shell command phrase lists stay until CommandIntentResolver integration,
+new command phrase variants should be added to modules/devices/audio/command_asr/command_grammar.py,
+duplicated command phrase ownership must be removed when Voice Engine v2 becomes the primary command path.
+Source / evidence
+
+This decision is based on:
+
+NEXA Voice Engine v2 execution rules,
+local runtime observations showing that built-in commands still depend on the slower capture/STT path,
+Stage 1 realtime audio bus foundation,
+Stage 2 VAD endpointing foundation,
+the product requirement that Polish and English commands must both be understood naturally per turn.
