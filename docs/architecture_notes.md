@@ -4149,3 +4149,83 @@ Stage 5 command-first pipeline contract,
 Stage 6 safe runtime integration adapter,
 Stage 7 visual-action-first execution adapter,
 local runtime observations showing that perceived delay happens before routing.
+
+
+## 48. NEXA Voice Engine v2 — runtime acceptance adapter for command-first execution
+
+### Status
+
+Partially implemented.
+
+### What changed
+
+The project now has a guarded runtime acceptance adapter for NEXA Voice Engine v2 command-first execution.
+
+New runtime acceptance code was added under:
+
+```text
+modules/runtime/voice_engine_v2/
+```
+
+The acceptance layer includes:
+
+VoiceEngineV2AcceptanceRequest — controlled request for testing Voice Engine v2 command-first execution,
+VoiceEngineV2AcceptanceResult — acceptance result with command, fallback and execution metadata,
+VoiceEngineV2AcceptanceAdapter — guarded adapter that runs command-first processing and action-first execution only when the Voice Engine v2 settings gate allows it,
+VoiceEngineV2RuntimeBundle.acceptance_adapter — runtime-visible adapter attached to the isolated Voice Engine v2 bundle,
+runtime metadata key voice_engine_v2_acceptance_adapter.
+
+The adapter can execute a transcript through:
+
+VoiceEngine v2
+→ command-first pipeline
+→ intent resolution
+→ visual-action-first execution adapter
+
+It refuses to run when voice_engine.command_pipeline_can_run is false. This keeps the legacy production runtime primary while allowing controlled acceptance tests.
+
+Why this was needed
+
+Previous stages built Voice Engine v2 foundations but did not provide a safe runtime-facing way to validate the full command-first path.
+
+This stage adds a guarded acceptance adapter so command-first execution can be tested end-to-end without replacing the production wake/capture/STT runtime.
+
+NEXA needs this intermediate layer because the next risky step is runtime integration. Before that, the system must prove that Voice Engine v2 can:
+
+resolve a built-in command,
+avoid fallback for clear built-ins,
+execute the mapped action before TTS,
+reject or fallback safely for non-command text,
+stay disabled when config requires legacy mode.
+What NEXA gains
+
+NEXA gains:
+
+a controlled runtime acceptance path for Voice Engine v2,
+end-to-end command-first validation without production takeover,
+explicit disabled-mode behaviour,
+safe testing of action-first execution handlers,
+clearer separation between acceptance testing and live runtime switching,
+a better bridge toward hardware validation on Raspberry Pi.
+Removed or deprecated legacy path
+
+No legacy runtime path was removed in this stage.
+
+The existing wake word, FasterWhisper capture/STT, TTS and Visual Shell runtime remain active.
+
+Temporary legacy retention rule:
+
+legacy runtime remains primary while voice_engine.enabled=false,
+Voice Engine v2 acceptance adapter is exposed in metadata only,
+Voice Engine v2 must not replace the main loop until hardware runtime validation confirms wake word, audio input, TTS and Visual Shell stability,
+old Visual Shell command phrase matching remains until the command-first path is accepted on real hardware.
+Source / evidence
+
+This decision is based on:
+
+NEXA Voice Engine v2 execution rules,
+Stage 5 command-first pipeline contract,
+Stage 6 safe runtime integration adapter,
+Stage 7 visual-action-first execution adapter,
+Stage 8 command latency benchmark gates,
+current benchmark results showing command_success_rate=1.0, fallback_count=0, p95_speech_end_to_action_ms=50.0 and endpoint_delay_ms=260.0 in deterministic tests.

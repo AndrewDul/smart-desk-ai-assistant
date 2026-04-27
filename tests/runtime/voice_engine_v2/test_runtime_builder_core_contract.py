@@ -20,3 +20,12 @@ def test_runtime_builder_exposes_voice_engine_v2_in_metadata_not_backend_statuse
     assert '"voice_engine_v2_status": voice_engine_v2_bundle.status' in source
     assert '"voice_engine_v2_metadata": voice_engine_v2_bundle.to_metadata()' in source
     assert '"voice_engine_v2": voice_engine_v2_status' not in source
+
+
+
+
+def test_runtime_builder_exposes_voice_engine_v2_acceptance_adapter_in_metadata() -> None:
+    source = RUNTIME_BUILDER_CORE.read_text(encoding="utf-8")
+
+    assert '"voice_engine_v2_acceptance_adapter": (' in source
+    assert "voice_engine_v2_bundle.acceptance_adapter" in source

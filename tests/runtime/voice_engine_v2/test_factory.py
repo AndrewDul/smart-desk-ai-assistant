@@ -78,3 +78,24 @@ def test_voice_engine_v2_bundle_exports_safe_metadata() -> None:
     assert metadata["mode"] == "legacy"
     assert metadata["command_pipeline_can_run"] is False
     assert metadata["status"]["selected_backend"] == "disabled"
+
+
+
+
+def test_voice_engine_v2_bundle_exposes_acceptance_adapter_metadata() -> None:
+    bundle = build_voice_engine_v2_runtime(
+        {
+            "voice_engine": {
+                "enabled": False,
+                "version": "v2",
+                "mode": "legacy",
+                "fallback_to_legacy_enabled": True,
+            }
+        }
+    )
+
+    metadata = bundle.to_metadata()
+
+    assert metadata["acceptance_adapter_available"] is True
+    assert metadata["registered_acceptance_actions"] == []
+    assert bundle.acceptance_adapter.settings.enabled is False

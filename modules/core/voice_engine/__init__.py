@@ -6,6 +6,7 @@ from modules.core.voice_engine.fallback_pipeline import (
 )
 from modules.core.voice_engine.execution import (
     IntentExecutionAdapter,
+    IntentExecutionHandler,
     IntentExecutionRequest,
     IntentExecutionResult,
     IntentExecutionStatus,
@@ -25,6 +26,7 @@ from modules.core.voice_engine.voice_turn_state import VoiceTurnState
 __all__ = [
     "CommandFirstPipeline",
     "IntentExecutionAdapter",
+    "IntentExecutionHandler",
     "IntentExecutionRequest",
     "IntentExecutionResult",
     "IntentExecutionStatus",

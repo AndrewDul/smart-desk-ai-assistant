@@ -4,6 +4,9 @@ from dataclasses import dataclass
 
 from modules.core.voice_engine import VoiceEngine, VoiceEngineSettings
 from modules.runtime.contracts import RuntimeBackendStatus
+from modules.runtime.voice_engine_v2.acceptance import (
+    VoiceEngineV2AcceptanceAdapter,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,6 +16,7 @@ class VoiceEngineV2RuntimeBundle:
     engine: VoiceEngine
     settings: VoiceEngineSettings
     status: RuntimeBackendStatus
+    acceptance_adapter: VoiceEngineV2AcceptanceAdapter
 
     @property
     def enabled(self) -> bool:
@@ -34,5 +38,9 @@ class VoiceEngineV2RuntimeBundle:
             "fallback_to_legacy_enabled": self.settings.fallback_to_legacy_enabled,
             "metrics_enabled": self.settings.metrics_enabled,
             "legacy_removal_stage": self.settings.legacy_removal_stage,
+            "acceptance_adapter_available": True,
+            "registered_acceptance_actions": list(
+                self.acceptance_adapter.registered_actions
+            ),
             "status": self.status.to_snapshot(),
         }

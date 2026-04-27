@@ -5,6 +5,7 @@ from typing import Any
 from modules.core.command_intents import CommandIntentResolver
 from modules.core.voice_engine import (
     CommandFirstPipeline,
+    IntentExecutionAdapter,
     VoiceEngine,
     VoiceEngineSettings,
 )
@@ -13,6 +14,7 @@ from modules.devices.audio.command_asr import (
     build_default_command_grammar,
 )
 from modules.runtime.contracts import RuntimeBackendStatus
+from modules.runtime.voice_engine_v2.acceptance import VoiceEngineV2AcceptanceAdapter
 from modules.runtime.voice_engine_v2.models import VoiceEngineV2RuntimeBundle
 
 
@@ -38,6 +40,12 @@ def build_voice_engine_v2_runtime(
         settings=voice_engine_settings,
         command_first_pipeline=command_pipeline,
     )
+    execution_adapter = IntentExecutionAdapter()
+    acceptance_adapter = VoiceEngineV2AcceptanceAdapter(
+        engine=engine,
+        settings=voice_engine_settings,
+        execution_adapter=execution_adapter,
+    )
 
     status = _build_status(voice_engine_settings)
 
@@ -45,6 +53,7 @@ def build_voice_engine_v2_runtime(
         engine=engine,
         settings=voice_engine_settings,
         status=status,
+        acceptance_adapter=acceptance_adapter,
     )
 
 
