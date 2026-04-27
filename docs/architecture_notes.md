@@ -3741,3 +3741,77 @@ local runtime observations showing that built-in commands still depend on the sl
 Stage 1 realtime audio bus foundation,
 Stage 2 VAD endpointing foundation,
 the product requirement that Polish and English commands must both be understood naturally per turn.
+
+
+## 43. NEXA Voice Engine v2 — CommandIntentResolver foundation
+
+### Status
+
+Partially implemented.
+
+### What changed
+
+The project now has a deterministic command intent resolution layer for NEXA Voice Engine v2.
+
+New modules were added under:
+
+```text
+modules/core/command_intents/
+```
+
+The foundation includes:
+
+CommandIntentDomain — high-level command domains such as Visual Shell, system, assistant and focus,
+CommandIntentDefinition — static mapping between an intent key and executable action,
+CommandIntent — resolved deterministic intent with language, action, confidence and source text,
+CommandIntentResolutionResult — stable resolver output contract,
+CommandIntentResolutionStatus — resolved, no-intent, low-confidence, ambiguous and unknown-intent states,
+ConfidencePolicy — acceptance/rejection policy for command recognition confidence,
+visual_shell_intents.py — Visual Shell intent definitions,
+system_intents.py — system, assistant and focus intent definitions,
+CommandIntentResolver — resolver that converts command recognizer output into deterministic command intents.
+Why this was needed
+
+NEXA Voice Engine v2 must separate recognition, intent resolution and execution.
+
+Before this stage, command recognition could identify a phrase and produce an intent key, but there was no stable architectural layer responsible for deciding whether a recognition result should become an executable command.
+
+This stage creates that separation:
+
+CommandRecognizer
+→ CommandIntentResolver
+→ execution layer later
+
+This prevents the project from continuing to push recognition, confidence decisions and execution routing into one router.
+
+What NEXA gains
+
+NEXA gains:
+
+deterministic intent resolution for built-in commands,
+clearer separation between command recognition and command execution,
+explicit confidence rejection instead of unsafe fuzzy execution,
+language-aware command intents,
+a cleaner path to visual-action-first execution,
+reduced risk of sending clear built-in commands to the LLM.
+Removed or deprecated legacy path
+
+No runtime path was removed in this stage.
+
+The existing Visual Shell router and legacy command matching remain active only because Voice Engine v2 is not integrated into runtime yet.
+
+Temporary legacy retention rule:
+
+legacy Visual Shell phrase matching stays until Voice Engine v2 command path is integrated,
+new phrase recognition belongs in modules/devices/audio/command_asr/command_grammar.py,
+new intent routing belongs in modules/core/command_intents/,
+duplicated phrase ownership should be removed after runtime integration passes acceptance tests.
+Source / evidence
+
+This decision is based on:
+
+NEXA Voice Engine v2 execution rules,
+Stage 1 realtime audio bus foundation,
+Stage 2 VAD endpointing foundation,
+Stage 3 bilingual command recognizer grammar,
+the product requirement that built-in commands must be deterministic and execute before LLM fallback.
