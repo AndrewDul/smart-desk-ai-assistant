@@ -21,6 +21,7 @@ class VoiceEngineV2PreSttShadowRequest:
     input_owner: str
     source: str = "active_window"
     audio_bus_available: bool = False
+    audio_bus_probe: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -35,6 +36,8 @@ class VoiceEngineV2PreSttShadowRequest:
         if not self.source.strip():
             raise ValueError("source must not be empty")
 
+        object.__setattr__(self, "metadata", dict(self.metadata or {}))
+        object.__setattr__(self, "audio_bus_probe", dict(self.audio_bus_probe or {}))
         object.__setattr__(self, "metadata", dict(self.metadata or {}))
 
 
@@ -100,6 +103,7 @@ class VoiceEngineV2PreSttShadowResult:
             "input_owner": self.request.input_owner,
             "source": self.request.source,
             "audio_bus_available": self.request.audio_bus_available,
+            "audio_bus_probe": dict(self.request.audio_bus_probe),
             "metadata": dict(self.metadata),
         }
 
@@ -174,6 +178,7 @@ class VoiceEngineV2PreSttShadowAdapter:
         input_owner: str,
         source: str = "active_window",
         audio_bus_available: bool = False,
+        audio_bus_probe: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> VoiceEngineV2PreSttShadowResult:
         request = VoiceEngineV2PreSttShadowRequest(
@@ -183,6 +188,7 @@ class VoiceEngineV2PreSttShadowAdapter:
             input_owner=input_owner,
             source=source,
             audio_bus_available=bool(audio_bus_available),
+            audio_bus_probe=dict(audio_bus_probe or {}),
             metadata=dict(metadata or {}),
         )
 
@@ -231,6 +237,7 @@ class VoiceEngineV2PreSttShadowAdapter:
                 "command_first_enabled": self._settings.command_first_enabled,
                 "stage": "21A",
                 "runtime_takeover": False,
+                "audio_bus_probe": dict(request.audio_bus_probe),
             },
             write_telemetry=True,
         )

@@ -38,6 +38,13 @@ from modules.runtime.voice_engine_v2.pre_stt_shadow import (
     VoiceEngineV2PreSttShadowResult,
     VoiceEngineV2PreSttShadowTelemetryWriter,
 )
+from modules.runtime.voice_engine_v2.realtime_audio_bus_probe import (
+    RealtimeAudioBusProbeSnapshot,
+    find_realtime_audio_bus,
+    probe_realtime_audio_bus,
+)
+
+
 
 __all__ = [
     "VoiceEngineV2AcceptanceAdapter",
@@ -64,4 +71,7 @@ __all__ = [
     "VoiceEngineV2PreSttShadowRequest",
     "VoiceEngineV2PreSttShadowResult",
     "VoiceEngineV2PreSttShadowTelemetryWriter",
+    "RealtimeAudioBusProbeSnapshot",
+    "find_realtime_audio_bus",
+    "probe_realtime_audio_bus",
 ]

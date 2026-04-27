@@ -5449,3 +5449,152 @@ Stage 21A tests confirmed the hook is observe-only and never prevents full STT.
 Stage 20C confirmed post-STT runtime candidates are safe but separate.
 Runtime logs still show the real bottleneck is before routing, so Stage 21B prepares controlled hardware validation at the pre-STT boundary.
 Stage 21B status checks confirmed both pre_stt_shadow_enabled=false and runtime_candidates_enabled=false after validation.
+
+
+## Stage 22B — Hardware validation of RealtimeAudioBus pre-STT shadow probe
+
+### Status
+
+Validated on Raspberry Pi hardware.
+
+### What changed
+
+Stage 22B validated the Stage 22A realtime audio bus probe in the live NEXA runtime.
+
+The validation temporarily enabled only:
+
+```text
+voice_engine.pre_stt_shadow_enabled=true
+```
+
+All other Voice Engine v2 takeover flags remained disabled:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+voice_engine.runtime_candidates_enabled=false
+
+The runtime was started through:
+
+python main.py
+
+The hardware smoke covered normal live turns:
+
+What is your name?
+What time is it?
+Exit
+Yes.
+
+The pre-STT shadow telemetry wrote four observe-only records to:
+
+var/data/voice_engine_v2_pre_stt_shadow.jsonl
+Why this was needed
+
+Stage 22A added an observe-only probe, but it still needed hardware validation inside the real runtime.
+
+The goal was to prove whether the active command runtime exposes a realtime audio bus before FasterWhisper starts, without changing microphone ownership, command execution, wake word behaviour, TTS or Visual Shell state.
+
+This validation is required before any later stage can safely connect a realtime audio source into the pre-STT command-first path.
+
+What NEXA gains
+
+NEXA now has confirmed hardware evidence that the pre-STT boundary is safe for observation.
+
+The validation confirmed that pre-STT shadow telemetry can run during real wake-command and follow-up turns while preserving:
+
+legacy_runtime_primary=true
+action_executed=false
+full_stt_prevented=false
+
+The validation also confirmed the current expected limitation:
+
+audio_bus_present=false
+reason=audio_bus_unavailable_observe_only
+
+This means the RealtimeAudioBus foundation exists in the codebase, but it is not yet wired into the active command runtime.
+
+That is useful evidence. It prevents guessing and keeps the next migration step focused on finding a safe audio source bridge rather than prematurely enabling command-first execution.
+
+Removed or deprecated legacy path
+
+None.
+
+No production path was replaced.
+
+Legacy wake detection, legacy capture, FasterWhisper, TTS, ActionFlow and Visual Shell remained primary.
+
+The generated hardware telemetry and settings backups are validation artifacts only and should not be committed unless a dedicated sample artifact is intentionally added.
+
+Source / evidence
+
+Hardware validation on Raspberry Pi produced:
+
+accepted=true
+total_lines=4
+observed_records=4
+not_observed_records=0
+reasons.audio_bus_unavailable_observe_only=4
+phases.command=3
+phases.follow_up=1
+capture_modes.wake_command=3
+capture_modes.follow_up=1
+issues=[]
+
+Manual inspection confirmed every record contained:
+
+legacy_runtime_primary=True
+action_executed=False
+full_stt_prevented=False
+audio_bus_probe.audio_bus_present=false
+audio_bus_probe.probe_error=""
+
+The live runtime still reported:
+
+Runtime state: DEGRADED. Voice mode: half-duplex.
+FasterWhisper audio callback status: input overflow
+
+This confirms that Stage 22B is not a final speed fix. It is a safe migration validation step.
+
+Validation
+python scripts/set_voice_engine_v2_runtime_candidates.py --disable
+python scripts/set_voice_engine_v2_pre_stt_shadow.py --disable
+python scripts/set_voice_engine_v2_pre_stt_shadow.py --status
+
+python scripts/set_voice_engine_v2_pre_stt_shadow.py --enable
+rm -f var/data/voice_engine_v2_pre_stt_shadow.jsonl
+python main.py
+
+python scripts/validate_voice_engine_v2_pre_stt_shadow_log.py \
+  --log-path var/data/voice_engine_v2_pre_stt_shadow.jsonl \
+  --require-observed
+
+python scripts/set_voice_engine_v2_pre_stt_shadow.py --disable
+python scripts/set_voice_engine_v2_pre_stt_shadow.py --status
+grep -n -A20 '"voice_engine"' config/settings.json
+
+Expected and observed result:
+
+accepted=true
+audio_bus_present=false
+reason=audio_bus_unavailable_observe_only
+voice_engine.pre_stt_shadow_enabled=false
+Follow-up
+
+Stage 22C should not execute actions and should not prevent FasterWhisper.
+
+The next step is a source-level audit for the safest place to expose or attach a realtime audio bus reference to the active runtime metadata.
+
+Stage 22C must answer:
+
+Where does legacy wake/capture currently own microphone input?
+Can RealtimeAudioBus be attached without starting a second capture worker?
+Can the probe see an existing bus reference without changing audio ownership?
+What exact object should expose realtime_audio_bus for Stage 23 shadow-only VAD?
+
+Do not proceed to production takeover.
+Do not prevent FasterWhisper.
+Do not execute pre-STT actions.
+
+
+---

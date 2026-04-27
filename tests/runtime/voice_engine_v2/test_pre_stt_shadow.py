@@ -80,6 +80,10 @@ def test_pre_stt_shadow_adapter_writes_observe_only_record_when_enabled(
         capture_mode="command",
         input_owner="voice_input",
         audio_bus_available=False,
+        audio_bus_probe={
+            "audio_bus_present": False,
+            "source": "",
+        },
         metadata={"source": "unit_test"},
     )
 
@@ -102,7 +106,8 @@ def test_pre_stt_shadow_adapter_writes_observe_only_record_when_enabled(
     assert records[0]["full_stt_prevented"] is False
     assert records[0]["reason"] == "audio_bus_unavailable_observe_only"
     assert records[0]["metadata"]["source"] == "unit_test"
-
+    assert records[0]["audio_bus_probe"]["audio_bus_present"] is False
+    assert records[0]["metadata"]["audio_bus_probe"]["audio_bus_present"] is False
 
 def test_pre_stt_shadow_adapter_refuses_unsafe_full_v2_state(
     tmp_path: Path,
@@ -185,3 +190,54 @@ def test_pre_stt_shadow_hook_calls_adapter_without_preventing_stt(tmp_path: Path
     records = _read_jsonl(log_path)
     assert records[0]["turn_id"] == "turn-hook"
     assert records[0]["metadata"]["capture_handoff"]["strategy"] == "unit_test"
+    assert records[0]["audio_bus_probe"]["audio_bus_present"] is False
+    assert records[0]["metadata"]["audio_bus_probe"]["audio_bus_present"] is False
+
+
+
+def test_pre_stt_shadow_hook_records_realtime_audio_bus_probe(tmp_path: Path) -> None:
+    from modules.devices.audio.realtime import AudioBus
+
+    log_path = tmp_path / "pre_stt_shadow.jsonl"
+    bundle = _bundle(
+        log_path=log_path,
+        pre_stt_shadow_enabled=True,
+    )
+
+    bus = AudioBus(
+        max_duration_seconds=1.0,
+        sample_rate=16000,
+        channels=1,
+        sample_width_bytes=2,
+    )
+    bus.publish_pcm(b"\x00\x00" * 80)
+
+    assistant = SimpleNamespace(
+        voice_engine_v2_pre_stt_shadow_adapter=bundle.pre_stt_shadow_adapter,
+        runtime=SimpleNamespace(metadata={}),
+        voice_session=SimpleNamespace(
+            state="listening",
+            input_owner=lambda: "voice_input",
+        ),
+        turn_benchmark_service=SimpleNamespace(current_turn_id="turn-hook-bus"),
+        realtime_audio_bus=bus,
+    )
+
+    observed = _observe_voice_engine_v2_pre_stt_shadow(
+        assistant,
+        phase="command",
+        capture_mode="command",
+        capture_handoff={"strategy": "unit_test"},
+    )
+
+    assert observed is True
+
+    records = _read_jsonl(log_path)
+    assert records[0]["audio_bus_available"] is True
+    assert records[0]["reason"] == "audio_bus_available_observe_only"
+    assert records[0]["audio_bus_probe"]["audio_bus_present"] is True
+    assert records[0]["audio_bus_probe"]["sample_rate"] == 16000
+    assert records[0]["audio_bus_probe"]["channels"] == 1
+    assert records[0]["audio_bus_probe"]["frame_count"] == 1
+    assert records[0]["audio_bus_probe"]["snapshot_byte_count"] == 160
+    assert records[0]["metadata"]["audio_bus_probe"]["audio_bus_present"] is True

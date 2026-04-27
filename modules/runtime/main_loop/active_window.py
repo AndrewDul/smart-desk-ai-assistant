@@ -17,7 +17,9 @@ from modules.core.session.voice_session import (
 )
 from modules.runtime.contracts import InputSource, TranscriptRequest, TranscriptResult, WakeDetectionResult
 from modules.shared.logging.logger import append_log
-
+from modules.runtime.voice_engine_v2.realtime_audio_bus_probe import (
+    probe_realtime_audio_bus,
+)
 from .backend_helpers import (
     _assistant_output_blocks_input,
     _follow_up_window_seconds,
@@ -578,6 +580,8 @@ def _observe_voice_engine_v2_pre_stt_shadow(
     if current_turn_id:
         turn_id = str(current_turn_id)
 
+    audio_bus_probe = probe_realtime_audio_bus(assistant)
+
     try:
         result = observe_pre_stt(
             turn_id=turn_id,
@@ -585,9 +589,8 @@ def _observe_voice_engine_v2_pre_stt_shadow(
             capture_mode=str(capture_mode or "command").strip() or "command",
             input_owner=input_owner,
             source="active_window",
-            audio_bus_available=bool(
-                getattr(assistant, "realtime_audio_bus", None) is not None
-            ),
+            audio_bus_available=audio_bus_probe.audio_bus_present,
+            audio_bus_probe=audio_bus_probe.to_json_dict(),
             metadata={
                 "capture_handoff": dict(capture_handoff or {}),
                 "voice_session_state": str(

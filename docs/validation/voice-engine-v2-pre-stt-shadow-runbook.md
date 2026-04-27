@@ -133,7 +133,7 @@ After a controlled hardware run, validate the telemetry log:
 python scripts/validate_voice_engine_v2_pre_stt_shadow_log.py \
   --log-path var/data/voice_engine_v2_pre_stt_shadow.jsonl \
   --require-observed
-
+```
 Expected result:
 
 accepted=true
@@ -155,22 +155,41 @@ audio_bus_unavailable_observe_only is expected until the realtime audio bus is w
 
 ---
 
-# Testy Stage 21C
+## Stage 22A realtime audio bus probe
 
-Uruchom:
+Stage 22A adds an observe-only realtime audio bus probe to the pre-STT shadow telemetry.
 
-```bash
-cd ~/Projects/smart-desk-ai-assistant
-source .venv/bin/activate
+The probe does not start capture, does not subscribe as a consumer, does not take microphone ownership and does not prevent FasterWhisper.
 
-pytest -q tests/scripts/test_validate_voice_engine_v2_pre_stt_shadow_log.py
-pytest -q tests/scripts/test_set_voice_engine_v2_pre_stt_shadow.py
-pytest -q tests/runtime/voice_engine_v2/test_pre_stt_shadow.py
-pytest -q tests/runtime/voice_engine_v2
-pytest -q tests/core/voice_engine
-pytest -q tests/core/command_intents
-pytest -q tests/devices/audio/command_asr
-pytest -q tests/scripts/test_set_voice_engine_v2_runtime_candidates.py
-pytest -q tests/scripts/test_validate_voice_engine_v2_runtime_candidate_log.py
-pytest -q tests/test_interaction_route_dispatch.py
-pytest -q tests/benchmarks/voice
+It records diagnostic fields such as:
+
+```text
+audio_bus_present
+sample_rate
+channels
+sample_width_bytes
+frame_count
+duration_seconds
+latest_sequence
+snapshot_byte_count
+source
+probe_error
+```
+
+Expected current hardware result before the realtime bus is wired into the active command window:
+
+audio_bus_present=false
+reason=audio_bus_unavailable_observe_only
+
+When a realtime audio bus becomes available in runtime metadata or on the assistant object, expected result becomes:
+
+audio_bus_present=true
+reason=audio_bus_available_observe_only
+
+Both states are safe as long as:
+
+legacy_runtime_primary=true
+action_executed=false
+full_stt_prevented=false
+
+---
