@@ -59,9 +59,11 @@ def _record_language(record: dict[str, Any]) -> str:
         record.get("language"),
         record.get("language_final"),
         record.get("language_hint"),
+        record.get("voice_engine_language"),
         metadata.get("language"),
         metadata.get("language_final"),
         metadata.get("language_hint"),
+        metadata.get("voice_engine_language"),
     ):
         text = _as_text(candidate)
         if text:
@@ -132,6 +134,30 @@ def _metric_summary(values: list[float]) -> dict[str, float | int | None]:
 
 def _counter_top(counter: Counter[str], limit: int) -> dict[str, int]:
     return {key: count for key, count in counter.most_common(max(1, limit))}
+
+
+def _routes_semantically_match(
+    *,
+    legacy_route: str,
+    voice_engine_route: str,
+    legacy_intent_key: str,
+    voice_engine_intent_key: str,
+) -> bool:
+    if not legacy_route or not voice_engine_route:
+        return False
+
+    if legacy_route == voice_engine_route:
+        return True
+
+    if (
+        legacy_route == "action"
+        and voice_engine_route == "command"
+        and legacy_intent_key
+        and legacy_intent_key == voice_engine_intent_key
+    ):
+        return True
+
+    return False
 
 
 def _sample_record(record: dict[str, Any], line_number: int) -> dict[str, Any]:
@@ -272,7 +298,12 @@ def inspect_shadow_log(
         if (
             legacy_route
             and voice_engine_route
-            and legacy_route != voice_engine_route
+            and not _routes_semantically_match(
+                legacy_route=legacy_route,
+                voice_engine_route=voice_engine_route,
+                legacy_intent_key=legacy_intent_key,
+                voice_engine_intent_key=voice_engine_intent_key,
+            )
             and len(route_mismatch_samples) < sample_limit
         ):
             route_mismatch_samples.append(_sample_record(record, line_number))
@@ -301,7 +332,12 @@ def inspect_shadow_log(
         for _, record in records
         if _as_text(record.get("legacy_route"))
         and _as_text(record.get("voice_engine_route"))
-        and _as_text(record.get("legacy_route")) != _as_text(record.get("voice_engine_route"))
+        and not _routes_semantically_match(
+            legacy_route=_as_text(record.get("legacy_route")),
+            voice_engine_route=_as_text(record.get("voice_engine_route")),
+            legacy_intent_key=_as_text(record.get("legacy_intent_key")),
+            voice_engine_intent_key=_as_text(record.get("voice_engine_intent_key")),
+        )
     )
     fallback_records = sum(
         1 for _, record in records if _record_fallback_reason(record)

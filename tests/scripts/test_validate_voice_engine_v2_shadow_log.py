@@ -166,3 +166,23 @@ def test_format_summary_contains_main_counters(tmp_path: Path) -> None:
     assert "accepted: True" in output
     assert "total_records: 1" in output
     assert "action_executed_records: 0" in output
+
+
+
+def test_validate_shadow_log_treats_legacy_action_and_voice_command_as_same_route_when_intent_matches(
+    tmp_path: Path,
+) -> None:
+    module = _load_script_module()
+    log_path = tmp_path / "voice_engine_v2_shadow.jsonl"
+    record = _valid_record()
+    record["legacy_route"] = "action"
+    record["voice_engine_route"] = "command"
+    record["legacy_intent_key"] = "visual_shell.show_desktop"
+    record["voice_engine_intent_key"] = "visual_shell.show_desktop"
+    _write_jsonl(log_path, [record])
+
+    summary = module.validate_shadow_log(log_path)
+
+    assert summary.accepted is True
+    assert summary.intent_mismatch_records == 0
+    assert summary.route_mismatch_records == 0

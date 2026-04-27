@@ -55,6 +55,30 @@ def _as_text(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _routes_semantically_match(
+    *,
+    legacy_route: str,
+    voice_engine_route: str,
+    legacy_intent_key: str,
+    voice_engine_intent_key: str,
+) -> bool:
+    if not legacy_route or not voice_engine_route:
+        return False
+
+    if legacy_route == voice_engine_route:
+        return True
+
+    if (
+        legacy_route == "action"
+        and voice_engine_route == "command"
+        and legacy_intent_key
+        and legacy_intent_key == voice_engine_intent_key
+    ):
+        return True
+
+    return False
+
+
 def _load_json_line(raw_line: str, line_number: int) -> tuple[dict[str, Any] | None, ShadowLogIssue | None]:
     try:
         payload = json.loads(raw_line)
@@ -204,7 +228,12 @@ def validate_shadow_log(path: Path) -> ShadowLogSummary:
             if legacy_intent_key and voice_engine_intent_key and legacy_intent_key != voice_engine_intent_key:
                 intent_mismatch_records += 1
 
-            if legacy_route and voice_engine_route and legacy_route != voice_engine_route:
+            if legacy_route and voice_engine_route and not _routes_semantically_match(
+                legacy_route=legacy_route,
+                voice_engine_route=voice_engine_route,
+                legacy_intent_key=legacy_intent_key,
+                voice_engine_intent_key=voice_engine_intent_key,
+            ):
                 route_mismatch_records += 1
 
             if fallback_reason:

@@ -192,3 +192,46 @@ def test_format_report_contains_core_sections(tmp_path: Path) -> None:
     assert "Top Voice Engine intents:" in report
     assert "Latency dispatch_ms:" in report
     assert "Intent mismatch samples:" in report
+
+
+
+
+
+def test_inspect_shadow_log_treats_legacy_action_and_voice_command_as_same_route_when_intent_matches(
+    tmp_path: Path,
+) -> None:
+    module = _load_script_module()
+    log_path = tmp_path / "voice_engine_v2_shadow.jsonl"
+    _write_jsonl(
+        log_path,
+        [
+            _record(
+                legacy_route="action",
+                voice_engine_route="command",
+                legacy_intent_key="visual_shell.show_desktop",
+                voice_engine_intent_key="visual_shell.show_desktop",
+                language="",
+            )
+        ],
+    )
+
+    summary = module.inspect_shadow_log(log_path)
+
+    assert summary["safety_ok"] is True
+    assert summary["intent_mismatch_records"] == 0
+    assert summary["route_mismatch_records"] == 0
+    assert summary["samples"]["route_mismatch"] == []
+
+
+def test_inspect_shadow_log_reads_voice_engine_language_when_language_field_is_missing(
+    tmp_path: Path,
+) -> None:
+    module = _load_script_module()
+    log_path = tmp_path / "voice_engine_v2_shadow.jsonl"
+    record = _record(language="")
+    record["voice_engine_language"] = "en"
+    _write_jsonl(log_path, [record])
+
+    summary = module.inspect_shadow_log(log_path)
+
+    assert summary["counts"]["language"] == {"en": 1}

@@ -4962,3 +4962,78 @@ p50_speech_end_to_action_ms=50.0,
 p95_speech_end_to_action_ms=50.0,
 endpoint_delay_ms=260.0,
 requirement that Voice Engine v2 must not become production-primary without hardware shadow telemetry.
+
+
+## 57. NEXA Voice Engine v2 — shadow telemetry route taxonomy cleanup
+
+### Status
+
+Implemented.
+
+### What changed
+
+Stage 17C updates the offline Voice Engine v2 shadow telemetry validator and inspector.
+
+The tooling now treats this pair as semantically equivalent when the intent key matches:
+
+```text
+legacy_route=action
+voice_engine_route=command
+```
+
+This prevents false route mismatch noise for deterministic built-in commands.
+
+The inspector also reads voice_engine_language when the generic language field is missing.
+
+Changed files:
+
+scripts/validate_voice_engine_v2_shadow_log.py
+scripts/inspect_voice_engine_v2_shadow_log.py
+tests/scripts/test_validate_voice_engine_v2_shadow_log.py
+tests/scripts/test_inspect_voice_engine_v2_shadow_log.py
+Why this was needed
+
+After Stage 17B, the manual shadow probe successfully wrote telemetry while legacy runtime remained primary.
+
+The validator accepted the record, but the inspector reported:
+
+legacy_route=action
+voice_engine_route=command
+route_mismatch_records=1
+
+The intent matched correctly:
+
+visual_shell.show_desktop
+
+This was not a functional mismatch. It was a taxonomy difference between legacy route naming and Voice Engine v2 command-first route naming.
+
+What NEXA gains
+
+NEXA gains cleaner shadow telemetry reports before the next hardware run.
+
+This makes the telemetry more useful because real mismatch review can focus on actual behavioural differences:
+
+different intents,
+fallback where command should match,
+missing transcript,
+action execution in shadow mode,
+legacy runtime not primary.
+
+It reduces false-positive noise without changing runtime behaviour.
+
+Removed or deprecated legacy path
+
+No legacy runtime path was removed.
+
+No production runtime path was changed.
+
+This stage only changes offline telemetry tooling.
+
+Source / evidence
+
+This decision is based on:
+
+Stage 17B manual probe,
+generated shadow telemetry record,
+validator/inspector output showing route taxonomy mismatch with matching intent,
+Voice Engine v2 migration rule that decisions must be based on useful telemetry, not misleading counters.
