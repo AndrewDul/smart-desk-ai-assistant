@@ -31,6 +31,10 @@ class VoiceEngineSettings:
     runtime_candidate_log_path: str = (
         "var/data/voice_engine_v2_runtime_candidates.jsonl"
     )
+    pre_stt_shadow_enabled: bool = False
+    pre_stt_shadow_log_path: str = (
+        "var/data/voice_engine_v2_pre_stt_shadow.jsonl"
+    )
     legacy_removal_stage: str = "after_voice_engine_v2_runtime_acceptance"
 
     def __post_init__(self) -> None:
@@ -42,6 +46,8 @@ class VoiceEngineSettings:
             raise ValueError("mode must not be empty")
         if not self.runtime_candidate_log_path.strip():
             raise ValueError("runtime_candidate_log_path must not be empty")
+        if not self.pre_stt_shadow_log_path.strip():
+            raise ValueError("pre_stt_shadow_log_path must not be empty")        
         if not self.legacy_removal_stage.strip():
             raise ValueError("legacy_removal_stage must not be empty")
 
@@ -80,6 +86,20 @@ class VoiceEngineSettings:
             and bool(self.runtime_candidate_intent_allowlist)
         )
 
+    @property
+    def pre_stt_shadow_can_run(self) -> bool:
+        """Return whether the pre-STT shadow hook may observe safely."""
+
+        return (
+            self.pre_stt_shadow_enabled
+            and not self.enabled
+            and self.mode == "legacy"
+            and not self.command_first_enabled
+            and self.fallback_to_legacy_enabled
+        )
+
+
+
     @classmethod
     def from_settings(cls, settings: dict[str, Any]) -> VoiceEngineSettings:
         raw = settings.get("voice_engine", settings)
@@ -112,6 +132,15 @@ class VoiceEngineSettings:
                     "var/data/voice_engine_v2_runtime_candidates.jsonl",
                 )
             ),
+            pre_stt_shadow_enabled=bool(
+                raw.get("pre_stt_shadow_enabled", False)
+            ),
+            pre_stt_shadow_log_path=str(
+                raw.get(
+                    "pre_stt_shadow_log_path",
+                    "var/data/voice_engine_v2_pre_stt_shadow.jsonl",
+                )
+            ),            
             legacy_removal_stage=str(
                 raw.get(
                     "legacy_removal_stage",

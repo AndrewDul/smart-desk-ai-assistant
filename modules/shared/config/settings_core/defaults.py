@@ -78,6 +78,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "runtime_candidate_log_path": (
             "var/data/voice_engine_v2_runtime_candidates.jsonl"
         ),
+        "pre_stt_shadow_enabled": False,
+        "pre_stt_shadow_log_path": (
+            "var/data/voice_engine_v2_pre_stt_shadow.jsonl"
+        ),
         "legacy_removal_stage": "after_voice_engine_v2_runtime_acceptance",
     },
     "voice_output": {

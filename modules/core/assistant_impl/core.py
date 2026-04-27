@@ -185,6 +185,9 @@ class CoreAssistant(
         self.voice_engine_v2_runtime_candidate_adapter = self.runtime.metadata.get(
             "voice_engine_v2_runtime_candidate_adapter"
         )
+        self.voice_engine_v2_pre_stt_shadow_adapter = self.runtime.metadata.get(
+            "voice_engine_v2_pre_stt_shadow_adapter"
+        )
         self.voice_engine_v2_shadow_runtime_hook = self.runtime.metadata.get(
             "voice_engine_v2_shadow_runtime_hook"
         )

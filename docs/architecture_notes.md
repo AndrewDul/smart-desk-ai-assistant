@@ -5325,3 +5325,64 @@ Source / evidence
 Stage 20A hardware smoke run proved visible behaviour for identity/time and legacy fallback for exit.
 Stage 20B telemetry added route-level runtime-candidate records.
 Stage 20C validator turns those records into a repeatable safety gate for hardware tests.
+
+
+## Stage 21A — Pre-FasterWhisper shadow hook
+
+### Status
+
+Implemented behind config, off by default.
+
+### What changed
+
+NEXA now has an observation-only Voice Engine v2 hook immediately before the legacy full STT capture starts in the active command window.
+
+The hook is called before:
+
+```text
+_capture_transcript_for_assistant()
+
+inside:
+
+modules/runtime/main_loop/active_window.py
+
+New telemetry path:
+
+var/data/voice_engine_v2_pre_stt_shadow.jsonl
+
+New config:
+
+voice_engine.pre_stt_shadow_enabled=false
+voice_engine.pre_stt_shadow_log_path=var/data/voice_engine_v2_pre_stt_shadow.jsonl
+
+Stage 21A is strictly observe-only:
+
+legacy_runtime_primary=true
+action_executed=false
+full_stt_prevented=false
+Why this was needed
+
+Stages 19–20C proved that Voice Engine v2 can safely bridge selected deterministic commands into live runtime after the legacy transcript exists.
+
+However, the real latency bottleneck remains before that point:
+
+wake/capture/endpointing/FasterWhisper
+
+Stage 21A creates the first safe integration point before FasterWhisper without taking over audio, changing microphone ownership, preventing STT or executing actions.
+
+What NEXA gains
+First production-safe pre-STT Voice Engine v2 hook.
+Evidence path for future realtime audio bus and VAD integration.
+No risk to wake word, audio input, FasterWhisper, TTS or Visual Shell.
+A clean place to attach future pre-FasterWhisper command recognition.
+Better migration structure than patching the legacy router.
+Removed or deprecated legacy path
+
+None.
+
+The legacy FasterWhisper path remains primary and unchanged.
+
+Source / evidence
+Hardware runtime logs showed the main delay and overflow remain in the wake/capture/endpointing/FasterWhisper path.
+Stage 20C validated safe post-STT runtime candidates.
+Stage 21A establishes the next migration point before full STT while keeping it observation-only.

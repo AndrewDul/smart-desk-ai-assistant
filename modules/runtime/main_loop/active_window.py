@@ -535,6 +535,73 @@ def _capture_transcript_with_speech_service(
 
     return result
 
+def _observe_voice_engine_v2_pre_stt_shadow(
+    assistant: CoreAssistant,
+    *,
+    phase: str,
+    capture_mode: str,
+    capture_handoff: dict[str, object] | None = None,
+) -> bool:
+    """Observe the Stage 21A pre-STT hook before legacy full STT starts.
+
+    This hook is observation-only. It must never execute actions, consume audio
+    ownership or prevent the legacy FasterWhisper capture path.
+    """
+
+    adapter = getattr(assistant, "voice_engine_v2_pre_stt_shadow_adapter", None)
+    if adapter is None:
+        runtime = getattr(assistant, "runtime", None)
+        runtime_metadata = getattr(runtime, "metadata", {}) if runtime is not None else {}
+        if isinstance(runtime_metadata, dict):
+            adapter = runtime_metadata.get("voice_engine_v2_pre_stt_shadow_adapter")
+
+    observe_pre_stt = getattr(adapter, "observe_pre_stt", None)
+    if not callable(observe_pre_stt):
+        return False
+
+    voice_session = getattr(assistant, "voice_session", None)
+    input_owner = ""
+    if voice_session is not None:
+        get_input_owner = getattr(voice_session, "input_owner", None)
+        if callable(get_input_owner):
+            try:
+                input_owner = str(get_input_owner() or "")
+            except Exception:
+                input_owner = ""
+
+    if not input_owner:
+        input_owner = VOICE_INPUT_OWNER_VOICE_INPUT
+
+    turn_id = f"pre_stt_shadow-{time.monotonic():.6f}"
+    benchmark_service = getattr(assistant, "turn_benchmark_service", None)
+    current_turn_id = getattr(benchmark_service, "current_turn_id", None)
+    if current_turn_id:
+        turn_id = str(current_turn_id)
+
+    try:
+        result = observe_pre_stt(
+            turn_id=turn_id,
+            phase=str(phase or "command").strip() or "command",
+            capture_mode=str(capture_mode or "command").strip() or "command",
+            input_owner=input_owner,
+            source="active_window",
+            audio_bus_available=bool(
+                getattr(assistant, "realtime_audio_bus", None) is not None
+            ),
+            metadata={
+                "capture_handoff": dict(capture_handoff or {}),
+                "voice_session_state": str(
+                    getattr(voice_session, "state", "") if voice_session is not None else ""
+                ),
+            },
+        )
+    except Exception as error:
+        append_log(f"Voice Engine v2 pre-STT shadow hook failed safely: {error}")
+        return False
+
+    assistant._last_voice_engine_v2_pre_stt_shadow = result
+    return bool(getattr(result, "observed", False))
+
 
 def _capture_transcript_for_assistant(
     assistant: CoreAssistant,
@@ -793,6 +860,13 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
         input_owner=VOICE_INPUT_OWNER_VOICE_INPUT,
     )
     print("\nListening for your request...")
+
+    _observe_voice_engine_v2_pre_stt_shadow(
+        assistant,
+        phase=active_phase,
+        capture_mode=capture_mode,
+        capture_handoff=capture_handoff,
+    )
 
     transcript = _capture_transcript_for_assistant(
         assistant,

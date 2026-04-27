@@ -10,6 +10,9 @@ from modules.runtime.voice_engine_v2.acceptance import (
 from modules.runtime.voice_engine_v2.runtime_candidates import (
     VoiceEngineV2RuntimeCandidateAdapter,
 )
+from modules.runtime.voice_engine_v2.pre_stt_shadow import (
+    VoiceEngineV2PreSttShadowAdapter,
+)
 from modules.runtime.voice_engine_v2.shadow_mode import (
     VoiceEngineV2ShadowModeAdapter,
 )
@@ -27,6 +30,7 @@ class VoiceEngineV2RuntimeBundle:
     status: RuntimeBackendStatus
     acceptance_adapter: VoiceEngineV2AcceptanceAdapter
     runtime_candidate_adapter: VoiceEngineV2RuntimeCandidateAdapter
+    pre_stt_shadow_adapter: VoiceEngineV2PreSttShadowAdapter
     shadow_mode_adapter: VoiceEngineV2ShadowModeAdapter
     shadow_runtime_hook: VoiceEngineV2ShadowRuntimeHook
 
@@ -56,6 +60,12 @@ class VoiceEngineV2RuntimeBundle:
             "runtime_candidate_telemetry_path": (
                 self.runtime_candidate_adapter.telemetry_path
             ),
+            "pre_stt_shadow_enabled": self.settings.pre_stt_shadow_enabled,
+            "pre_stt_shadow_can_run": self.settings.pre_stt_shadow_can_run,
+            "pre_stt_shadow_log_path": self.settings.pre_stt_shadow_log_path,
+            "pre_stt_shadow_telemetry_path": (
+                self.pre_stt_shadow_adapter.telemetry_path
+            ),            
             "shadow_mode_enabled": self.settings.shadow_mode_enabled,
             "shadow_mode_can_run": self.settings.shadow_mode_can_run,
             "shadow_log_path": self.settings.shadow_log_path,
@@ -67,6 +77,7 @@ class VoiceEngineV2RuntimeBundle:
             "legacy_removal_stage": self.settings.legacy_removal_stage,
             "acceptance_adapter_available": True,
             "runtime_candidate_adapter_available": True,
+            "pre_stt_shadow_adapter_available": True,            
             "shadow_mode_adapter_available": True,
             "shadow_runtime_hook_available": True,
             "shadow_runtime_hook_action_safe": self.shadow_runtime_hook.action_safe,

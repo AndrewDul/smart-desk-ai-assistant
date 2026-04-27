@@ -207,3 +207,59 @@ pytest -q tests/devices/audio/command_asr
 pytest -q tests/scripts/test_set_voice_engine_v2_runtime_candidates.py
 pytest -q tests/test_interaction_route_dispatch.py
 pytest -q tests/benchmarks/voice
+
+
+## Stage 21A pre-STT shadow telemetry
+
+Stage 21A adds an observation-only hook before legacy full STT capture starts.
+
+Telemetry path:
+
+```text
+var/data/voice_engine_v2_pre_stt_shadow.jsonl
+
+Default state:
+
+voice_engine.pre_stt_shadow_enabled=false
+
+This hook must never:
+
+execute actions,
+prevent legacy FasterWhisper capture,
+take microphone ownership,
+route to LLM,
+change Visual Shell state.
+
+Expected Stage 21A telemetry result when enabled:
+
+legacy_runtime_primary=true
+action_executed=false
+full_stt_prevented=false
+reason=audio_bus_unavailable_observe_only
+
+The reason is expected because the production runtime has not yet connected
+the realtime audio bus into the active command window.
+
+Stage 21A proves only that the Voice Engine v2 hook can run before
+FasterWhisper safely. The real fast command path comes later.
+
+
+---
+
+# Testy Stage 21A
+
+Uruchom:
+
+```bash id="7acb7s"
+cd ~/Projects/smart-desk-ai-assistant
+source .venv/bin/activate
+
+pytest -q tests/runtime/voice_engine_v2/test_pre_stt_shadow.py
+pytest -q tests/runtime/voice_engine_v2
+pytest -q tests/core/voice_engine
+pytest -q tests/core/command_intents
+pytest -q tests/devices/audio/command_asr
+pytest -q tests/scripts/test_set_voice_engine_v2_runtime_candidates.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_runtime_candidate_log.py
+pytest -q tests/test_interaction_route_dispatch.py
+pytest -q tests/benchmarks/voice

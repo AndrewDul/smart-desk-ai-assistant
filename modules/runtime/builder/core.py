@@ -146,6 +146,9 @@ class RuntimeBuilder(
                 "voice_engine_v2_runtime_candidate_adapter": (
                     voice_engine_v2_bundle.runtime_candidate_adapter
                 ),
+                "voice_engine_v2_pre_stt_shadow_adapter": (
+                    voice_engine_v2_bundle.pre_stt_shadow_adapter
+                ),
                 "voice_engine_v2_shadow_mode_adapter": (
                     voice_engine_v2_bundle.shadow_mode_adapter
                 ),
