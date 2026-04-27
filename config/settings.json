@@ -117,6 +117,8 @@
     "version": "v2",
     "mode": "legacy",
     "realtime_audio_bus_enabled": false,
+    "faster_whisper_audio_bus_tap_enabled": false,
+    "faster_whisper_audio_bus_tap_max_duration_seconds": 3.0,
     "vad_endpointing_enabled": false,
     "command_first_enabled": false,
     "fallback_to_legacy_enabled": true,

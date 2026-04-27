@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 from modules.runtime.contracts import RuntimeServices
+from modules.runtime.voice_engine_v2.faster_whisper_audio_bus_tap import (
+    configure_faster_whisper_audio_bus_shadow_tap,
+)
 from modules.shared.config.settings import load_settings
 
 from .ai_broker_mixin import RuntimeBuilderAiBrokerMixin
@@ -95,6 +98,13 @@ class RuntimeBuilder(
         mobility, mobility_status = self._build_mobility(mobility_cfg)
         voice_engine_v2_bundle = self._build_voice_engine_v2()
 
+        realtime_audio_bus, audio_bus_tap_status = (
+            configure_faster_whisper_audio_bus_shadow_tap(
+                voice_input=voice_input,
+                settings=self.settings,
+            )
+        )
+
         self._attach_audio_coordinator(voice_input, audio_coordinator)
         self._attach_audio_coordinator(wake_gate, audio_coordinator)
         self._attach_audio_coordinator(voice_output, audio_coordinator)
@@ -117,6 +127,42 @@ class RuntimeBuilder(
         for status in backend_statuses.values():
             self._log_backend_status(status)
 
+        metadata = {
+            "audio_coordinator": audio_coordinator,
+            "vision_backend": vision,
+            "ai_broker": ai_broker,
+            "pan_tilt_backend": pan_tilt,
+            "mobility_backend": mobility,
+            "voice_engine_v2": voice_engine_v2_bundle.engine,
+            "voice_engine_v2_settings": voice_engine_v2_bundle.settings,
+            "voice_engine_v2_status": voice_engine_v2_bundle.status,
+            "voice_engine_v2_metadata": voice_engine_v2_bundle.to_metadata(),
+            "voice_engine_v2_acceptance_adapter": (
+                voice_engine_v2_bundle.acceptance_adapter
+            ),
+            "voice_engine_v2_runtime_candidate_adapter": (
+                voice_engine_v2_bundle.runtime_candidate_adapter
+            ),
+            "voice_engine_v2_pre_stt_shadow_adapter": (
+                voice_engine_v2_bundle.pre_stt_shadow_adapter
+            ),
+            "voice_engine_v2_shadow_mode_adapter": (
+                voice_engine_v2_bundle.shadow_mode_adapter
+            ),
+            "voice_engine_v2_shadow_runtime_hook": (
+                voice_engine_v2_bundle.shadow_runtime_hook
+            ),
+            "voice_engine_v2_audio_bus_tap_status": (
+                audio_bus_tap_status.to_metadata()
+            ),
+            "wake_backend": wake_gate,
+            "single_capture_mode": self._single_capture_mode_enabled(voice_input_cfg),
+            "provider_inventory": provider_inventory,
+        }
+
+        if realtime_audio_bus is not None:
+            metadata["realtime_audio_bus"] = realtime_audio_bus
+
         return RuntimeServices(
             settings=self.settings,
             voice_input=voice_input,
@@ -130,35 +176,7 @@ class RuntimeBuilder(
             reminders=reminders,
             timer=timer,
             backend_statuses=backend_statuses,
-            metadata={
-                "audio_coordinator": audio_coordinator,
-                "vision_backend": vision,
-                "ai_broker": ai_broker,
-                "pan_tilt_backend": pan_tilt,
-                "mobility_backend": mobility,
-                "voice_engine_v2": voice_engine_v2_bundle.engine,
-                "voice_engine_v2_settings": voice_engine_v2_bundle.settings,
-                "voice_engine_v2_status": voice_engine_v2_bundle.status,
-                "voice_engine_v2_metadata": voice_engine_v2_bundle.to_metadata(),
-                "voice_engine_v2_acceptance_adapter": (
-                    voice_engine_v2_bundle.acceptance_adapter
-                ),
-                "voice_engine_v2_runtime_candidate_adapter": (
-                    voice_engine_v2_bundle.runtime_candidate_adapter
-                ),
-                "voice_engine_v2_pre_stt_shadow_adapter": (
-                    voice_engine_v2_bundle.pre_stt_shadow_adapter
-                ),
-                "voice_engine_v2_shadow_mode_adapter": (
-                    voice_engine_v2_bundle.shadow_mode_adapter
-                ),
-                "voice_engine_v2_shadow_runtime_hook": (
-                    voice_engine_v2_bundle.shadow_runtime_hook
-                ),
-                "wake_backend": wake_gate,
-                "single_capture_mode": self._single_capture_mode_enabled(voice_input_cfg),
-                "provider_inventory": provider_inventory,
-            },
+            metadata=metadata,
         )
 
 

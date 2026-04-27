@@ -209,6 +209,9 @@ class FasterWhisperInputBackend(
 
         self.audio_queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=48)
         self.audio_coordinator: AssistantAudioCoordinator | None = None
+        self._realtime_audio_bus_shadow_tap: Any | None = None
+        self._realtime_audio_bus_shadow_tap_enabled = False
+        self._realtime_audio_bus_shadow_tap_publish_errors = 0
 
         selection = resolve_input_device_selection(
             device_index=device_index,

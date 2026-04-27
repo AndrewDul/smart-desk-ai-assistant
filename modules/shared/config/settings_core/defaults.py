@@ -64,6 +64,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "version": "v2",
         "mode": "legacy",
         "realtime_audio_bus_enabled": False,
+        "faster_whisper_audio_bus_tap_enabled": False,
+        "faster_whisper_audio_bus_tap_max_duration_seconds": 3.0,
         "vad_endpointing_enabled": False,
         "command_first_enabled": False,
         "fallback_to_legacy_enabled": True,

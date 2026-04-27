@@ -43,6 +43,10 @@ from modules.runtime.voice_engine_v2.realtime_audio_bus_probe import (
     find_realtime_audio_bus,
     probe_realtime_audio_bus,
 )
+from modules.runtime.voice_engine_v2.faster_whisper_audio_bus_tap import (
+    FasterWhisperAudioBusTapStatus,
+    configure_faster_whisper_audio_bus_shadow_tap,
+)
 
 
 
@@ -74,4 +78,6 @@ __all__ = [
     "RealtimeAudioBusProbeSnapshot",
     "find_realtime_audio_bus",
     "probe_realtime_audio_bus",
+    "FasterWhisperAudioBusTapStatus",
+    "configure_faster_whisper_audio_bus_shadow_tap",
 ]

@@ -3,12 +3,23 @@ from __future__ import annotations
 import queue
 import time
 from collections import deque
+from typing import Any
 
 import numpy as np
 import sounddevice as sd
 
 
 class FasterWhisperCaptureMixin:
+    def set_realtime_audio_bus_shadow_tap(
+        self,
+        audio_bus: Any | None,
+        *,
+        enabled: bool,
+    ) -> None:
+        self._realtime_audio_bus_shadow_tap = audio_bus if enabled else None
+        self._realtime_audio_bus_shadow_tap_enabled = bool(enabled and audio_bus is not None)
+        self._realtime_audio_bus_shadow_tap_publish_errors = 0
+
     def _audio_callback(self, indata, frames, time_info, status) -> None:
         if status:
             self.LOGGER.warning("FasterWhisper audio callback status: %s", status)
@@ -20,6 +31,8 @@ class FasterWhisperCaptureMixin:
 
             if mono.dtype != np.int16:
                 mono = mono.astype(np.int16, copy=False)
+
+            self._publish_realtime_audio_bus_shadow_tap(mono)
 
             try:
                 self.audio_queue.put_nowait(mono)
@@ -34,6 +47,35 @@ class FasterWhisperCaptureMixin:
                     pass
         except Exception as error:
             self.LOGGER.warning("FasterWhisper audio callback error: %s", error)
+
+    def _publish_realtime_audio_bus_shadow_tap(self, mono: np.ndarray) -> None:
+        if not bool(getattr(self, "_realtime_audio_bus_shadow_tap_enabled", False)):
+            return
+
+        audio_bus = getattr(self, "_realtime_audio_bus_shadow_tap", None)
+        if audio_bus is None:
+            return
+
+        publish_pcm = getattr(audio_bus, "publish_pcm", None)
+        if not callable(publish_pcm):
+            return
+
+        try:
+            publish_pcm(
+                mono.tobytes(order="C"),
+                timestamp_monotonic=time.monotonic(),
+                source="faster_whisper_callback_shadow_tap",
+            )
+        except Exception as error:
+            error_count = int(
+                getattr(self, "_realtime_audio_bus_shadow_tap_publish_errors", 0)
+            )
+            self._realtime_audio_bus_shadow_tap_publish_errors = error_count + 1
+            if error_count < 3:
+                self.LOGGER.warning(
+                    "FasterWhisper realtime audio bus shadow tap publish failed: %s",
+                    error,
+                )
 
     def _ensure_stream_open(self) -> None:
         if self._stream is not None:

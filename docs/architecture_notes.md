@@ -5598,3 +5598,130 @@ Do not execute pre-STT actions.
 
 
 ---
+
+
+## Stage 23A — FasterWhisper callback RealtimeAudioBus shadow tap
+
+### Status
+
+Implemented behind config, disabled by default.
+
+### What changed
+
+Stage 23A added an observe-only realtime audio bus tap to the existing FasterWhisper microphone callback.
+
+New file:
+
+```text
+modules/runtime/voice_engine_v2/faster_whisper_audio_bus_tap.py
+```
+
+The existing FasterWhisper callback can now copy mono PCM chunks into a runtime-owned AudioBus when this flag is enabled:
+
+voice_engine.faster_whisper_audio_bus_tap_enabled=true
+
+The default remains:
+
+voice_engine.faster_whisper_audio_bus_tap_enabled=false
+
+The runtime builder exposes the bus through runtime metadata only when the tap is enabled:
+
+runtime.metadata["realtime_audio_bus"]
+
+The pre-STT probe from Stage 22A can then detect the bus without starting another microphone stream.
+
+Why this was needed
+
+Stage 22B proved that the pre-STT shadow boundary is safe, but it also showed:
+
+audio_bus_present=false
+reason=audio_bus_unavailable_observe_only
+
+Stage 22C confirmed why: the active runtime does not yet expose a realtime audio bus. The current audio path is still owned by the wake gate and FasterWhisper capture path.
+
+Starting AudioCaptureWorker as a second live microphone owner would be unsafe because the runtime already reports half-duplex/degraded behaviour and FasterWhisper callback overflow can appear.
+
+Stage 23A therefore uses the safer migration route:
+
+existing FasterWhisper callback
+→ copy PCM chunk
+→ publish into RealtimeAudioBus
+→ observe-only telemetry
+
+This is not a new command recognition path. FasterWhisper is not being used for fast commands. It only provides an existing microphone callback that can safely mirror audio into the new bus.
+
+What NEXA gains
+
+NEXA now has the first safe bridge between the legacy command capture path and the new Voice Engine v2 realtime audio foundation.
+
+This enables later stages to validate:
+
+RealtimeAudioBus
+→ Silero VAD ONNX shadow endpointing
+→ Vosk command recognizer shadow path
+
+without taking microphone ownership away from the current runtime.
+
+The stage preserves:
+
+wake word stability
+FasterWhisper fallback
+TTS
+Visual Shell
+legacy ActionFlow
+Removed or deprecated legacy path
+
+None.
+
+No wake word path was removed.
+No FasterWhisper capture path was removed.
+No TTS path was changed.
+No Visual Shell path was changed.
+
+The tap is disabled by default and exists only as a guarded migration bridge.
+
+Source / evidence
+
+Stage 22B hardware validation produced:
+
+audio_bus_present=false
+reason=audio_bus_unavailable_observe_only
+legacy_runtime_primary=true
+action_executed=false
+full_stt_prevented=false
+
+Stage 22C source audit confirmed that the active runtime currently uses existing microphone ownership in the wake gate and FasterWhisper capture path.
+
+Stage 23A follows the safer direction identified by that audit: publish copied PCM from an existing callback instead of starting a second microphone stream.
+
+Validation
+pytest -q tests/runtime/voice_engine_v2/test_faster_whisper_audio_bus_tap.py
+pytest -q tests/devices/audio/input/faster_whisper/test_realtime_audio_bus_shadow_tap.py
+pytest -q tests/runtime/voice_engine_v2/test_realtime_audio_bus_probe.py
+pytest -q tests/runtime/voice_engine_v2/test_pre_stt_shadow.py
+pytest -q tests/runtime/voice_engine_v2
+pytest -q tests/core/voice_engine
+pytest -q tests/core/command_intents
+pytest -q tests/devices/audio/realtime
+pytest -q tests/devices/audio/command_asr
+pytest -q tests/test_interaction_route_dispatch.py
+pytest -q tests/benchmarks/voice
+Follow-up
+
+Stage 23B should add a guarded safety switch for the FasterWhisper audio bus tap and then run hardware validation with:
+
+voice_engine.pre_stt_shadow_enabled=true
+voice_engine.faster_whisper_audio_bus_tap_enabled=true
+
+Expected Stage 23B result:
+
+audio_bus_present=true
+source=runtime.metadata.realtime_audio_bus
+legacy_runtime_primary=true
+action_executed=false
+full_stt_prevented=false
+
+Stage 23B must not execute pre-STT actions, must not prevent FasterWhisper and must not start a second microphone stream.
+
+
+---
