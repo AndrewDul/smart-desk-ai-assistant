@@ -172,3 +172,34 @@ def test_voice_engine_v2_factory_exposes_shadow_runtime_hook_metadata() -> None:
     assert metadata["shadow_runtime_hook_available"] is True
     assert metadata["shadow_runtime_hook_action_safe"] is True
     assert bundle.shadow_runtime_hook.action_safe is True
+
+
+
+
+def test_voice_engine_v2_factory_reports_shadow_can_run_while_legacy_primary() -> None:
+    bundle = build_voice_engine_v2_runtime(
+        {
+            "voice_engine": {
+                "enabled": False,
+                "version": "v2",
+                "mode": "legacy",
+                "command_first_enabled": False,
+                "fallback_to_legacy_enabled": True,
+                "shadow_mode_enabled": True,
+                "shadow_log_path": "var/data/test_shadow.jsonl",
+            }
+        }
+    )
+
+    metadata = bundle.to_metadata()
+
+    assert bundle.enabled is False
+    assert bundle.command_pipeline_can_run is False
+    assert bundle.settings.shadow_mode_can_run is True
+    assert metadata["enabled"] is False
+    assert metadata["command_pipeline_can_run"] is False
+    assert metadata["shadow_mode_enabled"] is True
+    assert metadata["shadow_mode_can_run"] is True
+    assert metadata["status"]["selected_backend"] == "disabled"
+    assert metadata["status"]["metadata"]["legacy_runtime_primary"] is True
+    assert metadata["status"]["metadata"]["shadow_mode_can_run"] is True

@@ -40,3 +40,40 @@ def test_voice_engine_settings_keep_command_pipeline_disabled_by_default() -> No
     assert settings.shadow_mode_enabled is False
     assert settings.command_pipeline_can_run is False
     assert settings.shadow_mode_can_run is False
+
+
+
+
+def test_shadow_mode_can_run_while_production_pipeline_stays_disabled() -> None:
+    settings = VoiceEngineSettings.from_settings(
+        {
+            "voice_engine": {
+                "enabled": False,
+                "version": "v2",
+                "mode": "legacy",
+                "command_first_enabled": False,
+                "fallback_to_legacy_enabled": True,
+                "shadow_mode_enabled": True,
+            }
+        }
+    )
+
+    assert settings.command_pipeline_can_run is False
+    assert settings.shadow_mode_can_run is True
+
+
+def test_shadow_mode_refuses_when_legacy_fallback_is_disabled() -> None:
+    settings = VoiceEngineSettings.from_settings(
+        {
+            "voice_engine": {
+                "enabled": False,
+                "version": "v2",
+                "mode": "legacy",
+                "fallback_to_legacy_enabled": False,
+                "shadow_mode_enabled": True,
+            }
+        }
+    )
+
+    assert settings.command_pipeline_can_run is False
+    assert settings.shadow_mode_can_run is False

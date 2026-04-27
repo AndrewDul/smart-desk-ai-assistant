@@ -64,5 +64,15 @@ class VoiceEngine:
 
         return self._command_first_pipeline.process_turn(turn_input)
 
+    def process_shadow_turn(self, turn_input: VoiceTurnInput) -> VoiceTurnResult:
+        """Run deterministic command-first comparison for shadow telemetry.
+
+        This deliberately bypasses the production runtime gate. It is used only
+        after legacy runtime has already executed the live route, and it never
+        executes actions or triggers TTS.
+        """
+
+        return self._command_first_pipeline.process_turn(turn_input)
+
     def reset(self) -> None:
         self._command_first_pipeline.reset()

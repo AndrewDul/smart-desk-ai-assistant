@@ -134,3 +134,58 @@ def test_shadow_runtime_hook_keeps_legacy_primary_when_shadow_mode_disabled(
     assert result.legacy_runtime_primary is True
     assert result.action_executed is False
     assert shadow_path.exists() is False
+
+
+
+
+def test_shadow_runtime_hook_writes_telemetry_when_legacy_runtime_is_primary(
+    tmp_path,
+) -> None:
+    shadow_path = tmp_path / "voice_engine_v2_shadow.jsonl"
+    bundle = build_voice_engine_v2_runtime(
+        {
+            "voice_engine": {
+                "enabled": False,
+                "version": "v2",
+                "mode": "legacy",
+                "command_first_enabled": False,
+                "fallback_to_legacy_enabled": True,
+                "shadow_mode_enabled": True,
+                "shadow_log_path": str(shadow_path),
+            }
+        }
+    )
+
+    assert bundle.settings.command_pipeline_can_run is False
+    assert bundle.settings.shadow_mode_can_run is True
+
+    result = bundle.shadow_runtime_hook.observe_legacy_turn(
+        turn_id="turn-hook-legacy-primary",
+        transcript="show desktop",
+        legacy_route="action",
+        legacy_intent_key="visual_shell.show_desktop",
+        language_hint=CommandLanguage.ENGLISH,
+        started_monotonic=1.0,
+        speech_end_monotonic=1.0,
+        metadata={"source": "legacy_runtime_transcript_tap"},
+    )
+
+    assert result is not None
+    assert result.enabled is True
+    assert result.reason == "matched_legacy_intent"
+    assert result.legacy_runtime_primary is True
+    assert result.voice_engine_intent_key == "visual_shell.show_desktop"
+    assert result.action_executed is False
+
+    lines = shadow_path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+
+    record = json.loads(lines[0])
+    assert record["turn_id"] == "turn-hook-legacy-primary"
+    assert record["legacy_runtime_primary"] is True
+    assert record["legacy_route"] == "action"
+    assert record["legacy_intent_key"] == "visual_shell.show_desktop"
+    assert record["voice_engine_intent_key"] == "visual_shell.show_desktop"
+    assert record["action_executed"] is False
+    assert record["metadata"]["shadow_runtime_hook"] is True
+    assert record["metadata"]["action_safe"] is True

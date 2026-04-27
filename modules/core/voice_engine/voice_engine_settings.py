@@ -34,6 +34,8 @@ class VoiceEngineSettings:
 
     @property
     def command_pipeline_can_run(self) -> bool:
+        """Return whether Voice Engine v2 may be used as the live command path."""
+
         return (
             self.enabled
             and self.mode == "v2"
@@ -42,7 +44,15 @@ class VoiceEngineSettings:
 
     @property
     def shadow_mode_can_run(self) -> bool:
-        return self.shadow_mode_enabled and self.command_pipeline_can_run
+        """Return whether shadow comparison may observe legacy transcripts.
+
+        Shadow observation is intentionally independent from the production
+        command-pipeline gate. During hardware validation, legacy runtime must
+        remain primary while Voice Engine v2 only compares deterministic command
+        intent decisions from already accepted legacy transcripts.
+        """
+
+        return self.shadow_mode_enabled and self.fallback_to_legacy_enabled
 
     @classmethod
     def from_settings(cls, settings: dict[str, Any]) -> VoiceEngineSettings:

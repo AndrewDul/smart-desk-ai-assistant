@@ -123,6 +123,8 @@ def _build_status(settings: VoiceEngineSettings) -> RuntimeBackendStatus:
             "enabled": settings.enabled,
             "legacy_runtime_primary": True,
             "command_pipeline_can_run": False,
+            "shadow_mode_enabled": settings.shadow_mode_enabled,
+            "shadow_mode_can_run": settings.shadow_mode_can_run,
             "realtime_audio_bus_enabled": settings.realtime_audio_bus_enabled,
             "vad_endpointing_enabled": settings.vad_endpointing_enabled,
             "command_first_enabled": settings.command_first_enabled,

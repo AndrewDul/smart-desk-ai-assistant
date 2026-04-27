@@ -152,26 +152,33 @@ class VoiceEngineV2ShadowModeAdapter:
                         "command_pipeline_can_run": (
                             self._settings.command_pipeline_can_run
                         ),
+                        "shadow_mode_can_run": self._settings.shadow_mode_can_run,
                     },
                 )
             )
 
-        if not self._settings.command_pipeline_can_run:
+        if not self._settings.shadow_mode_can_run:
             return self._finalize(
                 VoiceEngineV2ShadowResult(
                     enabled=False,
-                    reason="voice_engine_v2_not_runnable",
+                    reason="shadow_mode_not_safe",
                     request=request,
                     legacy_runtime_primary=True,
                     metadata={
                         "shadow_mode_enabled": True,
-                        "command_pipeline_can_run": False,
+                        "shadow_mode_can_run": False,
+                        "command_pipeline_can_run": (
+                            self._settings.command_pipeline_can_run
+                        ),
+                        "fallback_to_legacy_enabled": (
+                            self._settings.fallback_to_legacy_enabled
+                        ),
                         "mode": self._settings.mode,
                     },
                 )
             )
 
-        turn_result = self._engine.process_turn(
+        turn_result = self._engine.process_shadow_turn(
             VoiceTurnInput(
                 turn_id=request.turn_id,
                 transcript=request.transcript,

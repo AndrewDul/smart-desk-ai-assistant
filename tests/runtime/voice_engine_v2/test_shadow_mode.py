@@ -103,7 +103,7 @@ def test_shadow_mode_observes_fallback_for_open_question() -> None:
     assert result.action_executed is False
 
 
-def test_shadow_mode_refuses_when_pipeline_is_not_runnable() -> None:
+def test_shadow_mode_observes_when_production_pipeline_is_not_runnable() -> None:
     bundle = build_voice_engine_v2_runtime(
         {
             "voice_engine": {
@@ -111,18 +111,50 @@ def test_shadow_mode_refuses_when_pipeline_is_not_runnable() -> None:
                 "version": "v2",
                 "mode": "legacy",
                 "command_first_enabled": False,
+                "fallback_to_legacy_enabled": True,
                 "shadow_mode_enabled": True,
             }
         }
     )
 
     result = bundle.shadow_mode_adapter.observe_transcript(
-        turn_id="turn-shadow-not-runnable",
+        turn_id="turn-shadow-legacy-safe",
+        transcript="show desktop",
+        legacy_route="action",
+        legacy_intent_key="visual_shell.show_desktop",
+        started_monotonic=1.0,
+        speech_end_monotonic=1.0,
+    )
+
+    assert result.enabled is True
+    assert result.reason == "matched_legacy_intent"
+    assert result.legacy_runtime_primary is True
+    assert result.voice_engine_intent_key == "visual_shell.show_desktop"
+    assert result.action_executed is False
+
+
+def test_shadow_mode_refuses_when_legacy_fallback_is_not_safe() -> None:
+    bundle = build_voice_engine_v2_runtime(
+        {
+            "voice_engine": {
+                "enabled": False,
+                "version": "v2",
+                "mode": "legacy",
+                "command_first_enabled": False,
+                "fallback_to_legacy_enabled": False,
+                "shadow_mode_enabled": True,
+            }
+        }
+    )
+
+    result = bundle.shadow_mode_adapter.observe_transcript(
+        turn_id="turn-shadow-not-safe",
         transcript="show desktop",
         started_monotonic=1.0,
         speech_end_monotonic=1.0,
     )
 
     assert result.enabled is False
-    assert result.reason == "voice_engine_v2_not_runnable"
+    assert result.reason == "shadow_mode_not_safe"
     assert result.legacy_runtime_primary is True
+    assert result.action_executed is False
