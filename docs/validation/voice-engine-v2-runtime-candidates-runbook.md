@@ -150,3 +150,60 @@ Oczekiwane:
 runtime_candidates_enabled jest tylko w config/settings/runtime-candidate testach i runtime settings,
 system.exit nie jest w default runtime candidate allowlist,
 script nie zmienia voice_engine.enabled, mode, command_first_enabled.
+
+
+## Runtime candidate log validation
+
+After a controlled hardware run, validate the runtime-candidate JSONL log:
+
+```bash
+python scripts/validate_voice_engine_v2_runtime_candidate_log.py \
+  --log-path var/data/voice_engine_v2_runtime_candidates.jsonl \
+  --require-accepted-intent assistant.identity \
+  --require-accepted-intent system.current_time
+
+Expected result:
+
+accepted=true
+accepted_intents.assistant.identity >= 1
+accepted_intents.system.current_time >= 1
+
+The validator must fail if any unsupported intent is accepted, especially:
+
+system.exit
+visual_shell.show_shell
+visual_shell.show_desktop
+
+Stage 20C only allows accepted runtime-candidate records for:
+
+assistant.identity
+system.current_time
+
+Rejected records are allowed and expected for unsafe or ambiguous transcripts such as:
+
+exit
+So shall
+Oka Shell
+Show
+
+The candidate path must remain fail-open to legacy for anything uncertain.
+
+
+---
+
+# Testy Stage 20C
+
+Uruchom:
+
+```bash
+cd ~/Projects/smart-desk-ai-assistant
+source .venv/bin/activate
+```
+pytest -q tests/scripts/test_validate_voice_engine_v2_runtime_candidate_log.py
+pytest -q tests/runtime/voice_engine_v2
+pytest -q tests/core/voice_engine
+pytest -q tests/core/command_intents
+pytest -q tests/devices/audio/command_asr
+pytest -q tests/scripts/test_set_voice_engine_v2_runtime_candidates.py
+pytest -q tests/test_interaction_route_dispatch.py
+pytest -q tests/benchmarks/voice

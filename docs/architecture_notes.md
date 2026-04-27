@@ -5266,3 +5266,62 @@ Stage 19 regression tests confirmed that runtime candidates are fail-open and al
 Stage 18 hardware telemetry showed that identity and current-time commands are useful first candidates.
 Project execution rules require guarded config gates, cleanup, tests, architecture notes and no blind production takeover.
 Validation
+
+
+
+## Stage 20C — Runtime candidate telemetry validator
+
+### Status
+
+Implemented and validated.
+
+### What changed
+
+NEXA now has a validator for guarded Voice Engine v2 runtime-candidate telemetry.
+
+New script:
+
+```text
+scripts/validate_voice_engine_v2_runtime_candidate_log.py
+
+The validator reads:
+
+var/data/voice_engine_v2_runtime_candidates.jsonl
+
+and verifies that only safe Stage 20C deterministic candidates are accepted:
+
+assistant.identity
+system.current_time
+
+For accepted candidate records, the validator checks:
+
+legacy_runtime_primary=true
+llm_prevented=true
+route_kind=action
+assistant.identity -> introduce_self
+system.current_time -> ask_time
+
+It fails if unsupported intents are accepted, especially system.exit.
+
+Why this was needed
+
+Stage 20B added telemetry, but raw JSONL inspection is not enough for repeatable hardware validation.
+
+Before moving command recognition before FasterWhisper, NEXA needs a deterministic validator proving that the current live-candidate bridge accepts only safe allowlisted commands and rejects unsafe or ambiguous transcripts.
+
+What NEXA gains
+Repeatable hardware validation for runtime candidates.
+Automated safety check against accidental candidate expansion.
+Stronger proof that system.exit and Visual Shell ambiguity are not accepted in Stage 20C.
+Better confidence before moving toward pre-FasterWhisper command recognition.
+No changes to wake word, audio input, FasterWhisper, TTS or Visual Shell.
+Removed or deprecated legacy path
+
+None.
+
+Legacy runtime remains primary. This stage validates candidate telemetry only.
+
+Source / evidence
+Stage 20A hardware smoke run proved visible behaviour for identity/time and legacy fallback for exit.
+Stage 20B telemetry added route-level runtime-candidate records.
+Stage 20C validator turns those records into a repeatable safety gate for hardware tests.
