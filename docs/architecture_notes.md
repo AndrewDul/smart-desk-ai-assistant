@@ -4592,3 +4592,75 @@ p50_speech_end_to_action_ms=50.0,
 p95_speech_end_to_action_ms=50.0,
 endpoint_delay_ms=260.0,
 source audit showing that CoreAssistantInteractionMixin.handle_command() has the safest post-route and post-execution observation point.
+
+
+## 53. NEXA Voice Engine v2 — shadow telemetry validator
+
+### Status
+
+Implemented.
+
+### What changed
+
+Stage 14 adds an offline validator for Voice Engine v2 shadow-mode telemetry.
+
+New files:
+
+```text
+scripts/validate_voice_engine_v2_shadow_log.py
+tests/scripts/test_validate_voice_engine_v2_shadow_log.py
+```
+
+The validator reads:
+
+var/data/voice_engine_v2_shadow.jsonl
+
+It validates that shadow-mode telemetry remains safe before any future production takeover decision.
+
+The validator checks:
+
+valid JSONL format,
+no Voice Engine v2 action execution,
+legacy_runtime_primary=true,
+non-empty transcript,
+present legacy route,
+present legacy intent,
+present Voice Engine v2 intent,
+intent mismatch count,
+route mismatch count,
+fallback count.
+Why this was needed
+
+Stage 13 connected the legacy runtime to Voice Engine v2 shadow observation.
+
+Before enabling shadow mode on real hardware for longer validation, NEXA needs a lightweight way to inspect the collected data and prove that shadow mode is still only observing.
+
+This stage intentionally does not add anything to the runtime hot path.
+
+What NEXA gains
+
+NEXA gains a safe validation step for real transcript telemetry.
+
+This helps confirm:
+
+Voice Engine v2 does not execute actions in shadow mode,
+legacy runtime remains the only live execution path,
+command-first intent matching can be compared against legacy behaviour,
+mismatches are visible before any migration decision,
+telemetry quality can be checked without slowing down wake/capture/STT/TTS.
+Removed or deprecated legacy path
+
+No legacy runtime path was removed.
+
+No production runtime path was changed.
+
+This stage adds only offline validation tooling.
+
+Source / evidence
+
+This decision is based on:
+
+Stage 13 guarded legacy transcript tap,
+Voice Engine v2 shadow-mode JSONL telemetry,
+NEXA Voice Engine v2 requirement that architecture decisions must be backed by local runtime logs, benchmarks and tests,
+runtime-safety requirement that Voice Engine v2 must not execute actions while still in shadow mode.
