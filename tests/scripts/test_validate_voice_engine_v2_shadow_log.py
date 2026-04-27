@@ -186,3 +186,52 @@ def test_validate_shadow_log_treats_legacy_action_and_voice_command_as_same_rout
     assert summary.accepted is True
     assert summary.intent_mismatch_records == 0
     assert summary.route_mismatch_records == 0
+
+
+def test_validate_shadow_log_treats_known_legacy_intent_aliases_as_matches(
+    tmp_path: Path,
+) -> None:
+    module = _load_script_module()
+    log_path = tmp_path / "voice_engine_v2_shadow.jsonl"
+
+    identity_record = _valid_record()
+    identity_record["legacy_route"] = "action"
+    identity_record["voice_engine_route"] = "command"
+    identity_record["legacy_intent_key"] = "introduce_self"
+    identity_record["voice_engine_intent_key"] = "assistant.identity"
+
+    time_record = _valid_record()
+    time_record["legacy_route"] = "action"
+    time_record["voice_engine_route"] = "command"
+    time_record["legacy_intent_key"] = "ask_time"
+    time_record["voice_engine_intent_key"] = "system.current_time"
+
+    _write_jsonl(log_path, [identity_record, time_record])
+
+    summary = module.validate_shadow_log(log_path)
+
+    assert summary.accepted is True
+    assert summary.intent_mismatch_records == 0
+    assert summary.route_mismatch_records == 0
+
+
+def test_validate_shadow_log_allows_fallback_without_voice_engine_intent(
+    tmp_path: Path,
+) -> None:
+    module = _load_script_module()
+    log_path = tmp_path / "voice_engine_v2_shadow.jsonl"
+    record = _valid_record()
+    record["legacy_route"] = "unclear"
+    record["voice_engine_route"] = "fallback"
+    record["legacy_intent_key"] = "unknown"
+    record["voice_engine_intent_key"] = ""
+    record["fallback_reason"] = "no_match"
+
+    _write_jsonl(log_path, [record])
+
+    summary = module.validate_shadow_log(log_path)
+
+    assert summary.accepted is True
+    assert summary.missing_voice_engine_intent_records == 0
+    assert summary.route_mismatch_records == 0
+    assert summary.fallback_records == 1

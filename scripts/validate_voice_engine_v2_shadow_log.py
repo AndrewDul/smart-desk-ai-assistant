@@ -55,6 +55,26 @@ def _as_text(value: Any) -> str:
     return str(value or "").strip()
 
 
+_INTENT_ALIASES = {
+    "introduce_self": "assistant.identity",
+    "ask_time": "system.current_time",
+}
+
+
+def _normalized_intent_key(value: str) -> str:
+    cleaned = _as_text(value)
+    return _INTENT_ALIASES.get(cleaned, cleaned)
+
+
+def _intents_semantically_match(
+    *,
+    legacy_intent_key: str,
+    voice_engine_intent_key: str,
+) -> bool:
+    legacy_normalized = _normalized_intent_key(legacy_intent_key)
+    voice_engine_normalized = _normalized_intent_key(voice_engine_intent_key)
+    return bool(legacy_normalized) and legacy_normalized == voice_engine_normalized
+
 def _routes_semantically_match(
     *,
     legacy_route: str,
@@ -71,9 +91,14 @@ def _routes_semantically_match(
     if (
         legacy_route == "action"
         and voice_engine_route == "command"
-        and legacy_intent_key
-        and legacy_intent_key == voice_engine_intent_key
+        and _intents_semantically_match(
+            legacy_intent_key=legacy_intent_key,
+            voice_engine_intent_key=voice_engine_intent_key,
+        )
     ):
+        return True
+
+    if legacy_route == "unclear" and voice_engine_route == "fallback":
         return True
 
     return False
@@ -214,18 +239,27 @@ def validate_shadow_log(path: Path) -> ShadowLogSummary:
                         message="Shadow telemetry record is missing legacy_intent_key.",
                     )
                 )
-
-            if not voice_engine_intent_key:
+            if not voice_engine_intent_key and not fallback_reason:
                 missing_voice_engine_intent_records += 1
                 issues.append(
                     ShadowLogIssue(
                         line_number=line_number,
                         code="missing_voice_engine_intent",
-                        message="Shadow telemetry record is missing voice_engine_intent_key.",
+                        message=(
+                            "Shadow telemetry record is missing "
+                            "voice_engine_intent_key without fallback_reason."
+                        ),
                     )
                 )
 
-            if legacy_intent_key and voice_engine_intent_key and legacy_intent_key != voice_engine_intent_key:
+            if (
+                legacy_intent_key
+                and voice_engine_intent_key
+                and not _intents_semantically_match(
+                    legacy_intent_key=legacy_intent_key,
+                    voice_engine_intent_key=voice_engine_intent_key,
+                )
+            ):
                 intent_mismatch_records += 1
 
             if legacy_route and voice_engine_route and not _routes_semantically_match(

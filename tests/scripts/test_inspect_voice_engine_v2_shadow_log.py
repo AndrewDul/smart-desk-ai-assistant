@@ -235,3 +235,64 @@ def test_inspect_shadow_log_reads_voice_engine_language_when_language_field_is_m
     summary = module.inspect_shadow_log(log_path)
 
     assert summary["counts"]["language"] == {"en": 1}
+
+
+def test_inspect_shadow_log_treats_known_legacy_intent_aliases_as_matches(
+    tmp_path: Path,
+) -> None:
+    module = _load_script_module()
+    log_path = tmp_path / "voice_engine_v2_shadow.jsonl"
+
+    _write_jsonl(
+        log_path,
+        [
+            _record(
+                legacy_route="action",
+                voice_engine_route="command",
+                legacy_intent_key="introduce_self",
+                voice_engine_intent_key="assistant.identity",
+            ),
+            _record(
+                legacy_route="action",
+                voice_engine_route="command",
+                legacy_intent_key="ask_time",
+                voice_engine_intent_key="system.current_time",
+            ),
+        ],
+    )
+
+    summary = module.inspect_shadow_log(log_path)
+
+    assert summary["safety_ok"] is True
+    assert summary["intent_mismatch_records"] == 0
+    assert summary["route_mismatch_records"] == 0
+    assert summary["samples"]["intent_mismatch"] == []
+    assert summary["samples"]["route_mismatch"] == []
+
+
+def test_inspect_shadow_log_treats_legacy_unclear_and_voice_fallback_as_same_route(
+    tmp_path: Path,
+) -> None:
+    module = _load_script_module()
+    log_path = tmp_path / "voice_engine_v2_shadow.jsonl"
+
+    _write_jsonl(
+        log_path,
+        [
+            _record(
+                legacy_route="unclear",
+                voice_engine_route="fallback",
+                legacy_intent_key="unknown",
+                voice_engine_intent_key="",
+                fallback_reason="no_match",
+            )
+        ],
+    )
+
+    summary = module.inspect_shadow_log(log_path)
+
+    assert summary["safety_ok"] is True
+    assert summary["route_mismatch_records"] == 0
+    assert summary["fallback_records"] == 1
+    assert summary["samples"]["route_mismatch"] == []
+    assert len(summary["samples"]["fallback"]) == 1

@@ -5037,3 +5037,88 @@ Stage 17B manual probe,
 generated shadow telemetry record,
 validator/inspector output showing route taxonomy mismatch with matching intent,
 Voice Engine v2 migration rule that decisions must be based on useful telemetry, not misleading counters.
+
+
+## 58. NEXA Voice Engine v2 — first hardware shadow telemetry review
+
+### Status
+
+Implemented.
+
+### What changed
+
+Stage 18 collected the first real Voice Engine v2 shadow telemetry from `python main.py`.
+
+The runtime was started with:
+
+```text
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.shadow_mode_enabled=true
+
+The shadow log was created successfully:
+
+var/data/voice_engine_v2_shadow.jsonl
+
+The run collected 6 records.
+
+Why this was needed
+
+Previous stages proved the shadow hook in unit tests and manual probes.
+
+Stage 18 proved that the real hardware runtime path can now feed accepted legacy transcripts into Voice Engine v2 shadow telemetry while legacy runtime remains primary.
+
+What NEXA gains
+
+NEXA now has real transcript evidence from hardware runtime.
+
+The telemetry confirms:
+
+Voice Engine v2 did not execute actions,
+legacy runtime remained primary,
+shadow mode wrote JSONL telemetry,
+command-first intent comparison can run after legacy execution,
+real STT/capture problems are visible in the data.
+Observed runtime evidence
+
+Safety:
+
+action_executed_records: 0
+non_legacy_primary_records: 0
+empty_transcript_records: 0
+safety_ok: True
+
+Useful matches:
+
+What is your name? -> legacy introduce_self, Voice Engine assistant.identity
+What time is it? -> legacy ask_time, Voice Engine system.current_time
+
+Observed STT/capture problems:
+
+show shell -> So shall
+show shell -> Show
+show shell -> Oka Shell!
+
+Observed runtime issue:
+
+FasterWhisper audio callback status: input overflow
+
+This confirms that the perceived 5–10 second delay is still caused before routing, mainly in wake/capture/endpointing/STT, not in the deterministic Visual Shell router.
+
+Removed or deprecated legacy path
+
+No legacy path was removed.
+
+Legacy wake/capture/STT/TTS/Visual Shell remains production-primary.
+
+Source / evidence
+
+This decision is based on:
+
+controlled hardware shadow run,
+generated var/data/voice_engine_v2_shadow.jsonl,
+validator output,
+inspector output,
+runtime logs showing FasterWhisper input overflow,
+benchmark gates still accepted.

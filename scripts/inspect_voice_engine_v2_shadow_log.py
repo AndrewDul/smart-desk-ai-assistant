@@ -136,6 +136,27 @@ def _counter_top(counter: Counter[str], limit: int) -> dict[str, int]:
     return {key: count for key, count in counter.most_common(max(1, limit))}
 
 
+_INTENT_ALIASES = {
+    "introduce_self": "assistant.identity",
+    "ask_time": "system.current_time",
+}
+
+
+def _normalized_intent_key(value: str) -> str:
+    cleaned = _as_text(value)
+    return _INTENT_ALIASES.get(cleaned, cleaned)
+
+
+def _intents_semantically_match(
+    *,
+    legacy_intent_key: str,
+    voice_engine_intent_key: str,
+) -> bool:
+    legacy_normalized = _normalized_intent_key(legacy_intent_key)
+    voice_engine_normalized = _normalized_intent_key(voice_engine_intent_key)
+    return bool(legacy_normalized) and legacy_normalized == voice_engine_normalized
+
+
 def _routes_semantically_match(
     *,
     legacy_route: str,
@@ -152,9 +173,14 @@ def _routes_semantically_match(
     if (
         legacy_route == "action"
         and voice_engine_route == "command"
-        and legacy_intent_key
-        and legacy_intent_key == voice_engine_intent_key
+        and _intents_semantically_match(
+            legacy_intent_key=legacy_intent_key,
+            voice_engine_intent_key=voice_engine_intent_key,
+        )
     ):
+        return True
+
+    if legacy_route == "unclear" and voice_engine_route == "fallback":
         return True
 
     return False
@@ -290,7 +316,10 @@ def inspect_shadow_log(
         if (
             legacy_intent_key
             and voice_engine_intent_key
-            and legacy_intent_key != voice_engine_intent_key
+            and not _intents_semantically_match(
+                legacy_intent_key=legacy_intent_key,
+                voice_engine_intent_key=voice_engine_intent_key,
+            )
             and len(intent_mismatch_samples) < sample_limit
         ):
             intent_mismatch_samples.append(_sample_record(record, line_number))
@@ -325,7 +354,10 @@ def inspect_shadow_log(
         for _, record in records
         if _as_text(record.get("legacy_intent_key"))
         and _as_text(record.get("voice_engine_intent_key"))
-        and _as_text(record.get("legacy_intent_key")) != _as_text(record.get("voice_engine_intent_key"))
+        and not _intents_semantically_match(
+            legacy_intent_key=_as_text(record.get("legacy_intent_key")),
+            voice_engine_intent_key=_as_text(record.get("voice_engine_intent_key")),
+        )
     )
     route_mismatch_records = sum(
         1
