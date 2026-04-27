@@ -123,3 +123,54 @@ For the next migration step before FasterWhisper, use:
 docs/validation/voice-engine-v2-pre-stt-shadow-runbook.md
 
 The pre-STT shadow path must be tested separately with runtime_candidates_enabled=false so the hardware run proves only the pre-STT observation hook.
+
+
+## Validate pre-STT shadow telemetry
+
+After a controlled hardware run, validate the telemetry log:
+
+```bash
+python scripts/validate_voice_engine_v2_pre_stt_shadow_log.py \
+  --log-path var/data/voice_engine_v2_pre_stt_shadow.jsonl \
+  --require-observed
+
+Expected result:
+
+accepted=true
+observed_records>=1
+
+The validator fails if any record shows:
+
+action_executed=true
+full_stt_prevented=true
+legacy_runtime_primary=false
+
+For Stage 21C, accepted telemetry reasons are:
+
+audio_bus_unavailable_observe_only
+audio_bus_available_observe_only
+
+audio_bus_unavailable_observe_only is expected until the realtime audio bus is wired into the active command window in shadow mode.
+
+
+---
+
+# Testy Stage 21C
+
+Uruchom:
+
+```bash
+cd ~/Projects/smart-desk-ai-assistant
+source .venv/bin/activate
+
+pytest -q tests/scripts/test_validate_voice_engine_v2_pre_stt_shadow_log.py
+pytest -q tests/scripts/test_set_voice_engine_v2_pre_stt_shadow.py
+pytest -q tests/runtime/voice_engine_v2/test_pre_stt_shadow.py
+pytest -q tests/runtime/voice_engine_v2
+pytest -q tests/core/voice_engine
+pytest -q tests/core/command_intents
+pytest -q tests/devices/audio/command_asr
+pytest -q tests/scripts/test_set_voice_engine_v2_runtime_candidates.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_runtime_candidate_log.py
+pytest -q tests/test_interaction_route_dispatch.py
+pytest -q tests/benchmarks/voice
