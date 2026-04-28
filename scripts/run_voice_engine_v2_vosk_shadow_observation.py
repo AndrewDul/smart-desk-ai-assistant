@@ -32,6 +32,7 @@ OBSERVATION_FLAGS: dict[str, bool] = {
     "command_asr_shadow_bridge_enabled": True,
     "vosk_live_shadow_contract_enabled": True,
     "vosk_shadow_invocation_plan_enabled": True,
+    "vosk_shadow_pcm_reference_enabled": True,
 }
 RESTORED_OBSERVATION_FLAGS: dict[str, bool] = {
     key: False for key in OBSERVATION_FLAGS

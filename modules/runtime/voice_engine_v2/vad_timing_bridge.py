@@ -28,6 +28,12 @@ from modules.runtime.voice_engine_v2.vosk_shadow_invocation_plan import (
     VoskShadowInvocationPlanSettings,
     build_vosk_shadow_invocation_plan,
 )
+from modules.runtime.voice_engine_v2.vosk_shadow_pcm_reference import (
+    VOSK_SHADOW_PCM_REFERENCE_STAGE,
+    VOSK_SHADOW_PCM_REFERENCE_VERSION,
+    VoskShadowPcmReferenceSettings,
+    build_vosk_shadow_pcm_reference,
+)
 from modules.runtime.voice_engine_v2.vad_shadow import (
     VoiceEngineV2VadShadowObserver,
     build_voice_engine_v2_vad_shadow_observer,
@@ -504,6 +510,11 @@ class VoiceEngineV2VadTimingBridgeAdapter:
             hook=hook,
             metadata=safe_metadata,
         )
+        safe_metadata = _maybe_attach_vosk_shadow_pcm_reference(
+            settings=self._settings,
+            hook=hook,
+            metadata=safe_metadata,
+        )
         
 
         record = VoiceEngineV2VadTimingBridgeRecord(
@@ -751,6 +762,87 @@ def _maybe_attach_vosk_shadow_invocation_plan(
             "independent_microphone_stream_started": False,
             "live_command_recognition_enabled": False,
             "raw_pcm_included": False,
+            "action_executed": False,
+            "full_stt_prevented": False,
+            "runtime_takeover": False,
+        }
+
+    return safe_metadata
+
+
+def _maybe_attach_vosk_shadow_pcm_reference(
+    *,
+    settings: Mapping[str, Any],
+    hook: str,
+    metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    safe_metadata = dict(metadata or {})
+    voice_engine = _voice_engine_config(settings)
+
+    if not bool(voice_engine.get("vosk_shadow_pcm_reference_enabled", False)):
+        return safe_metadata
+
+    if not bool(voice_engine.get("command_asr_shadow_bridge_enabled", False)):
+        return safe_metadata
+
+    if not bool(voice_engine.get("vosk_live_shadow_contract_enabled", False)):
+        return safe_metadata
+
+    if not bool(voice_engine.get("vosk_shadow_invocation_plan_enabled", False)):
+        return safe_metadata
+
+    if hook != "capture_window_pre_transcription":
+        return safe_metadata
+
+    if "command_asr_candidate" not in safe_metadata:
+        return safe_metadata
+
+    if "vosk_shadow_invocation_plan" not in safe_metadata:
+        return safe_metadata
+
+    try:
+        reference = build_vosk_shadow_pcm_reference(
+            hook=hook,
+            metadata=safe_metadata,
+            settings=VoskShadowPcmReferenceSettings(enabled=True),
+        )
+        safe_metadata[reference.metadata_key] = reference.to_json_dict()
+    except Exception as error:
+        safe_metadata["vosk_shadow_pcm_reference"] = {
+            "reference_stage": VOSK_SHADOW_PCM_REFERENCE_STAGE,
+            "reference_version": VOSK_SHADOW_PCM_REFERENCE_VERSION,
+            "enabled": True,
+            "reference_ready": False,
+            "reason": f"vosk_shadow_pcm_reference_failed:{type(error).__name__}",
+            "metadata_key": "vosk_shadow_pcm_reference",
+            "hook": str(hook or ""),
+            "retrieval_strategy": "existing_capture_window_audio_bus_snapshot",
+            "source": "",
+            "publish_stage": "",
+            "pcm_encoding": "",
+            "sample_rate": None,
+            "channels": None,
+            "sample_width_bytes": None,
+            "audio_sample_count": 0,
+            "audio_duration_ms": None,
+            "published_frame_count": 0,
+            "published_byte_count": 0,
+            "segment_present": False,
+            "invocation_plan_present": False,
+            "invocation_plan_ready": False,
+            "command_asr_candidate_present": False,
+            "raw_pcm_included": False,
+            "pcm_retrieval_performed": False,
+            "recognition_invocation_performed": False,
+            "recognition_attempted": False,
+            "recognized": False,
+            "command_matched": False,
+            "runtime_integration": False,
+            "command_execution_enabled": False,
+            "faster_whisper_bypass_enabled": False,
+            "microphone_stream_started": False,
+            "independent_microphone_stream_started": False,
+            "live_command_recognition_enabled": False,
             "action_executed": False,
             "full_stt_prevented": False,
             "runtime_takeover": False,

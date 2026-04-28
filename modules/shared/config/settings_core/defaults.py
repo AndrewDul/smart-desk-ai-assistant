@@ -78,6 +78,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "command_asr_shadow_bridge_enabled": False,
         "vosk_live_shadow_contract_enabled": False,
         "vosk_shadow_invocation_plan_enabled": False,
+        "vosk_shadow_pcm_reference_enabled": False,
         "vad_endpointing_enabled": False,
         "command_first_enabled": False,
         "fallback_to_legacy_enabled": True,
