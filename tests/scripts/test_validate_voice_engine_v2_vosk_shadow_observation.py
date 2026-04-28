@@ -59,7 +59,42 @@ def _write_contract_log(path: Path, *, observed: bool = False) -> None:
                 "action_executed": False,
                 "full_stt_prevented": False,
                 "runtime_takeover": False,
-            }
+            },
+            "vosk_shadow_invocation_plan": {
+                "plan_stage": "vosk_shadow_invocation_plan",
+                "plan_version": "vosk_shadow_invocation_plan_v1",
+                "enabled": True,
+                "plan_ready": True,
+                "reason": "observe_only_invocation_boundary_ready",
+                "metadata_key": "vosk_shadow_invocation_plan",
+                "hook": "capture_window_pre_transcription",
+                "input_source": "existing_command_audio_segment_metadata_only",
+                "recognizer_name": "vosk_command_asr",
+                "command_asr_bridge_present": True,
+                "command_asr_candidate_present": True,
+                "vosk_live_shadow_contract_present": True,
+                "segment_present": True,
+                "segment_reason": "command_audio_segment_ready",
+                "segment_audio_duration_ms": 1800.0,
+                "segment_audio_sample_count": 32000,
+                "segment_published_byte_count": 64000,
+                "segment_sample_rate": 16000,
+                "segment_pcm_encoding": "pcm_s16le",
+                "recognition_invocation_performed": False,
+                "recognition_attempted": False,
+                "recognized": False,
+                "command_matched": False,
+                "runtime_integration": False,
+                "command_execution_enabled": False,
+                "faster_whisper_bypass_enabled": False,
+                "microphone_stream_started": False,
+                "independent_microphone_stream_started": False,
+                "live_command_recognition_enabled": False,
+                "raw_pcm_included": False,
+                "action_executed": False,
+                "full_stt_prevented": False,
+                "runtime_takeover": False,
+            },
         },
     }
     path.write_text(json.dumps(record) + "\n", encoding="utf-8")
@@ -75,6 +110,8 @@ def test_validator_accepts_restored_config_and_attached_contract(tmp_path: Path)
         settings_path=settings_path,
         log_path=log_path,
         require_contract_attached=True,
+        require_invocation_plan_attached=False,
+        require_invocation_plan_ready=False,
         require_restored_config=True,
     )
 
@@ -97,6 +134,8 @@ def test_validator_rejects_active_observation_flag_after_restore(tmp_path: Path)
         settings_path=settings_path,
         log_path=log_path,
         require_contract_attached=True,
+        require_invocation_plan_attached=False,
+        require_invocation_plan_ready=False,
         require_restored_config=True,
     )
 
@@ -122,6 +161,8 @@ def test_validator_can_allow_active_observation_config_before_restore(
         settings_path=settings_path,
         log_path=log_path,
         require_contract_attached=True,
+        require_invocation_plan_attached=False,
+        require_invocation_plan_ready=False,
         require_restored_config=False,
     )
 
@@ -138,6 +179,8 @@ def test_validator_rejects_observed_recognition_shape(tmp_path: Path) -> None:
         settings_path=settings_path,
         log_path=log_path,
         require_contract_attached=True,
+        require_invocation_plan_attached=False,
+        require_invocation_plan_ready=False,
         require_restored_config=True,
     )
 
@@ -158,6 +201,8 @@ def test_cli_returns_zero_for_valid_observation(tmp_path: Path, capsys) -> None:
             "--log-path",
             str(log_path),
             "--require-contract-attached",
+            "--require-invocation-plan-attached",
+            "--require-invocation-plan-ready",
         ]
     )
     payload = json.loads(capsys.readouterr().out)
