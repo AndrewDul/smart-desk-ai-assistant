@@ -11,6 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
+from modules.devices.audio.command_asr.command_language import CommandLanguage  # noqa: E402
 from modules.runtime.voice_engine_v2.vosk_fixture_recognition_probe import (  # noqa: E402
     probe_vosk_fixture_recognition,
     validate_vosk_fixture_recognition_result,
@@ -18,6 +19,10 @@ from modules.runtime.voice_engine_v2.vosk_fixture_recognition_probe import (  # 
 
 
 DEFAULT_OUTPUT_PATH = Path("var/data/voice_engine_v2_vosk_fixture_recognition_probe.json")
+LANGUAGE_CHOICES = tuple(
+    language.value
+    for language in (CommandLanguage.ENGLISH, CommandLanguage.POLISH)
+)
 
 
 def run_vosk_fixture_recognition_probe(
@@ -26,14 +31,17 @@ def run_vosk_fixture_recognition_probe(
     wav_path: Path,
     output_path: Path | None = DEFAULT_OUTPUT_PATH,
     require_command_match: bool = False,
+    language: CommandLanguage | None = None,
 ) -> dict[str, object]:
     result = probe_vosk_fixture_recognition(
         model_path=model_path,
         wav_path=wav_path,
+        language=language,
     )
     validation = validate_vosk_fixture_recognition_result(
         result=result,
         require_command_match=require_command_match,
+        require_language_match=language is not None,
     )
 
     payload = {
@@ -82,6 +90,15 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Fail if the recognized text does not match command grammar.",
     )
     parser.add_argument(
+        "--language",
+        choices=LANGUAGE_CHOICES,
+        default=None,
+        help=(
+            "Optional language scope for the Vosk grammar vocabulary. "
+            "Use 'en' for English fixtures or 'pl' for Polish fixtures."
+        ),
+    )
+    parser.add_argument(
         "--output-path",
         type=Path,
         default=DEFAULT_OUTPUT_PATH,
@@ -95,6 +112,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _parse_command_language(value: str | None) -> CommandLanguage | None:
+    if not value:
+        return None
+    return CommandLanguage(value)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     result = run_vosk_fixture_recognition_probe(
@@ -102,6 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         wav_path=args.wav_path,
         output_path=None if args.no_output else args.output_path,
         require_command_match=args.require_command_match,
+        language=_parse_command_language(args.language),
     )
     print(json.dumps(result, indent=2, ensure_ascii=False, sort_keys=True))
     return 0 if bool(result.get("accepted", False)) else 1

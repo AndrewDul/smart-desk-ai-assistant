@@ -132,10 +132,22 @@ class CommandGrammar:
             if phrase.language == language
         )
 
-    def to_vosk_vocabulary(self) -> tuple[str, ...]:
+    def to_vosk_vocabulary(
+        self,
+        *,
+        language: CommandLanguage | None = None,
+    ) -> tuple[str, ...]:
         """Return phrase list suitable for limited grammar ASR engines."""
 
-        return tuple(sorted({phrase.phrase for phrase in self._phrases}))
+        phrases = self._phrases
+        if language in (CommandLanguage.ENGLISH, CommandLanguage.POLISH):
+            phrases = [
+                phrase
+                for phrase in self._phrases
+                if phrase.language == language
+            ]
+
+        return tuple(sorted({phrase.phrase for phrase in phrases}))
 
     @staticmethod
     def _compact(normalized: str) -> str:

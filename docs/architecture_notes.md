@@ -10693,3 +10693,125 @@ change TTS,
 change Visual Shell,
 enable Voice Engine v2 runtime takeover,
 connect Vosk recognition to live runtime.
+
+-----------
+
+
+## Stage 24AE — Language-scoped offline Vosk fixture grammar
+
+### Status
+
+Implemented as an offline fixture probe improvement. Not connected to live runtime.
+
+### What changed
+
+Stage 24AE added language-scoped Vosk grammar vocabulary support for offline fixture probing.
+
+The offline Vosk fixture probe can now be called with:
+
+```bash
+--language en
+--language pl
+
+When --language en is used, the probe builds Vosk grammar vocabulary only from English command phrases.
+
+When --language pl is used, the probe builds Vosk grammar vocabulary only from Polish command phrases.
+
+The result telemetry now records:
+
+expected_language
+
+and strict scoped validation checks that the matched command language agrees with the expected fixture language.
+
+Why this was needed
+
+Stage 24AD proved that real EN/PL fixtures can be imported and recognized offline.
+
+It also exposed a probe hygiene issue: the offline Vosk probe built one mixed bilingual grammar vocabulary, so the EN model received Polish command phrases and the PL model received English command phrases.
+
+This produced noisy Vosk warnings about missing vocabulary words and made the offline evidence less clean.
+
+Stage 24AE fixes the probe contract without changing live runtime behavior.
+
+What NEXA gains
+
+NEXA now has cleaner offline recognition evidence for the future command-first pipeline.
+
+This gives the project:
+
+language-scoped EN fixture probing,
+language-scoped PL fixture probing,
+less noisy Vosk vocabulary warnings,
+stronger bilingual validation,
+clearer telemetry for offline command recognition quality,
+no live runtime takeover,
+no command execution risk,
+no FasterWhisper bypass in production.
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No runtime route was changed.
+
+No live Vosk recognizer was connected.
+
+No production command path was changed.
+
+No config flag was enabled.
+
+The old unscoped vocabulary mode remains available by omitting --language, which preserves compatibility for existing tests and tooling.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24AD offline Vosk reports.
+Vosk warnings showing mixed-language vocabulary terms being passed to the wrong model.
+Existing CommandGrammar language metadata.
+Existing CommandLanguage.ENGLISH and CommandLanguage.POLISH command phrase classification.
+Offline scoped probe reports under var/data/stage24ae_vosk_fixture_probes/.
+Validation
+
+Unit tests:
+
+pytest -q tests/devices/audio/command_asr/test_command_grammar.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_fixture_recognition_probe.py
+pytest -q tests/scripts/test_probe_voice_engine_v2_vosk_fixture_recognition.py
+pytest -q tests/test_core_assistant_import.py
+
+Manual scoped offline Vosk recognition probes passed for:
+
+en_show_desktop: expected_language=en, command_language=en
+en_hide_desktop: expected_language=en, command_language=en
+en_what_time_is_it: expected_language=en, command_language=en
+pl_pokaz_pulpit: expected_language=pl, command_language=pl
+pl_schowaj_pulpit: expected_language=pl, command_language=pl
+pl_ktora_godzina: expected_language=pl, command_language=pl
+
+Expected safety fields remained false:
+
+runtime_integration=false
+command_execution_enabled=false
+faster_whisper_bypass_enabled=false
+microphone_stream_started=false
+live_command_recognition_enabled=false
+raw_pcm_included=false
+action_executed=false
+full_stt_prevented=false
+runtime_takeover=false
+Follow-up
+
+Stage 24AF should add a small aggregate report tool for offline fixture recognition quality so EN/PL fixture probe reports can be summarized without manually inspecting each JSON file.
+
+Stage 24AF must still not:
+
+execute commands,
+bypass FasterWhisper,
+start live Voice Engine v2 microphone recognition,
+change wake word,
+change TTS,
+change Visual Shell,
+enable Voice Engine v2 runtime takeover,
+connect Vosk recognition to live runtime.
+
+-----

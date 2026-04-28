@@ -13,6 +13,7 @@ from modules.devices.audio.command_asr.command_grammar import (
     build_default_command_grammar,
     normalize_command_text,
 )
+from modules.devices.audio.command_asr.command_language import CommandLanguage
 from modules.devices.audio.command_asr.command_result import (
     CommandRecognitionResult,
     CommandRecognitionStatus,
@@ -87,6 +88,7 @@ class VoskFixtureRecognitionProbeResult:
     elapsed_ms: float | None
     reason: str
     error: str = ""
+    expected_language: str = "all"
     runtime_integration: bool = False
     command_execution_enabled: bool = False
     faster_whisper_bypass_enabled: bool = False
@@ -134,6 +136,7 @@ class VoskFixtureRecognitionProbeResult:
             "wav_duration_ms": self.wav_duration_ms,
             "wav_pcm_byte_count": self.wav_pcm_byte_count,
             "vocabulary_size": self.vocabulary_size,
+            "expected_language": self.expected_language,
             "fixture_recognition_attempted": self.fixture_recognition_attempted,
             "fixture_recognition_success": self.fixture_recognition_success,
             "transcript": self.transcript,
@@ -164,12 +167,14 @@ def probe_vosk_fixture_recognition(
     *,
     model_path: Path,
     wav_path: Path,
+    language: CommandLanguage | None = None,
     transcript_provider: FixtureTranscriptProvider | None = None,
 ) -> VoskFixtureRecognitionProbeResult:
     started = time.perf_counter()
 
     grammar = build_default_command_grammar()
-    vocabulary = grammar.to_vosk_vocabulary()
+    expected_language = _expected_language_value(language)
+    vocabulary = grammar.to_vosk_vocabulary(language=language)
 
     model_path = Path(model_path)
     wav_path = Path(wav_path)
@@ -184,6 +189,7 @@ def probe_vosk_fixture_recognition(
             model_marker_status=model_marker_status,
             model_structure_ready=False,
             vocabulary_size=len(vocabulary),
+            expected_language=expected_language,
             reason="model_path_missing",
             started=started,
         )
@@ -196,11 +202,15 @@ def probe_vosk_fixture_recognition(
             model_marker_status=model_marker_status,
             model_structure_ready=False,
             vocabulary_size=len(vocabulary),
+            expected_language=expected_language,
             reason="model_structure_incomplete",
             started=started,
         )
 
-    fixture_result = _load_wav_pcm_fixture(wav_path)
+    fixture_result = _load_wav_pcm_fixture(
+        wav_path,
+        expected_language=expected_language,
+    )
     if isinstance(fixture_result, VoskFixtureRecognitionProbeResult):
         return fixture_result
 
@@ -231,6 +241,7 @@ def probe_vosk_fixture_recognition(
             wav_duration_ms=fixture.duration_ms,
             wav_pcm_byte_count=fixture.pcm_byte_count,
             vocabulary_size=len(vocabulary),
+            expected_language=expected_language,
             fixture_recognition_attempted=True,
             reason="fixture_recognition_failed",
             error=f"{type(error).__name__}:{error}",
@@ -246,6 +257,7 @@ def probe_vosk_fixture_recognition(
         model_marker_status=model_marker_status,
         fixture=fixture,
         vocabulary_size=len(vocabulary),
+        expected_language=expected_language,
         transcript=transcript,
         normalized=normalized,
         command_result=command_result,
@@ -257,6 +269,7 @@ def validate_vosk_fixture_recognition_result(
     *,
     result: VoskFixtureRecognitionProbeResult,
     require_command_match: bool = False,
+    require_language_match: bool = False,
 ) -> dict[str, Any]:
     payload = result.to_json_dict()
     issues: list[str] = []
@@ -273,6 +286,12 @@ def validate_vosk_fixture_recognition_result(
         issues.append("fixture_recognition_not_attempted")
     if require_command_match and not payload["command_matched"]:
         issues.append("command_match_missing")
+
+    if require_language_match and payload["command_matched"]:
+        expected_language = str(payload.get("expected_language") or "all")
+        command_language = str(payload.get("command_language") or "unknown")
+        if expected_language in {"en", "pl"} and command_language != expected_language:
+            issues.append("command_language_mismatch")
 
     _append_if_true(issues, payload, "runtime_integration")
     _append_if_true(issues, payload, "command_execution_enabled")
@@ -294,6 +313,12 @@ def validate_vosk_fixture_recognition_result(
     }
 
 
+def _expected_language_value(language: CommandLanguage | None) -> str:
+    if language in (CommandLanguage.ENGLISH, CommandLanguage.POLISH):
+        return language.value
+    return "all"
+
+
 def _model_status(model_path: Path) -> tuple[bool, dict[str, bool], bool]:
     exists = model_path.exists() and model_path.is_dir()
     marker_status = {
@@ -305,6 +330,8 @@ def _model_status(model_path: Path) -> tuple[bool, dict[str, bool], bool]:
 
 def _load_wav_pcm_fixture(
     wav_path: Path,
+    *,
+    expected_language: str = "all",
 ) -> WavPcmFixture | VoskFixtureRecognitionProbeResult:
     if not wav_path.exists() or not wav_path.is_file():
         return _result(
@@ -314,6 +341,7 @@ def _load_wav_pcm_fixture(
             model_structure_ready=True,
             model_marker_status={},
             wav_exists=False,
+            expected_language=expected_language,
             reason="wav_path_missing",
         )
 
@@ -331,6 +359,7 @@ def _load_wav_pcm_fixture(
                     sample_width=sample_width,
                     sample_rate=sample_rate,
                     frame_count=frame_count,
+                    expected_language=expected_language,
                     reason="wav_not_mono",
                 )
 
@@ -341,6 +370,7 @@ def _load_wav_pcm_fixture(
                     sample_width=sample_width,
                     sample_rate=sample_rate,
                     frame_count=frame_count,
+                    expected_language=expected_language,
                     reason="wav_not_pcm16",
                 )
 
@@ -351,6 +381,7 @@ def _load_wav_pcm_fixture(
                     sample_width=sample_width,
                     sample_rate=sample_rate,
                     frame_count=frame_count,
+                    expected_language=expected_language,
                     reason="wav_sample_rate_unsupported",
                 )
 
@@ -361,6 +392,7 @@ def _load_wav_pcm_fixture(
                     sample_width=sample_width,
                     sample_rate=sample_rate,
                     frame_count=frame_count,
+                    expected_language=expected_language,
                     reason="wav_empty",
                 )
 
@@ -375,6 +407,7 @@ def _load_wav_pcm_fixture(
             model_marker_status={},
             wav_exists=True,
             wav_valid=False,
+            expected_language=expected_language,
             reason="wav_read_failed",
             error=f"WaveError:{error}",
         )
@@ -437,6 +470,7 @@ def _result_from_command_match(
     model_marker_status: dict[str, bool],
     fixture: WavPcmFixture,
     vocabulary_size: int,
+    expected_language: str,
     transcript: str,
     normalized: str,
     command_result: CommandRecognitionResult,
@@ -459,6 +493,7 @@ def _result_from_command_match(
         wav_duration_ms=fixture.duration_ms,
         wav_pcm_byte_count=fixture.pcm_byte_count,
         vocabulary_size=vocabulary_size,
+        expected_language=expected_language,
         fixture_recognition_attempted=True,
         fixture_recognition_success=bool(transcript.strip()),
         transcript=transcript,
@@ -482,6 +517,7 @@ def _invalid_wav_result(
     sample_width: int,
     sample_rate: int,
     frame_count: int,
+    expected_language: str = "all",
     reason: str,
 ) -> VoskFixtureRecognitionProbeResult:
     duration_ms = (frame_count / sample_rate) * 1000.0 if sample_rate > 0 else None
@@ -498,6 +534,7 @@ def _invalid_wav_result(
         wav_channels=channels,
         wav_sample_width_bytes=sample_width,
         wav_duration_ms=round(duration_ms, 3) if duration_ms is not None else None,
+        expected_language=expected_language,
         reason=reason,
     )
 
@@ -519,6 +556,7 @@ def _result(
     wav_duration_ms: float | None = None,
     wav_pcm_byte_count: int = 0,
     vocabulary_size: int = 0,
+    expected_language: str = "all",
     fixture_recognition_attempted: bool = False,
     fixture_recognition_success: bool = False,
     transcript: str = "",
@@ -552,6 +590,7 @@ def _result(
         wav_duration_ms=wav_duration_ms,
         wav_pcm_byte_count=wav_pcm_byte_count,
         vocabulary_size=vocabulary_size,
+        expected_language=expected_language,
         fixture_recognition_attempted=fixture_recognition_attempted,
         fixture_recognition_success=fixture_recognition_success,
         transcript=transcript,

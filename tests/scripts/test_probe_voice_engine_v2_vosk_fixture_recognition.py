@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import wave
 
+from modules.devices.audio.command_asr.command_language import CommandLanguage
 from modules.runtime.voice_engine_v2.vosk_fixture_recognition_probe import (
     probe_vosk_fixture_recognition,
     validate_vosk_fixture_recognition_result,
@@ -56,6 +57,31 @@ def test_run_vosk_fixture_recognition_probe_writes_failure_report_for_missing_wa
     assert report["live_command_recognition_enabled"] is False
 
 
+def test_run_vosk_fixture_recognition_probe_writes_language_scope_to_report(
+    tmp_path: Path,
+) -> None:
+    model_path = tmp_path / "vosk-model-small-en"
+    wav_path = tmp_path / "fixture.wav"
+    output_path = tmp_path / "probe.json"
+    _create_minimal_vosk_model(model_path)
+    _write_wav(wav_path)
+
+    result = run_vosk_fixture_recognition_probe(
+        model_path=model_path,
+        wav_path=wav_path,
+        output_path=output_path,
+        language=CommandLanguage.ENGLISH,
+    )
+
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert result["result"]["expected_language"] == "en"
+    assert report["result"]["expected_language"] == "en"
+    assert report["runtime_integration"] is False
+    assert report["microphone_stream_started"] is False
+    assert report["live_command_recognition_enabled"] is False
+
+
 def test_validation_payload_accepts_injected_command_match(tmp_path: Path) -> None:
     model_path = tmp_path / "vosk-model-small-en"
     wav_path = tmp_path / "fixture.wav"
@@ -101,6 +127,30 @@ def test_cli_returns_one_for_missing_wav(tmp_path: Path, capsys) -> None:
     assert payload["accepted"] is False
     assert "wav_path_missing" in payload["issues"]
     assert output_path.exists()
+
+
+def test_cli_accepts_language_scope(tmp_path: Path, capsys) -> None:
+    wav_path = tmp_path / "fixture.wav"
+    _write_wav(wav_path)
+
+    exit_code = main(
+        [
+            "--model-path",
+            str(tmp_path / "missing-model"),
+            "--wav-path",
+            str(wav_path),
+            "--language",
+            "en",
+            "--no-output",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 1
+    assert payload["accepted"] is False
+    assert payload["result"]["expected_language"] == "en"
+    assert "model_path_missing" in payload["issues"]
 
 
 def test_cli_no_output_for_missing_model(tmp_path: Path, capsys) -> None:

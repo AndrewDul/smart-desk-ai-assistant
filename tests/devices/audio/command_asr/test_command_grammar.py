@@ -103,3 +103,22 @@ def test_grammar_exports_vocabulary_for_limited_asr() -> None:
     assert "show desktop" in vocabulary
     assert "pokaż pulpit" in vocabulary
     assert "bateria" in vocabulary
+
+
+def test_grammar_exports_language_scoped_vosk_vocabulary() -> None:
+    grammar = build_default_command_grammar()
+
+    english_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH)
+    polish_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)
+
+    assert "show desktop" in english_vocabulary
+    assert "hide desktop" in english_vocabulary
+    assert "what time is it" in english_vocabulary
+    assert "pokaż pulpit" not in english_vocabulary
+    assert "która godzina" not in english_vocabulary
+
+    assert "pokaż pulpit" in polish_vocabulary
+    assert "schowaj pulpit" in polish_vocabulary
+    assert "która godzina" in polish_vocabulary
+    assert "show desktop" not in polish_vocabulary
+    assert "what time is it" not in polish_vocabulary

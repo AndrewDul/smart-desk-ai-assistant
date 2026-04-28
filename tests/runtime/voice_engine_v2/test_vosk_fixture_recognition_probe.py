@@ -5,6 +5,7 @@ import wave
 
 import pytest
 
+from modules.devices.audio.command_asr.command_language import CommandLanguage
 from modules.runtime.voice_engine_v2.vosk_fixture_recognition_probe import (
     VoskFixtureRecognitionProbeResult,
     probe_vosk_fixture_recognition,
@@ -97,6 +98,75 @@ def test_probe_matches_command_with_injected_transcript_provider(
     assert payload["microphone_stream_started"] is False
     assert payload["live_command_recognition_enabled"] is False
     assert payload["raw_pcm_included"] is False
+
+
+def test_probe_uses_language_scoped_vocabulary_when_language_is_provided(
+    tmp_path: Path,
+) -> None:
+    model_path = tmp_path / "vosk-model-small-en"
+    wav_path = tmp_path / "fixture.wav"
+    captured: dict[str, tuple[str, ...]] = {}
+    _create_minimal_vosk_model(model_path)
+    _write_wav(wav_path)
+
+    def transcript_provider(
+        pcm: bytes,
+        sample_rate: int,
+        vocabulary: tuple[str, ...],
+    ) -> str:
+        captured["vocabulary"] = vocabulary
+        return "what time is it"
+
+    result = probe_vosk_fixture_recognition(
+        model_path=model_path,
+        wav_path=wav_path,
+        language=CommandLanguage.ENGLISH,
+        transcript_provider=transcript_provider,
+    )
+
+    validation = validate_vosk_fixture_recognition_result(
+        result=result,
+        require_command_match=True,
+        require_language_match=True,
+    )
+    vocabulary = captured["vocabulary"]
+    payload = result.to_json_dict()
+
+    assert validation["accepted"] is True
+    assert payload["expected_language"] == "en"
+    assert payload["command_language"] == "en"
+    assert "what time is it" in vocabulary
+    assert "show desktop" in vocabulary
+    assert "pokaż pulpit" not in vocabulary
+    assert "która godzina" not in vocabulary
+
+
+def test_probe_reports_language_mismatch_when_scoped_match_is_wrong_language(
+    tmp_path: Path,
+) -> None:
+    model_path = tmp_path / "vosk-model-small-en"
+    wav_path = tmp_path / "fixture.wav"
+    _create_minimal_vosk_model(model_path)
+    _write_wav(wav_path)
+
+    result = probe_vosk_fixture_recognition(
+        model_path=model_path,
+        wav_path=wav_path,
+        language=CommandLanguage.ENGLISH,
+        transcript_provider=lambda pcm, sample_rate, vocabulary: "pokaż pulpit",
+    )
+
+    validation = validate_vosk_fixture_recognition_result(
+        result=result,
+        require_command_match=True,
+        require_language_match=True,
+    )
+
+    assert validation["accepted"] is False
+    assert "command_language_mismatch" in validation["issues"]
+    assert result.command_matched is True
+    assert result.command_language == "pl"
+    assert result.expected_language == "en"
 
 
 def test_probe_reports_no_match_without_failing_when_not_required(
