@@ -264,6 +264,12 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             "visual_shell.show_shell",
+            "schowaj pulpit",
+            CommandLanguage.POLISH,
+            tags=("visual_shell",),
+        ),
+        CommandPhrase(
+            "visual_shell.show_shell",
             "show shell",
             CommandLanguage.ENGLISH,
             tags=("visual_shell",),

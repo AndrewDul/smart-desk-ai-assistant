@@ -45,6 +45,16 @@ def test_default_grammar_recognizes_english_show_desktop() -> None:
     assert result.language == CommandLanguage.ENGLISH
 
 
+def test_default_grammar_recognizes_polish_hide_desktop_fixture_phrase() -> None:
+    grammar = build_default_command_grammar()
+
+    result = grammar.match("schowaj pulpit")
+
+    assert result.status == CommandRecognitionStatus.MATCHED
+    assert result.intent_key == "visual_shell.show_shell"
+    assert result.language == CommandLanguage.POLISH
+
+
 def test_default_grammar_recognizes_short_battery_command() -> None:
     grammar = build_default_command_grammar()
 

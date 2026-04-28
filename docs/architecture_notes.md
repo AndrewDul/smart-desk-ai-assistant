@@ -10366,3 +10366,330 @@ enable Voice Engine v2 runtime takeover,
 connect Vosk recognition to live runtime.
 
 ---
+
+
+## Stage 24AD — Offline EN/PL Vosk command fixture validation
+
+### Status
+
+Implemented as an offline fixture validation stage. Not connected to live runtime.
+
+### What changed
+
+Stage 24AD imported a small real EN/PL command fixture set under:
+
+```text
+var/data/fixtures/voice_commands/
+
+The fixture set covers:
+
+EN:
+- show desktop
+- hide desktop
+- what time is it
+
+PL:
+- pokaż pulpit
+- schowaj pulpit
+- która godzina
+
+The stage also validated the fixtures through the offline Vosk fixture recognition probe:
+
+scripts/probe_voice_engine_v2_vosk_fixture_recognition.py
+
+The probe used local Vosk models only:
+
+var/models/vosk/vosk-model-small-en-us-0.15
+var/models/vosk/vosk-model-small-pl-0.22
+
+No live runtime integration was added.
+
+No microphone stream was started by Voice Engine v2.
+
+No command execution was enabled.
+
+No FasterWhisper bypass was enabled.
+
+No wake word, TTS, or Visual Shell behavior was changed.
+
+Why this was needed
+
+Stage 24AB proved that offline Vosk recognition can be probed safely from a WAV fixture.
+
+Stage 24AC added local fixture import and inventory tooling.
+
+Stage 24AD verifies the next requirement: real recorded EN/PL command fixtures can be imported, inventoried, and recognized offline before Vosk is ever considered for live command recognition.
+
+This keeps the migration evidence-based and avoids connecting Vosk to the production runtime prematurely.
+
+What NEXA gains
+
+NEXA now has a repeatable offline validation procedure for short command recognition quality.
+
+This gives the project:
+
+real EN/PL command fixture coverage,
+strict WAV format validation,
+Vosk recognition evidence before runtime integration,
+deterministic grammar matching after recognition,
+safer future command-first work,
+no live runtime takeover,
+no command execution risk,
+no FasterWhisper bypass in production.
+
+This supports the Voice Engine v2 target architecture where short built-in commands are eventually recognized before full FasterWhisper fallback.
+
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No runtime route was changed.
+
+No live Vosk recognizer was connected.
+
+No production command path was changed.
+
+No config flag was enabled.
+
+Fixture WAV files and Vosk probe reports remain local ignored assets under var/data/.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24AB offline Vosk fixture recognition probe.
+Stage 24AC command fixture import/inventory tooling.
+Local Raspberry Pi Vosk model installation from Stage 24AA.
+Stage 24X runtime observation showing FasterWhisper misrecognition of short commands such as show desktop and pokaż pulpit.
+Stage 24AD offline fixture inventory and Vosk probe reports under var/data/.
+Validation
+
+Run:
+
+pytest -q tests/devices/audio/command_asr/test_command_grammar.py
+pytest -q tests/runtime/voice_engine_v2/test_command_fixture_inventory.py
+pytest -q tests/scripts/test_manage_voice_engine_v2_command_fixtures.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_fixture_recognition_probe.py
+pytest -q tests/scripts/test_probe_voice_engine_v2_vosk_fixture_recognition.py
+pytest -q tests/test_core_assistant_import.py
+
+Manual fixture inventory validation:
+
+python scripts/manage_voice_engine_v2_command_fixtures.py validate \
+  --require-records \
+  --require-language en \
+  --require-language pl
+
+Manual offline Vosk recognition probes passed for:
+
+en_show_desktop
+en_hide_desktop
+en_what_time_is_it
+pl_pokaz_pulpit
+pl_schowaj_pulpit
+pl_ktora_godzina
+
+Expected safety fields remained false:
+
+runtime_integration=false
+command_execution_enabled=false
+faster_whisper_bypass_enabled=false
+microphone_stream_started=false
+live_command_recognition_enabled=false
+raw_pcm_included=false
+action_executed=false
+full_stt_prevented=false
+runtime_takeover=false
+Follow-up
+
+Stage 24AE should analyze recognition quality from the offline fixture reports and decide whether grammar, recording quality, or fixture coverage needs improvement before any live Vosk shadow recognition is considered.
+
+Stage 24AE must still not:
+
+execute commands,
+bypass FasterWhisper,
+start live Voice Engine v2 microphone recognition,
+change wake word,
+change TTS,
+change Visual Shell,
+enable Voice Engine v2 runtime takeover,
+connect Vosk recognition to live runtime.
+
+---
+
+## Stage 24AD — Offline EN/PL Vosk command fixture validation
+
+### Status
+
+Implemented as an offline fixture validation stage. Not connected to live runtime.
+
+### What changed
+
+Stage 24AD imported a small real EN/PL command fixture set under:
+
+```text
+var/data/fixtures/voice_commands/
+
+The fixture set covers:
+
+EN:
+- show desktop
+- hide desktop
+- what time is it
+
+PL:
+- pokaż pulpit
+- schowaj pulpit
+- która godzina
+
+The imported fixtures were validated through:
+
+scripts/manage_voice_engine_v2_command_fixtures.py
+scripts/probe_voice_engine_v2_vosk_fixture_recognition.py
+
+The offline probe used local Vosk models only:
+
+var/models/vosk/vosk-model-small-en-us-0.15
+var/models/vosk/vosk-model-small-pl-0.22
+
+The stage also added the missing Polish command grammar phrase:
+
+schowaj pulpit
+
+mapped to:
+
+visual_shell.show_shell
+
+and synchronized missing safe Voice Engine v2 flags into:
+
+config/settings.example.json
+
+No live runtime integration was added.
+
+No live microphone stream was started by Voice Engine v2.
+
+No command execution was enabled.
+
+No FasterWhisper bypass was enabled.
+
+No wake word, audio input, TTS, or Visual Shell behavior was changed.
+
+Why this was needed
+
+Stage 24AB proved that offline Vosk recognition can be probed safely from a WAV fixture.
+
+Stage 24AC added local command fixture import and inventory tooling.
+
+Stage 24AD verifies the next requirement: real recorded EN/PL command fixtures can be imported, inventoried, and recognized offline before Vosk is considered for live command recognition.
+
+This keeps the migration evidence-based and prevents connecting Vosk to production runtime prematurely.
+
+The stage also exposed a real fixture-quality issue: the first what time is it recording was started too late and Vosk only recognized what time. The fixture was re-recorded within the existing 5-second maximum fixture duration, imported again, and then recognized as the full what time is it command.
+
+What NEXA gains
+
+NEXA now has a repeatable offline validation procedure for short EN/PL command recognition.
+
+This gives the project:
+
+real bilingual command fixture coverage,
+strict mono 16 kHz PCM16 WAV validation,
+Vosk recognition evidence before runtime integration,
+deterministic grammar matching after recognition,
+safer future command-first work,
+no live runtime takeover,
+no command execution risk,
+no FasterWhisper bypass in production.
+
+This supports the Voice Engine v2 target architecture where short built-in commands are eventually recognized before full FasterWhisper fallback.
+
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No runtime route was changed.
+
+No live Vosk recognizer was connected.
+
+No production command path was changed.
+
+No config flag was enabled.
+
+Fixture WAV files, local capture files, Vosk models, and Vosk probe reports remain ignored local assets under var/data/ and var/models/.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24AB offline Vosk fixture recognition probe.
+Stage 24AC command fixture import/inventory tooling.
+Local Raspberry Pi Vosk model installation from Stage 24AA.
+Stage 24X runtime observation showing FasterWhisper misrecognition of short commands such as show desktop and pokaż pulpit.
+Stage 24AD fixture inventory validation with fixture_records=6, en=3, pl=3.
+Stage 24AD offline Vosk probe reports for:
+en_show_desktop
+en_hide_desktop
+en_what_time_is_it
+pl_pokaz_pulpit
+pl_schowaj_pulpit
+pl_ktora_godzina
+Validation
+
+Unit and script tests:
+
+pytest -q tests/devices/audio/command_asr/test_command_grammar.py
+pytest -q tests/runtime/voice_engine_v2/test_command_fixture_inventory.py
+pytest -q tests/scripts/test_manage_voice_engine_v2_command_fixtures.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_fixture_recognition_probe.py
+pytest -q tests/scripts/test_probe_voice_engine_v2_vosk_fixture_recognition.py
+pytest -q tests/test_core_assistant_import.py
+
+Manual fixture inventory validation:
+
+python scripts/manage_voice_engine_v2_command_fixtures.py validate \
+  --require-records \
+  --require-language en \
+  --require-language pl
+
+Expected result:
+
+accepted=true
+fixture_records=6
+language_counts.en=3
+language_counts.pl=3
+issues=[]
+
+Manual offline Vosk recognition probes passed for all six fixtures:
+
+en_show_desktop: visual_shell.show_desktop
+en_hide_desktop: visual_shell.show_shell
+en_what_time_is_it: system.current_time
+pl_pokaz_pulpit: visual_shell.show_desktop
+pl_schowaj_pulpit: visual_shell.show_shell
+pl_ktora_godzina: system.current_time
+
+Expected safety fields remained false:
+
+runtime_integration=false
+command_execution_enabled=false
+faster_whisper_bypass_enabled=false
+microphone_stream_started=false
+live_command_recognition_enabled=false
+raw_pcm_included=false
+action_executed=false
+full_stt_prevented=false
+runtime_takeover=false
+Follow-up
+
+Stage 24AE should analyze the Stage 24AD offline recognition reports and add language-scoped grammar/vocabulary probing so the EN model is tested with EN command phrases only and the PL model is tested with PL command phrases only.
+
+Stage 24AE must still not:
+
+execute commands,
+bypass FasterWhisper,
+start live Voice Engine v2 microphone recognition,
+change wake word,
+change TTS,
+change Visual Shell,
+enable Voice Engine v2 runtime takeover,
+connect Vosk recognition to live runtime.
