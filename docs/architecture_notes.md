@@ -8277,4 +8277,192 @@ threshold lowering.
 
 ---
 
-# Commit message
+## Stage 24O — Endpointing candidate validator
+
+### Status
+
+Implemented and validated.
+
+### What changed
+
+Stage 24O added a dedicated validation tool for Voice Engine v2 pre-transcription VAD endpointing candidates.
+
+New script:
+
+```text
+scripts/validate_voice_engine_v2_endpointing_candidates.py
+
+New tests:
+
+tests/scripts/test_validate_voice_engine_v2_endpointing_candidates.py
+
+The validator reads:
+
+var/data/voice_engine_v2_vad_timing_bridge.jsonl
+
+and validates metadata.endpointing_candidate records.
+
+It reports:
+
+candidate count,
+candidate present count,
+endpoint detected count,
+candidate reasons,
+candidate sources,
+candidate publish stages,
+signal level counts,
+max speech score,
+max frames processed,
+latency metrics,
+unsafe top-level records,
+unsafe candidate records.
+
+The validator supports strict requirements:
+
+--require-candidates
+--require-candidate-present
+--require-endpoint-detected
+--require-pre-transcription-hook
+--require-capture-window-source
+--require-before-transcription-stage
+--require-latency-metrics
+Why this was needed
+
+Stage 24N introduced structured pre-transcription VAD endpointing candidates.
+
+Stage 24O was needed so future Voice Engine v2 stages can validate those candidates automatically instead of manually inspecting JSONL telemetry.
+
+This prevents unsafe progress based on assumptions and gives NEXA a repeatable acceptance gate before moving toward command-first recognition.
+
+What NEXA gains
+
+NEXA now has an automated evidence gate for pre-transcription endpointing candidates.
+
+This helps confirm:
+
+endpointing candidates exist,
+candidates are produced before transcription,
+candidates come from faster_whisper_capture_window_shadow_tap,
+speech endpoint evidence is present,
+latency metrics are recorded,
+no command action was executed,
+full STT was not prevented,
+runtime was not taken over.
+
+This keeps Voice Engine v2 migration measurable and safe.
+
+Removed or deprecated legacy path
+
+Nothing was removed in Stage 24O.
+
+No runtime path was changed.
+
+No production takeover was introduced.
+
+No Vosk recognizer was added.
+
+No command execution was introduced.
+
+No FasterWhisper bypass was introduced.
+
+The safe default runtime configuration remains:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+voice_engine.runtime_candidates_enabled=false
+voice_engine.pre_stt_shadow_enabled=false
+voice_engine.faster_whisper_audio_bus_tap_enabled=false
+voice_engine.vad_shadow_enabled=false
+voice_engine.vad_timing_bridge_enabled=false
+Source / evidence
+
+Evidence used:
+
+Stage 24O pytest validation.
+Stage 24N fresh Raspberry Pi hardware telemetry.
+var/data/voice_engine_v2_vad_timing_bridge.jsonl.
+
+Validator result:
+
+accepted=true
+issues=[]
+candidate_records=6
+candidate_present_records=6
+endpoint_detected_records=5
+candidate_reason_counts:
+  endpoint_detected=5
+  speech_not_ended_yet=1
+candidate_source_counts:
+  faster_whisper_capture_window_shadow_tap=6
+candidate_publish_stage_counts:
+  before_transcription=6
+candidate_signal_level_counts:
+  high=4
+  medium=2
+max_speech_score=0.9999922513961792
+max_capture_finished_to_vad_observed_ms=228.085
+max_capture_window_publish_to_vad_observed_ms=226.232
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+unsafe_candidate_action_records=0
+unsafe_candidate_full_stt_records=0
+unsafe_candidate_takeover_records=0
+Validation
+
+Tests passed:
+
+pytest -q tests/scripts/test_validate_voice_engine_v2_endpointing_candidates.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_endpointing_candidate.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_bridge.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
+pytest -q tests/test_core_assistant_import.py
+
+Endpointing candidate validator passed:
+
+python scripts/validate_voice_engine_v2_endpointing_candidates.py \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-candidates \
+  --require-candidate-present \
+  --require-endpoint-detected \
+  --require-pre-transcription-hook \
+  --require-capture-window-source \
+  --require-before-transcription-stage \
+  --require-latency-metrics
+
+VAD shadow validator passed:
+
+python scripts/validate_voice_engine_v2_vad_shadow_log.py \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-enabled \
+  --require-observed \
+  --require-audio-bus-present \
+  --require-frames \
+  --require-score-diagnostics \
+  --require-timing-diagnostics \
+  --require-score-profile-diagnostics \
+  --require-pcm-profile-diagnostics
+Follow-up
+
+Stage 24P should remain observe-only and start preparing a command-recognition readiness gate.
+
+The next stage should not add Vosk yet unless explicitly scoped as a disabled adapter.
+
+Stage 24P should focus on:
+
+separating pre-transcription candidate telemetry from post-capture legacy bridge telemetry,
+defining readiness criteria for command-first recognition,
+measuring candidate quality per turn,
+preparing a safe interface for future command ASR input.
+
+Stage 24P must still avoid:
+
+command execution,
+production takeover,
+FasterWhisper bypass,
+second microphone stream,
+threshold lowering.
+
+---
