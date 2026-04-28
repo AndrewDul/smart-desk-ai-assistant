@@ -22,6 +22,12 @@ from modules.runtime.voice_engine_v2.vosk_live_shadow_contract import (
     VoskLiveShadowContractSettings,
     build_vosk_live_shadow_contract,
 )
+from modules.runtime.voice_engine_v2.vosk_shadow_invocation_plan import (
+    VOSK_SHADOW_INVOCATION_PLAN_STAGE,
+    VOSK_SHADOW_INVOCATION_PLAN_VERSION,
+    VoskShadowInvocationPlanSettings,
+    build_vosk_shadow_invocation_plan,
+)
 from modules.runtime.voice_engine_v2.vad_shadow import (
     VoiceEngineV2VadShadowObserver,
     build_voice_engine_v2_vad_shadow_observer,
@@ -493,6 +499,12 @@ class VoiceEngineV2VadTimingBridgeAdapter:
             hook=hook,
             metadata=safe_metadata,
         )
+        safe_metadata = _maybe_attach_vosk_shadow_invocation_plan(
+            settings=self._settings,
+            hook=hook,
+            metadata=safe_metadata,
+        )
+        
 
         record = VoiceEngineV2VadTimingBridgeRecord(
             timestamp_utc=timestamp_utc,
@@ -669,6 +681,82 @@ def _maybe_attach_vosk_live_shadow_contract(
 
     return safe_metadata
 
+
+def _maybe_attach_vosk_shadow_invocation_plan(
+    *,
+    settings: Mapping[str, Any],
+    hook: str,
+    metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    safe_metadata = dict(metadata or {})
+    voice_engine = _voice_engine_config(settings)
+
+    if not bool(voice_engine.get("vosk_shadow_invocation_plan_enabled", False)):
+        return safe_metadata
+
+    if not bool(voice_engine.get("command_asr_shadow_bridge_enabled", False)):
+        return safe_metadata
+
+    if not bool(voice_engine.get("vosk_live_shadow_contract_enabled", False)):
+        return safe_metadata
+
+    if hook != "capture_window_pre_transcription":
+        return safe_metadata
+
+    if "command_asr_shadow_bridge" not in safe_metadata:
+        return safe_metadata
+
+    if "command_asr_candidate" not in safe_metadata:
+        return safe_metadata
+
+    if "vosk_live_shadow" not in safe_metadata:
+        return safe_metadata
+
+    try:
+        plan = build_vosk_shadow_invocation_plan(
+            hook=hook,
+            metadata=safe_metadata,
+            settings=VoskShadowInvocationPlanSettings(enabled=True),
+        )
+        safe_metadata[plan.metadata_key] = plan.to_json_dict()
+    except Exception as error:
+        safe_metadata["vosk_shadow_invocation_plan"] = {
+            "plan_stage": VOSK_SHADOW_INVOCATION_PLAN_STAGE,
+            "plan_version": VOSK_SHADOW_INVOCATION_PLAN_VERSION,
+            "enabled": True,
+            "plan_ready": False,
+            "reason": f"vosk_shadow_invocation_plan_failed:{type(error).__name__}",
+            "metadata_key": "vosk_shadow_invocation_plan",
+            "hook": str(hook or ""),
+            "input_source": "existing_command_audio_segment_metadata_only",
+            "recognizer_name": "vosk_command_asr",
+            "command_asr_bridge_present": False,
+            "command_asr_candidate_present": False,
+            "vosk_live_shadow_contract_present": False,
+            "segment_present": False,
+            "segment_reason": "",
+            "segment_audio_duration_ms": None,
+            "segment_audio_sample_count": 0,
+            "segment_published_byte_count": 0,
+            "segment_sample_rate": None,
+            "segment_pcm_encoding": "",
+            "recognition_invocation_performed": False,
+            "recognition_attempted": False,
+            "recognized": False,
+            "command_matched": False,
+            "runtime_integration": False,
+            "command_execution_enabled": False,
+            "faster_whisper_bypass_enabled": False,
+            "microphone_stream_started": False,
+            "independent_microphone_stream_started": False,
+            "live_command_recognition_enabled": False,
+            "raw_pcm_included": False,
+            "action_executed": False,
+            "full_stt_prevented": False,
+            "runtime_takeover": False,
+        }
+
+    return safe_metadata
 
 
 def build_voice_engine_v2_vad_timing_bridge_adapter(
