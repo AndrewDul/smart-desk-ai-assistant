@@ -84,6 +84,30 @@ def _safe_vad_shadow(**overrides: object) -> dict[str, object]:
         "score_profile_peak_frame_source": "test_source",
         "score_profile_peak_frame_age_ms": 90.0,
         "frame_source_counts": {"test_source": 4},
+        "pcm_profile_frame_count": 4,
+        "pcm_profile_sample_width_bytes": 2,
+        "pcm_profile_total_byte_count": 12800,
+        "pcm_profile_total_sample_count": 6400,
+        "pcm_profile_rms": 0.08,
+        "pcm_profile_mean_abs": 0.04,
+        "pcm_profile_peak_abs": 0.25,
+        "pcm_profile_zero_ratio": 0.1,
+        "pcm_profile_near_zero_ratio": 0.2,
+        "pcm_profile_clipping_ratio": 0.0,
+        "pcm_profile_signal_level": "high",
+        "pcm_profile_first_frame_rms": 0.08,
+        "pcm_profile_first_frame_peak_abs": 0.25,
+        "pcm_profile_middle_frame_rms": 0.05,
+        "pcm_profile_middle_frame_peak_abs": 0.15,
+        "pcm_profile_last_frame_rms": 0.01,
+        "pcm_profile_last_frame_peak_abs": 0.03,
+        "pcm_profile_peak_frame_index": 0,
+        "pcm_profile_peak_frame_sequence": 10,
+        "pcm_profile_peak_frame_source": "test_source",
+        "pcm_profile_peak_frame_rms": 0.08,
+        "pcm_profile_peak_frame_peak_abs": 0.25,
+        "pcm_profile_peak_frame_zero_ratio": 0.1,
+        "pcm_profile_peak_frame_age_ms": 80.0,
         "event_emission_reason": "events_emitted",
         "action_executed": False,
         "full_stt_prevented": False,
@@ -114,6 +138,7 @@ def test_validate_vad_shadow_log_accepts_safe_records(tmp_path: Path) -> None:
         require_score_diagnostics=True,
         require_timing_diagnostics=True,
         require_score_profile_diagnostics=True,
+        require_pcm_profile_diagnostics=True,
     )
 
     assert result["accepted"] is True
@@ -138,6 +163,14 @@ def test_validate_vad_shadow_log_accepts_safe_records(tmp_path: Path) -> None:
     assert result["max_score_profile_peak_score"] == 0.9
     assert result["score_profile_peak_buckets"] == {"middle_third": 1}
     assert result["score_profile_peak_sources"] == {"test_source": 1}
+    assert result["pcm_profile_diagnostics_records"] == 1
+    assert result["max_pcm_profile_rms"] == 0.08
+    assert result["max_pcm_profile_peak_abs"] == 0.25
+    assert result["max_pcm_profile_mean_abs"] == 0.04
+    assert result["max_pcm_profile_zero_ratio"] == 0.1
+    assert result["max_pcm_profile_near_zero_ratio"] == 0.2
+    assert result["pcm_profile_signal_levels"] == {"high": 1}
+    assert result["pcm_profile_peak_sources"] == {"test_source": 1}
     assert result["speech_score_records"] == 1
     assert result["speech_frame_records"] == 1
     assert result["silence_frame_records"] == 0
@@ -319,6 +352,53 @@ def test_validate_vad_shadow_log_counts_stale_audio_records(
     }
 
 
+
+def test_validate_vad_shadow_log_can_require_pcm_profile_diagnostics(
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "vad.jsonl"
+    vad_shadow = _safe_vad_shadow()
+    for key in [
+        "pcm_profile_frame_count",
+        "pcm_profile_sample_width_bytes",
+        "pcm_profile_total_byte_count",
+        "pcm_profile_total_sample_count",
+        "pcm_profile_rms",
+        "pcm_profile_mean_abs",
+        "pcm_profile_peak_abs",
+        "pcm_profile_zero_ratio",
+        "pcm_profile_near_zero_ratio",
+        "pcm_profile_clipping_ratio",
+        "pcm_profile_signal_level",
+        "pcm_profile_first_frame_rms",
+        "pcm_profile_first_frame_peak_abs",
+        "pcm_profile_middle_frame_rms",
+        "pcm_profile_middle_frame_peak_abs",
+        "pcm_profile_last_frame_rms",
+        "pcm_profile_last_frame_peak_abs",
+        "pcm_profile_peak_frame_index",
+        "pcm_profile_peak_frame_sequence",
+        "pcm_profile_peak_frame_source",
+        "pcm_profile_peak_frame_rms",
+        "pcm_profile_peak_frame_peak_abs",
+        "pcm_profile_peak_frame_zero_ratio",
+        "pcm_profile_peak_frame_age_ms",
+    ]:
+        vad_shadow.pop(key)
+
+    _write_jsonl(log_path, [_record(vad_shadow)])
+
+    result = validate_vad_shadow_log(
+        log_path=log_path,
+        require_pcm_profile_diagnostics=True,
+    )
+
+    assert result["accepted"] is False
+    assert "vad_shadow_pcm_profile_diagnostics_records_missing" in result["issues"]
+
+
+
+
 def test_validate_vad_shadow_log_can_require_score_profile_diagnostics(
     tmp_path: Path,
 ) -> None:
@@ -455,3 +535,27 @@ def test_cli_accepts_score_profile_diagnostics_requirement(
     assert exit_code == 0
     assert payload["accepted"] is True
     assert payload["required_score_profile_diagnostics"] is True
+
+
+
+def test_cli_accepts_pcm_profile_diagnostics_requirement(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    log_path = tmp_path / "vad.jsonl"
+    _write_jsonl(log_path, [_record(_safe_vad_shadow())])
+
+    exit_code = main(
+        [
+            "--log-path",
+            str(log_path),
+            "--require-pcm-profile-diagnostics",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert exit_code == 0
+    assert payload["accepted"] is True
+    assert payload["required_pcm_profile_diagnostics"] is True

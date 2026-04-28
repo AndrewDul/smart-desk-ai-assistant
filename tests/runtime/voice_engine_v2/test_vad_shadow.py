@@ -132,6 +132,13 @@ def test_vad_shadow_reports_no_new_audio_frames() -> None:
     assert snapshot.score_profile_peak_score is None
     assert snapshot.score_profile_peak_bucket == ""
     assert snapshot.frame_source_counts == {}
+    assert snapshot.pcm_profile_frame_count == 0
+    assert snapshot.pcm_profile_total_byte_count == 0
+    assert snapshot.pcm_profile_total_sample_count == 0
+    assert snapshot.pcm_profile_rms is None
+    assert snapshot.pcm_profile_peak_abs is None
+    assert snapshot.pcm_profile_signal_level == "unavailable"
+    assert snapshot.pcm_profile_peak_frame_source == ""
 
 
 def test_vad_shadow_emits_speech_start_and_end_events() -> None:
@@ -221,6 +228,28 @@ def test_vad_shadow_emits_speech_start_and_end_events() -> None:
     assert snapshot.score_profile_peak_frame_source == "test"
     assert snapshot.score_profile_peak_frame_age_ms is not None
     assert snapshot.frame_source_counts == {"test": 7}
+    assert snapshot.pcm_profile_frame_count == 7
+    assert snapshot.pcm_profile_sample_width_bytes == 2
+    assert snapshot.pcm_profile_total_byte_count > 0
+    assert snapshot.pcm_profile_total_sample_count > 0
+    assert snapshot.pcm_profile_rms is not None
+    assert snapshot.pcm_profile_rms > 0.0
+    assert snapshot.pcm_profile_mean_abs is not None
+    assert snapshot.pcm_profile_mean_abs > 0.0
+    assert snapshot.pcm_profile_peak_abs is not None
+    assert snapshot.pcm_profile_peak_abs > 0.0
+    assert snapshot.pcm_profile_signal_level in {"low", "medium", "high"}
+    assert snapshot.pcm_profile_first_frame_rms is not None
+    assert snapshot.pcm_profile_first_frame_peak_abs is not None
+    assert snapshot.pcm_profile_middle_frame_rms is not None
+    assert snapshot.pcm_profile_last_frame_rms == 0.0
+    assert snapshot.pcm_profile_peak_frame_index == 0
+    assert snapshot.pcm_profile_peak_frame_sequence == 0
+    assert snapshot.pcm_profile_peak_frame_source == "test"
+    assert snapshot.pcm_profile_peak_frame_rms is not None
+    assert snapshot.pcm_profile_peak_frame_peak_abs is not None
+    assert snapshot.pcm_profile_peak_frame_zero_ratio is not None
+    assert snapshot.pcm_profile_peak_frame_age_ms is not None
     assert len(snapshot.score_profile_first_scores) == 5
     assert len(snapshot.score_profile_middle_scores) == 5
     assert len(snapshot.score_profile_last_scores) == 5
@@ -278,6 +307,12 @@ def test_vad_shadow_reports_stale_audio_backlog_reason() -> None:
     assert snapshot.score_profile_peak_score == 1.0
     assert snapshot.score_profile_peak_bucket == "first_third"
     assert snapshot.frame_source_counts == {"test": 7}
+    assert snapshot.pcm_profile_frame_count == 7
+    assert snapshot.pcm_profile_total_byte_count > 0
+    assert snapshot.pcm_profile_total_sample_count > 0
+    assert snapshot.pcm_profile_peak_abs is not None
+    assert snapshot.pcm_profile_peak_abs > 0.0
+    assert snapshot.pcm_profile_peak_frame_source == "test"
 
 def test_vad_shadow_reads_only_new_frames_after_first_observation() -> None:
     audio_bus = AudioBus(

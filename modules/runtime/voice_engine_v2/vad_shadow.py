@@ -80,6 +80,30 @@ class VoiceEngineV2VadShadowSnapshot:
     score_profile_peak_frame_source: str = ""
     score_profile_peak_frame_age_ms: float | None = None
     frame_source_counts: dict[str, int] = field(default_factory=dict)
+    pcm_profile_frame_count: int = 0
+    pcm_profile_sample_width_bytes: int | None = None
+    pcm_profile_total_byte_count: int = 0
+    pcm_profile_total_sample_count: int = 0
+    pcm_profile_rms: float | None = None
+    pcm_profile_mean_abs: float | None = None
+    pcm_profile_peak_abs: float | None = None
+    pcm_profile_zero_ratio: float | None = None
+    pcm_profile_near_zero_ratio: float | None = None
+    pcm_profile_clipping_ratio: float | None = None
+    pcm_profile_signal_level: str = ""
+    pcm_profile_first_frame_rms: float | None = None
+    pcm_profile_first_frame_peak_abs: float | None = None
+    pcm_profile_middle_frame_rms: float | None = None
+    pcm_profile_middle_frame_peak_abs: float | None = None
+    pcm_profile_last_frame_rms: float | None = None
+    pcm_profile_last_frame_peak_abs: float | None = None
+    pcm_profile_peak_frame_index: int | None = None
+    pcm_profile_peak_frame_sequence: int | None = None
+    pcm_profile_peak_frame_source: str = ""
+    pcm_profile_peak_frame_rms: float | None = None
+    pcm_profile_peak_frame_peak_abs: float | None = None
+    pcm_profile_peak_frame_zero_ratio: float | None = None
+    pcm_profile_peak_frame_age_ms: float | None = None
     event_emission_reason: str = ""
     min_speech_ms: int = 0
     min_silence_ms: int = 0
@@ -155,6 +179,30 @@ class VoiceEngineV2VadShadowSnapshot:
             "score_profile_peak_frame_source": self.score_profile_peak_frame_source,
             "score_profile_peak_frame_age_ms": self.score_profile_peak_frame_age_ms,
             "frame_source_counts": dict(self.frame_source_counts),
+            "pcm_profile_frame_count": self.pcm_profile_frame_count,
+            "pcm_profile_sample_width_bytes": self.pcm_profile_sample_width_bytes,
+            "pcm_profile_total_byte_count": self.pcm_profile_total_byte_count,
+            "pcm_profile_total_sample_count": self.pcm_profile_total_sample_count,
+            "pcm_profile_rms": self.pcm_profile_rms,
+            "pcm_profile_mean_abs": self.pcm_profile_mean_abs,
+            "pcm_profile_peak_abs": self.pcm_profile_peak_abs,
+            "pcm_profile_zero_ratio": self.pcm_profile_zero_ratio,
+            "pcm_profile_near_zero_ratio": self.pcm_profile_near_zero_ratio,
+            "pcm_profile_clipping_ratio": self.pcm_profile_clipping_ratio,
+            "pcm_profile_signal_level": self.pcm_profile_signal_level,
+            "pcm_profile_first_frame_rms": self.pcm_profile_first_frame_rms,
+            "pcm_profile_first_frame_peak_abs": self.pcm_profile_first_frame_peak_abs,
+            "pcm_profile_middle_frame_rms": self.pcm_profile_middle_frame_rms,
+            "pcm_profile_middle_frame_peak_abs": self.pcm_profile_middle_frame_peak_abs,
+            "pcm_profile_last_frame_rms": self.pcm_profile_last_frame_rms,
+            "pcm_profile_last_frame_peak_abs": self.pcm_profile_last_frame_peak_abs,
+            "pcm_profile_peak_frame_index": self.pcm_profile_peak_frame_index,
+            "pcm_profile_peak_frame_sequence": self.pcm_profile_peak_frame_sequence,
+            "pcm_profile_peak_frame_source": self.pcm_profile_peak_frame_source,
+            "pcm_profile_peak_frame_rms": self.pcm_profile_peak_frame_rms,
+            "pcm_profile_peak_frame_peak_abs": self.pcm_profile_peak_frame_peak_abs,
+            "pcm_profile_peak_frame_zero_ratio": self.pcm_profile_peak_frame_zero_ratio,
+            "pcm_profile_peak_frame_age_ms": self.pcm_profile_peak_frame_age_ms,
             "event_emission_reason": self.event_emission_reason,
             "min_speech_ms": self.min_speech_ms,
             "min_silence_ms": self.min_silence_ms,
@@ -547,6 +595,10 @@ class VoiceEngineV2VadShadowObserver:
             frames=safe_frames,
             observation_completed_monotonic=observation_completed_monotonic,
         )
+        pcm_profile_diagnostics = _pcm_profile_diagnostics(
+            frames=safe_frames,
+            observation_completed_monotonic=observation_completed_monotonic,
+        )
         diagnostics = _decision_diagnostics(
             decisions=safe_decisions,
             events=safe_events,
@@ -674,6 +726,72 @@ class VoiceEngineV2VadShadowObserver:
             frame_source_counts=dict(
                 score_profile_diagnostics["frame_source_counts"]
             ),
+            pcm_profile_frame_count=pcm_profile_diagnostics[
+                "pcm_profile_frame_count"
+            ],
+            pcm_profile_sample_width_bytes=pcm_profile_diagnostics[
+                "pcm_profile_sample_width_bytes"
+            ],
+            pcm_profile_total_byte_count=pcm_profile_diagnostics[
+                "pcm_profile_total_byte_count"
+            ],
+            pcm_profile_total_sample_count=pcm_profile_diagnostics[
+                "pcm_profile_total_sample_count"
+            ],
+            pcm_profile_rms=pcm_profile_diagnostics["pcm_profile_rms"],
+            pcm_profile_mean_abs=pcm_profile_diagnostics["pcm_profile_mean_abs"],
+            pcm_profile_peak_abs=pcm_profile_diagnostics["pcm_profile_peak_abs"],
+            pcm_profile_zero_ratio=pcm_profile_diagnostics[
+                "pcm_profile_zero_ratio"
+            ],
+            pcm_profile_near_zero_ratio=pcm_profile_diagnostics[
+                "pcm_profile_near_zero_ratio"
+            ],
+            pcm_profile_clipping_ratio=pcm_profile_diagnostics[
+                "pcm_profile_clipping_ratio"
+            ],
+            pcm_profile_signal_level=str(
+                pcm_profile_diagnostics["pcm_profile_signal_level"]
+            ),
+            pcm_profile_first_frame_rms=pcm_profile_diagnostics[
+                "pcm_profile_first_frame_rms"
+            ],
+            pcm_profile_first_frame_peak_abs=pcm_profile_diagnostics[
+                "pcm_profile_first_frame_peak_abs"
+            ],
+            pcm_profile_middle_frame_rms=pcm_profile_diagnostics[
+                "pcm_profile_middle_frame_rms"
+            ],
+            pcm_profile_middle_frame_peak_abs=pcm_profile_diagnostics[
+                "pcm_profile_middle_frame_peak_abs"
+            ],
+            pcm_profile_last_frame_rms=pcm_profile_diagnostics[
+                "pcm_profile_last_frame_rms"
+            ],
+            pcm_profile_last_frame_peak_abs=pcm_profile_diagnostics[
+                "pcm_profile_last_frame_peak_abs"
+            ],
+            pcm_profile_peak_frame_index=pcm_profile_diagnostics[
+                "pcm_profile_peak_frame_index"
+            ],
+            pcm_profile_peak_frame_sequence=pcm_profile_diagnostics[
+                "pcm_profile_peak_frame_sequence"
+            ],
+            pcm_profile_peak_frame_source=str(
+                pcm_profile_diagnostics["pcm_profile_peak_frame_source"]
+            ),
+            pcm_profile_peak_frame_rms=pcm_profile_diagnostics[
+                "pcm_profile_peak_frame_rms"
+            ],
+            pcm_profile_peak_frame_peak_abs=pcm_profile_diagnostics[
+                "pcm_profile_peak_frame_peak_abs"
+            ],
+            pcm_profile_peak_frame_zero_ratio=pcm_profile_diagnostics[
+                "pcm_profile_peak_frame_zero_ratio"
+            ],
+            pcm_profile_peak_frame_age_ms=pcm_profile_diagnostics[
+                "pcm_profile_peak_frame_age_ms"
+            ],
             event_emission_reason=str(diagnostics["event_emission_reason"]),
             min_speech_ms=self._endpointing_policy_config.min_speech_ms,
             min_silence_ms=self._endpointing_policy_config.min_silence_ms,
@@ -989,6 +1107,216 @@ def _score_position_bucket(*, peak_index: int, score_count: int) -> str:
 
 def _frame_source_counts(frames: list[AudioFrame]) -> dict[str, int]:
     return dict(Counter(str(frame.source) for frame in frames))
+
+def _pcm_profile_diagnostics(
+    *,
+    frames: list[AudioFrame],
+    observation_completed_monotonic: float,
+) -> dict[str, object]:
+    if not frames:
+        return _empty_pcm_profile_diagnostics()
+
+    frame_metrics = [
+        _pcm_frame_metrics(
+            index=index,
+            frame=frame,
+            observation_completed_monotonic=observation_completed_monotonic,
+        )
+        for index, frame in enumerate(frames)
+    ]
+    valid_metrics = [
+        metric for metric in frame_metrics if int(metric["sample_count"]) > 0
+    ]
+
+    if not valid_metrics:
+        return _empty_pcm_profile_diagnostics(
+            frame_count=len(frames),
+            sample_width_bytes=frames[0].sample_width_bytes if frames else None,
+            total_byte_count=sum(len(frame.pcm) for frame in frames),
+        )
+
+    total_byte_count = sum(int(metric["byte_count"]) for metric in valid_metrics)
+    total_sample_count = sum(int(metric["sample_count"]) for metric in valid_metrics)
+    weighted_square_sum = sum(
+        float(metric["square_sum"]) for metric in valid_metrics
+    )
+    weighted_abs_sum = sum(float(metric["abs_sum"]) for metric in valid_metrics)
+    zero_count = sum(int(metric["zero_count"]) for metric in valid_metrics)
+    near_zero_count = sum(int(metric["near_zero_count"]) for metric in valid_metrics)
+    clipping_count = sum(int(metric["clipping_count"]) for metric in valid_metrics)
+    peak_abs = max(float(metric["peak_abs"]) for metric in valid_metrics)
+
+    peak_metric = max(valid_metrics, key=lambda metric: float(metric["peak_abs"]))
+    middle_metric = valid_metrics[len(valid_metrics) // 2]
+    first_metric = valid_metrics[0]
+    last_metric = valid_metrics[-1]
+
+    rms = float(np.sqrt(weighted_square_sum / total_sample_count))
+    mean_abs = weighted_abs_sum / total_sample_count
+    zero_ratio = zero_count / total_sample_count
+    near_zero_ratio = near_zero_count / total_sample_count
+    clipping_ratio = clipping_count / total_sample_count
+
+    return {
+        "pcm_profile_frame_count": len(frames),
+        "pcm_profile_sample_width_bytes": frames[0].sample_width_bytes,
+        "pcm_profile_total_byte_count": total_byte_count,
+        "pcm_profile_total_sample_count": total_sample_count,
+        "pcm_profile_rms": _round_float(rms),
+        "pcm_profile_mean_abs": _round_float(mean_abs),
+        "pcm_profile_peak_abs": _round_float(peak_abs),
+        "pcm_profile_zero_ratio": _round_float(zero_ratio),
+        "pcm_profile_near_zero_ratio": _round_float(near_zero_ratio),
+        "pcm_profile_clipping_ratio": _round_float(clipping_ratio),
+        "pcm_profile_signal_level": _pcm_signal_level(rms=rms, peak_abs=peak_abs),
+        "pcm_profile_first_frame_rms": first_metric["rms"],
+        "pcm_profile_first_frame_peak_abs": first_metric["peak_abs"],
+        "pcm_profile_middle_frame_rms": middle_metric["rms"],
+        "pcm_profile_middle_frame_peak_abs": middle_metric["peak_abs"],
+        "pcm_profile_last_frame_rms": last_metric["rms"],
+        "pcm_profile_last_frame_peak_abs": last_metric["peak_abs"],
+        "pcm_profile_peak_frame_index": peak_metric["index"],
+        "pcm_profile_peak_frame_sequence": peak_metric["sequence"],
+        "pcm_profile_peak_frame_source": peak_metric["source"],
+        "pcm_profile_peak_frame_rms": peak_metric["rms"],
+        "pcm_profile_peak_frame_peak_abs": peak_metric["peak_abs"],
+        "pcm_profile_peak_frame_zero_ratio": peak_metric["zero_ratio"],
+        "pcm_profile_peak_frame_age_ms": peak_metric["age_ms"],
+    }
+
+
+def _empty_pcm_profile_diagnostics(
+    *,
+    frame_count: int = 0,
+    sample_width_bytes: int | None = None,
+    total_byte_count: int = 0,
+) -> dict[str, object]:
+    return {
+        "pcm_profile_frame_count": frame_count,
+        "pcm_profile_sample_width_bytes": sample_width_bytes,
+        "pcm_profile_total_byte_count": total_byte_count,
+        "pcm_profile_total_sample_count": 0,
+        "pcm_profile_rms": None,
+        "pcm_profile_mean_abs": None,
+        "pcm_profile_peak_abs": None,
+        "pcm_profile_zero_ratio": None,
+        "pcm_profile_near_zero_ratio": None,
+        "pcm_profile_clipping_ratio": None,
+        "pcm_profile_signal_level": "unavailable",
+        "pcm_profile_first_frame_rms": None,
+        "pcm_profile_first_frame_peak_abs": None,
+        "pcm_profile_middle_frame_rms": None,
+        "pcm_profile_middle_frame_peak_abs": None,
+        "pcm_profile_last_frame_rms": None,
+        "pcm_profile_last_frame_peak_abs": None,
+        "pcm_profile_peak_frame_index": None,
+        "pcm_profile_peak_frame_sequence": None,
+        "pcm_profile_peak_frame_source": "",
+        "pcm_profile_peak_frame_rms": None,
+        "pcm_profile_peak_frame_peak_abs": None,
+        "pcm_profile_peak_frame_zero_ratio": None,
+        "pcm_profile_peak_frame_age_ms": None,
+    }
+
+
+def _pcm_frame_metrics(
+    *,
+    index: int,
+    frame: AudioFrame,
+    observation_completed_monotonic: float,
+) -> dict[str, object]:
+    if frame.sample_width_bytes != 2 or not frame.pcm:
+        return {
+            "index": index,
+            "sequence": frame.sequence,
+            "source": str(frame.source),
+            "byte_count": len(frame.pcm),
+            "sample_count": 0,
+            "square_sum": 0.0,
+            "abs_sum": 0.0,
+            "zero_count": 0,
+            "near_zero_count": 0,
+            "clipping_count": 0,
+            "rms": None,
+            "mean_abs": None,
+            "peak_abs": None,
+            "zero_ratio": None,
+            "age_ms": _elapsed_ms(
+                start=frame.timestamp_monotonic + frame.duration_seconds,
+                end=observation_completed_monotonic,
+            ),
+        }
+
+    samples = np.frombuffer(frame.pcm, dtype=np.int16).astype(np.float32) / 32768.0
+    if samples.size == 0:
+        return {
+            "index": index,
+            "sequence": frame.sequence,
+            "source": str(frame.source),
+            "byte_count": len(frame.pcm),
+            "sample_count": 0,
+            "square_sum": 0.0,
+            "abs_sum": 0.0,
+            "zero_count": 0,
+            "near_zero_count": 0,
+            "clipping_count": 0,
+            "rms": None,
+            "mean_abs": None,
+            "peak_abs": None,
+            "zero_ratio": None,
+            "age_ms": _elapsed_ms(
+                start=frame.timestamp_monotonic + frame.duration_seconds,
+                end=observation_completed_monotonic,
+            ),
+        }
+
+    abs_samples = np.abs(samples)
+    square_sum = float(np.sum(samples * samples))
+    abs_sum = float(np.sum(abs_samples))
+    zero_count = int(np.count_nonzero(samples == 0.0))
+    near_zero_count = int(np.count_nonzero(abs_samples <= 0.001))
+    clipping_count = int(np.count_nonzero(abs_samples >= 0.999))
+    rms = float(np.sqrt(square_sum / float(samples.size)))
+    mean_abs = abs_sum / float(samples.size)
+    peak_abs = float(np.max(abs_samples))
+    zero_ratio = zero_count / float(samples.size)
+
+    return {
+        "index": index,
+        "sequence": frame.sequence,
+        "source": str(frame.source),
+        "byte_count": len(frame.pcm),
+        "sample_count": int(samples.size),
+        "square_sum": square_sum,
+        "abs_sum": abs_sum,
+        "zero_count": zero_count,
+        "near_zero_count": near_zero_count,
+        "clipping_count": clipping_count,
+        "rms": _round_float(rms),
+        "mean_abs": _round_float(mean_abs),
+        "peak_abs": _round_float(peak_abs),
+        "zero_ratio": _round_float(zero_ratio),
+        "age_ms": _elapsed_ms(
+            start=frame.timestamp_monotonic + frame.duration_seconds,
+            end=observation_completed_monotonic,
+        ),
+    }
+
+
+def _pcm_signal_level(*, rms: float, peak_abs: float) -> str:
+    if peak_abs < 0.002 or rms < 0.001:
+        return "near_silent"
+    if peak_abs < 0.01 or rms < 0.004:
+        return "very_low"
+    if peak_abs < 0.04 or rms < 0.015:
+        return "low"
+    if peak_abs < 0.15 or rms < 0.06:
+        return "medium"
+    return "high"
+
+
+def _round_float(value: float) -> float:
+    return round(float(value), 6)
 
 
 

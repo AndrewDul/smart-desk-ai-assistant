@@ -20,6 +20,7 @@ def validate_vad_shadow_log(
     require_score_diagnostics: bool = False,
     require_timing_diagnostics: bool = False,
     require_score_profile_diagnostics: bool = False,
+    require_pcm_profile_diagnostics: bool = False,
 ) -> dict[str, Any]:
     issues: list[str] = []
     reasons: Counter[str] = Counter()
@@ -53,6 +54,14 @@ def validate_vad_shadow_log(
     max_score_profile_peak_score: float | None = None
     score_profile_peak_buckets: Counter[str] = Counter()
     score_profile_peak_sources: Counter[str] = Counter()
+    pcm_profile_diagnostics_records = 0
+    max_pcm_profile_rms: float | None = None
+    max_pcm_profile_peak_abs: float | None = None
+    max_pcm_profile_mean_abs: float | None = None
+    max_pcm_profile_zero_ratio: float | None = None
+    max_pcm_profile_near_zero_ratio: float | None = None
+    pcm_profile_signal_levels: Counter[str] = Counter()
+    pcm_profile_peak_sources: Counter[str] = Counter()
     event_emission_reasons: Counter[str] = Counter()
     unsafe_action_records = 0
     unsafe_full_stt_records = 0
@@ -174,6 +183,54 @@ def validate_vad_shadow_log(
         if score_profile_peak_source:
             score_profile_peak_sources[score_profile_peak_source] += 1
 
+        if _has_pcm_profile_diagnostics(vad_shadow):
+            pcm_profile_diagnostics_records += 1
+
+        pcm_profile_rms = _safe_float(vad_shadow.get("pcm_profile_rms"))
+        if pcm_profile_rms is not None:
+            max_pcm_profile_rms = _max_optional_float(
+                max_pcm_profile_rms,
+                pcm_profile_rms,
+            )
+
+        pcm_profile_peak_abs = _safe_float(vad_shadow.get("pcm_profile_peak_abs"))
+        if pcm_profile_peak_abs is not None:
+            max_pcm_profile_peak_abs = _max_optional_float(
+                max_pcm_profile_peak_abs,
+                pcm_profile_peak_abs,
+            )
+
+        pcm_profile_mean_abs = _safe_float(vad_shadow.get("pcm_profile_mean_abs"))
+        if pcm_profile_mean_abs is not None:
+            max_pcm_profile_mean_abs = _max_optional_float(
+                max_pcm_profile_mean_abs,
+                pcm_profile_mean_abs,
+            )
+
+        pcm_profile_zero_ratio = _safe_float(vad_shadow.get("pcm_profile_zero_ratio"))
+        if pcm_profile_zero_ratio is not None:
+            max_pcm_profile_zero_ratio = _max_optional_float(
+                max_pcm_profile_zero_ratio,
+                pcm_profile_zero_ratio,
+            )
+
+        pcm_profile_near_zero_ratio = _safe_float(
+            vad_shadow.get("pcm_profile_near_zero_ratio")
+        )
+        if pcm_profile_near_zero_ratio is not None:
+            max_pcm_profile_near_zero_ratio = _max_optional_float(
+                max_pcm_profile_near_zero_ratio,
+                pcm_profile_near_zero_ratio,
+            )
+
+        pcm_signal_level = str(vad_shadow.get("pcm_profile_signal_level", ""))
+        if pcm_signal_level:
+            pcm_profile_signal_levels[pcm_signal_level] += 1
+
+        pcm_peak_source = str(vad_shadow.get("pcm_profile_peak_frame_source", ""))
+        if pcm_peak_source:
+            pcm_profile_peak_sources[pcm_peak_source] += 1
+
         speech_score_count = _safe_int(vad_shadow.get("speech_score_count"))
         if speech_score_count > 0:
             speech_score_records += 1
@@ -241,6 +298,9 @@ def validate_vad_shadow_log(
     if require_score_profile_diagnostics and score_profile_diagnostics_records == 0:
         issues.append("vad_shadow_score_profile_diagnostics_records_missing")
 
+    if require_pcm_profile_diagnostics and pcm_profile_diagnostics_records == 0:
+        issues.append("vad_shadow_pcm_profile_diagnostics_records_missing")
+
     accepted = not issues
 
     return {
@@ -274,6 +334,14 @@ def validate_vad_shadow_log(
         "max_score_profile_peak_score": max_score_profile_peak_score,
         "score_profile_peak_buckets": dict(score_profile_peak_buckets),
         "score_profile_peak_sources": dict(score_profile_peak_sources),
+        "pcm_profile_diagnostics_records": pcm_profile_diagnostics_records,
+        "max_pcm_profile_rms": max_pcm_profile_rms,
+        "max_pcm_profile_peak_abs": max_pcm_profile_peak_abs,
+        "max_pcm_profile_mean_abs": max_pcm_profile_mean_abs,
+        "max_pcm_profile_zero_ratio": max_pcm_profile_zero_ratio,
+        "max_pcm_profile_near_zero_ratio": max_pcm_profile_near_zero_ratio,
+        "pcm_profile_signal_levels": dict(pcm_profile_signal_levels),
+        "pcm_profile_peak_sources": dict(pcm_profile_peak_sources),
         "event_emission_reasons": dict(event_emission_reasons),
         "unsafe_action_records": unsafe_action_records,
         "unsafe_full_stt_records": unsafe_full_stt_records,
@@ -287,6 +355,7 @@ def validate_vad_shadow_log(
         "required_score_diagnostics": require_score_diagnostics,
         "required_timing_diagnostics": require_timing_diagnostics,
         "required_score_profile_diagnostics": require_score_profile_diagnostics,
+        "required_pcm_profile_diagnostics": require_pcm_profile_diagnostics,
         "issues": issues,
     }
 
@@ -331,6 +400,38 @@ def _has_timing_diagnostics(vad_shadow: dict[str, Any]) -> bool:
         "latest_speech_end_to_observe_ms",
     }
     return required_keys.issubset(vad_shadow.keys())
+
+
+def _has_pcm_profile_diagnostics(vad_shadow: dict[str, Any]) -> bool:
+    required_keys = {
+        "pcm_profile_frame_count",
+        "pcm_profile_sample_width_bytes",
+        "pcm_profile_total_byte_count",
+        "pcm_profile_total_sample_count",
+        "pcm_profile_rms",
+        "pcm_profile_mean_abs",
+        "pcm_profile_peak_abs",
+        "pcm_profile_zero_ratio",
+        "pcm_profile_near_zero_ratio",
+        "pcm_profile_clipping_ratio",
+        "pcm_profile_signal_level",
+        "pcm_profile_first_frame_rms",
+        "pcm_profile_first_frame_peak_abs",
+        "pcm_profile_middle_frame_rms",
+        "pcm_profile_middle_frame_peak_abs",
+        "pcm_profile_last_frame_rms",
+        "pcm_profile_last_frame_peak_abs",
+        "pcm_profile_peak_frame_index",
+        "pcm_profile_peak_frame_sequence",
+        "pcm_profile_peak_frame_source",
+        "pcm_profile_peak_frame_rms",
+        "pcm_profile_peak_frame_peak_abs",
+        "pcm_profile_peak_frame_zero_ratio",
+        "pcm_profile_peak_frame_age_ms",
+    }
+    return required_keys.issubset(vad_shadow.keys())
+
+
 
 
 def _has_score_profile_diagnostics(vad_shadow: dict[str, Any]) -> bool:
@@ -424,6 +525,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--require-score-diagnostics", action="store_true")
     parser.add_argument("--require-timing-diagnostics", action="store_true")
     parser.add_argument("--require-score-profile-diagnostics", action="store_true")
+    parser.add_argument("--require-pcm-profile-diagnostics", action="store_true")
     return parser
 
 
@@ -439,6 +541,7 @@ def main(argv: list[str] | None = None) -> int:
         require_score_diagnostics=args.require_score_diagnostics,
         require_timing_diagnostics=args.require_timing_diagnostics,
         require_score_profile_diagnostics=args.require_score_profile_diagnostics,
+        require_pcm_profile_diagnostics=args.require_pcm_profile_diagnostics,
     )
 
     print(json.dumps(result, indent=2, ensure_ascii=False))

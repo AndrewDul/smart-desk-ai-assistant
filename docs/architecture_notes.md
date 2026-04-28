@@ -7288,3 +7288,227 @@ Do not lower the VAD threshold as a workaround until PCM quality and frame-windo
 
 
 ---
+
+
+## Stage 24I — FasterWhisper tap PCM quality diagnostics
+
+### Status
+
+Implemented and validated on Raspberry Pi hardware.
+
+### What changed
+
+Stage 24I added PCM quality diagnostics to the Voice Engine v2 VAD shadow observer.
+
+The VAD shadow snapshot now records:
+
+- `pcm_profile_frame_count`
+- `pcm_profile_sample_width_bytes`
+- `pcm_profile_total_byte_count`
+- `pcm_profile_total_sample_count`
+- `pcm_profile_rms`
+- `pcm_profile_mean_abs`
+- `pcm_profile_peak_abs`
+- `pcm_profile_zero_ratio`
+- `pcm_profile_near_zero_ratio`
+- `pcm_profile_clipping_ratio`
+- `pcm_profile_signal_level`
+- `pcm_profile_first_frame_rms`
+- `pcm_profile_first_frame_peak_abs`
+- `pcm_profile_middle_frame_rms`
+- `pcm_profile_middle_frame_peak_abs`
+- `pcm_profile_last_frame_rms`
+- `pcm_profile_last_frame_peak_abs`
+- `pcm_profile_peak_frame_index`
+- `pcm_profile_peak_frame_sequence`
+- `pcm_profile_peak_frame_source`
+- `pcm_profile_peak_frame_rms`
+- `pcm_profile_peak_frame_peak_abs`
+- `pcm_profile_peak_frame_zero_ratio`
+- `pcm_profile_peak_frame_age_ms`
+
+The VAD shadow validator now supports:
+
+```bash
+--require-pcm-profile-diagnostics
+
+and reports:
+
+pcm_profile_diagnostics_records
+max_pcm_profile_rms
+max_pcm_profile_peak_abs
+max_pcm_profile_mean_abs
+max_pcm_profile_zero_ratio
+max_pcm_profile_near_zero_ratio
+pcm_profile_signal_levels
+pcm_profile_peak_sources
+Why this was needed
+
+Stage 24H proved that the observe-only VAD timing bridge reads fresh frames from faster_whisper_callback_shadow_tap, but Silero scores stayed below the speech threshold and no VAD events were emitted.
+
+Stage 24I was needed to determine whether the bridge receives real speech energy or mostly silence / near-zero PCM.
+
+What NEXA gains
+
+NEXA now has direct evidence about the quality of the PCM being published into RealtimeAudioBus by the FasterWhisper callback shadow tap.
+
+This prevents unsafe guesswork, especially lowering the VAD threshold blindly.
+
+NEXA can now distinguish between:
+
+stale audio backlog,
+fresh but silence-heavy audio,
+low-amplitude PCM,
+possible scaling problems,
+possible wrong capture window,
+possible tail-only callback data.
+Removed or deprecated legacy path
+
+No production path was removed.
+
+The following remained untouched:
+
+openWakeWord wake path,
+FasterWhisper fallback,
+Piper TTS,
+Visual Shell,
+legacy runtime,
+runtime candidate takeover,
+command execution.
+
+No Vosk command recognizer was enabled.
+
+No FasterWhisper prevention was enabled.
+
+No pre-STT action execution was enabled.
+
+Source / evidence
+
+Repository tests passed:
+
+pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_bridge.py
+pytest -q tests/scripts/test_set_voice_engine_v2_vad_timing_bridge.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
+pytest -q tests/runtime/voice_engine_v2
+pytest -q tests/devices/audio/vad
+pytest -q tests/devices/audio/realtime
+pytest -q tests/core/voice_engine
+pytest -q tests/core/command_intents
+pytest -q tests/test_core_assistant_import.py
+
+Hardware validation passed with:
+
+accepted=true
+vad_shadow_records=5
+enabled_records=5
+observed_records=5
+audio_bus_present_records=5
+frames_processed_records=5
+total_frames_processed=230
+diagnostics_records=5
+timing_diagnostics_records=5
+score_profile_diagnostics_records=5
+pcm_profile_diagnostics_records=5
+speech_score_records=5
+speech_frame_records=0
+silence_frame_records=5
+max_speech_score=0.2458934485912323
+max_score_profile_peak_score=0.2458934485912323
+max_last_frame_age_ms=221.64340599556454
+stale_audio_records=0
+cadence_diagnostic_reasons:
+  fresh_audio_backlog_observed=5
+pcm_profile_signal_levels:
+  near_silent=5
+max_pcm_profile_rms=0.000596
+max_pcm_profile_peak_abs=0.004517
+max_pcm_profile_mean_abs=0.000409
+max_pcm_profile_zero_ratio=0.04316
+max_pcm_profile_near_zero_ratio=0.999512
+pcm_profile_peak_sources:
+  faster_whisper_callback_shadow_tap=5
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+
+Detailed hardware PCM summary showed:
+
+line=1
+pcm_signal_level=near_silent
+pcm_rms=0.00029
+pcm_peak_abs=0.00116
+pcm_near_zero_ratio=0.999512
+score_peak=0.016358017921447754
+
+line=2
+pcm_signal_level=near_silent
+pcm_rms=0.000375
+pcm_peak_abs=0.001648
+pcm_near_zero_ratio=0.991827
+score_peak=0.05888298153877258
+
+line=3
+pcm_signal_level=near_silent
+pcm_rms=0.000308
+pcm_peak_abs=0.001648
+pcm_near_zero_ratio=0.997919
+score_peak=0.003821820020675659
+
+line=4
+pcm_signal_level=near_silent
+pcm_rms=0.000596
+pcm_peak_abs=0.004517
+pcm_near_zero_ratio=0.917226
+score_peak=0.008021056652069092
+
+line=5
+pcm_signal_level=near_silent
+pcm_rms=0.000329
+pcm_peak_abs=0.003326
+pcm_near_zero_ratio=0.991487
+score_peak=0.2458934485912323
+Validation
+
+Stage 24I passed repository tests and Raspberry Pi hardware validation.
+
+Safety stayed clean:
+
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+Conclusion
+
+Stage 24I proves that the current VAD timing bridge receives fresh frames, but those frames are near-silent.
+
+This explains why Stage 24G and Stage 24H did not emit speech_started or speech_ended events from the bridge path.
+
+The correct next step is not lowering the Silero threshold.
+
+Follow-up
+
+Next recommended stage is Stage 24J — FasterWhisper callback tap source audit.
+
+Stage 24J should inspect the actual _publish_realtime_audio_bus_shadow_tap(...) source and determine:
+
+what PCM object is being published,
+whether it is the same speech PCM used by FasterWhisper,
+whether it is normalized float audio converted incorrectly,
+whether it is tail/silence after endpointing,
+whether the callback provides chunks before, during or after speech,
+whether timestamps represent real capture time or publish time,
+whether the tap should publish earlier / fuller command-window PCM into RealtimeAudioBus.
+
+Stage 24J must remain:
+
+observe-only,
+no Vosk,
+no action execution,
+no FasterWhisper prevention,
+no runtime takeover,
+no second microphone stream,
+no wake/TTS/Visual Shell changes.
+
+---
