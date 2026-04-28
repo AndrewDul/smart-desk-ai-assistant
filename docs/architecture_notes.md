@@ -9942,3 +9942,161 @@ Stage 24Z must still not execute commands, bypass FasterWhisper, start a second 
 
 ---
 
+## Stage 24AA — Controlled Vosk package and model installation
+
+### Status
+
+Validated on real Raspberry Pi environment.
+
+### What changed
+
+Stage 24AA installed and verified the local Vosk dependency and small EN/PL Vosk models for future Voice Engine v2 command ASR work.
+
+Installed Python package inside the project virtual environment:
+
+```text
+vosk==0.3.45
+
+Installed local models:
+
+var/models/vosk/vosk-model-small-en-us-0.15
+var/models/vosk/vosk-model-small-pl-0.22
+
+Validated model structure markers:
+
+var/models/vosk/vosk-model-small-en-us-0.15/am/final.mdl
+var/models/vosk/vosk-model-small-en-us-0.15/conf/model.conf
+var/models/vosk/vosk-model-small-pl-0.22/am/final.mdl
+var/models/vosk/vosk-model-small-pl-0.22/conf/model.conf
+
+Then the guarded Stage 24Y probe loaded both models successfully without runtime integration.
+
+Why this was needed
+
+Stage 24Z confirmed that the previous environment did not have the vosk Python package and did not have local Vosk models.
+
+Before any disabled recognition probe can happen, NEXA needs a verified local Vosk dependency and local model inventory.
+
+This stage confirms that the Raspberry Pi 5 / Python 3.13 / aarch64 environment can install and load Vosk models safely.
+
+What NEXA gains
+
+NEXA now has local Vosk EN/PL model readiness for the next command ASR experiments.
+
+Validated gains:
+
+vosk imports successfully from the project .venv,
+English small model is present and loadable,
+Polish small model is present and loadable,
+model load probe works on Raspberry Pi,
+no live runtime path was changed,
+no command recognition was started,
+no microphone stream was started,
+no command execution was enabled,
+no FasterWhisper bypass was enabled.
+Runtime evidence
+
+Vosk package check:
+
+vosk_installed=true
+vosk_module=/home/devdul/Projects/smart-desk-ai-assistant/.venv/lib/python3.13/site-packages/vosk/__init__.py
+
+Guarded model load probe:
+
+accepted=true
+issues=[]
+present_model_records=2
+structure_ready_records=2
+load_requested=true
+load_attempted_records=2
+load_success_records=2
+
+Loadable paths:
+
+var/models/vosk/vosk-model-small-en-us-0.15
+var/models/vosk/vosk-model-small-pl-0.22
+
+Measured load times:
+
+var/models/vosk/vosk-model-small-en-us-0.15: 1036.722 ms
+var/models/vosk/vosk-model-small-pl-0.22: 1022.332 ms
+
+Safety fields:
+
+runtime_integration=false
+command_execution_enabled=false
+faster_whisper_bypass_enabled=false
+microphone_stream_started=false
+active_command_recognition_enabled=false
+command_recognition_records=0
+microphone_stream_records=0
+raw_pcm_records=0
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No runtime path was changed.
+
+No config default was changed.
+
+No active Vosk command recognizer was connected.
+
+No command execution was added.
+
+No FasterWhisper bypass was added.
+
+No microphone stream was started.
+
+No wake word, TTS, or Visual Shell behavior was changed.
+
+The downloaded ZIP archives can be removed after extraction because the extracted model directories are the runtime assets.
+
+Source / evidence
+
+Evidence used:
+
+real Raspberry Pi .venv package install,
+python -m pip install --dry-run vosk,
+python -m pip install vosk,
+downloaded official Vosk small EN/PL model ZIPs,
+scripts/probe_voice_engine_v2_vosk_models.py,
+var/data/voice_engine_v2_vosk_model_probe.json,
+real guarded load probe output.
+Validation
+
+Validated with:
+
+python -m pip install --dry-run vosk
+python -m pip install vosk
+
+python scripts/probe_voice_engine_v2_vosk_models.py \
+  --model-path var/models/vosk/vosk-model-small-en-us-0.15 \
+  --model-path var/models/vosk/vosk-model-small-pl-0.22 \
+  --load-model \
+  --require-model-present \
+  --require-loadable
+
+Result:
+
+accepted=true
+issues=[]
+load_success_records=2
+Follow-up
+
+Stage 24AB should add a disabled recognition probe using fixture PCM or injected recorded command audio.
+
+Stage 24AB must still not:
+
+execute commands,
+bypass FasterWhisper,
+start a second microphone stream,
+change wake word,
+change TTS,
+change Visual Shell,
+enable Voice Engine v2 runtime takeover,
+connect Vosk recognition to live runtime.
+
+---

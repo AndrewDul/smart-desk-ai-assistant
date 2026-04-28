@@ -91,3 +91,78 @@ models/**/*.gguf
 models/**/*.bin
 voices/piper/**/*.onnx
 voices/piper/**/*.json
+
+
+# ---------------------------------------------------------------------------
+# NEXA local runtime assets and generated telemetry
+# ---------------------------------------------------------------------------
+
+# Local AI / ASR / vision model assets.
+# These files are runtime assets and must not be committed to git.
+var/models/
+models/vosk/
+models/**/*.zip
+models/**/*.tar
+models/**/*.tar.gz
+models/**/*.onnx
+models/**/*.tflite
+models/**/*.hef
+models/**/*.bin
+models/**/*.pt
+models/**/*.pth
+models/**/*.gguf
+models/**/*.safetensors
+
+# Vosk downloaded archives and extracted local models.
+var/models/vosk/
+var/models/**/*.zip
+var/models/**/*.tar
+var/models/**/*.tar.gz
+
+# Runtime telemetry, observations, probes and temporary validation data.
+var/data/*.jsonl
+var/data/*.json
+var/data/*.log
+var/data/*.wav
+var/data/*.pcm
+var/data/*.raw
+var/data/stage*/
+var/data/voice_engine_v2_*.json
+var/data/voice_engine_v2_*.jsonl
+var/data/*backup*.json
+
+# Local runtime caches.
+var/cache/
+var/tmp/
+tmp/
+.temp/
+
+# Python / test caches.
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+
+# Virtual environments.
+.venv/
+venv/
+env/
+
+# Local editor / OS files.
+.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local audio/video/debug captures.
+*.wav
+*.pcm
+*.raw
+*.mp3
+*.mp4
+*.mov
+*.mkv
