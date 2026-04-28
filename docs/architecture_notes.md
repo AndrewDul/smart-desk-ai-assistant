@@ -10100,3 +10100,127 @@ enable Voice Engine v2 runtime takeover,
 connect Vosk recognition to live runtime.
 
 ---
+
+
+
+## Stage 24AB — Offline Vosk fixture recognition probe
+
+### Status
+
+Implemented as offline fixture-only recognition probe. Not connected to live runtime.
+
+### What changed
+
+Stage 24AB added an offline Vosk recognition probe for WAV fixtures.
+
+New module:
+
+```text
+modules/runtime/voice_engine_v2/vosk_fixture_recognition_probe.py
+
+New script:
+
+scripts/probe_voice_engine_v2_vosk_fixture_recognition.py
+
+New tests:
+
+tests/runtime/voice_engine_v2/test_vosk_fixture_recognition_probe.py
+tests/scripts/test_probe_voice_engine_v2_vosk_fixture_recognition.py
+
+The probe accepts a local Vosk model path and a mono 16 kHz PCM16 WAV fixture, runs recognition offline, and maps the recognized transcript through the existing deterministic CommandGrammar.
+
+Why this was needed
+
+Stage 24AA confirmed that Vosk is installed in the project .venv and that the small EN/PL models are present and loadable.
+
+Stage 24AB adds the next safe step: recognition from a fixture audio file, not from the live microphone stream.
+
+This isolates recognition quality testing from runtime ownership, wake word, FasterWhisper, TTS, and Visual Shell.
+
+What NEXA gains
+
+NEXA now has a safe way to test Vosk command recognition quality before runtime integration.
+
+This gives the project:
+
+offline fixture-based command recognition testing,
+deterministic grammar mapping after Vosk transcript output,
+validation of command match/no-match behavior,
+safety fields proving no live runtime integration,
+no microphone stream,
+no command execution,
+no FasterWhisper bypass,
+no runtime takeover,
+no raw PCM in telemetry output.
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No runtime path was changed.
+
+No config default was changed.
+
+No active Vosk command recognizer was connected to runtime.
+
+No command execution was added.
+
+No FasterWhisper bypass was added.
+
+No microphone stream was started.
+
+No wake word, TTS, or Visual Shell behavior was changed.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24AA Vosk package and model readiness.
+Existing deterministic CommandGrammar.
+Local offline WAV fixture validation.
+Stage 24AB tests.
+Validation
+
+Run:
+
+pytest -q tests/runtime/voice_engine_v2/test_vosk_fixture_recognition_probe.py
+pytest -q tests/scripts/test_probe_voice_engine_v2_vosk_fixture_recognition.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_model_probe.py
+pytest -q tests/scripts/test_probe_voice_engine_v2_vosk_models.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_command_asr_adapter.py
+pytest -q tests/runtime/voice_engine_v2/test_command_asr.py
+pytest -q tests/test_core_assistant_import.py
+
+Manual fixture probe example:
+
+python scripts/probe_voice_engine_v2_vosk_fixture_recognition.py \
+  --model-path var/models/vosk/vosk-model-small-en-us-0.15 \
+  --wav-path var/data/fixtures/voice_commands/show_desktop_en_16k_mono.wav \
+  --require-command-match
+
+Expected safety fields:
+
+runtime_integration=false
+command_execution_enabled=false
+faster_whisper_bypass_enabled=false
+microphone_stream_started=false
+live_command_recognition_enabled=false
+raw_pcm_included=false
+action_executed=false
+full_stt_prevented=false
+runtime_takeover=false
+Follow-up
+
+Stage 24AC should create a small fixture recording procedure for real EN/PL command WAV files, stored outside git under var/data/fixtures/voice_commands/.
+
+Stage 24AC must still not:
+
+execute commands,
+bypass FasterWhisper,
+start a live microphone stream inside Voice Engine v2,
+change wake word,
+change TTS,
+change Visual Shell,
+enable Voice Engine v2 runtime takeover,
+connect Vosk recognition to live runtime.
+
+---
