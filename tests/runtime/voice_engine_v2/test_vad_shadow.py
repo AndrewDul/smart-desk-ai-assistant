@@ -125,6 +125,13 @@ def test_vad_shadow_reports_no_new_audio_frames() -> None:
     assert snapshot.subscription_backlog_frames is None
     assert snapshot.stale_audio_observed is False
     assert snapshot.cadence_diagnostic_reason == "no_new_audio_frames_at_observe_time"
+    assert snapshot.score_profile_sample_count == 0
+    assert snapshot.score_profile_first_scores == []
+    assert snapshot.score_profile_middle_scores == []
+    assert snapshot.score_profile_last_scores == []
+    assert snapshot.score_profile_peak_score is None
+    assert snapshot.score_profile_peak_bucket == ""
+    assert snapshot.frame_source_counts == {}
 
 
 def test_vad_shadow_emits_speech_start_and_end_events() -> None:
@@ -205,6 +212,18 @@ def test_vad_shadow_emits_speech_start_and_end_events() -> None:
     assert snapshot.stale_audio_threshold_ms == 1000.0
     assert snapshot.stale_audio_observed is False
     assert snapshot.cadence_diagnostic_reason == "fresh_audio_backlog_observed"
+    assert snapshot.score_profile_sample_count == 7
+    assert snapshot.score_profile_peak_score == 1.0
+    assert snapshot.score_profile_peak_index == 0
+    assert snapshot.score_profile_peak_sequence == 0
+    assert snapshot.score_profile_peak_position_ratio == 0.0
+    assert snapshot.score_profile_peak_bucket == "first_third"
+    assert snapshot.score_profile_peak_frame_source == "test"
+    assert snapshot.score_profile_peak_frame_age_ms is not None
+    assert snapshot.frame_source_counts == {"test": 7}
+    assert len(snapshot.score_profile_first_scores) == 5
+    assert len(snapshot.score_profile_middle_scores) == 5
+    assert len(snapshot.score_profile_last_scores) == 5
     assert snapshot.event_emission_reason == "events_emitted"
 
     event_types = [event["event_type"] for event in snapshot.events]
@@ -255,6 +274,10 @@ def test_vad_shadow_reports_stale_audio_backlog_reason() -> None:
     assert snapshot.latest_speech_end_to_observe_ms is not None
     assert snapshot.latest_speech_end_to_observe_ms > 1000.0
     assert snapshot.cadence_diagnostic_reason == "stale_audio_backlog_observed"
+    assert snapshot.score_profile_sample_count == 7
+    assert snapshot.score_profile_peak_score == 1.0
+    assert snapshot.score_profile_peak_bucket == "first_third"
+    assert snapshot.frame_source_counts == {"test": 7}
 
 def test_vad_shadow_reads_only_new_frames_after_first_observation() -> None:
     audio_bus = AudioBus(

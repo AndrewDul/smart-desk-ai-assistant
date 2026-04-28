@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
 import time
@@ -67,6 +68,18 @@ class VoiceEngineV2VadShadowSnapshot:
     stale_audio_threshold_ms: float = 1000.0
     stale_audio_observed: bool = False
     cadence_diagnostic_reason: str = ""
+    score_profile_sample_count: int = 0
+    score_profile_first_scores: list[float] = field(default_factory=list)
+    score_profile_middle_scores: list[float] = field(default_factory=list)
+    score_profile_last_scores: list[float] = field(default_factory=list)
+    score_profile_peak_score: float | None = None
+    score_profile_peak_index: int | None = None
+    score_profile_peak_sequence: int | None = None
+    score_profile_peak_position_ratio: float | None = None
+    score_profile_peak_bucket: str = ""
+    score_profile_peak_frame_source: str = ""
+    score_profile_peak_frame_age_ms: float | None = None
+    frame_source_counts: dict[str, int] = field(default_factory=dict)
     event_emission_reason: str = ""
     min_speech_ms: int = 0
     min_silence_ms: int = 0
@@ -130,6 +143,18 @@ class VoiceEngineV2VadShadowSnapshot:
             "stale_audio_threshold_ms": self.stale_audio_threshold_ms,
             "stale_audio_observed": self.stale_audio_observed,
             "cadence_diagnostic_reason": self.cadence_diagnostic_reason,
+            "score_profile_sample_count": self.score_profile_sample_count,
+            "score_profile_first_scores": list(self.score_profile_first_scores),
+            "score_profile_middle_scores": list(self.score_profile_middle_scores),
+            "score_profile_last_scores": list(self.score_profile_last_scores),
+            "score_profile_peak_score": self.score_profile_peak_score,
+            "score_profile_peak_index": self.score_profile_peak_index,
+            "score_profile_peak_sequence": self.score_profile_peak_sequence,
+            "score_profile_peak_position_ratio": self.score_profile_peak_position_ratio,
+            "score_profile_peak_bucket": self.score_profile_peak_bucket,
+            "score_profile_peak_frame_source": self.score_profile_peak_frame_source,
+            "score_profile_peak_frame_age_ms": self.score_profile_peak_frame_age_ms,
+            "frame_source_counts": dict(self.frame_source_counts),
             "event_emission_reason": self.event_emission_reason,
             "min_speech_ms": self.min_speech_ms,
             "min_silence_ms": self.min_silence_ms,
@@ -517,6 +542,11 @@ class VoiceEngineV2VadShadowObserver:
                 "latest_speech_end_to_observe_ms"
             ],
         )
+        score_profile_diagnostics = _score_profile_diagnostics(
+            decisions=safe_decisions,
+            frames=safe_frames,
+            observation_completed_monotonic=observation_completed_monotonic,
+        )
         diagnostics = _decision_diagnostics(
             decisions=safe_decisions,
             events=safe_events,
@@ -607,6 +637,42 @@ class VoiceEngineV2VadShadowObserver:
             stale_audio_observed=cadence_diagnostics["stale_audio_observed"],
             cadence_diagnostic_reason=str(
                 cadence_diagnostics["cadence_diagnostic_reason"]
+            ),
+            score_profile_sample_count=score_profile_diagnostics[
+                "score_profile_sample_count"
+            ],
+            score_profile_first_scores=list(
+                score_profile_diagnostics["score_profile_first_scores"]
+            ),
+            score_profile_middle_scores=list(
+                score_profile_diagnostics["score_profile_middle_scores"]
+            ),
+            score_profile_last_scores=list(
+                score_profile_diagnostics["score_profile_last_scores"]
+            ),
+            score_profile_peak_score=score_profile_diagnostics[
+                "score_profile_peak_score"
+            ],
+            score_profile_peak_index=score_profile_diagnostics[
+                "score_profile_peak_index"
+            ],
+            score_profile_peak_sequence=score_profile_diagnostics[
+                "score_profile_peak_sequence"
+            ],
+            score_profile_peak_position_ratio=score_profile_diagnostics[
+                "score_profile_peak_position_ratio"
+            ],
+            score_profile_peak_bucket=str(
+                score_profile_diagnostics["score_profile_peak_bucket"]
+            ),
+            score_profile_peak_frame_source=str(
+                score_profile_diagnostics["score_profile_peak_frame_source"]
+            ),
+            score_profile_peak_frame_age_ms=score_profile_diagnostics[
+                "score_profile_peak_frame_age_ms"
+            ],
+            frame_source_counts=dict(
+                score_profile_diagnostics["frame_source_counts"]
             ),
             event_emission_reason=str(diagnostics["event_emission_reason"]),
             min_speech_ms=self._endpointing_policy_config.min_speech_ms,
@@ -828,6 +894,101 @@ def _cadence_diagnostic_reason(
 
     return "cadence_diagnostics_unavailable"
 
+
+def _score_profile_diagnostics(
+    *,
+    decisions: list[VadDecision],
+    frames: list[AudioFrame],
+    observation_completed_monotonic: float,
+) -> dict[str, object]:
+    if not decisions:
+        return {
+            "score_profile_sample_count": 0,
+            "score_profile_first_scores": [],
+            "score_profile_middle_scores": [],
+            "score_profile_last_scores": [],
+            "score_profile_peak_score": None,
+            "score_profile_peak_index": None,
+            "score_profile_peak_sequence": None,
+            "score_profile_peak_position_ratio": None,
+            "score_profile_peak_bucket": "",
+            "score_profile_peak_frame_source": "",
+            "score_profile_peak_frame_age_ms": None,
+            "frame_source_counts": _frame_source_counts(frames),
+        }
+
+    scores = [float(decision.score) for decision in decisions]
+    peak_index = max(range(len(scores)), key=scores.__getitem__)
+    peak_decision = decisions[peak_index]
+    peak_frame = frames[peak_index] if peak_index < len(frames) else None
+
+    return {
+        "score_profile_sample_count": len(scores),
+        "score_profile_first_scores": _score_samples(scores, start=0),
+        "score_profile_middle_scores": _middle_score_samples(scores),
+        "score_profile_last_scores": _score_samples(
+            scores,
+            start=max(0, len(scores) - 5),
+        ),
+        "score_profile_peak_score": scores[peak_index],
+        "score_profile_peak_index": peak_index,
+        "score_profile_peak_sequence": peak_decision.frame_sequence,
+        "score_profile_peak_position_ratio": _score_position_ratio(
+            peak_index=peak_index,
+            score_count=len(scores),
+        ),
+        "score_profile_peak_bucket": _score_position_bucket(
+            peak_index=peak_index,
+            score_count=len(scores),
+        ),
+        "score_profile_peak_frame_source": (
+            "" if peak_frame is None else str(peak_frame.source)
+        ),
+        "score_profile_peak_frame_age_ms": (
+            None
+            if peak_frame is None
+            else _elapsed_ms(
+                start=peak_frame.timestamp_monotonic + peak_frame.duration_seconds,
+                end=observation_completed_monotonic,
+            )
+        ),
+        "frame_source_counts": _frame_source_counts(frames),
+    }
+
+
+def _score_samples(scores: list[float], *, start: int, sample_count: int = 5) -> list[float]:
+    return [
+        round(float(score), 6)
+        for score in scores[start : min(len(scores), start + sample_count)]
+    ]
+
+
+def _middle_score_samples(scores: list[float], *, sample_count: int = 5) -> list[float]:
+    if not scores:
+        return []
+    start = max(0, (len(scores) // 2) - (sample_count // 2))
+    return _score_samples(scores, start=start, sample_count=sample_count)
+
+
+def _score_position_ratio(*, peak_index: int, score_count: int) -> float:
+    if score_count <= 1:
+        return 0.0
+    return round(float(peak_index) / float(score_count - 1), 6)
+
+
+def _score_position_bucket(*, peak_index: int, score_count: int) -> str:
+    if score_count <= 0:
+        return ""
+    ratio = _score_position_ratio(peak_index=peak_index, score_count=score_count)
+    if ratio < 0.34:
+        return "first_third"
+    if ratio < 0.67:
+        return "middle_third"
+    return "last_third"
+
+
+def _frame_source_counts(frames: list[AudioFrame]) -> dict[str, int]:
+    return dict(Counter(str(frame.source) for frame in frames))
 
 
 

@@ -7087,3 +7087,204 @@ no second microphone stream,
 no wake/TTS/Visual Shell changes.
 
 ---
+
+
+## Stage 24H — VAD bridge frame window and score profile diagnostics
+
+### Status
+
+Implemented and validated on Raspberry Pi hardware.
+
+### What changed
+
+Stage 24H added score profile diagnostics to the Voice Engine v2 VAD shadow observer.
+
+The VAD shadow snapshot now records:
+
+- `score_profile_sample_count`
+- `score_profile_first_scores`
+- `score_profile_middle_scores`
+- `score_profile_last_scores`
+- `score_profile_peak_score`
+- `score_profile_peak_index`
+- `score_profile_peak_sequence`
+- `score_profile_peak_position_ratio`
+- `score_profile_peak_bucket`
+- `score_profile_peak_frame_source`
+- `score_profile_peak_frame_age_ms`
+- `frame_source_counts`
+
+The VAD shadow validator now supports:
+
+```bash
+--require-score-profile-diagnostics
+
+and reports:
+
+score_profile_diagnostics_records
+max_score_profile_peak_score
+score_profile_peak_buckets
+score_profile_peak_sources
+Why this was needed
+
+Stage 24G proved that the observe-only VAD timing bridge avoids stale audio backlog and reads fresh frames from the current capture.
+
+However, Stage 24G did not emit speech_started or speech_ended events. The maximum Silero score in the bridge path stayed below the speech threshold.
+
+Stage 24H was needed to inspect the shape of the score window and determine whether the bridge sees speech, tail silence, low-energy audio, or the wrong section of the capture.
+
+What NEXA gains
+
+NEXA now has visibility into the score distribution of the VAD bridge window.
+
+This prevents unsafe guesswork such as lowering the Silero threshold blindly.
+
+The system can now report:
+
+where the score peak appears in the observed frame window,
+whether the peak is in the first, middle or last third,
+which audio source produced the peak,
+how old the peak frame is,
+whether all observed frames come from the FasterWhisper callback shadow tap,
+whether the bridge is seeing real speech or mostly silence.
+
+This keeps Voice Engine v2 aligned with the premium low-latency goal while preserving observe-only safety.
+
+Removed or deprecated legacy path
+
+No production path was removed.
+
+The following remained untouched:
+
+openWakeWord wake path,
+FasterWhisper fallback,
+Piper TTS,
+Visual Shell,
+legacy runtime,
+runtime candidate takeover,
+command execution.
+
+No Vosk command recognizer was enabled.
+
+No FasterWhisper prevention was enabled.
+
+No pre-STT action execution was enabled.
+
+Source / evidence
+
+Repository tests passed:
+
+pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_bridge.py
+pytest -q tests/scripts/test_set_voice_engine_v2_vad_timing_bridge.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
+pytest -q tests/runtime/voice_engine_v2
+pytest -q tests/devices/audio/vad
+pytest -q tests/devices/audio/realtime
+pytest -q tests/core/voice_engine
+pytest -q tests/core/command_intents
+pytest -q tests/test_core_assistant_import.py
+
+Hardware validation passed with:
+
+accepted=true
+vad_shadow_records=4
+enabled_records=4
+observed_records=4
+audio_bus_present_records=4
+frames_processed_records=4
+total_frames_processed=184
+diagnostics_records=4
+timing_diagnostics_records=4
+score_profile_diagnostics_records=4
+speech_score_records=4
+speech_frame_records=0
+silence_frame_records=4
+max_speech_score=0.04741048812866211
+max_score_profile_peak_score=0.04741048812866211
+max_last_frame_age_ms=278.07171099993866
+stale_audio_records=0
+cadence_diagnostic_reasons:
+  fresh_audio_backlog_observed=4
+score_profile_peak_buckets:
+  first_third=2
+  middle_third=1
+  last_third=1
+score_profile_peak_sources:
+  faster_whisper_callback_shadow_tap=4
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+
+Detailed hardware score profile showed:
+
+line=1
+peak_score=0.04741048812866211
+peak_bucket=first_third
+peak_source=faster_whisper_callback_shadow_tap
+first_scores=[0.04741, 0.013339, 0.013902, 0.011081, 0.007564]
+middle_scores=[0.003158, 0.003323, 0.003478, 0.003665, 0.003439]
+last_scores=[0.003582, 0.003533, 0.003515, 0.004134, 0.0045]
+
+line=2
+peak_score=0.027585595846176147
+peak_bucket=first_third
+peak_source=faster_whisper_callback_shadow_tap
+
+line=3
+peak_score=0.002590775489807129
+peak_bucket=middle_third
+peak_source=faster_whisper_callback_shadow_tap
+
+line=4
+peak_score=0.007506608963012695
+peak_bucket=last_third
+peak_source=faster_whisper_callback_shadow_tap
+Validation
+
+Stage 24H passed repository tests and Raspberry Pi hardware validation.
+
+Safety stayed clean:
+
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+Follow-up
+
+Next recommended stage is Stage 24I — FasterWhisper tap PCM quality diagnostics.
+
+Stage 24H proved that the VAD bridge reads fresh frames, but those frames have very low Silero scores:
+
+max_score_profile_peak_score=0.04741048812866211
+speech_frame_records=0
+events_emitted=0
+
+The next stage should inspect the PCM quality published by faster_whisper_callback_shadow_tap:
+
+RMS amplitude,
+peak amplitude,
+mean absolute amplitude,
+zero sample ratio,
+sample count,
+byte count,
+frame duration,
+possible clipping,
+first/middle/last amplitude samples,
+comparison between frames that occur near speech and frames near tail silence.
+
+Stage 24I must remain:
+
+observe-only,
+no Vosk,
+no action execution,
+no FasterWhisper prevention,
+no runtime takeover,
+no second microphone stream,
+no wake/TTS/Visual Shell changes.
+
+Do not lower the VAD threshold as a workaround until PCM quality and frame-window coverage are understood.
+
+
+---

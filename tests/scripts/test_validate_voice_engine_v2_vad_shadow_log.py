@@ -72,6 +72,18 @@ def _safe_vad_shadow(**overrides: object) -> dict[str, object]:
         "stale_audio_threshold_ms": 1000.0,
         "stale_audio_observed": False,
         "cadence_diagnostic_reason": "fresh_audio_backlog_observed",
+        "score_profile_sample_count": 4,
+        "score_profile_first_scores": [0.1, 0.5, 0.9, 0.2],
+        "score_profile_middle_scores": [0.1, 0.5, 0.9, 0.2],
+        "score_profile_last_scores": [0.1, 0.5, 0.9, 0.2],
+        "score_profile_peak_score": 0.9,
+        "score_profile_peak_index": 2,
+        "score_profile_peak_sequence": 12,
+        "score_profile_peak_position_ratio": 0.666667,
+        "score_profile_peak_bucket": "middle_third",
+        "score_profile_peak_frame_source": "test_source",
+        "score_profile_peak_frame_age_ms": 90.0,
+        "frame_source_counts": {"test_source": 4},
         "event_emission_reason": "events_emitted",
         "action_executed": False,
         "full_stt_prevented": False,
@@ -101,6 +113,7 @@ def test_validate_vad_shadow_log_accepts_safe_records(tmp_path: Path) -> None:
         require_frames=True,
         require_score_diagnostics=True,
         require_timing_diagnostics=True,
+        require_score_profile_diagnostics=True,
     )
 
     assert result["accepted"] is True
@@ -121,6 +134,10 @@ def test_validate_vad_shadow_log_accepts_safe_records(tmp_path: Path) -> None:
     assert result["cadence_diagnostic_reasons"] == {
         "fresh_audio_backlog_observed": 1
     }
+    assert result["score_profile_diagnostics_records"] == 1
+    assert result["max_score_profile_peak_score"] == 0.9
+    assert result["score_profile_peak_buckets"] == {"middle_third": 1}
+    assert result["score_profile_peak_sources"] == {"test_source": 1}
     assert result["speech_score_records"] == 1
     assert result["speech_frame_records"] == 1
     assert result["silence_frame_records"] == 0
@@ -302,6 +319,39 @@ def test_validate_vad_shadow_log_counts_stale_audio_records(
     }
 
 
+def test_validate_vad_shadow_log_can_require_score_profile_diagnostics(
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "vad.jsonl"
+    vad_shadow = _safe_vad_shadow()
+    for key in [
+        "score_profile_sample_count",
+        "score_profile_first_scores",
+        "score_profile_middle_scores",
+        "score_profile_last_scores",
+        "score_profile_peak_score",
+        "score_profile_peak_index",
+        "score_profile_peak_sequence",
+        "score_profile_peak_position_ratio",
+        "score_profile_peak_bucket",
+        "score_profile_peak_frame_source",
+        "score_profile_peak_frame_age_ms",
+        "frame_source_counts",
+    ]:
+        vad_shadow.pop(key)
+
+    _write_jsonl(log_path, [_record(vad_shadow)])
+
+    result = validate_vad_shadow_log(
+        log_path=log_path,
+        require_score_profile_diagnostics=True,
+    )
+
+    assert result["accepted"] is False
+    assert "vad_shadow_score_profile_diagnostics_records_missing" in result["issues"]
+
+
+
 
 def test_validate_vad_shadow_log_can_require_timing_diagnostics(
     tmp_path: Path,
@@ -381,3 +431,27 @@ def test_cli_accepts_timing_diagnostics_requirement(
     assert exit_code == 0
     assert payload["accepted"] is True
     assert payload["required_timing_diagnostics"] is True
+
+
+
+def test_cli_accepts_score_profile_diagnostics_requirement(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    log_path = tmp_path / "vad.jsonl"
+    _write_jsonl(log_path, [_record(_safe_vad_shadow())])
+
+    exit_code = main(
+        [
+            "--log-path",
+            str(log_path),
+            "--require-score-profile-diagnostics",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert exit_code == 0
+    assert payload["accepted"] is True
+    assert payload["required_score_profile_diagnostics"] is True

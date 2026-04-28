@@ -19,6 +19,7 @@ def validate_vad_shadow_log(
     require_frames: bool = False,
     require_score_diagnostics: bool = False,
     require_timing_diagnostics: bool = False,
+    require_score_profile_diagnostics: bool = False,
 ) -> dict[str, Any]:
     issues: list[str] = []
     reasons: Counter[str] = Counter()
@@ -48,6 +49,10 @@ def validate_vad_shadow_log(
     stale_audio_records = 0
     max_subscription_backlog_frames: int | None = None
     cadence_diagnostic_reasons: Counter[str] = Counter()
+    score_profile_diagnostics_records = 0
+    max_score_profile_peak_score: float | None = None
+    score_profile_peak_buckets: Counter[str] = Counter()
+    score_profile_peak_sources: Counter[str] = Counter()
     event_emission_reasons: Counter[str] = Counter()
     unsafe_action_records = 0
     unsafe_full_stt_records = 0
@@ -145,6 +150,30 @@ def validate_vad_shadow_log(
         if cadence_diagnostic_reason:
             cadence_diagnostic_reasons[cadence_diagnostic_reason] += 1
 
+        if _has_score_profile_diagnostics(vad_shadow):
+            score_profile_diagnostics_records += 1
+
+        score_profile_peak_score = _safe_float(
+            vad_shadow.get("score_profile_peak_score")
+        )
+        if score_profile_peak_score is not None:
+            max_score_profile_peak_score = _max_optional_float(
+                max_score_profile_peak_score,
+                score_profile_peak_score,
+            )
+
+        score_profile_peak_bucket = str(
+            vad_shadow.get("score_profile_peak_bucket", "")
+        )
+        if score_profile_peak_bucket:
+            score_profile_peak_buckets[score_profile_peak_bucket] += 1
+
+        score_profile_peak_source = str(
+            vad_shadow.get("score_profile_peak_frame_source", "")
+        )
+        if score_profile_peak_source:
+            score_profile_peak_sources[score_profile_peak_source] += 1
+
         speech_score_count = _safe_int(vad_shadow.get("speech_score_count"))
         if speech_score_count > 0:
             speech_score_records += 1
@@ -209,6 +238,9 @@ def validate_vad_shadow_log(
     if require_timing_diagnostics and timing_diagnostics_records == 0:
         issues.append("vad_shadow_timing_diagnostics_records_missing")
 
+    if require_score_profile_diagnostics and score_profile_diagnostics_records == 0:
+        issues.append("vad_shadow_score_profile_diagnostics_records_missing")
+
     accepted = not issues
 
     return {
@@ -238,6 +270,10 @@ def validate_vad_shadow_log(
         "stale_audio_records": stale_audio_records,
         "max_subscription_backlog_frames": max_subscription_backlog_frames,
         "cadence_diagnostic_reasons": dict(cadence_diagnostic_reasons),
+        "score_profile_diagnostics_records": score_profile_diagnostics_records,
+        "max_score_profile_peak_score": max_score_profile_peak_score,
+        "score_profile_peak_buckets": dict(score_profile_peak_buckets),
+        "score_profile_peak_sources": dict(score_profile_peak_sources),
         "event_emission_reasons": dict(event_emission_reasons),
         "unsafe_action_records": unsafe_action_records,
         "unsafe_full_stt_records": unsafe_full_stt_records,
@@ -250,6 +286,7 @@ def validate_vad_shadow_log(
         "required_frames": require_frames,
         "required_score_diagnostics": require_score_diagnostics,
         "required_timing_diagnostics": require_timing_diagnostics,
+        "required_score_profile_diagnostics": require_score_profile_diagnostics,
         "issues": issues,
     }
 
@@ -294,6 +331,27 @@ def _has_timing_diagnostics(vad_shadow: dict[str, Any]) -> bool:
         "latest_speech_end_to_observe_ms",
     }
     return required_keys.issubset(vad_shadow.keys())
+
+
+def _has_score_profile_diagnostics(vad_shadow: dict[str, Any]) -> bool:
+    required_keys = {
+        "score_profile_sample_count",
+        "score_profile_first_scores",
+        "score_profile_middle_scores",
+        "score_profile_last_scores",
+        "score_profile_peak_score",
+        "score_profile_peak_index",
+        "score_profile_peak_sequence",
+        "score_profile_peak_position_ratio",
+        "score_profile_peak_bucket",
+        "score_profile_peak_frame_source",
+        "score_profile_peak_frame_age_ms",
+        "frame_source_counts",
+    }
+    return required_keys.issubset(vad_shadow.keys())
+
+
+
 
 def _has_cadence_diagnostics(vad_shadow: dict[str, Any]) -> bool:
     required_keys = {
@@ -365,6 +423,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--require-frames", action="store_true")
     parser.add_argument("--require-score-diagnostics", action="store_true")
     parser.add_argument("--require-timing-diagnostics", action="store_true")
+    parser.add_argument("--require-score-profile-diagnostics", action="store_true")
     return parser
 
 
@@ -379,6 +438,7 @@ def main(argv: list[str] | None = None) -> int:
         require_frames=args.require_frames,
         require_score_diagnostics=args.require_score_diagnostics,
         require_timing_diagnostics=args.require_timing_diagnostics,
+        require_score_profile_diagnostics=args.require_score_profile_diagnostics,
     )
 
     print(json.dumps(result, indent=2, ensure_ascii=False))
