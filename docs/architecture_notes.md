@@ -9808,3 +9808,137 @@ The goal of Stage 24Y should be only to verify that a local Vosk model can be di
 
 
 ---
+
+
+## Stage 24Y — Guarded Vosk model loading probe
+
+### Status
+
+Implemented as guarded model discovery/loading probe. Not connected to live runtime.
+
+### What changed
+
+Stage 24Y added a safe Vosk model probe.
+
+New module:
+
+```text
+modules/runtime/voice_engine_v2/vosk_model_probe.py
+
+New script:
+
+scripts/probe_voice_engine_v2_vosk_models.py
+
+New tests:
+
+tests/runtime/voice_engine_v2/test_vosk_model_probe.py
+tests/scripts/test_probe_voice_engine_v2_vosk_models.py
+
+The probe can:
+
+check known local Vosk model paths,
+verify basic model directory markers,
+optionally import vosk and instantiate Model(path),
+write a JSON report to var/data/voice_engine_v2_vosk_model_probe.json,
+report safety invariants.
+
+The probe does not start microphone capture, does not run command recognition, does not execute actions, and does not connect to Voice Engine v2 runtime.
+
+Why this was needed
+
+Stage 24X proved that real runtime command-ready audio segments are available before transcription and can be represented safely as disabled command ASR telemetry.
+
+The next risk is whether a local Vosk model can be discovered and loaded on Raspberry Pi without destabilizing runtime.
+
+Stage 24Y isolates that risk into a standalone probe before any active command ASR integration.
+
+What NEXA gains
+
+NEXA now has a safe way to verify local Vosk model readiness.
+
+This gives the project:
+
+model path discovery,
+basic model structure validation,
+optional load health-check,
+JSON evidence for future architecture decisions,
+no live command recognition,
+no runtime takeover,
+no second microphone stream,
+no FasterWhisper bypass,
+no command execution.
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No runtime path was changed.
+
+No config default was changed.
+
+No active Vosk command recognizer was connected.
+
+No wake word, TTS, FasterWhisper, or Visual Shell behavior was changed.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24X runtime observation confirmed command-ready pre-transcription audio segments.
+Existing modules/devices/audio/command_asr command grammar and Vosk recognizer shell.
+Official Vosk documentation states Vosk works offline on lightweight devices including Raspberry Pi and supports vocabulary reconfiguration.
+Official Vosk model documentation states small models are intended for limited/mobile/Raspberry Pi-style tasks.
+Validation
+
+Run:
+
+pytest -q tests/runtime/voice_engine_v2/test_vosk_model_probe.py
+pytest -q tests/scripts/test_probe_voice_engine_v2_vosk_models.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_command_asr_adapter.py
+pytest -q tests/devices/audio/command_asr/test_vosk_command_recognizer_contract.py
+pytest -q tests/runtime/voice_engine_v2/test_command_asr.py
+pytest -q tests/test_core_assistant_import.py
+
+Optional local model discovery:
+
+python scripts/probe_voice_engine_v2_vosk_models.py
+
+Optional strict model presence check:
+
+python scripts/probe_voice_engine_v2_vosk_models.py \
+  --require-model-present
+
+Optional guarded load check after local models are installed:
+
+python scripts/probe_voice_engine_v2_vosk_models.py \
+  --model-path var/models/vosk/vosk-model-small-en-us-0.15 \
+  --model-path var/models/vosk/vosk-model-small-pl-0.22 \
+  --load-model \
+  --require-model-present \
+  --require-loadable
+
+Expected safety fields:
+
+runtime_integration=false
+command_execution_enabled=false
+faster_whisper_bypass_enabled=false
+microphone_stream_started=false
+active_command_recognition_enabled=false
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+microphone_stream_records=0
+command_recognition_records=0
+raw_pcm_records=0
+Follow-up
+
+Stage 24Z should use the Stage 24Y probe result to decide whether to:
+
+install/download missing Vosk small EN/PL models,
+add a local model inventory document,
+or prepare a disabled-by-default recognition probe using recorded/fixture PCM, not microphone streaming.
+
+Stage 24Z must still not execute commands, bypass FasterWhisper, start a second microphone stream, change wake word, change TTS, change Visual Shell, or enable Voice Engine v2 runtime takeover.
+
+
+---
+
