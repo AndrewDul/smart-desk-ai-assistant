@@ -11276,3 +11276,167 @@ live_command_recognition_enabled=false
 ----
 
 
+## Stage 24AJ — Observe-only Vosk live shadow contract
+
+### Status
+
+Implemented as a contract-only preparation stage. Not connected to live runtime.
+
+### What changed
+
+Stage 24AJ added a safe telemetry contract for future observe-only live Vosk command recognition.
+
+New module:
+
+```text
+modules/runtime/voice_engine_v2/vosk_live_shadow_contract.py
+
+New validator CLI:
+
+scripts/validate_voice_engine_v2_vosk_live_shadow_contract.py
+
+New tests:
+
+tests/runtime/voice_engine_v2/test_vosk_live_shadow_contract.py
+tests/scripts/test_validate_voice_engine_v2_vosk_live_shadow_contract.py
+
+The contract defines:
+
+enabled
+observed
+reason
+metadata_key
+input_source
+recognizer_name
+recognizer_enabled
+recognition_attempted
+recognized
+transcript
+normalized_text
+language
+confidence
+command_matched
+command_intent_key
+command_language
+command_matched_phrase
+
+The contract also enforces safety fields:
+
+runtime_integration=false
+command_execution_enabled=false
+faster_whisper_bypass_enabled=false
+microphone_stream_started=false
+independent_microphone_stream_started=false
+live_command_recognition_enabled=false
+raw_pcm_included=false
+action_executed=false
+full_stt_prevented=false
+runtime_takeover=false
+
+No live runtime integration was added.
+
+No live microphone stream was started.
+
+No independent second microphone stream was added.
+
+No command execution was enabled.
+
+No FasterWhisper bypass was enabled.
+
+No wake word, audio input, TTS, or Visual Shell behavior was changed.
+
+Why this was needed
+
+Stages 24AD through 24AI proved that offline EN/PL Vosk command fixture recognition is repeatable, language-scoped, aggregated, quality-gated, and documented.
+
+The next migration step requires a live shadow telemetry contract before any runtime attachment.
+
+Stage 24AJ prepares that contract without touching the live runtime path.
+
+This keeps the migration safe and prevents accidental Vosk takeover.
+
+What NEXA gains
+
+NEXA now has a safe contract for future observe-only live Vosk command recognition.
+
+This gives the project:
+
+explicit telemetry shape for future Vosk live shadow records,
+strict safety invariants,
+disabled-by-default contract behavior,
+enabled-but-not-attached contract validation,
+no runtime takeover risk,
+no command execution risk,
+no second microphone stream risk,
+no FasterWhisper bypass risk.
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No runtime route was changed.
+
+No live Vosk recognizer was connected.
+
+No production command path was changed.
+
+No config flag was added or enabled.
+
+Stage 24AJ only prepares a contract. A later stage must explicitly decide where to attach this contract in observe-only mode.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24AD fixture import and offline recognition.
+Stage 24AE language-scoped fixture grammar.
+Stage 24AF aggregate report.
+Stage 24AG offline fixture matrix runner.
+Stage 24AH quality gate.
+Stage 24AI offline acceptance runbook.
+Existing CommandAsrResult safety contract.
+Existing command_asr_shadow_bridge observe-only safety model.
+Validation
+
+Unit and script tests:
+
+pytest -q tests/runtime/voice_engine_v2/test_vosk_live_shadow_contract.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vosk_live_shadow_contract.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_fixture_quality_gate.py
+pytest -q tests/scripts/test_check_voice_engine_v2_vosk_fixture_matrix_quality.py
+pytest -q tests/docs/test_voice_engine_v2_vosk_fixture_offline_runbook.py
+pytest -q tests/test_core_assistant_import.py
+
+Manual disabled contract validation:
+
+python scripts/validate_voice_engine_v2_vosk_live_shadow_contract.py \
+  --output-path var/data/stage24aj_vosk_live_shadow_contract.json
+
+Expected result:
+
+accepted=true
+result.enabled=false
+result.observed=false
+result.recognition_attempted=false
+result.recognized=false
+runtime_integration=false
+command_execution_enabled=false
+faster_whisper_bypass_enabled=false
+microphone_stream_started=false
+independent_microphone_stream_started=false
+live_command_recognition_enabled=false
+
+Optional enabled-shape validation, still without recognition:
+
+python scripts/validate_voice_engine_v2_vosk_live_shadow_contract.py \
+  --enabled-contract \
+  --no-output
+
+Expected result:
+
+accepted=true
+result.enabled=true
+result.observed=false
+result.recognition_attempted=false
+result.recognized=false
+
+-------
