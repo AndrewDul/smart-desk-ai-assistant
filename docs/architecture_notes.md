@@ -11990,3 +11990,205 @@ If that passes, the project will have enough runtime evidence to design the firs
 
 
 ---
+## Stage 24BB — Real runtime observation with Vosk recognition preflight
+
+### Status
+
+Implemented and validated in real runtime.
+
+### What changed
+
+Stage 24BB ran a real NEXA runtime observation with the full observe-only Vosk shadow telemetry chain enabled, including the recognition preflight boundary:
+
+- `metadata.vosk_live_shadow`
+- `metadata.vosk_shadow_invocation_plan`
+- `metadata.vosk_shadow_pcm_reference`
+- `metadata.vosk_shadow_asr_result`
+- `metadata.vosk_shadow_recognition_preflight`
+
+The observation runner temporarily enabled:
+
+- `voice_engine.pre_stt_shadow_enabled=true`
+- `voice_engine.faster_whisper_audio_bus_tap_enabled=true`
+- `voice_engine.vad_shadow_enabled=true`
+- `voice_engine.vad_timing_bridge_enabled=true`
+- `voice_engine.command_asr_shadow_bridge_enabled=true`
+- `voice_engine.vosk_live_shadow_contract_enabled=true`
+- `voice_engine.vosk_shadow_invocation_plan_enabled=true`
+- `voice_engine.vosk_shadow_pcm_reference_enabled=true`
+- `voice_engine.vosk_shadow_asr_result_enabled=true`
+- `voice_engine.vosk_shadow_recognition_preflight_enabled=true`
+
+After the runtime observation, the restore flow returned all observation flags to safe defaults.
+
+Final safe config was confirmed:
+
+- `voice_engine.enabled=false`
+- `voice_engine.mode=legacy`
+- `voice_engine.command_first_enabled=false`
+- `voice_engine.fallback_to_legacy_enabled=true`
+- `voice_engine.runtime_candidates_enabled=false`
+- all Vosk shadow observation flags restored to `false`
+
+### Why this was needed
+
+Stage 24BA extended the full observation gate to include recognition preflight, but NEXA still needed real runtime evidence that the complete telemetry chain works safely under live wake/capture/STT conditions.
+
+This stage confirms that recognition preflight can be observed in runtime without allowing recognition, PCM retrieval, command execution, FasterWhisper bypass, runtime takeover, or second microphone stream usage.
+
+### What NEXA gains
+
+NEXA now has runtime evidence for the last observe-only checkpoint before a future controlled Vosk shadow recognition invocation.
+
+The project now has a complete safety chain:
+
+- command ASR shadow bridge,
+- live shadow contract,
+- invocation plan,
+- PCM reference,
+- ASR result,
+- recognition preflight.
+
+This gives the next stage a safer foundation for designing the first controlled recognition invocation boundary without touching command execution yet.
+
+### Removed or deprecated legacy path
+
+Nothing was removed.
+
+No production STT path was replaced.
+
+No command execution path was changed.
+
+No FasterWhisper path was bypassed.
+
+No Vosk recognition was attempted.
+
+No second microphone stream was started.
+
+No Visual Shell path was changed.
+
+No TTS path was changed.
+
+The legacy/FasterWhisper route remains the primary production path.
+
+### Source / evidence
+
+Evidence used:
+
+- real NEXA runtime run on Raspberry Pi,
+- `scripts/run_voice_engine_v2_vosk_shadow_observation.py --prepare`,
+- `scripts/run_voice_engine_v2_vosk_shadow_observation.py --restore`,
+- `scripts/run_voice_engine_v2_vosk_shadow_observation.py --status`,
+- full-chain validator output from `scripts/validate_voice_engine_v2_vosk_shadow_observation.py`,
+- dedicated preflight validator output from `scripts/validate_voice_engine_v2_vosk_shadow_recognition_preflight.py`,
+- dedicated ASR result validator output from `scripts/validate_voice_engine_v2_vosk_shadow_asr_result.py`.
+
+Observed runtime notes:
+
+- runtime state still reported `DEGRADED`,
+- voice mode still reported `half-duplex`,
+- FasterWhisper audio callback still reported occasional `input overflow`,
+- Polish short commands were still misrecognized by the legacy/FasterWhisper path,
+- these are existing legacy pipeline symptoms and not caused by Vosk shadow execution, because recognition was not attempted.
+
+### Validation
+
+Full-chain runtime validation command:
+
+```bash
+python scripts/validate_voice_engine_v2_vosk_shadow_observation.py \
+  --settings config/settings.json \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-contract-attached \
+  --require-invocation-plan-attached \
+  --require-invocation-plan-ready \
+  --require-pcm-reference-attached \
+  --require-pcm-reference-ready \
+  --require-asr-result-attached \
+  --require-asr-result-not-attempted \
+  --require-recognition-preflight-attached \
+  --require-recognition-preflight-ready
+
+Result:
+
+accepted=true
+issues=[]
+contract_records=7
+plan_records=7
+ready_plan_records=7
+reference_records=7
+ready_reference_records=7
+result_records=7
+not_attempted_result_records=7
+preflight_records=7
+ready_preflight_records=7
+blocked_preflight_records=7
+recognition_permission_records=0
+recognition_attempt_records=0
+result_present_records=0
+raw_pcm_records=0
+pcm_retrieval_records=0
+unsafe_result_records=0
+unsafe_preflight_records=0
+unsafe_reference_records=0
+unsafe_plan_records=0
+config restored to safe defaults
+
+Dedicated preflight validation command:
+
+python scripts/validate_voice_engine_v2_vosk_shadow_recognition_preflight.py \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-records \
+  --require-preflight-attached \
+  --require-enabled \
+  --require-ready
+
+Result:
+
+accepted=true
+issues=[]
+preflight_records=7
+enabled_preflight_records=7
+ready_preflight_records=7
+blocked_preflight_records=7
+ready_blocked_reason_records=7
+ready_dependency_records=7
+recognition_permission_records=0
+unsafe_preflight_records=0
+
+Dedicated ASR result validation command:
+
+python scripts/validate_voice_engine_v2_vosk_shadow_asr_result.py \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-records \
+  --require-result-attached \
+  --require-enabled \
+  --require-not-attempted
+
+Result:
+
+accepted=true
+issues=[]
+result_records=7
+enabled_result_records=7
+not_attempted_result_records=7
+result_present_records=0
+recognition_attempt_records=0
+unsafe_result_records=0
+Follow-up
+
+The next stage should design the first controlled Vosk shadow recognition invocation boundary.
+
+That stage must still keep:
+
+command execution disabled,
+FasterWhisper fallback active,
+raw PCM excluded from telemetry,
+runtime takeover disabled,
+second microphone streams forbidden.
+
+The first recognition invocation must be shadow-only and must not execute actions.
+
+
+---
+
