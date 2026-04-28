@@ -102,22 +102,23 @@ class VoiceEngineV2VadShadowSnapshot:
 
 
 class SileroOnnxVadScoreProvider:
-    """Lazy Silero VAD ONNX score provider for shadow endpointing."""
+    """Lazy Silero VAD ONNX probability provider for shadow endpointing.
 
-    def __init__(
-        self,
-        *,
-        speech_threshold: float,
-        min_speech_ms: int,
-        min_silence_ms: int,
-        speech_pad_ms: int = 0,
-    ) -> None:
-        self._speech_threshold = speech_threshold
-        self._min_speech_ms = min_speech_ms
-        self._min_silence_ms = min_silence_ms
-        self._speech_pad_ms = speech_pad_ms
+    Silero streaming scoring expects fixed-size audio windows: 512 samples at
+    16 kHz or 256 samples at 8 kHz. RealtimeAudioBus frames can be larger than
+    one Silero window, so this provider scores every complete window in the
+    frame and returns the maximum speech probability for the frame-level
+    endpointing policy.
+    """
+
+    _WINDOW_SAMPLES_BY_SAMPLE_RATE = {
+        8_000: 256,
+        16_000: 512,
+    }
+
+    def __init__(self) -> None:
         self._model: Any | None = None
-        self._get_speech_timestamps: Any | None = None
+        self._torch: Any | None = None
 
     def __call__(self, frame: AudioFrame) -> float:
         self._ensure_loaded()
@@ -126,32 +127,64 @@ class SileroOnnxVadScoreProvider:
             raise ValueError("Silero VAD shadow supports mono PCM only")
         if frame.sample_width_bytes != 2:
             raise ValueError("Silero VAD shadow supports int16 PCM only")
-        if frame.sample_rate not in {8_000, 16_000}:
-            raise ValueError("Silero VAD shadow supports 8 kHz or 16 kHz audio only")
 
+        window_samples = self._window_samples_for(frame.sample_rate)
         audio = np.frombuffer(frame.pcm, dtype=np.int16).astype(np.float32) / 32768.0
-        if audio.size == 0:
+        if audio.size < window_samples:
             return 0.0
 
-        timestamps = self._get_speech_timestamps(
-            audio,
-            self._model,
-            sampling_rate=frame.sample_rate,
-            threshold=self._speech_threshold,
-            min_speech_duration_ms=self._min_speech_ms,
-            min_silence_duration_ms=self._min_silence_ms,
-            speech_pad_ms=self._speech_pad_ms,
-        )
-        return 1.0 if timestamps else 0.0
+        scores = [
+            self._score_window(audio[start : start + window_samples], frame.sample_rate)
+            for start in range(0, audio.size - window_samples + 1, window_samples)
+        ]
+        return max(scores) if scores else 0.0
 
     def _ensure_loaded(self) -> None:
-        if self._model is not None and self._get_speech_timestamps is not None:
+        if self._model is not None and self._torch is not None:
             return
 
-        from silero_vad import get_speech_timestamps, load_silero_vad
+        import torch
+        from silero_vad import load_silero_vad
 
-        self._model = load_silero_vad(onnx=True)
-        self._get_speech_timestamps = get_speech_timestamps
+        self._torch = torch
+        if self._model is None:
+            self._model = load_silero_vad(onnx=True)
+
+    def _score_window(self, audio: np.ndarray, sample_rate: int) -> float:
+        if self._model is None:
+            raise RuntimeError("Silero VAD model is not loaded")
+
+        audio_tensor = self._window_to_tensor(audio)
+        no_grad = getattr(self._torch, "no_grad", None)
+
+        if callable(no_grad):
+            with no_grad():
+                raw_probability = self._model(audio_tensor, sample_rate)
+        else:
+            raw_probability = self._model(audio_tensor, sample_rate)
+
+        score = _coerce_probability(raw_probability)
+        if not 0.0 <= score <= 1.0:
+            raise ValueError("Silero VAD score must be between 0.0 and 1.0")
+        return score
+
+    def _window_to_tensor(self, audio: np.ndarray) -> Any:
+        if self._torch is None:
+            import torch
+
+            self._torch = torch
+
+        contiguous_audio = np.ascontiguousarray(audio, dtype=np.float32)
+        return self._torch.from_numpy(contiguous_audio)
+
+    @classmethod
+    def _window_samples_for(cls, sample_rate: int) -> int:
+        try:
+            return cls._WINDOW_SAMPLES_BY_SAMPLE_RATE[sample_rate]
+        except KeyError as error:
+            raise ValueError(
+                "Silero VAD shadow supports 8 kHz or 16 kHz audio only"
+            ) from error
 
 
 class VoiceEngineV2VadShadowObserver:
@@ -295,11 +328,7 @@ class VoiceEngineV2VadShadowObserver:
         return self._engine
 
     def _build_default_score_provider(self) -> Callable[[AudioFrame], float]:
-        return SileroOnnxVadScoreProvider(
-            speech_threshold=self._speech_threshold,
-            min_speech_ms=self._endpointing_policy_config.min_speech_ms,
-            min_silence_ms=self._endpointing_policy_config.min_silence_ms,
-        )
+        return SileroOnnxVadScoreProvider()
 
     def _snapshot(
         self,
@@ -519,6 +548,18 @@ def _event_emission_reason(
 
     return "no_events_emitted"
 
+def _coerce_probability(raw_probability: Any) -> float:
+    if hasattr(raw_probability, "item"):
+        score = float(raw_probability.item())
+    else:
+        array = np.asarray(raw_probability, dtype=np.float32)
+        if array.size != 1:
+            raise ValueError("Silero VAD model must return one probability value")
+        score = float(array.reshape(-1)[0])
+
+    if not np.isfinite(score):
+        raise ValueError("Silero VAD score must be finite")
+    return score
 
 def _event_to_json_dict(event: VadEvent) -> dict[str, Any]:
     return {

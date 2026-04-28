@@ -9,9 +9,41 @@ from modules.devices.audio.realtime import AudioBus
 from modules.devices.audio.realtime.audio_frame import AudioFrame
 from modules.devices.audio.vad import EndpointingPolicyConfig
 from modules.runtime.voice_engine_v2.vad_shadow import (
+    SileroOnnxVadScoreProvider,
     VoiceEngineV2VadShadowObserver,
     build_voice_engine_v2_vad_shadow_observer,
 )
+
+class _FakeProbability:
+    def __init__(self, value: float) -> None:
+        self._value = value
+
+    def item(self) -> float:
+        return self._value
+
+
+class _FakeSileroProbabilityModel:
+    def __init__(self, scores: list[float]) -> None:
+        self._scores = list(scores)
+        self.calls: list[tuple[int, int]] = []
+
+    def __call__(self, audio: object, sample_rate: int) -> _FakeProbability:
+        if not hasattr(audio, "dim") or not hasattr(audio, "numel"):
+            raise AttributeError("Silero model input must be a torch-like tensor")
+
+        self.calls.append((int(audio.numel()), sample_rate))
+        if not self._scores:
+            return _FakeProbability(0.0)
+        return _FakeProbability(self._scores.pop(0))
+
+
+class _TestSileroOnnxVadScoreProvider(SileroOnnxVadScoreProvider):
+    def __init__(self, model: _FakeSileroProbabilityModel) -> None:
+        super().__init__()
+        self._model = model
+
+    def _ensure_loaded(self) -> None:
+        return None
 
 
 def _speech_pcm(sample_count: int = 1600) -> bytes:
@@ -224,7 +256,101 @@ def test_vad_shadow_builder_reads_safe_config() -> None:
     assert snapshot.speech_threshold == 0.7
 
 
+def test_silero_score_provider_scores_complete_16khz_windows_directly() -> None:
+    model = _FakeSileroProbabilityModel([0.12, 0.73])
+    provider = _TestSileroOnnxVadScoreProvider(model)
+    frame = AudioFrame(
+        pcm=_speech_pcm(sample_count=1024),
+        sample_rate=16_000,
+        channels=1,
+        sample_width_bytes=2,
+        timestamp_monotonic=time.monotonic(),
+        sequence=0,
+        source="test",
+    )
 
+    score = provider(frame)
+
+    assert score == 0.73
+    assert model.calls == [(512, 16_000), (512, 16_000)]
+
+
+def test_silero_score_provider_ignores_partial_tail_window() -> None:
+    model = _FakeSileroProbabilityModel([0.64, 0.99])
+    provider = _TestSileroOnnxVadScoreProvider(model)
+    frame = AudioFrame(
+        pcm=_speech_pcm(sample_count=768),
+        sample_rate=16_000,
+        channels=1,
+        sample_width_bytes=2,
+        timestamp_monotonic=time.monotonic(),
+        sequence=0,
+        source="test",
+    )
+
+    score = provider(frame)
+
+    assert score == 0.64
+    assert model.calls == [(512, 16_000)]
+
+
+def test_silero_score_provider_returns_zero_for_short_frame() -> None:
+    model = _FakeSileroProbabilityModel([0.99])
+    provider = _TestSileroOnnxVadScoreProvider(model)
+    frame = AudioFrame(
+        pcm=_speech_pcm(sample_count=256),
+        sample_rate=16_000,
+        channels=1,
+        sample_width_bytes=2,
+        timestamp_monotonic=time.monotonic(),
+        sequence=0,
+        source="test",
+    )
+
+    score = provider(frame)
+
+    assert score == 0.0
+    assert model.calls == []
+
+
+def test_silero_score_provider_uses_256_sample_windows_for_8khz() -> None:
+    model = _FakeSileroProbabilityModel([0.23, 0.58])
+    provider = _TestSileroOnnxVadScoreProvider(model)
+    frame = AudioFrame(
+        pcm=_speech_pcm(sample_count=512),
+        sample_rate=8_000,
+        channels=1,
+        sample_width_bytes=2,
+        timestamp_monotonic=time.monotonic(),
+        sequence=0,
+        source="test",
+    )
+
+    score = provider(frame)
+
+    assert score == 0.58
+    assert model.calls == [(256, 8_000), (256, 8_000)]
+
+
+def test_silero_score_provider_rejects_unsupported_sample_rate() -> None:
+    model = _FakeSileroProbabilityModel([0.99])
+    provider = _TestSileroOnnxVadScoreProvider(model)
+    frame = AudioFrame(
+        pcm=_speech_pcm(sample_count=512),
+        sample_rate=44_100,
+        channels=1,
+        sample_width_bytes=2,
+        timestamp_monotonic=time.monotonic(),
+        sequence=0,
+        source="test",
+    )
+
+    try:
+        provider(frame)
+    except ValueError as error:
+        assert "8 kHz or 16 kHz" in str(error)
+    else:
+        raise AssertionError("Expected unsupported sample rate to fail")
 
 def test_vad_shadow_reports_all_scores_below_threshold_reason() -> None:
     audio_bus = AudioBus(

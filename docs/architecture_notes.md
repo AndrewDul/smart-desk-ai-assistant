@@ -6240,3 +6240,288 @@ Stage 24D must not run Vosk yet.
 
 
 ---
+
+
+
+## Stage 24D — Silero frame-score provider fix
+
+### Status
+
+Validated on tests / pending Raspberry Pi hardware validation.
+
+### What changed
+
+Stage 24D replaced the VAD shadow score strategy in `SileroOnnxVadScoreProvider`.
+
+The previous implementation used `get_speech_timestamps(...)` as if it were a frame-level score provider. That produced only binary timestamp existence and returned `0.0` for live hardware frames in Stage 24C.
+
+The new implementation loads the Silero ONNX model lazily and calls the model directly over complete Silero scoring windows:
+
+- 512 samples at 16 kHz,
+- 256 samples at 8 kHz.
+
+When a `RealtimeAudioBus` frame contains more than one Silero window, the provider scores every complete window and returns the maximum speech probability for the frame-level shadow endpointing policy.
+
+### Why this was needed
+
+Stage 24C proved that:
+
+- RealtimeAudioBus was present,
+- VAD shadow observed audio,
+- frames were processed,
+- safety stayed clean,
+- but `max_speech_score` stayed at `0.0`.
+
+That meant the problem was not the audio bus or pre-STT hook. The scoring method was wrong for frame-by-frame endpointing.
+
+### What NEXA gains
+
+NEXA now has a real Silero probability signal in the VAD shadow path.
+
+This is a required step before NEXA can safely move toward:
+
+- fast speech endpointing,
+- command-first Vosk recognition,
+- lower latency for built-in commands,
+- avoiding unnecessary FasterWhisper use for deterministic commands.
+
+The path remains observe-only and does not affect production runtime.
+
+### Removed or deprecated legacy path
+
+Removed from VAD shadow:
+
+- `get_speech_timestamps(...)` as the score source,
+- timestamp-existence-as-score behaviour,
+- unnecessary score provider timing parameters in default provider construction.
+
+Not removed:
+
+- wake word path,
+- FasterWhisper fallback,
+- Piper TTS,
+- Visual Shell,
+- legacy runtime,
+- pre-STT shadow safety gates.
+
+### Source / evidence
+
+Evidence from Stage 24C hardware telemetry:
+
+- `audio_bus_present_records=5`
+- `frames_processed_records=4`
+- `total_frames_processed=184`
+- `diagnostics_records=5`
+- `speech_score_records=4`
+- `max_speech_score=0.0`
+- `speech_frame_records=0`
+- `unsafe_action_records=0`
+- `unsafe_full_stt_records=0`
+- `unsafe_takeover_records=0`
+- `issues=[]`
+
+Silero examples document direct probability scoring with:
+
+- `speech_prob = model(chunk, SAMPLING_RATE).item()`
+- 512-sample windows for 16 kHz,
+- 256-sample windows for 8 kHz.
+
+### Validation
+
+Run:
+
+```bash
+pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
+pytest -q tests/scripts/test_set_voice_engine_v2_vad_shadow.py
+pytest -q tests/runtime/voice_engine_v2
+pytest -q tests/devices/audio/vad
+pytest -q tests/devices/audio/realtime
+pytest -q tests/core/voice_engine
+pytest -q tests/core/command_intents
+
+Hardware validation should confirm:
+
+accepted=true
+diagnostics_records>0
+speech_score_records>0
+max_speech_score>0.0
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+Follow-up
+```
+
+If hardware validation confirms non-zero Silero probabilities, the next stage should decide whether frame-level max scoring is sufficient or whether VAD shadow should emit window-level decisions for more precise endpoint timing.
+
+Do not enable Vosk, runtime takeover, pre-STT actions or FasterWhisper prevention until VAD shadow is proven stable on hardware.
+
+## Stage 24D — Silero frame-score provider fix
+
+### Status
+
+Implemented and validated on Raspberry Pi hardware.
+
+### What changed
+
+Stage 24D replaced the VAD shadow scoring strategy in `modules/runtime/voice_engine_v2/vad_shadow.py`.
+
+The previous `SileroOnnxVadScoreProvider` used `get_speech_timestamps(...)` as if it were a frame-level score provider. That was incorrect for live frame-by-frame endpointing and caused Stage 24C hardware diagnostics to report real audio frames but always `max_speech_score=0.0`.
+
+The new provider loads the Silero ONNX model lazily and scores audio directly over valid Silero windows:
+
+- 512 samples at 16 kHz,
+- 256 samples at 8 kHz.
+
+When a `RealtimeAudioBus` frame contains more than one complete Silero window, the provider scores every complete window and returns the maximum probability for the frame-level shadow endpointing policy.
+
+The implementation also converts NumPy audio windows into tensor input before calling the model, because the real Silero wrapper expects tensor-like audio input.
+
+### Why this was needed
+
+Stage 24C proved that:
+
+- `RealtimeAudioBus` was present,
+- VAD shadow observed audio,
+- frames were processed,
+- safety stayed clean,
+- but Silero score diagnostics always stayed at `0.0`.
+
+That meant the issue was not the audio bus, pre-STT hook or FasterWhisper tap. The issue was the scoring strategy inside the VAD shadow observer.
+
+### What NEXA gains
+
+NEXA now has a real Silero probability signal in the pre-STT VAD shadow path.
+
+This is a major step toward the final Voice Engine v2 architecture:
+
+Wake word
+→ RealtimeAudioBus
+→ Silero VAD ONNX endpointing
+→ Vosk command recognizer PL/EN
+→ CommandIntentResolver
+→ fast action
+
+The system can now observe live speech start and speech end before full FasterWhisper STT, while still remaining safe and observe-only.
+
+This improves the path toward:
+
+- faster endpointing,
+- lower command latency,
+- reduced dependency on FasterWhisper for deterministic built-in commands,
+- measurable pre-STT speech diagnostics,
+- safer migration toward command-first recognition.
+
+### Removed or deprecated legacy path
+
+Removed from VAD shadow:
+
+- `get_speech_timestamps(...)` as the frame score source,
+- `_get_speech_timestamps`,
+- timestamp-existence-as-score behaviour.
+
+Not removed:
+
+- wake word,
+- FasterWhisper fallback,
+- Piper TTS,
+- Visual Shell,
+- legacy runtime path,
+- pre-STT shadow safety gates.
+
+The legacy voice path remains the primary production path until later Voice Engine v2 stages pass hardware validation.
+
+### Source / evidence
+
+Evidence from Stage 24C hardware telemetry showed:
+
+```text
+diagnostics_records=5
+speech_score_records=4
+speech_frame_records=0
+silence_frame_records=4
+max_speech_score=0.0
+event_emission_reasons:
+  no_new_audio_frames_observe_only=1
+  all_scores_below_threshold:max=0.000:threshold=0.500=4
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+```
+
+Evidence from Stage 24D hardware validation showed:
+
+accepted=true
+vad_shadow_records=5
+enabled_records=5
+observed_records=5
+audio_bus_present_records=5
+frames_processed_records=4
+total_frames_processed=184
+total_events_emitted=8
+diagnostics_records=5
+speech_score_records=4
+speech_frame_records=4
+silence_frame_records=4
+max_speech_score=0.9999915957450867
+max_speech_frame_count=35
+max_silence_frame_count=39
+event_emission_reasons:
+  no_new_audio_frames_observe_only=1
+  events_emitted=4
+event_types:
+  speech_started=4
+  speech_ended=4
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+
+The implementation follows the Silero VAD direct probability scoring pattern over fixed-size model windows.
+
+Validation
+
+Repository tests passed:
+
+pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
+pytest -q tests/scripts/test_set_voice_engine_v2_vad_shadow.py
+pytest -q tests/runtime/voice_engine_v2
+pytest -q tests/devices/audio/vad
+pytest -q tests/devices/audio/realtime
+pytest -q tests/core/voice_engine
+pytest -q tests/core/command_intents
+
+Cleanup checks passed:
+
+grep -R "get_speech_timestamps" -n modules/runtime/voice_engine_v2 tests/runtime/voice_engine_v2
+grep -R "_get_speech_timestamps" -n modules/runtime/voice_engine_v2 tests/runtime/voice_engine_v2
+
+No references remained in the Voice Engine v2 VAD shadow path.
+
+Hardware validation passed with:
+
+accepted=true
+max_speech_score=0.9999915957450867
+speech_started=4
+speech_ended=4
+issues=[]
+Follow-up
+
+Next stage should not enable production takeover yet.
+
+Recommended next step is Stage 24E:
+
+inspect VAD event timing quality,
+confirm whether current frame-level max scoring is precise enough,
+optionally add window-level event diagnostics,
+keep observe-only,
+keep FasterWhisper untouched,
+keep action execution disabled.
+
+Do not enable Vosk, command execution, pre-STT action dispatch or FasterWhisper prevention until VAD timing is stable and validated.
+
+
+---
