@@ -8640,3 +8640,187 @@ second microphone stream,
 threshold lowering.
 
 ---
+
+
+## Stage 24Q — Command audio segment contract
+
+### Status
+
+Implemented and validated as observe-only contract.
+
+### What changed
+
+Stage 24Q added a Voice Engine v2 command audio segment contract.
+
+New module:
+
+```text
+modules/runtime/voice_engine_v2/command_audio_segment.py
+
+New validator:
+
+scripts/validate_voice_engine_v2_command_audio_segments.py
+
+New tests:
+
+tests/runtime/voice_engine_v2/test_command_audio_segment.py
+tests/scripts/test_validate_voice_engine_v2_command_audio_segments.py
+
+The new VoiceEngineV2CommandAudioSegment describes the future input contract for command ASR without embedding raw PCM in telemetry.
+
+The segment records:
+
+source,
+publish stage,
+PCM encoding,
+sample rate,
+channels,
+sample width,
+audio sample count,
+audio duration,
+published frame count,
+published byte count,
+endpoint detection,
+readiness result,
+speech score,
+capture-to-VAD latency,
+safety fields.
+
+The stage remains observe-only. It does not execute commands, does not add Vosk, does not bypass FasterWhisper, does not start a second microphone stream, and does not take over runtime.
+
+Why this was needed
+
+Stage 24P added a command recognition readiness gate.
+
+Stage 24Q was needed to define what a future command recognizer will receive once readiness is true.
+
+Without a segment contract, the future command ASR stage would risk depending directly on raw telemetry dictionaries or ad-hoc fields. The new contract keeps the future Vosk/command-ASR adapter cleanly separated from VAD telemetry internals.
+
+What NEXA gains
+
+NEXA now has a stable command audio segment contract before adding any command recognizer.
+
+This gives Voice Engine v2:
+
+a safe input shape for future command ASR,
+explicit audio metadata,
+command-recognition readiness metadata,
+endpointing summary,
+latency metadata,
+safety fields proving no action/full-STT prevention/runtime takeover,
+an automated validator for segment logs.
+
+This prepares the next stages for a disabled command recognizer adapter without prematurely adding Vosk or changing runtime behaviour.
+
+Removed or deprecated legacy path
+
+Nothing was removed in Stage 24Q.
+
+No runtime path was changed.
+
+No production takeover was introduced.
+
+No command execution was introduced.
+
+No Vosk recognizer was added.
+
+No FasterWhisper bypass was introduced.
+
+No raw PCM was written into telemetry.
+
+The safe default runtime configuration remains:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+voice_engine.runtime_candidates_enabled=false
+voice_engine.pre_stt_shadow_enabled=false
+voice_engine.faster_whisper_audio_bus_tap_enabled=false
+voice_engine.vad_shadow_enabled=false
+voice_engine.vad_timing_bridge_enabled=false
+Source / evidence
+
+Evidence used:
+
+Stage 24Q unit/regression tests.
+Stage 24N/24O/24P Raspberry Pi telemetry.
+var/data/voice_engine_v2_vad_timing_bridge.jsonl.
+
+Command audio segment validator result:
+
+accepted=true
+issues=[]
+segment_records=6
+segment_present_records=5
+rejected_segment_records=1
+segment_reason_counts:
+  segment_ready_for_command_recognizer=5
+  not_ready:not_ready:endpoint_detected=1
+source_counts:
+  faster_whisper_capture_window_shadow_tap=6
+publish_stage_counts:
+  before_transcription=6
+readiness_reason_counts:
+  ready_for_command_recognition=5
+  not_ready:endpoint_detected=1
+max_audio_duration_ms=2068.0
+max_audio_sample_count=33088
+max_published_byte_count=66176
+max_speech_score=0.9999922513961792
+max_capture_finished_to_vad_observed_ms=228.085
+max_capture_window_publish_to_vad_observed_ms=226.232
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+
+The single rejected segment is accepted for this stage because it represents a legitimate intermediate VAD state: speech_not_ended_yet.
+
+Validation
+
+Tests passed:
+
+pytest -q tests/runtime/voice_engine_v2/test_command_audio_segment.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_command_audio_segments.py
+pytest -q tests/runtime/voice_engine_v2/test_command_recognition_readiness.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_command_readiness.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_endpointing_candidates.py
+pytest -q tests/test_core_assistant_import.py
+
+Command audio segment validator passed:
+
+python scripts/validate_voice_engine_v2_command_audio_segments.py \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-segments \
+  --require-ready-segment
+
+Command readiness validator passed:
+
+python scripts/validate_voice_engine_v2_command_readiness.py \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-readiness-records \
+  --require-ready
+Follow-up
+
+Stage 24R should remain observe-only and introduce a disabled command ASR adapter contract.
+
+The next stage should define interfaces and result models for command ASR without enabling Vosk in runtime yet.
+
+Stage 24R should focus on:
+
+CommandAsrResult,
+CommandAsrCandidate,
+CommandAsrRecognizer protocol,
+disabled/null recognizer,
+validator for safe disabled command ASR telemetry.
+
+Stage 24R must still avoid:
+
+active Vosk runtime integration,
+command execution,
+production takeover,
+FasterWhisper bypass,
+second microphone stream,
+threshold lowering.
+
+---
