@@ -11712,3 +11712,139 @@ That validator must reject recognition permission, recognition invocation, PCM r
 
 
 ---
+
+## Stage 24AZ — Vosk shadow recognition preflight JSONL validator
+
+### Status
+
+Implemented as an observe-only runtime log validator.
+
+### What changed
+
+Stage 24AZ adds a dedicated JSONL validator for `metadata.vosk_shadow_recognition_preflight` records emitted by the VAD timing bridge.
+
+The new validator is:
+
+- `scripts/validate_voice_engine_v2_vosk_shadow_recognition_preflight.py`
+
+The new test coverage is:
+
+- `tests/scripts/test_validate_voice_engine_v2_vosk_shadow_recognition_preflight.py`
+
+The validator checks that recognition preflight telemetry remains safe:
+
+- the log can be parsed as JSONL,
+- `metadata.vosk_shadow_recognition_preflight` exists when required,
+- the preflight version is expected,
+- the preflight is attached only at `capture_window_pre_transcription` by default,
+- the source remains `faster_whisper_capture_window_shadow_tap` by default,
+- the publish stage remains `before_transcription` by default,
+- ready preflight records still use `recognition_invocation_blocked_by_stage_policy`,
+- ready preflight records include all dependency readiness flags,
+- recognition remains blocked,
+- PCM retrieval remains blocked,
+- command execution remains blocked,
+- FasterWhisper bypass remains blocked,
+- runtime takeover remains blocked,
+- second microphone streams remain blocked.
+
+### Why this was needed
+
+Stage 24AY attached `metadata.vosk_shadow_recognition_preflight` to VAD timing telemetry, but there was no dedicated runtime validator for this new boundary.
+
+Without a validator, a future stage could accidentally allow recognition invocation, PCM retrieval or command execution while the telemetry still appears structurally valid.
+
+This stage creates a concrete acceptance gate before any future controlled Vosk recognition attempt.
+
+### What NEXA gains
+
+NEXA gains a runtime safety validator for the last observe-only boundary before real Vosk shadow recognition.
+
+This protects the current production voice path while preparing for lower-latency built-in command recognition.
+
+The validator keeps the migration aligned with Voice Engine v2 principles:
+
+- command-first direction,
+- local-first architecture,
+- measurable runtime evidence,
+- no unsafe takeover,
+- no hidden PCM logging,
+- no second microphone path,
+- no premature command execution.
+
+### Removed or deprecated legacy path
+
+Nothing was removed.
+
+No runtime path was changed.
+
+No production STT path was replaced.
+
+No command execution path was changed.
+
+No FasterWhisper path was bypassed.
+
+No Vosk recognition was attempted.
+
+No Visual Shell path was changed.
+
+No TTS path was changed.
+
+### Source / evidence
+
+Evidence used:
+
+- Stage 24AX recognition preflight contract,
+- Stage 24AY VAD timing preflight attachment,
+- existing ASR result validator pattern,
+- Voice Engine v2 safety rule that recognition must remain blocked until a dedicated runtime gate proves the preflight boundary is safe.
+
+### Validation
+
+Tests to validate Stage 24AZ:
+
+```bash
+pytest -q tests/scripts/test_validate_voice_engine_v2_vosk_shadow_recognition_preflight.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_vosk_shadow_recognition_preflight.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_shadow_recognition_preflight.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_vosk_shadow_asr_result.py
+pytest -q tests/test_core_assistant_import.py
+
+Expected result:
+
+all tests pass,
+valid ready-but-blocked preflight is accepted,
+missing required preflight is rejected,
+recognition permission is rejected,
+recognition invocation is rejected,
+PCM retrieval is rejected,
+runtime takeover is rejected,
+non-capture-window hooks are rejected by default,
+unexpected audio sources are rejected by default,
+unexpected preflight versions are rejected.
+
+Runtime validation command for a later observation run:
+
+python scripts/validate_voice_engine_v2_vosk_shadow_recognition_preflight.py \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-records \
+  --require-preflight-attached \
+  --require-enabled \
+  --require-ready
+
+Expected runtime result:
+
+accepted=true,
+preflight_records > 0,
+enabled_preflight_records > 0,
+ready_preflight_records > 0,
+blocked_preflight_records == preflight_records,
+recognition_permission_records=0,
+unsafe_preflight_records=0,
+issues=[].
+Follow-up
+
+The next stage should include recognition preflight validation in the full Vosk shadow observation gate and then run a real runtime observation with the preflight validator included.
+
+
+---
