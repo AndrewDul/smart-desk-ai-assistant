@@ -27,6 +27,9 @@ from scripts.validate_voice_engine_v2_vad_timing_vosk_live_shadow import (  # no
 from scripts.validate_voice_engine_v2_vosk_shadow_invocation_plan import (  # noqa: E402
     validate_vosk_shadow_invocation_plan_log,
 )
+from scripts.validate_voice_engine_v2_vosk_shadow_pcm_reference import (  # noqa: E402
+    validate_vosk_shadow_pcm_reference_log,
+)
 
 
 def validate_observation_config(
@@ -65,6 +68,8 @@ def validate_vosk_shadow_observation(
     require_contract_attached: bool,
     require_invocation_plan_attached: bool,
     require_invocation_plan_ready: bool,
+    require_pcm_reference_attached: bool,
+    require_pcm_reference_ready: bool,
     require_restored_config: bool,
 ) -> dict[str, Any]:
     config_result = validate_observation_config(
@@ -87,11 +92,21 @@ def validate_vosk_shadow_observation(
         require_ready=require_invocation_plan_ready,
         require_capture_window_hook=True,
     )
+    pcm_reference_result = validate_vosk_shadow_pcm_reference_log(
+        log_path=log_path,
+        require_records=True,
+        require_reference_attached=require_pcm_reference_attached,
+        require_enabled=require_pcm_reference_attached,
+        require_ready=require_pcm_reference_ready,
+        require_capture_window_hook=True,
+        require_expected_source=True,
+    )
 
     accepted = (
         bool(config_result.get("accepted", False))
         and bool(telemetry_result.get("accepted", False))
         and bool(invocation_plan_result.get("accepted", False))
+        and bool(pcm_reference_result.get("accepted", False))
     )
 
     return {
@@ -102,12 +117,17 @@ def validate_vosk_shadow_observation(
         "config": config_result,
         "telemetry": telemetry_result,
         "invocation_plan": invocation_plan_result,
+        "pcm_reference": pcm_reference_result,
         "issues": [
             *[f"config:{issue}" for issue in config_result.get("issues", [])],
             *[f"telemetry:{issue}" for issue in telemetry_result.get("issues", [])],
             *[
                 f"invocation_plan:{issue}"
                 for issue in invocation_plan_result.get("issues", [])
+            ],
+            *[
+                f"pcm_reference:{issue}"
+                for issue in pcm_reference_result.get("issues", [])
             ],
         ],
     }
@@ -148,6 +168,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Require at least one plan_ready=true invocation plan record.",
     )
     parser.add_argument(
+        "--require-pcm-reference-attached",
+        action="store_true",
+        help="Require at least one metadata.vosk_shadow_pcm_reference record.",
+    )
+    parser.add_argument(
+        "--require-pcm-reference-ready",
+        action="store_true",
+        help="Require at least one reference_ready=true PCM reference record.",
+    )
+    parser.add_argument(
         "--allow-active-observation-config",
         action="store_true",
         help=(
@@ -167,6 +197,8 @@ def main(argv: list[str] | None = None) -> int:
             require_contract_attached=args.require_contract_attached,
             require_invocation_plan_attached=args.require_invocation_plan_attached,
             require_invocation_plan_ready=args.require_invocation_plan_ready,
+            require_pcm_reference_attached=args.require_pcm_reference_attached,
+            require_pcm_reference_ready=args.require_pcm_reference_ready,
             require_restored_config=not args.allow_active_observation_config,
         )
     except (OSError, ValueError, json.JSONDecodeError) as error:
