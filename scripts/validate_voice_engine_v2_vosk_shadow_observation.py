@@ -30,6 +30,9 @@ from scripts.validate_voice_engine_v2_vosk_shadow_invocation_plan import (  # no
 from scripts.validate_voice_engine_v2_vosk_shadow_pcm_reference import (  # noqa: E402
     validate_vosk_shadow_pcm_reference_log,
 )
+from scripts.validate_voice_engine_v2_vosk_shadow_asr_result import (  # noqa: E402
+    validate_vosk_shadow_asr_result_log,
+)
 
 
 def validate_observation_config(
@@ -70,7 +73,10 @@ def validate_vosk_shadow_observation(
     require_invocation_plan_ready: bool,
     require_pcm_reference_attached: bool,
     require_pcm_reference_ready: bool,
+    require_asr_result_attached: bool,
+    require_asr_result_not_attempted: bool,
     require_restored_config: bool,
+    allow_recognition_attempt: bool,
 ) -> dict[str, Any]:
     config_result = validate_observation_config(
         settings_path=settings_path,
@@ -101,12 +107,23 @@ def validate_vosk_shadow_observation(
         require_capture_window_hook=True,
         require_expected_source=True,
     )
+    asr_result = validate_vosk_shadow_asr_result_log(
+        log_path=log_path,
+        require_records=True,
+        require_result_attached=require_asr_result_attached,
+        require_enabled=require_asr_result_attached,
+        require_not_attempted=require_asr_result_not_attempted,
+        require_capture_window_hook=True,
+        require_expected_source=True,
+        allow_recognition_attempt=allow_recognition_attempt,
+    )
 
     accepted = (
         bool(config_result.get("accepted", False))
         and bool(telemetry_result.get("accepted", False))
         and bool(invocation_plan_result.get("accepted", False))
         and bool(pcm_reference_result.get("accepted", False))
+        and bool(asr_result.get("accepted", False))
     )
 
     return {
@@ -118,6 +135,7 @@ def validate_vosk_shadow_observation(
         "telemetry": telemetry_result,
         "invocation_plan": invocation_plan_result,
         "pcm_reference": pcm_reference_result,
+        "asr_result": asr_result,
         "issues": [
             *[f"config:{issue}" for issue in config_result.get("issues", [])],
             *[f"telemetry:{issue}" for issue in telemetry_result.get("issues", [])],
@@ -128,6 +146,10 @@ def validate_vosk_shadow_observation(
             *[
                 f"pcm_reference:{issue}"
                 for issue in pcm_reference_result.get("issues", [])
+            ],
+            *[
+                f"asr_result:{issue}"
+                for issue in asr_result.get("issues", [])
             ],
         ],
     }
@@ -178,6 +200,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Require at least one reference_ready=true PCM reference record.",
     )
     parser.add_argument(
+        "--require-asr-result-attached",
+        action="store_true",
+        help="Require at least one metadata.vosk_shadow_asr_result record.",
+    )
+    parser.add_argument(
+        "--require-asr-result-not-attempted",
+        action="store_true",
+        help="Require at least one safe not-attempted Vosk shadow ASR result record.",
+    )
+    parser.add_argument(
+        "--allow-recognition-attempt",
+        action="store_true",
+        help=(
+            "Allow recognition attempt/result telemetry. Do not use this for "
+            "Stage 24AV final acceptance."
+        ),
+    )
+    parser.add_argument(
         "--allow-active-observation-config",
         action="store_true",
         help=(
@@ -199,7 +239,10 @@ def main(argv: list[str] | None = None) -> int:
             require_invocation_plan_ready=args.require_invocation_plan_ready,
             require_pcm_reference_attached=args.require_pcm_reference_attached,
             require_pcm_reference_ready=args.require_pcm_reference_ready,
+            require_asr_result_attached=args.require_asr_result_attached,
+            require_asr_result_not_attempted=args.require_asr_result_not_attempted,
             require_restored_config=not args.allow_active_observation_config,
+            allow_recognition_attempt=args.allow_recognition_attempt,
         )
     except (OSError, ValueError, json.JSONDecodeError) as error:
         result = {
