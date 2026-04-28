@@ -28,6 +28,7 @@ def _settings_payload(*, restored: bool = True) -> dict[str, object]:
             "vosk_shadow_invocation_plan_enabled": observation_value,
             "vosk_shadow_pcm_reference_enabled": observation_value,
             "vosk_shadow_asr_result_enabled": observation_value,
+            "vosk_shadow_recognition_preflight_enabled": observation_value,
         }
     }
 
@@ -211,7 +212,59 @@ def _asr_result(**overrides: object) -> dict[str, object]:
     return payload
 
 
-def _record(*, include_asr_result: bool = True) -> dict[str, object]:
+def _recognition_preflight(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "preflight_stage": "vosk_shadow_recognition_preflight",
+        "preflight_version": "vosk_shadow_recognition_preflight_v1",
+        "enabled": True,
+        "preflight_ready": True,
+        "recognition_allowed": False,
+        "recognition_blocked": True,
+        "reason": "recognition_invocation_blocked_by_stage_policy",
+        "metadata_key": "vosk_shadow_recognition_preflight",
+        "hook": "capture_window_pre_transcription",
+        "source": "faster_whisper_capture_window_shadow_tap",
+        "publish_stage": "before_transcription",
+        "recognizer_name": "vosk_command_asr",
+        "live_shadow_present": True,
+        "invocation_plan_present": True,
+        "invocation_plan_ready": True,
+        "pcm_reference_present": True,
+        "pcm_reference_ready": True,
+        "asr_result_present": True,
+        "asr_result_not_attempted": True,
+        "audio_sample_count": 32000,
+        "published_byte_count": 64000,
+        "sample_rate": 16000,
+        "pcm_encoding": "pcm_s16le",
+        "pcm_retrieval_allowed": False,
+        "pcm_retrieval_performed": False,
+        "recognition_invocation_allowed": False,
+        "recognition_invocation_performed": False,
+        "recognition_attempted": False,
+        "result_present": False,
+        "recognized": False,
+        "command_matched": False,
+        "raw_pcm_included": False,
+        "action_executed": False,
+        "full_stt_prevented": False,
+        "runtime_takeover": False,
+        "runtime_integration": False,
+        "command_execution_enabled": False,
+        "faster_whisper_bypass_enabled": False,
+        "microphone_stream_started": False,
+        "independent_microphone_stream_started": False,
+        "live_command_recognition_enabled": False,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _record(
+    *,
+    include_asr_result: bool = True,
+    include_recognition_preflight: bool = True,
+) -> dict[str, object]:
     metadata: dict[str, object] = {
         "vosk_live_shadow": _live_shadow(),
         "vosk_shadow_invocation_plan": _invocation_plan(),
@@ -219,6 +272,8 @@ def _record(*, include_asr_result: bool = True) -> dict[str, object]:
     }
     if include_asr_result:
         metadata["vosk_shadow_asr_result"] = _asr_result()
+    if include_recognition_preflight:
+        metadata["vosk_shadow_recognition_preflight"] = _recognition_preflight()
 
     return {
         "hook": "capture_window_pre_transcription",
@@ -259,14 +314,17 @@ def test_observation_config_rejects_active_flags_when_restored_required(
     )
 
     assert result["accepted"] is False
-    assert "voice_engine.vosk_shadow_asr_result_enabled_must_be_false_after_observation" in result["issues"]
+    assert (
+        "voice_engine.vosk_shadow_recognition_preflight_enabled_must_be_false_after_observation"
+        in result["issues"]
+    )
 
 
 def test_vosk_shadow_observation_accepts_full_safe_chain(tmp_path: Path) -> None:
     settings_path = tmp_path / "settings.json"
     log_path = tmp_path / "vad_timing.jsonl"
     _write_settings(settings_path, restored=True)
-    _write_log(log_path, [_record(include_asr_result=True)])
+    _write_log(log_path, [_record()])
 
     result = validate_vosk_shadow_observation(
         settings_path=settings_path,
@@ -278,6 +336,8 @@ def test_vosk_shadow_observation_accepts_full_safe_chain(tmp_path: Path) -> None
         require_pcm_reference_ready=True,
         require_asr_result_attached=True,
         require_asr_result_not_attempted=True,
+        require_recognition_preflight_attached=True,
+        require_recognition_preflight_ready=True,
         require_restored_config=True,
         allow_recognition_attempt=False,
     )
@@ -288,16 +348,20 @@ def test_vosk_shadow_observation_accepts_full_safe_chain(tmp_path: Path) -> None
     assert result["invocation_plan"]["accepted"] is True
     assert result["pcm_reference"]["accepted"] is True
     assert result["asr_result"]["accepted"] is True
+    assert result["recognition_preflight"]["accepted"] is True
     assert result["issues"] == []
 
 
-def test_vosk_shadow_observation_rejects_missing_asr_result_when_required(
+def test_vosk_shadow_observation_rejects_missing_preflight_when_required(
     tmp_path: Path,
 ) -> None:
     settings_path = tmp_path / "settings.json"
     log_path = tmp_path / "vad_timing.jsonl"
     _write_settings(settings_path, restored=True)
-    _write_log(log_path, [_record(include_asr_result=False)])
+    _write_log(
+        log_path,
+        [_record(include_asr_result=True, include_recognition_preflight=False)],
+    )
 
     result = validate_vosk_shadow_observation(
         settings_path=settings_path,
@@ -309,39 +373,37 @@ def test_vosk_shadow_observation_rejects_missing_asr_result_when_required(
         require_pcm_reference_ready=True,
         require_asr_result_attached=True,
         require_asr_result_not_attempted=True,
+        require_recognition_preflight_attached=True,
+        require_recognition_preflight_ready=True,
         require_restored_config=True,
         allow_recognition_attempt=False,
     )
 
     assert result["accepted"] is False
-    assert "asr_result:vosk_shadow_asr_result_records_missing" in result["issues"]
-    assert "asr_result:not_attempted_vosk_shadow_asr_result_records_missing" in result["issues"]
+    assert (
+        "recognition_preflight:vosk_shadow_recognition_preflight_records_missing"
+        in result["issues"]
+    )
+    assert (
+        "recognition_preflight:ready_vosk_shadow_recognition_preflight_records_missing"
+        in result["issues"]
+    )
 
 
-def test_vosk_shadow_observation_rejects_asr_recognition_attempt_by_default(
+def test_vosk_shadow_observation_rejects_preflight_recognition_permission(
     tmp_path: Path,
 ) -> None:
     settings_path = tmp_path / "settings.json"
     log_path = tmp_path / "vad_timing.jsonl"
     _write_settings(settings_path, restored=True)
 
-    record = _record(include_asr_result=True)
+    record = _record()
     metadata = record["metadata"]
     assert isinstance(metadata, dict)
-    metadata["vosk_shadow_asr_result"] = _asr_result(
-        result_present=True,
-        reason="vosk_shadow_asr_recognized",
-        recognizer_name="vosk_command_asr",
-        recognizer_enabled=True,
+    metadata["vosk_shadow_recognition_preflight"] = _recognition_preflight(
+        recognition_allowed=True,
+        recognition_invocation_allowed=True,
         recognition_invocation_performed=True,
-        recognition_attempted=True,
-        recognized=True,
-        command_matched=True,
-        transcript="show desktop",
-        normalized_text="show desktop",
-        language="en",
-        confidence=0.9,
-        pcm_retrieval_performed=True,
     )
     _write_log(log_path, [record])
 
@@ -354,22 +416,29 @@ def test_vosk_shadow_observation_rejects_asr_recognition_attempt_by_default(
         require_pcm_reference_attached=True,
         require_pcm_reference_ready=True,
         require_asr_result_attached=True,
-        require_asr_result_not_attempted=False,
+        require_asr_result_not_attempted=True,
+        require_recognition_preflight_attached=True,
+        require_recognition_preflight_ready=True,
         require_restored_config=True,
         allow_recognition_attempt=False,
     )
 
     assert result["accepted"] is False
-    assert "asr_result:line_1:recognition_attempt_not_allowed" in result["issues"]
-    assert "asr_result:result_present_records_not_allowed" in result["issues"]
-    assert "asr_result:recognition_attempt_records_not_allowed" in result["issues"]
+    assert (
+        "recognition_preflight:line_1:recognition_permission_not_allowed"
+        in result["issues"]
+    )
+    assert (
+        "recognition_preflight:recognition_permission_records_not_allowed"
+        in result["issues"]
+    )
 
 
 def test_cli_accepts_full_safe_chain(tmp_path: Path, capsys) -> None:
     settings_path = tmp_path / "settings.json"
     log_path = tmp_path / "vad_timing.jsonl"
     _write_settings(settings_path, restored=True)
-    _write_log(log_path, [_record(include_asr_result=True)])
+    _write_log(log_path, [_record()])
 
     exit_code = main(
         [
@@ -384,10 +453,12 @@ def test_cli_accepts_full_safe_chain(tmp_path: Path, capsys) -> None:
             "--require-pcm-reference-ready",
             "--require-asr-result-attached",
             "--require-asr-result-not-attempted",
+            "--require-recognition-preflight-attached",
+            "--require-recognition-preflight-ready",
         ]
     )
     payload = json.loads(capsys.readouterr().out)
 
     assert exit_code == 0
     assert payload["accepted"] is True
-    assert payload["asr_result"]["accepted"] is True
+    assert payload["recognition_preflight"]["accepted"] is True

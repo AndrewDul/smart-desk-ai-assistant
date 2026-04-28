@@ -11848,3 +11848,145 @@ The next stage should include recognition preflight validation in the full Vosk 
 
 
 ---
+
+
+## Stage 24BA — Include Vosk recognition preflight in full observation gate
+
+### Status
+
+Implemented as an observe-only observation gate extension.
+
+### What changed
+
+Stage 24BA extends the full Vosk shadow observation procedure and validator so `metadata.vosk_shadow_recognition_preflight` becomes part of the runtime acceptance gate.
+
+The observation procedure now temporarily enables:
+
+- `voice_engine.vosk_shadow_recognition_preflight_enabled=true`
+
+together with the earlier observe-only Vosk shadow flags.
+
+The restore flow returns this flag to:
+
+- `voice_engine.vosk_shadow_recognition_preflight_enabled=false`
+
+The full observation validator can now require:
+
+- `metadata.vosk_live_shadow`
+- `metadata.vosk_shadow_invocation_plan`
+- `metadata.vosk_shadow_pcm_reference`
+- `metadata.vosk_shadow_asr_result`
+- `metadata.vosk_shadow_recognition_preflight`
+
+The recognition preflight must remain ready-but-blocked:
+
+- `preflight_ready=true`
+- `recognition_allowed=false`
+- `recognition_blocked=true`
+- `recognition_invocation_allowed=false`
+- `recognition_invocation_performed=false`
+- `recognition_attempted=false`
+- `result_present=false`
+
+### Why this was needed
+
+Stage 24AZ added a dedicated validator for recognition preflight telemetry, but the full observation gate did not yet include it.
+
+Without this stage, a runtime observation could pass while ignoring the last safety boundary before a future Vosk recognition attempt.
+
+### What NEXA gains
+
+NEXA gains one coherent runtime gate for the entire observe-only Vosk shadow chain:
+
+- live shadow contract,
+- invocation plan,
+- PCM reference,
+- ASR result,
+- recognition preflight.
+
+This gives the project a safe acceptance boundary before the first controlled Vosk recognition attempt.
+
+The production voice path remains protected because the gate still rejects:
+
+- recognition permission,
+- recognition invocation,
+- PCM retrieval,
+- raw PCM logging,
+- command execution,
+- FasterWhisper bypass,
+- runtime takeover,
+- second microphone stream usage.
+
+### Removed or deprecated legacy path
+
+Nothing was removed.
+
+No production STT path was replaced.
+
+No command execution path was changed.
+
+No FasterWhisper path was bypassed.
+
+No Vosk recognition was attempted.
+
+No Visual Shell path was changed.
+
+No TTS path was changed.
+
+### Source / evidence
+
+Evidence used:
+
+- Stage 24AW real runtime full-chain observation,
+- Stage 24AX recognition preflight contract,
+- Stage 24AY VAD timing recognition preflight attachment,
+- Stage 24AZ recognition preflight JSONL validator,
+- existing full Vosk shadow observation gate.
+
+### Validation
+
+Tests to validate Stage 24BA:
+
+```bash
+pytest -q tests/scripts/test_validate_voice_engine_v2_vosk_shadow_observation.py
+pytest -q tests/scripts/test_run_voice_engine_v2_vosk_shadow_observation.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vosk_shadow_recognition_preflight.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_vosk_shadow_recognition_preflight.py
+pytest -q tests/test_core_assistant_import.py
+
+Runtime validation command for the next observation run:
+
+python scripts/validate_voice_engine_v2_vosk_shadow_observation.py \
+  --settings config/settings.json \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-contract-attached \
+  --require-invocation-plan-attached \
+  --require-invocation-plan-ready \
+  --require-pcm-reference-attached \
+  --require-pcm-reference-ready \
+  --require-asr-result-attached \
+  --require-asr-result-not-attempted \
+  --require-recognition-preflight-attached \
+  --require-recognition-preflight-ready
+
+Expected result:
+
+accepted=true
+issues=[]
+config restored to safe defaults
+recognition_preflight.accepted=true
+ready_preflight_records > 0
+recognition_permission_records=0
+unsafe_preflight_records=0
+recognition_attempt_records=0
+result_present_records=0
+raw_pcm_records=0
+pcm_retrieval_records=0
+Follow-up
+
+The next stage should run a real runtime observation with recognition preflight included in the full observation validator.
+
+If that passes, the project will have enough runtime evidence to design the first controlled Vosk recognition invocation boundary, still without command execution.
+
+
+---

@@ -33,6 +33,9 @@ from scripts.validate_voice_engine_v2_vosk_shadow_pcm_reference import (  # noqa
 from scripts.validate_voice_engine_v2_vosk_shadow_asr_result import (  # noqa: E402
     validate_vosk_shadow_asr_result_log,
 )
+from scripts.validate_voice_engine_v2_vosk_shadow_recognition_preflight import (  # noqa: E402
+    validate_vosk_shadow_recognition_preflight_log,
+)
 
 
 def validate_observation_config(
@@ -75,6 +78,8 @@ def validate_vosk_shadow_observation(
     require_pcm_reference_ready: bool,
     require_asr_result_attached: bool,
     require_asr_result_not_attempted: bool,
+    require_recognition_preflight_attached: bool,
+    require_recognition_preflight_ready: bool,
     require_restored_config: bool,
     allow_recognition_attempt: bool,
 ) -> dict[str, Any]:
@@ -117,6 +122,15 @@ def validate_vosk_shadow_observation(
         require_expected_source=True,
         allow_recognition_attempt=allow_recognition_attempt,
     )
+    recognition_preflight_result = validate_vosk_shadow_recognition_preflight_log(
+        log_path=log_path,
+        require_records=True,
+        require_preflight_attached=require_recognition_preflight_attached,
+        require_enabled=require_recognition_preflight_attached,
+        require_ready=require_recognition_preflight_ready,
+        require_capture_window_hook=True,
+        require_expected_source=True,
+    )
 
     accepted = (
         bool(config_result.get("accepted", False))
@@ -124,6 +138,7 @@ def validate_vosk_shadow_observation(
         and bool(invocation_plan_result.get("accepted", False))
         and bool(pcm_reference_result.get("accepted", False))
         and bool(asr_result.get("accepted", False))
+        and bool(recognition_preflight_result.get("accepted", False))
     )
 
     return {
@@ -136,6 +151,7 @@ def validate_vosk_shadow_observation(
         "invocation_plan": invocation_plan_result,
         "pcm_reference": pcm_reference_result,
         "asr_result": asr_result,
+        "recognition_preflight": recognition_preflight_result,
         "issues": [
             *[f"config:{issue}" for issue in config_result.get("issues", [])],
             *[f"telemetry:{issue}" for issue in telemetry_result.get("issues", [])],
@@ -150,6 +166,10 @@ def validate_vosk_shadow_observation(
             *[
                 f"asr_result:{issue}"
                 for issue in asr_result.get("issues", [])
+            ],
+            *[
+                f"recognition_preflight:{issue}"
+                for issue in recognition_preflight_result.get("issues", [])
             ],
         ],
     }
@@ -210,6 +230,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Require at least one safe not-attempted Vosk shadow ASR result record.",
     )
     parser.add_argument(
+        "--require-recognition-preflight-attached",
+        action="store_true",
+        help="Require at least one metadata.vosk_shadow_recognition_preflight record.",
+    )
+    parser.add_argument(
+        "--require-recognition-preflight-ready",
+        action="store_true",
+        help="Require at least one ready-but-blocked Vosk recognition preflight record.",
+    )
+    parser.add_argument(
         "--allow-recognition-attempt",
         action="store_true",
         help=(
@@ -241,6 +271,12 @@ def main(argv: list[str] | None = None) -> int:
             require_pcm_reference_ready=args.require_pcm_reference_ready,
             require_asr_result_attached=args.require_asr_result_attached,
             require_asr_result_not_attempted=args.require_asr_result_not_attempted,
+            require_recognition_preflight_attached=(
+                args.require_recognition_preflight_attached
+            ),
+            require_recognition_preflight_ready=(
+                args.require_recognition_preflight_ready
+            ),
             require_restored_config=not args.allow_active_observation_config,
             allow_recognition_attempt=args.allow_recognition_attempt,
         )
