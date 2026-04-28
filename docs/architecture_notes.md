@@ -10224,3 +10224,145 @@ enable Voice Engine v2 runtime takeover,
 connect Vosk recognition to live runtime.
 
 ---
+
+
+## Stage 24AC — Command fixture import and inventory procedure
+
+### Status
+
+Implemented as local fixture import/inventory tooling. Not connected to live runtime.
+
+### What changed
+
+Stage 24AC added a safe procedure for importing and validating offline WAV command fixtures.
+
+New module:
+
+```text
+modules/runtime/voice_engine_v2/command_fixture_inventory.py
+
+New script:
+
+scripts/manage_voice_engine_v2_command_fixtures.py
+
+New tests:
+
+tests/runtime/voice_engine_v2/test_command_fixture_inventory.py
+tests/scripts/test_manage_voice_engine_v2_command_fixtures.py
+
+The new tooling can:
+
+validate WAV fixture format,
+import a local WAV into var/data/fixtures/voice_commands/<language>/,
+write metadata beside the fixture,
+inventory existing fixtures,
+validate that EN/PL fixture records exist,
+enforce safety fields.
+
+Required WAV format:
+
+mono
+16 kHz
+PCM16
+short command fixture, default max duration 5000 ms
+Why this was needed
+
+Stage 24AB added an offline Vosk fixture recognition probe, but the project still needed a clean way to create and manage real command WAV fixtures.
+
+Stage 24AC creates that local fixture inventory without introducing a runtime microphone stream or connecting Vosk to live command recognition.
+
+What NEXA gains
+
+NEXA now has a repeatable way to build a local command fixture dataset for future Vosk command quality checks.
+
+This gives the project:
+
+local EN/PL command fixture organization,
+metadata for each fixture,
+validation that fixture WAV files are usable by the offline Vosk probe,
+no raw PCM inside telemetry metadata,
+no runtime integration,
+no command execution,
+no FasterWhisper bypass,
+no live command recognition.
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No runtime path was changed.
+
+No config default was changed.
+
+No active Vosk recognizer was connected.
+
+No command execution was added.
+
+No FasterWhisper bypass was added.
+
+No microphone stream was started by Voice Engine v2.
+
+No wake word, TTS, or Visual Shell behavior was changed.
+
+Fixture WAV files under var/data/fixtures/voice_commands/ are local runtime/test assets and must not be committed to git.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24AB offline Vosk fixture recognition probe.
+Existing local fixture policy under var/data.
+.gitignore update excluding var/data and local model/runtime assets.
+Stage 24AC unit and script tests.
+Validation
+
+Run:
+
+pytest -q tests/runtime/voice_engine_v2/test_command_fixture_inventory.py
+pytest -q tests/scripts/test_manage_voice_engine_v2_command_fixtures.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_fixture_recognition_probe.py
+pytest -q tests/scripts/test_probe_voice_engine_v2_vosk_fixture_recognition.py
+pytest -q tests/test_core_assistant_import.py
+
+Manual usage example:
+
+python scripts/manage_voice_engine_v2_command_fixtures.py import \
+  --source-wav /path/to/show_desktop_en_16k_mono.wav \
+  --fixture-id show_desktop_en \
+  --language en \
+  --phrase "show desktop"
+
+python scripts/manage_voice_engine_v2_command_fixtures.py import \
+  --source-wav /path/to/pokaz_pulpit_pl_16k_mono.wav \
+  --fixture-id pokaz_pulpit_pl \
+  --language pl \
+  --phrase "pokaż pulpit"
+
+python scripts/manage_voice_engine_v2_command_fixtures.py validate \
+  --require-records \
+  --require-language en \
+  --require-language pl
+
+Expected safety fields in fixture metadata:
+
+raw_pcm_included=false
+microphone_stream_started=false
+runtime_integration=false
+command_execution_enabled=false
+faster_whisper_bypass_enabled=false
+live_command_recognition_enabled=false
+Follow-up
+
+Stage 24AD should record or import a small real EN/PL command fixture set and run the Stage 24AB offline Vosk recognition probe against those fixtures.
+
+Stage 24AD must still not:
+
+execute commands,
+bypass FasterWhisper,
+start live Voice Engine v2 microphone recognition,
+change wake word,
+change TTS,
+change Visual Shell,
+enable Voice Engine v2 runtime takeover,
+connect Vosk recognition to live runtime.
+
+---
