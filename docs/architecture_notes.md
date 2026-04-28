@@ -9614,3 +9614,197 @@ Stage 24X must not enable command execution, bypass FasterWhisper, start a secon
 
 
 ---
+
+## Stage 24X — Controlled runtime command ASR shadow observation
+
+### Status
+
+Validated on real Raspberry Pi runtime.
+
+### What changed
+
+Stage 24X did not add code. It executed the Stage 24W controlled observation procedure on the real NEXA runtime.
+
+The observation temporarily enabled only observe-only telemetry flags:
+
+```text
+voice_engine.pre_stt_shadow_enabled=true
+voice_engine.faster_whisper_audio_bus_tap_enabled=true
+voice_engine.vad_shadow_enabled=true
+voice_engine.vad_timing_bridge_enabled=true
+voice_engine.command_asr_shadow_bridge_enabled=true
+
+The runtime guard flags remained safe:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+voice_engine.runtime_candidates_enabled=false
+
+After the observation, safe config was restored:
+
+voice_engine.pre_stt_shadow_enabled=false
+voice_engine.faster_whisper_audio_bus_tap_enabled=false
+voice_engine.vad_shadow_enabled=false
+voice_engine.vad_timing_bridge_enabled=false
+voice_engine.command_asr_shadow_bridge_enabled=false
+Why this was needed
+
+Previous stages proved the contracts through unit tests and validators.
+
+Stage 24X was needed to prove that the Voice Engine v2 observe-only chain works on real runtime audio:
+
+capture-window PCM
+→ VAD endpointing candidate
+→ command audio segment
+→ command ASR shadow bridge
+→ disabled command ASR candidate
+→ VAD timing telemetry validator
+
+This is the first live runtime confirmation that command-ready audio segments can be produced before transcription and safely represented as command ASR telemetry.
+
+What NEXA gains
+
+NEXA now has real runtime evidence that the command-first path can be observed safely before any active command recognizer is enabled.
+
+Validated runtime benefits:
+
+command ASR shadow telemetry is attached to real capture_window_pre_transcription records,
+command-ready audio segments are produced from real speech,
+telemetry remains safe and does not include raw PCM,
+command execution remains disabled,
+full STT is not prevented,
+runtime is not taken over,
+legacy runtime remains primary,
+safe config can be restored after observation.
+Runtime evidence
+
+Validated command:
+
+python scripts/run_voice_engine_v2_stage24w_observation.py validate
+
+Result:
+
+accepted=true
+issues=[]
+bridge_records=10
+candidate_attached_records=10
+capture_window_hook_records=10
+non_capture_window_hook_records=0
+legacy_runtime_primary_records=10
+non_legacy_runtime_primary_records=0
+recognizer_enabled_records=0
+recognition_attempted_records=0
+recognized_records=0
+raw_pcm_records=0
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+top_level_unsafe_action_records=0
+top_level_unsafe_full_stt_records=0
+top_level_unsafe_takeover_records=0
+
+Direct validator:
+
+python scripts/validate_voice_engine_v2_vad_timing_command_asr_shadow.py \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-records \
+  --require-candidate-attached \
+  --require-disabled-only
+
+Result:
+
+accepted=true
+issues=[]
+bridge_records=10
+candidate_attached_records=10
+candidate_source_counts={"faster_whisper_capture_window_shadow_tap": 10}
+candidate_publish_stage_counts={"before_transcription": 10}
+recognizer_name_counts={"disabled_command_asr": 10}
+
+Safe restore was confirmed:
+
+python scripts/run_voice_engine_v2_stage24w_observation.py status
+
+Restored state:
+
+voice_engine.command_asr_shadow_bridge_enabled=false
+voice_engine.command_first_enabled=false
+voice_engine.enabled=false
+voice_engine.faster_whisper_audio_bus_tap_enabled=false
+voice_engine.mode=legacy
+voice_engine.pre_stt_shadow_enabled=false
+voice_engine.runtime_candidates_enabled=false
+voice_engine.vad_shadow_enabled=false
+voice_engine.vad_timing_bridge_enabled=false
+Additional runtime findings
+
+The live test also confirmed why FasterWhisper should not be used as the fast-command recognizer.
+
+Observed short-command recognition errors included:
+
+"show desktop" → "High desktop"
+"hide desktop" → "HID desktop"
+"show desktop" → "Szał desktop"
+"pokaż pulpit" → "Pokaż pulbit"
+
+This supports the Voice Engine v2 architecture decision that fast built-in commands should use a dedicated command recognizer before full STT fallback.
+
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No runtime path was replaced.
+
+No active Vosk recognizer was enabled.
+
+No command execution was added.
+
+No FasterWhisper bypass was added.
+
+No wake word, TTS, or Visual Shell behavior was changed.
+
+Source / evidence
+
+Evidence used:
+
+real NEXA Raspberry Pi runtime run,
+var/data/voice_engine_v2_vad_timing_bridge.jsonl,
+Stage 24W observation script,
+Stage 24V VAD timing command ASR shadow validator,
+live console output from NEXA showing FasterWhisper short-command misrecognition,
+restored config/settings.json safe state.
+Validation
+
+Validation passed:
+
+python scripts/run_voice_engine_v2_stage24w_observation.py validate
+
+python scripts/validate_voice_engine_v2_vad_timing_command_asr_shadow.py \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-records \
+  --require-candidate-attached \
+  --require-disabled-only
+
+python scripts/run_voice_engine_v2_stage24w_observation.py restore
+
+python scripts/run_voice_engine_v2_stage24w_observation.py status
+Follow-up
+
+Stage 24Y should prepare a guarded Vosk model loading probe.
+
+Stage 24Y must still not:
+
+execute commands,
+bypass FasterWhisper,
+start a second microphone stream,
+change wake word,
+change TTS,
+change Visual Shell,
+enable Voice Engine v2 runtime takeover.
+
+The goal of Stage 24Y should be only to verify that a local Vosk model can be discovered, loaded, health-checked, and reported through safe telemetry without being used in the live command path.
+
+
+---
