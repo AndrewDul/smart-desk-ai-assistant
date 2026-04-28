@@ -114,6 +114,9 @@ def test_vad_shadow_reports_no_new_audio_frames() -> None:
     assert snapshot.reason == "no_new_audio_frames_observe_only"
     assert snapshot.audio_bus_present is True
     assert snapshot.frames_processed == 0
+    assert snapshot.observation_duration_ms is not None
+    assert snapshot.first_frame_timestamp_monotonic is None
+    assert snapshot.last_frame_age_ms is None
 
 
 def test_vad_shadow_emits_speech_start_and_end_events() -> None:
@@ -170,6 +173,23 @@ def test_vad_shadow_emits_speech_start_and_end_events() -> None:
     assert snapshot.speech_score_avg == 3 / 7
     assert snapshot.speech_score_over_threshold_count == 3
     assert snapshot.latest_score == 0.0
+    assert snapshot.observation_started_monotonic is not None
+    assert snapshot.observation_completed_monotonic is not None
+    assert snapshot.observation_duration_ms is not None
+    assert snapshot.observation_duration_ms >= 0.0
+    assert snapshot.first_frame_timestamp_monotonic == base_time
+    assert snapshot.last_frame_timestamp_monotonic == base_time + 0.60
+    assert snapshot.last_frame_end_timestamp_monotonic is not None
+    assert snapshot.last_frame_age_ms is not None
+    assert snapshot.last_frame_age_ms >= 0.0
+    assert snapshot.audio_window_duration_ms is not None
+    assert snapshot.audio_window_duration_ms >= 0.0
+    assert snapshot.latest_speech_started_lag_ms is not None
+    assert snapshot.latest_speech_started_lag_ms >= 0.0
+    assert snapshot.latest_speech_ended_lag_ms is not None
+    assert snapshot.latest_speech_ended_lag_ms >= 0.0
+    assert snapshot.latest_speech_end_to_observe_ms is not None
+    assert snapshot.latest_speech_end_to_observe_ms >= 0.0
     assert snapshot.event_emission_reason == "events_emitted"
 
     event_types = [event["event_type"] for event in snapshot.events]

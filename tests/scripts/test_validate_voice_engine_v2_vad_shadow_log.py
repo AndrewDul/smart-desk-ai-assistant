@@ -52,6 +52,17 @@ def _safe_vad_shadow(**overrides: object) -> dict[str, object]:
         "speech_score_avg": 0.95,
         "speech_score_over_threshold_count": 4,
         "latest_score": 1.0,
+        "observation_started_monotonic": 100.0,
+        "observation_completed_monotonic": 100.05,
+        "observation_duration_ms": 50.0,
+        "first_frame_timestamp_monotonic": 99.50,
+        "last_frame_timestamp_monotonic": 99.90,
+        "last_frame_end_timestamp_monotonic": 99.95,
+        "last_frame_age_ms": 100.0,
+        "audio_window_duration_ms": 450.0,
+        "latest_speech_started_lag_ms": 240.0,
+        "latest_speech_ended_lag_ms": 120.0,
+        "latest_speech_end_to_observe_ms": 160.0,
         "event_emission_reason": "events_emitted",
         "action_executed": False,
         "full_stt_prevented": False,
@@ -80,6 +91,7 @@ def test_validate_vad_shadow_log_accepts_safe_records(tmp_path: Path) -> None:
         require_audio_bus_present=True,
         require_frames=True,
         require_score_diagnostics=True,
+        require_timing_diagnostics=True,
     )
 
     assert result["accepted"] is True
@@ -90,6 +102,10 @@ def test_validate_vad_shadow_log_accepts_safe_records(tmp_path: Path) -> None:
     assert result["frames_processed_records"] == 1
     assert result["total_frames_processed"] == 4
     assert result["diagnostics_records"] == 1
+    assert result["timing_diagnostics_records"] == 1
+    assert result["event_timing_records"] == 1
+    assert result["max_last_frame_age_ms"] == 100.0
+    assert result["max_speech_end_to_observe_ms"] == 160.0
     assert result["speech_score_records"] == 1
     assert result["speech_frame_records"] == 1
     assert result["silence_frame_records"] == 0
@@ -244,6 +260,40 @@ def test_validate_vad_shadow_log_can_require_score_diagnostics(
     assert "vad_shadow_score_diagnostics_records_missing" in result["issues"]
 
 
+
+def test_validate_vad_shadow_log_can_require_timing_diagnostics(
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "vad.jsonl"
+    vad_shadow = _safe_vad_shadow()
+    for key in [
+        "observation_started_monotonic",
+        "observation_completed_monotonic",
+        "observation_duration_ms",
+        "first_frame_timestamp_monotonic",
+        "last_frame_timestamp_monotonic",
+        "last_frame_end_timestamp_monotonic",
+        "last_frame_age_ms",
+        "audio_window_duration_ms",
+        "latest_speech_started_lag_ms",
+        "latest_speech_ended_lag_ms",
+        "latest_speech_end_to_observe_ms",
+    ]:
+        vad_shadow.pop(key)
+
+    _write_jsonl(log_path, [_record(vad_shadow)])
+
+    result = validate_vad_shadow_log(
+        log_path=log_path,
+        require_timing_diagnostics=True,
+    )
+
+    assert result["accepted"] is False
+    assert "vad_shadow_timing_diagnostics_records_missing" in result["issues"]
+
+
+
+
 def test_cli_accepts_score_diagnostics_requirement(
     tmp_path: Path,
     capsys,
@@ -265,3 +315,27 @@ def test_cli_accepts_score_diagnostics_requirement(
     assert exit_code == 0
     assert payload["accepted"] is True
     assert payload["required_score_diagnostics"] is True
+
+
+
+def test_cli_accepts_timing_diagnostics_requirement(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    log_path = tmp_path / "vad.jsonl"
+    _write_jsonl(log_path, [_record(_safe_vad_shadow())])
+
+    exit_code = main(
+        [
+            "--log-path",
+            str(log_path),
+            "--require-timing-diagnostics",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert exit_code == 0
+    assert payload["accepted"] is True
+    assert payload["required_timing_diagnostics"] is True

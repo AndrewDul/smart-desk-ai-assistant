@@ -1,10 +1,8 @@
-#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
-import json
-import sys
 from collections import Counter
+import json
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +18,7 @@ def validate_vad_shadow_log(
     require_audio_bus_present: bool = False,
     require_frames: bool = False,
     require_score_diagnostics: bool = False,
+    require_timing_diagnostics: bool = False,
 ) -> dict[str, Any]:
     issues: list[str] = []
     reasons: Counter[str] = Counter()
@@ -35,12 +34,16 @@ def validate_vad_shadow_log(
     total_frames_processed = 0
     total_events_emitted = 0
     diagnostics_records = 0
+    timing_diagnostics_records = 0
+    event_timing_records = 0
     speech_score_records = 0
     speech_frame_records = 0
     silence_frame_records = 0
     max_speech_score: float | None = None
     max_speech_frame_count = 0
     max_silence_frame_count = 0
+    max_last_frame_age_ms: float | None = None
+    max_speech_end_to_observe_ms: float | None = None
     event_emission_reasons: Counter[str] = Counter()
     unsafe_action_records = 0
     unsafe_full_stt_records = 0
@@ -96,6 +99,26 @@ def validate_vad_shadow_log(
 
         if _has_score_diagnostics(vad_shadow):
             diagnostics_records += 1
+
+        if _has_timing_diagnostics(vad_shadow):
+            timing_diagnostics_records += 1
+
+        latest_speech_end_to_observe_ms = _safe_float(
+            vad_shadow.get("latest_speech_end_to_observe_ms")
+        )
+        if latest_speech_end_to_observe_ms is not None:
+            event_timing_records += 1
+            max_speech_end_to_observe_ms = _max_optional_float(
+                max_speech_end_to_observe_ms,
+                latest_speech_end_to_observe_ms,
+            )
+
+        last_frame_age_ms = _safe_float(vad_shadow.get("last_frame_age_ms"))
+        if last_frame_age_ms is not None:
+            max_last_frame_age_ms = _max_optional_float(
+                max_last_frame_age_ms,
+                last_frame_age_ms,
+            )
 
         speech_score_count = _safe_int(vad_shadow.get("speech_score_count"))
         if speech_score_count > 0:
@@ -158,6 +181,9 @@ def validate_vad_shadow_log(
     if require_score_diagnostics and diagnostics_records == 0:
         issues.append("vad_shadow_score_diagnostics_records_missing")
 
+    if require_timing_diagnostics and timing_diagnostics_records == 0:
+        issues.append("vad_shadow_timing_diagnostics_records_missing")
+
     accepted = not issues
 
     return {
@@ -173,12 +199,16 @@ def validate_vad_shadow_log(
         "total_frames_processed": total_frames_processed,
         "total_events_emitted": total_events_emitted,
         "diagnostics_records": diagnostics_records,
+        "timing_diagnostics_records": timing_diagnostics_records,
+        "event_timing_records": event_timing_records,
         "speech_score_records": speech_score_records,
         "speech_frame_records": speech_frame_records,
         "silence_frame_records": silence_frame_records,
         "max_speech_score": max_speech_score,
         "max_speech_frame_count": max_speech_frame_count,
         "max_silence_frame_count": max_silence_frame_count,
+        "max_last_frame_age_ms": max_last_frame_age_ms,
+        "max_speech_end_to_observe_ms": max_speech_end_to_observe_ms,
         "event_emission_reasons": dict(event_emission_reasons),
         "unsafe_action_records": unsafe_action_records,
         "unsafe_full_stt_records": unsafe_full_stt_records,
@@ -190,6 +220,7 @@ def validate_vad_shadow_log(
         "required_audio_bus_present": require_audio_bus_present,
         "required_frames": require_frames,
         "required_score_diagnostics": require_score_diagnostics,
+        "required_timing_diagnostics": require_timing_diagnostics,
         "issues": issues,
     }
 
@@ -219,12 +250,44 @@ def _has_score_diagnostics(vad_shadow: dict[str, Any]) -> bool:
     return required_keys.issubset(vad_shadow.keys())
 
 
+def _has_timing_diagnostics(vad_shadow: dict[str, Any]) -> bool:
+    required_keys = {
+        "observation_started_monotonic",
+        "observation_completed_monotonic",
+        "observation_duration_ms",
+        "first_frame_timestamp_monotonic",
+        "last_frame_timestamp_monotonic",
+        "last_frame_end_timestamp_monotonic",
+        "last_frame_age_ms",
+        "audio_window_duration_ms",
+        "latest_speech_started_lag_ms",
+        "latest_speech_ended_lag_ms",
+        "latest_speech_end_to_observe_ms",
+    }
+    return required_keys.issubset(vad_shadow.keys())
+
+
 def _safe_int(raw_value: Any) -> int:
     try:
         value = int(raw_value)
     except (TypeError, ValueError):
         return 0
     return value if value > 0 else 0
+
+
+def _safe_float(raw_value: Any) -> float | None:
+    if not isinstance(raw_value, int | float):
+        return None
+    return float(raw_value)
+
+
+def _max_optional_float(
+    current_value: float | None,
+    candidate_value: float,
+) -> float:
+    if current_value is None:
+        return candidate_value
+    return max(current_value, candidate_value)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -242,6 +305,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--require-audio-bus-present", action="store_true")
     parser.add_argument("--require-frames", action="store_true")
     parser.add_argument("--require-score-diagnostics", action="store_true")
+    parser.add_argument("--require-timing-diagnostics", action="store_true")
     return parser
 
 
@@ -255,6 +319,7 @@ def main(argv: list[str] | None = None) -> int:
         require_audio_bus_present=args.require_audio_bus_present,
         require_frames=args.require_frames,
         require_score_diagnostics=args.require_score_diagnostics,
+        require_timing_diagnostics=args.require_timing_diagnostics,
     )
 
     print(json.dumps(result, indent=2, ensure_ascii=False))

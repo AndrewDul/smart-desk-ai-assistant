@@ -6525,3 +6525,153 @@ Do not enable Vosk, command execution, pre-STT action dispatch or FasterWhisper 
 
 
 ---
+
+
+## Stage 24E — VAD shadow timing diagnostics
+
+### Status
+
+Implemented and validated on Raspberry Pi hardware.
+
+### What changed
+
+Stage 24E added timing diagnostics to the Voice Engine v2 VAD shadow observer.
+
+The observer now records timing fields in `VoiceEngineV2VadShadowSnapshot`, including:
+
+- `observation_started_monotonic`
+- `observation_completed_monotonic`
+- `observation_duration_ms`
+- `first_frame_timestamp_monotonic`
+- `last_frame_timestamp_monotonic`
+- `last_frame_end_timestamp_monotonic`
+- `last_frame_age_ms`
+- `audio_window_duration_ms`
+- `latest_speech_started_lag_ms`
+- `latest_speech_ended_lag_ms`
+- `latest_speech_end_to_observe_ms`
+
+The VAD shadow validator now supports:
+
+```bash
+--require-timing-diagnostics
+```
+and reports:
+
+timing_diagnostics_records
+event_timing_records
+max_last_frame_age_ms
+max_speech_end_to_observe_ms
+Why this was needed
+
+Stage 24D proved that Silero ONNX direct frame scoring works and emits real speech_started and speech_ended events from live audio.
+
+However, NEXA still needed timing evidence to understand whether the VAD shadow path is close enough to real speech end to become the foundation for low-latency command-first endpointing.
+
+Stage 24E does not change runtime behaviour. It adds observability so the next migration step can be based on measured timing instead of assumptions.
+
+What NEXA gains
+
+NEXA now has measurable VAD timing telemetry before production takeover.
+
+This helps identify:
+
+how old the last processed audio frame is when the shadow observer runs,
+how long after detected speech end the observer records the event,
+whether the current shadow hook is close enough to speech end,
+whether a later continuous VAD observation loop is required.
+
+This keeps Voice Engine v2 aligned with the premium latency target while preserving safety.
+
+Removed or deprecated legacy path
+
+No production path was removed.
+
+The following paths remain untouched:
+
+openWakeWord wake path,
+FasterWhisper fallback,
+Piper TTS,
+Visual Shell,
+legacy runtime,
+runtime candidate takeover,
+command execution.
+
+No Vosk command recognizer was enabled.
+
+No FasterWhisper prevention was enabled.
+
+No pre-STT action execution was enabled.
+
+Source / evidence
+
+Repository tests passed:
+```bash
+pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
+pytest -q tests/scripts/test_set_voice_engine_v2_vad_shadow.py
+pytest -q tests/runtime/voice_engine_v2
+pytest -q tests/devices/audio/vad
+pytest -q tests/devices/audio/realtime
+pytest -q tests/core/voice_engine
+pytest -q tests/core/command_intents
+```
+Hardware validation passed with:
+
+accepted=true
+vad_shadow_records=5
+enabled_records=5
+observed_records=5
+audio_bus_present_records=5
+frames_processed_records=4
+total_frames_processed=184
+total_events_emitted=8
+diagnostics_records=5
+timing_diagnostics_records=5
+event_timing_records=4
+speech_score_records=4
+speech_frame_records=4
+silence_frame_records=4
+max_speech_score=0.9999903440475464
+max_speech_frame_count=37
+max_silence_frame_count=39
+max_last_frame_age_ms=4216.1806099975365
+max_speech_end_to_observe_ms=4851.140093996946
+event_types:
+  speech_started=4
+  speech_ended=4
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+Validation
+
+Stage 24E passed both repository and Raspberry Pi hardware validation.
+
+Safety remained clean:
+
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+Follow-up
+
+Next recommended stage is Stage 24F — VAD observe cadence and hook timing audit.
+
+Stage 24E revealed that although Silero detects speech events correctly, the current observation/logging point can be several seconds behind the latest audio frame:
+
+max_last_frame_age_ms=4216.1806099975365
+max_speech_end_to_observe_ms=4851.140093996946
+
+Stage 24F should determine whether this lag comes from:
+
+the current pre-STT shadow hook location,
+observer call cadence,
+legacy FasterWhisper timing,
+delayed log snapshot creation,
+or the lack of a continuous VAD shadow loop.
+
+Stage 24F must remain observe-only and must not enable Vosk, action execution, runtime takeover or FasterWhisper prevention.
+
+
+---

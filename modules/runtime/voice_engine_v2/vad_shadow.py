@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+import time
 from typing import Any, Mapping
 
 import numpy as np
@@ -46,6 +47,17 @@ class VoiceEngineV2VadShadowSnapshot:
     speech_score_avg: float | None = None
     speech_score_over_threshold_count: int = 0
     latest_score: float | None = None
+    observation_started_monotonic: float | None = None
+    observation_completed_monotonic: float | None = None
+    observation_duration_ms: float | None = None
+    first_frame_timestamp_monotonic: float | None = None
+    last_frame_timestamp_monotonic: float | None = None
+    last_frame_end_timestamp_monotonic: float | None = None
+    last_frame_age_ms: float | None = None
+    audio_window_duration_ms: float | None = None
+    latest_speech_started_lag_ms: float | None = None
+    latest_speech_ended_lag_ms: float | None = None
+    latest_speech_end_to_observe_ms: float | None = None
     event_emission_reason: str = ""
     min_speech_ms: int = 0
     min_silence_ms: int = 0
@@ -89,6 +101,17 @@ class VoiceEngineV2VadShadowSnapshot:
             "speech_score_avg": self.speech_score_avg,
             "speech_score_over_threshold_count": self.speech_score_over_threshold_count,
             "latest_score": self.latest_score,
+            "observation_started_monotonic": self.observation_started_monotonic,
+            "observation_completed_monotonic": self.observation_completed_monotonic,
+            "observation_duration_ms": self.observation_duration_ms,
+            "first_frame_timestamp_monotonic": self.first_frame_timestamp_monotonic,
+            "last_frame_timestamp_monotonic": self.last_frame_timestamp_monotonic,
+            "last_frame_end_timestamp_monotonic": self.last_frame_end_timestamp_monotonic,
+            "last_frame_age_ms": self.last_frame_age_ms,
+            "audio_window_duration_ms": self.audio_window_duration_ms,
+            "latest_speech_started_lag_ms": self.latest_speech_started_lag_ms,
+            "latest_speech_ended_lag_ms": self.latest_speech_ended_lag_ms,
+            "latest_speech_end_to_observe_ms": self.latest_speech_end_to_observe_ms,
             "event_emission_reason": self.event_emission_reason,
             "min_speech_ms": self.min_speech_ms,
             "min_silence_ms": self.min_silence_ms,
@@ -225,12 +248,15 @@ class VoiceEngineV2VadShadowObserver:
         return self._enabled
 
     def observe(self, owner: Any) -> VoiceEngineV2VadShadowSnapshot:
+        observation_started_monotonic = time.monotonic()
+
         if not self._enabled:
             return self._snapshot(
                 observed=False,
                 reason="vad_shadow_disabled",
                 audio_bus_present=False,
                 source="",
+                observation_started_monotonic=observation_started_monotonic,
             )
 
         audio_bus, source = find_realtime_audio_bus(owner)
@@ -240,6 +266,7 @@ class VoiceEngineV2VadShadowObserver:
                 reason="audio_bus_unavailable_for_vad_shadow",
                 audio_bus_present=False,
                 source="",
+                observation_started_monotonic=observation_started_monotonic,
             )
 
         try:
@@ -255,6 +282,7 @@ class VoiceEngineV2VadShadowObserver:
                     audio_bus_present=True,
                     source=source,
                     in_speech=self._policy.in_speech,
+                    observation_started_monotonic=observation_started_monotonic,
                 )
 
             decisions: list[VadDecision] = []
@@ -273,8 +301,10 @@ class VoiceEngineV2VadShadowObserver:
                 decisions_processed=len(decisions),
                 decisions=decisions,
                 events=events,
+                frames=frames,
                 latest_frame_sequence=frames[-1].sequence,
                 in_speech=self._policy.in_speech,
+                observation_started_monotonic=observation_started_monotonic,
             )
 
         except ModuleNotFoundError as error:
@@ -285,6 +315,7 @@ class VoiceEngineV2VadShadowObserver:
                 audio_bus_present=True,
                 source=source,
                 error=self._engine_error,
+                observation_started_monotonic=observation_started_monotonic,
             )
         except Exception as error:
             return self._snapshot(
@@ -293,6 +324,7 @@ class VoiceEngineV2VadShadowObserver:
                 audio_bus_present=True,
                 source=source,
                 error=str(error),
+                observation_started_monotonic=observation_started_monotonic,
             )
 
     def reset(self) -> None:
@@ -341,13 +373,23 @@ class VoiceEngineV2VadShadowObserver:
         decisions_processed: int = 0,
         decisions: list[VadDecision] | None = None,
         events: list[VadEvent] | None = None,
+        frames: list[AudioFrame] | None = None,
         latest_frame_sequence: int | None = None,
         in_speech: bool = False,
         error: str = "",
+        observation_started_monotonic: float | None = None,
     ) -> VoiceEngineV2VadShadowSnapshot:
         safe_decisions = list(decisions or [])
         safe_events = list(events or [])
+        safe_frames = list(frames or [])
+        observation_completed_monotonic = time.monotonic()
         serialized_events = [_event_to_json_dict(event) for event in safe_events]
+        timing_diagnostics = _timing_diagnostics(
+            frames=safe_frames,
+            events=safe_events,
+            observation_started_monotonic=observation_started_monotonic,
+            observation_completed_monotonic=observation_completed_monotonic,
+        )
         diagnostics = _decision_diagnostics(
             decisions=safe_decisions,
             events=safe_events,
@@ -393,6 +435,33 @@ class VoiceEngineV2VadShadowObserver:
                 diagnostics["speech_score_over_threshold_count"]
             ),
             latest_score=diagnostics["latest_score"],
+            observation_started_monotonic=timing_diagnostics[
+                "observation_started_monotonic"
+            ],
+            observation_completed_monotonic=timing_diagnostics[
+                "observation_completed_monotonic"
+            ],
+            observation_duration_ms=timing_diagnostics["observation_duration_ms"],
+            first_frame_timestamp_monotonic=timing_diagnostics[
+                "first_frame_timestamp_monotonic"
+            ],
+            last_frame_timestamp_monotonic=timing_diagnostics[
+                "last_frame_timestamp_monotonic"
+            ],
+            last_frame_end_timestamp_monotonic=timing_diagnostics[
+                "last_frame_end_timestamp_monotonic"
+            ],
+            last_frame_age_ms=timing_diagnostics["last_frame_age_ms"],
+            audio_window_duration_ms=timing_diagnostics["audio_window_duration_ms"],
+            latest_speech_started_lag_ms=timing_diagnostics[
+                "latest_speech_started_lag_ms"
+            ],
+            latest_speech_ended_lag_ms=timing_diagnostics[
+                "latest_speech_ended_lag_ms"
+            ],
+            latest_speech_end_to_observe_ms=timing_diagnostics[
+                "latest_speech_end_to_observe_ms"
+            ],
             event_emission_reason=str(diagnostics["event_emission_reason"]),
             min_speech_ms=self._endpointing_policy_config.min_speech_ms,
             min_silence_ms=self._endpointing_policy_config.min_silence_ms,
@@ -434,6 +503,100 @@ def build_voice_engine_v2_vad_shadow_observer(
             fallback=96,
         ),
     )
+
+
+def _timing_diagnostics(
+    *,
+    frames: list[AudioFrame],
+    events: list[VadEvent],
+    observation_started_monotonic: float | None,
+    observation_completed_monotonic: float,
+) -> dict[str, float | None]:
+    latest_speech_started = _latest_event(events, "speech_started")
+    latest_speech_ended = _latest_event(events, "speech_ended")
+
+    first_frame_timestamp: float | None = None
+    last_frame_timestamp: float | None = None
+    last_frame_end_timestamp: float | None = None
+    last_frame_age_ms: float | None = None
+    audio_window_duration_ms: float | None = None
+
+    if frames:
+        first_frame = frames[0]
+        last_frame = frames[-1]
+        first_frame_timestamp = first_frame.timestamp_monotonic
+        last_frame_timestamp = last_frame.timestamp_monotonic
+        last_frame_end_timestamp = (
+            last_frame.timestamp_monotonic + last_frame.duration_seconds
+        )
+        last_frame_age_ms = _elapsed_ms(
+            start=last_frame_end_timestamp,
+            end=observation_completed_monotonic,
+        )
+        audio_window_duration_ms = _elapsed_ms(
+            start=first_frame.timestamp_monotonic,
+            end=last_frame_end_timestamp,
+        )
+
+    latest_speech_started_lag_ms = (
+        None
+        if latest_speech_started is None
+        else _elapsed_ms(
+            start=latest_speech_started.timestamp_monotonic,
+            end=observation_completed_monotonic,
+        )
+    )
+    latest_speech_ended_lag_ms = (
+        None
+        if latest_speech_ended is None
+        else _elapsed_ms(
+            start=latest_speech_ended.timestamp_monotonic,
+            end=observation_completed_monotonic,
+        )
+    )
+    latest_speech_end_to_observe_ms = (
+        None
+        if latest_speech_ended is None
+        or latest_speech_ended.speech_end_timestamp is None
+        else _elapsed_ms(
+            start=latest_speech_ended.speech_end_timestamp,
+            end=observation_completed_monotonic,
+        )
+    )
+
+    return {
+        "observation_started_monotonic": observation_started_monotonic,
+        "observation_completed_monotonic": observation_completed_monotonic,
+        "observation_duration_ms": (
+            None
+            if observation_started_monotonic is None
+            else _elapsed_ms(
+                start=observation_started_monotonic,
+                end=observation_completed_monotonic,
+            )
+        ),
+        "first_frame_timestamp_monotonic": first_frame_timestamp,
+        "last_frame_timestamp_monotonic": last_frame_timestamp,
+        "last_frame_end_timestamp_monotonic": last_frame_end_timestamp,
+        "last_frame_age_ms": last_frame_age_ms,
+        "audio_window_duration_ms": audio_window_duration_ms,
+        "latest_speech_started_lag_ms": latest_speech_started_lag_ms,
+        "latest_speech_ended_lag_ms": latest_speech_ended_lag_ms,
+        "latest_speech_end_to_observe_ms": latest_speech_end_to_observe_ms,
+    }
+
+
+def _latest_event(events: list[VadEvent], event_type: str) -> VadEvent | None:
+    for event in reversed(events):
+        if str(event.event_type.value) == event_type:
+            return event
+    return None
+
+
+def _elapsed_ms(*, start: float, end: float) -> float:
+    return max(0.0, (end - start) * 1000.0)
+
+
 
 
 def _decision_diagnostics(
