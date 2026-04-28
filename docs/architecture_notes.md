@@ -9203,3 +9203,121 @@ Stage 24U may connect the shadow bridge into VAD timing bridge telemetry behind 
 
 
 ---
+
+
+## Stage 24U — Command ASR shadow bridge telemetry integration
+
+### Status
+
+Implemented behind disabled-by-default config flag.
+
+### What changed
+
+Stage 24U connected the Stage 24T command ASR shadow bridge to the existing VAD timing bridge telemetry path.
+
+Modified files:
+
+```text
+modules/runtime/voice_engine_v2/vad_timing_bridge.py
+tests/runtime/voice_engine_v2/test_vad_timing_bridge.py
+config/settings.json
+config/settings.example.json
+modules/shared/config/settings_core/defaults.py
+
+New config flag:
+
+voice_engine.command_asr_shadow_bridge_enabled=false
+
+When the flag is false, VAD timing bridge telemetry behaves as before and does not attach command ASR metadata.
+
+When the flag is explicitly true and VAD timing bridge telemetry is already enabled, pre-transcription capture-window records can include:
+
+metadata.command_asr_shadow_bridge
+metadata.command_asr_candidate
+
+The attached command ASR candidate still uses the disabled recognizer by default. It does not run Vosk, does not execute commands, does not bypass FasterWhisper, and does not include raw PCM.
+
+Why this was needed
+
+Stage 24Q created command-ready audio segment telemetry.
+
+Stage 24R created the disabled command ASR contract.
+
+Stage 24S added a guarded Vosk adapter shell.
+
+Stage 24T added a standalone command ASR shadow bridge.
+
+Stage 24U moves the shadow bridge one step closer to runtime evidence by attaching it to existing VAD timing telemetry, but only behind a disabled-by-default flag.
+
+This avoids mixing ASR logic directly into routing or command execution while still making the next command-first layer observable.
+
+What NEXA gains
+
+NEXA now has a safe telemetry path for command ASR candidates immediately after VAD endpointing.
+
+This gives the project:
+
+a measurable bridge from endpointing to command ASR candidate telemetry,
+safe default behavior,
+no runtime takeover,
+no command execution,
+no full STT prevention,
+no FasterWhisper bypass,
+no second microphone stream,
+no raw PCM in telemetry,
+a clear feature flag for future runtime-shadow tests.
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No legacy runtime path was replaced.
+
+No active Vosk recognizer was connected.
+
+No command execution was added.
+
+No wake word, TTS, Visual Shell, or FasterWhisper behavior was changed.
+
+The new config flag is intentionally disabled by default.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24Q VoiceEngineV2CommandAudioSegment.
+Stage 24R CommandAsrCandidate.
+Stage 24S VoskCommandAsrAdapter.
+Stage 24T CommandAsrShadowBridge.
+Existing VAD timing bridge pre-transcription telemetry.
+Stage 24U tests proving default-off behavior and enabled shadow attachment behavior.
+Validation
+
+Run:
+
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_bridge.py
+pytest -q tests/runtime/voice_engine_v2/test_command_asr_shadow_bridge.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_command_asr_shadow_bridge.py
+pytest -q tests/runtime/voice_engine_v2/test_command_asr.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_command_asr_adapter.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_command_asr_disabled.py
+pytest -q tests/runtime/voice_engine_v2/test_command_audio_segment.py
+pytest -q tests/test_core_assistant_import.py
+
+Expected safety result:
+
+command_asr_shadow_bridge_enabled=false keeps VAD timing telemetry unchanged.
+command_asr_shadow_bridge_enabled=true attaches disabled command ASR metadata only.
+No command execution occurs.
+No full STT prevention occurs.
+No runtime takeover occurs.
+No raw PCM is included in telemetry.
+No active Vosk runtime is started.
+No config default enables the bridge.
+Follow-up
+
+Stage 24V may add a validator mode that checks command_asr_shadow_bridge records directly inside voice_engine_v2_vad_timing_bridge.jsonl.
+
+Stage 24V must still keep command execution disabled, FasterWhisper fallback untouched, Vosk runtime inactive by default, and safe config defaults unchanged.
+
+
+---

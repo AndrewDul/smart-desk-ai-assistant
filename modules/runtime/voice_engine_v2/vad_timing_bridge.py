@@ -7,6 +7,12 @@ from pathlib import Path
 import time
 from typing import Any, Mapping
 
+from modules.runtime.voice_engine_v2.command_asr_shadow_bridge import (
+    COMMAND_ASR_SHADOW_BRIDGE_STAGE,
+    COMMAND_ASR_SHADOW_BRIDGE_VERSION,
+    CommandAsrShadowBridgeSettings,
+    enrich_record_with_command_asr_shadow,
+)
 from modules.runtime.voice_engine_v2.vad_endpointing_candidate import (
     build_vad_endpointing_candidate,
 )
@@ -452,23 +458,49 @@ class VoiceEngineV2VadTimingBridgeAdapter:
         metadata: dict[str, Any],
         write_telemetry: bool,
     ) -> VoiceEngineV2VadTimingBridgeRecord:
-        record = VoiceEngineV2VadTimingBridgeRecord(
-            timestamp_utc=datetime.now(UTC).isoformat(),
-            timestamp_monotonic=time.monotonic(),
+        timestamp_utc = datetime.now(UTC).isoformat()
+        timestamp_monotonic = time.monotonic()
+        normalized_turn_id = str(turn_id or "").strip()
+        normalized_phase = str(phase or "command").strip() or "command"
+        normalized_capture_mode = (
+            str(capture_mode or "command").strip() or "command"
+        )
+        safe_vad_shadow = dict(vad_shadow or {})
+        safe_metadata = dict(metadata or {})
+
+        safe_metadata = _maybe_attach_command_asr_shadow(
+            settings=self._settings,
+            timestamp_utc=timestamp_utc,
+            timestamp_monotonic=timestamp_monotonic,
             enabled=self.enabled,
             observed=observed,
             reason=reason,
             hook=hook,
-            turn_id=str(turn_id or "").strip(),
-            phase=str(phase or "command").strip() or "command",
-            capture_mode=str(capture_mode or "command").strip() or "command",
+            turn_id=normalized_turn_id,
+            phase=normalized_phase,
+            capture_mode=normalized_capture_mode,
+            transcript_present=transcript_present,
+            vad_shadow=safe_vad_shadow,
+            metadata=safe_metadata,
+        )
+
+        record = VoiceEngineV2VadTimingBridgeRecord(
+            timestamp_utc=timestamp_utc,
+            timestamp_monotonic=timestamp_monotonic,
+            enabled=self.enabled,
+            observed=observed,
+            reason=reason,
+            hook=hook,
+            turn_id=normalized_turn_id,
+            phase=normalized_phase,
+            capture_mode=normalized_capture_mode,
             legacy_runtime_primary=True,
             action_executed=False,
             full_stt_prevented=False,
             runtime_takeover=False,
             transcript_present=bool(transcript_present),
-            vad_shadow=dict(vad_shadow or {}),
-            metadata=dict(metadata or {}),
+            vad_shadow=safe_vad_shadow,
+            metadata=safe_metadata,
         )
 
         if not write_telemetry or self._telemetry_writer is None:
@@ -477,6 +509,85 @@ class VoiceEngineV2VadTimingBridgeAdapter:
         return record.with_telemetry_written(
             self._telemetry_writer.write_safely(record)
         )
+
+
+def _maybe_attach_command_asr_shadow(
+    *,
+    settings: Mapping[str, Any],
+    timestamp_utc: str,
+    timestamp_monotonic: float,
+    enabled: bool,
+    observed: bool,
+    reason: str,
+    hook: str,
+    turn_id: str,
+    phase: str,
+    capture_mode: str,
+    transcript_present: bool,
+    vad_shadow: Mapping[str, Any],
+    metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    safe_metadata = dict(metadata or {})
+    voice_engine = _voice_engine_config(settings)
+
+    if not bool(voice_engine.get("command_asr_shadow_bridge_enabled", False)):
+        return safe_metadata
+
+    if hook != "capture_window_pre_transcription":
+        return safe_metadata
+
+    record_payload = {
+        "timestamp_utc": timestamp_utc,
+        "timestamp_monotonic": timestamp_monotonic,
+        "enabled": bool(enabled),
+        "observed": bool(observed),
+        "reason": str(reason or ""),
+        "hook": str(hook or ""),
+        "turn_id": str(turn_id or ""),
+        "phase": str(phase or "command"),
+        "capture_mode": str(capture_mode or "command"),
+        "legacy_runtime_primary": True,
+        "action_executed": False,
+        "full_stt_prevented": False,
+        "runtime_takeover": False,
+        "transcript_present": bool(transcript_present),
+        "vad_shadow": dict(vad_shadow or {}),
+        "metadata": safe_metadata,
+    }
+
+    try:
+        enriched_payload = enrich_record_with_command_asr_shadow(
+            record=record_payload,
+            settings=CommandAsrShadowBridgeSettings(enabled=True),
+        )
+    except Exception as error:
+        safe_metadata["command_asr_shadow_bridge"] = {
+            "bridge_stage": COMMAND_ASR_SHADOW_BRIDGE_STAGE,
+            "bridge_version": COMMAND_ASR_SHADOW_BRIDGE_VERSION,
+            "enabled": True,
+            "observed": False,
+            "reason": f"command_asr_shadow_bridge_failed:{type(error).__name__}",
+            "candidate_attached": False,
+            "command_asr_candidate_present": False,
+            "command_asr_reason": "",
+            "asr_reason": "",
+            "recognizer_name": "",
+            "recognizer_enabled": False,
+            "recognition_attempted": False,
+            "recognized": False,
+            "raw_pcm_included": False,
+            "action_executed": False,
+            "full_stt_prevented": False,
+            "runtime_takeover": False,
+        }
+        return safe_metadata
+
+    enriched_metadata = enriched_payload.get("metadata")
+    if isinstance(enriched_metadata, Mapping):
+        return dict(enriched_metadata)
+
+    return safe_metadata
+
 
 
 def build_voice_engine_v2_vad_timing_bridge_adapter(

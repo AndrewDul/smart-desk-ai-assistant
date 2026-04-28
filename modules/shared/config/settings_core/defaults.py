@@ -75,6 +75,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "vad_timing_bridge_log_path": (
             "var/data/voice_engine_v2_vad_timing_bridge.jsonl"
         ),
+        "command_asr_shadow_bridge_enabled": False,
         "vad_endpointing_enabled": False,
         "command_first_enabled": False,
         "fallback_to_legacy_enabled": True,

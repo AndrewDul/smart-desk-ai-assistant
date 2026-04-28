@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -26,7 +27,11 @@ def _score_provider(frame: AudioFrame) -> float:
     return 0.0 if frame.pcm == _silence_pcm(len(frame.pcm) // 2) else 0.9
 
 
-def _safe_settings(*, bridge_enabled: bool = True) -> dict[str, object]:
+def _safe_settings(
+    *,
+    bridge_enabled: bool = True,
+    command_asr_shadow_bridge_enabled: bool = False,
+) -> dict[str, object]:
     return {
         "voice_engine": {
             "enabled": False,
@@ -38,6 +43,9 @@ def _safe_settings(*, bridge_enabled: bool = True) -> dict[str, object]:
             "faster_whisper_audio_bus_tap_enabled": True,
             "vad_shadow_enabled": True,
             "vad_timing_bridge_enabled": bridge_enabled,
+            "command_asr_shadow_bridge_enabled": (
+                command_asr_shadow_bridge_enabled
+            ),
             "vad_timing_bridge_log_path": (
                 "var/data/voice_engine_v2_vad_timing_bridge.jsonl"
             ),
@@ -318,13 +326,21 @@ def test_vad_timing_bridge_writes_pre_transcription_endpointing_candidate(
             source="faster_whisper_capture_window_shadow_tap",
         )
 
+    capture_finished_at_monotonic = time.monotonic()
+
     record = adapter.observe_after_capture_window_publish(
         owner=owner,
         capture_window_metadata={
             "source": "faster_whisper_capture_window_shadow_tap",
             "publish_stage": "before_transcription",
-            "capture_finished_at_monotonic": 10.0,
-            "publish_started_at_monotonic": 10.01,
+            "sample_rate": 16_000,
+            "channels": 1,
+            "audio_sample_count": 32_000,
+            "audio_duration_seconds": 2.0,
+            "published_frame_count": 32,
+            "published_byte_count": 64_000,
+            "capture_finished_at_monotonic": capture_finished_at_monotonic,
+            "publish_started_at_monotonic": capture_finished_at_monotonic + 0.01,
             "capture_finished_to_publish_start_ms": 10.0,
         },
     )
@@ -358,3 +374,180 @@ def test_vad_timing_bridge_writes_pre_transcription_endpointing_candidate(
     assert logged_candidate["reason"] == "endpoint_detected"
     assert logged_candidate["source"] == "faster_whisper_capture_window_shadow_tap"
     assert logged_candidate["publish_stage"] == "before_transcription"
+
+
+def test_vad_timing_bridge_does_not_attach_command_asr_shadow_by_default(
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "vad_timing_bridge.jsonl"
+    audio_bus = AudioBus(
+        max_duration_seconds=6.0,
+        sample_rate=16_000,
+        channels=1,
+        sample_width_bytes=2,
+    )
+
+    adapter = VoiceEngineV2VadTimingBridgeAdapter(
+        settings=_safe_settings(command_asr_shadow_bridge_enabled=False),
+        vad_observer=_observer(),
+        telemetry_writer=VoiceEngineV2VadTimingBridgeTelemetryWriter(
+            log_path,
+            enabled=True,
+        ),
+    )
+    owner = SimpleNamespace(_realtime_audio_bus_shadow_tap=audio_bus)
+
+    armed = adapter.arm(
+        owner=owner,
+        turn_id="turn-command-asr-shadow-default-off",
+        phase="command",
+        capture_mode="wake_command",
+        capture_handoff={"strategy": "unit_test"},
+    )
+
+    for _index in range(3):
+        audio_bus.publish_pcm(
+            _speech_pcm(),
+            source="faster_whisper_capture_window_shadow_tap",
+        )
+    for _index in range(4):
+        audio_bus.publish_pcm(
+            _silence_pcm(),
+            source="faster_whisper_capture_window_shadow_tap",
+        )
+
+    capture_finished_at_monotonic = time.monotonic()
+
+    record = adapter.observe_after_capture_window_publish(
+        owner=owner,
+        capture_window_metadata={
+            "source": "faster_whisper_capture_window_shadow_tap",
+            "publish_stage": "before_transcription",
+            "sample_rate": 16_000,
+            "channels": 1,
+            "audio_sample_count": 32_000,
+            "audio_duration_seconds": 2.0,
+            "published_frame_count": 32,
+            "published_byte_count": 64_000,
+            "capture_finished_at_monotonic": capture_finished_at_monotonic,
+            "publish_started_at_monotonic": capture_finished_at_monotonic + 0.01,
+            "capture_finished_to_publish_start_ms": 10.0,
+        },
+    )
+
+    assert armed is True
+    assert record.observed is True
+    assert "command_asr_shadow_bridge" not in record.metadata
+    assert "command_asr_candidate" not in record.metadata
+
+    payload = json.loads(log_path.read_text(encoding="utf-8").splitlines()[0])
+
+    assert "command_asr_shadow_bridge" not in payload["metadata"]
+    assert "command_asr_candidate" not in payload["metadata"]
+
+
+def test_vad_timing_bridge_attaches_disabled_command_asr_shadow_when_enabled(
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "vad_timing_bridge.jsonl"
+    audio_bus = AudioBus(
+        max_duration_seconds=6.0,
+        sample_rate=16_000,
+        channels=1,
+        sample_width_bytes=2,
+    )
+
+    adapter = VoiceEngineV2VadTimingBridgeAdapter(
+        settings=_safe_settings(command_asr_shadow_bridge_enabled=True),
+        vad_observer=_observer(),
+        telemetry_writer=VoiceEngineV2VadTimingBridgeTelemetryWriter(
+            log_path,
+            enabled=True,
+        ),
+    )
+    owner = SimpleNamespace(_realtime_audio_bus_shadow_tap=audio_bus)
+
+    armed = adapter.arm(
+        owner=owner,
+        turn_id="turn-command-asr-shadow-enabled",
+        phase="command",
+        capture_mode="wake_command",
+        capture_handoff={"strategy": "unit_test"},
+    )
+
+    for _index in range(3):
+        audio_bus.publish_pcm(
+            _speech_pcm(),
+            source="faster_whisper_capture_window_shadow_tap",
+        )
+    for _index in range(4):
+        audio_bus.publish_pcm(
+            _silence_pcm(),
+            source="faster_whisper_capture_window_shadow_tap",
+        )
+
+    capture_finished_at_monotonic = time.monotonic()
+
+    record = adapter.observe_after_capture_window_publish(
+        owner=owner,
+        capture_window_metadata={
+            "source": "faster_whisper_capture_window_shadow_tap",
+            "publish_stage": "before_transcription",
+            "sample_rate": 16_000,
+            "channels": 1,
+            "audio_sample_count": 32_000,
+            "audio_duration_seconds": 2.0,
+            "published_frame_count": 32,
+            "published_byte_count": 64_000,
+            "capture_finished_at_monotonic": capture_finished_at_monotonic,
+            "publish_started_at_monotonic": capture_finished_at_monotonic + 0.01,
+            "capture_finished_to_publish_start_ms": 10.0,
+        },
+    )
+
+    assert armed is True
+    assert record.observed is True
+    assert record.action_executed is False
+    assert record.full_stt_prevented is False
+    assert record.runtime_takeover is False
+
+    bridge = record.metadata["command_asr_shadow_bridge"]
+    candidate = record.metadata["command_asr_candidate"]
+
+    assert bridge["enabled"] is True
+    assert bridge["observed"] is True
+    assert bridge["reason"] == "command_asr_shadow_bridge_observed"
+    assert bridge["candidate_attached"] is True
+    assert bridge["command_asr_candidate_present"] is False
+    assert bridge["command_asr_reason"] == "command_asr_disabled"
+    assert bridge["asr_reason"] == "command_asr_disabled"
+    assert bridge["recognizer_name"] == "disabled_command_asr"
+    assert bridge["recognizer_enabled"] is False
+    assert bridge["recognition_attempted"] is False
+    assert bridge["recognized"] is False
+    assert bridge["raw_pcm_included"] is False
+    assert bridge["action_executed"] is False
+    assert bridge["full_stt_prevented"] is False
+    assert bridge["runtime_takeover"] is False
+
+    assert candidate["candidate_present"] is False
+    assert candidate["reason"] == "command_asr_disabled"
+    assert candidate["recognizer_name"] == "disabled_command_asr"
+    assert candidate["recognizer_enabled"] is False
+    assert candidate["recognition_attempted"] is False
+    assert candidate["recognized"] is False
+    assert candidate["raw_pcm_included"] is False
+    assert candidate["action_executed"] is False
+    assert candidate["full_stt_prevented"] is False
+    assert candidate["runtime_takeover"] is False
+
+    payload = json.loads(log_path.read_text(encoding="utf-8").splitlines()[0])
+    logged_bridge = payload["metadata"]["command_asr_shadow_bridge"]
+    logged_candidate = payload["metadata"]["command_asr_candidate"]
+
+    assert logged_bridge["enabled"] is True
+    assert logged_bridge["candidate_attached"] is True
+    assert logged_bridge["recognizer_enabled"] is False
+    assert logged_bridge["recognition_attempted"] is False
+    assert logged_bridge["recognized"] is False
+    assert logged_candidate["raw_pcm_included"] is False
