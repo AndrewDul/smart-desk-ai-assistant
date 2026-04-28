@@ -130,6 +130,15 @@ def test_vad_shadow_emits_speech_start_and_end_events() -> None:
     assert snapshot.speech_ended_count == 1
     assert snapshot.latest_event_type == "speech_ended"
     assert snapshot.in_speech is False
+    assert snapshot.speech_frame_count == 3
+    assert snapshot.silence_frame_count == 4
+    assert snapshot.speech_score_count == 7
+    assert snapshot.speech_score_min == 0.0
+    assert snapshot.speech_score_max == 1.0
+    assert snapshot.speech_score_avg == 3 / 7
+    assert snapshot.speech_score_over_threshold_count == 3
+    assert snapshot.latest_score == 0.0
+    assert snapshot.event_emission_reason == "events_emitted"
 
     event_types = [event["event_type"] for event in snapshot.events]
     assert "speech_started" in event_types
@@ -213,3 +222,113 @@ def test_vad_shadow_builder_reads_safe_config() -> None:
     assert snapshot.min_speech_ms == 160
     assert snapshot.min_silence_ms == 320
     assert snapshot.speech_threshold == 0.7
+
+
+
+
+def test_vad_shadow_reports_all_scores_below_threshold_reason() -> None:
+    audio_bus = AudioBus(
+        max_duration_seconds=3.0,
+        sample_rate=16_000,
+        channels=1,
+        sample_width_bytes=2,
+    )
+    observer = VoiceEngineV2VadShadowObserver(
+        enabled=True,
+        endpointing_policy_config=EndpointingPolicyConfig(
+            min_speech_ms=120,
+            min_silence_ms=180,
+        ),
+        max_frames_per_observation=16,
+        score_provider_factory=lambda: (lambda frame: 0.2),
+    )
+
+    audio_bus.publish_pcm(_speech_pcm(), timestamp_monotonic=time.monotonic())
+
+    snapshot = observer.observe(_owner_with_bus(audio_bus))
+
+    assert snapshot.reason == "vad_shadow_observed_audio"
+    assert snapshot.events_emitted == 0
+    assert snapshot.speech_score_count == 1
+    assert snapshot.speech_score_min == 0.2
+    assert snapshot.speech_score_max == 0.2
+    assert snapshot.speech_score_avg == 0.2
+    assert snapshot.speech_score_over_threshold_count == 0
+    assert snapshot.speech_frame_count == 0
+    assert snapshot.silence_frame_count == 1
+    assert snapshot.event_emission_reason.startswith("all_scores_below_threshold")
+
+
+def test_vad_shadow_reports_short_speech_candidate_reason() -> None:
+    audio_bus = AudioBus(
+        max_duration_seconds=3.0,
+        sample_rate=16_000,
+        channels=1,
+        sample_width_bytes=2,
+    )
+    observer = VoiceEngineV2VadShadowObserver(
+        enabled=True,
+        endpointing_policy_config=EndpointingPolicyConfig(
+            min_speech_ms=300,
+            min_silence_ms=180,
+        ),
+        max_frames_per_observation=16,
+        score_provider_factory=lambda: (lambda frame: 1.0),
+    )
+
+    audio_bus.publish_pcm(
+        _speech_pcm(sample_count=1600),
+        timestamp_monotonic=time.monotonic(),
+    )
+
+    snapshot = observer.observe(_owner_with_bus(audio_bus))
+
+    assert snapshot.reason == "vad_shadow_observed_audio"
+    assert snapshot.events_emitted == 0
+    assert snapshot.speech_frame_count == 1
+    assert snapshot.silence_frame_count == 0
+    assert snapshot.speech_score_over_threshold_count == 1
+    assert snapshot.event_emission_reason.startswith(
+        "speech_candidate_shorter_than_min_speech"
+    )
+
+
+def test_vad_shadow_reports_waiting_for_silence_reason() -> None:
+    audio_bus = AudioBus(
+        max_duration_seconds=3.0,
+        sample_rate=16_000,
+        channels=1,
+        sample_width_bytes=2,
+    )
+    observer = VoiceEngineV2VadShadowObserver(
+        enabled=True,
+        endpointing_policy_config=EndpointingPolicyConfig(
+            min_speech_ms=120,
+            min_silence_ms=180,
+        ),
+        max_frames_per_observation=16,
+        score_provider_factory=lambda: (lambda frame: 1.0),
+    )
+
+    now = time.monotonic()
+    for index in range(2):
+        audio_bus.publish_pcm(
+            _speech_pcm(sample_count=1600),
+            timestamp_monotonic=now + (index * 0.10),
+        )
+
+    snapshot = observer.observe(_owner_with_bus(audio_bus))
+
+    assert snapshot.events_emitted == 1
+    assert snapshot.latest_event_type == "speech_started"
+    assert snapshot.in_speech is True
+
+    audio_bus.publish_pcm(
+        _speech_pcm(sample_count=1600),
+        timestamp_monotonic=now + 0.30,
+    )
+    second_snapshot = observer.observe(_owner_with_bus(audio_bus))
+
+    assert second_snapshot.events_emitted == 0
+    assert second_snapshot.in_speech is True
+    assert second_snapshot.event_emission_reason == "in_speech_waiting_for_silence"

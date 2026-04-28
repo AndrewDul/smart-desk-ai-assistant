@@ -5864,3 +5864,379 @@ Stage 24B must not execute actions, must not prevent FasterWhisper and must not 
 
 
 ---
+
+
+## Stage 24B — Guarded VAD shadow safety switch and hardware validation
+
+### Status
+
+Validated on Raspberry Pi hardware.
+
+### What changed
+
+Stage 24B added a guarded safety switch and validator for Voice Engine v2 VAD shadow telemetry.
+
+New scripts:
+
+```text
+scripts/set_voice_engine_v2_vad_shadow.py
+scripts/validate_voice_engine_v2_vad_shadow_log.py
+```
+The safety switch controls:
+
+voice_engine.vad_shadow_enabled
+
+It only allows VAD shadow validation when NEXA remains in legacy-primary mode and the required observation dependencies are enabled:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+voice_engine.runtime_candidates_enabled=false
+voice_engine.pre_stt_shadow_enabled=true
+voice_engine.faster_whisper_audio_bus_tap_enabled=true
+
+The hardware validation enabled:
+
+voice_engine.pre_stt_shadow_enabled=true
+voice_engine.faster_whisper_audio_bus_tap_enabled=true
+voice_engine.vad_shadow_enabled=true
+
+and then disabled all three flags after the smoke run.
+
+Why this was needed
+
+Stage 24A added the VAD shadow observer, but it still needed hardware validation against real runtime audio.
+
+Stage 24B proves that the current migration bridge can safely run:
+
+existing FasterWhisper callback
+→ copied PCM into RealtimeAudioBus
+→ VAD shadow observer
+→ pre-STT telemetry
+
+without changing the production command path.
+
+This keeps the target Voice Engine v2 architecture intact:
+
+Wake word
+→ RealtimeAudioBus
+→ Silero VAD ONNX endpointing
+→ Vosk command recognizer PL/EN
+→ CommandIntentResolver
+→ fast action
+
+FasterWhisper remains fallback for full STT, conversation and LLM routing.
+
+What NEXA gains
+
+NEXA now has hardware evidence that VAD shadow can observe real audio frames from RealtimeAudioBus.
+
+The validation confirmed:
+
+vad_shadow_records=5
+enabled_records=5
+observed_records=5
+audio_bus_present_records=5
+frames_processed_records=4
+total_frames_processed=184
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+
+This means the VAD shadow path is connected and safe.
+
+It also identifies the next engineering target: VAD telemetry tuning and event validation. The hardware run processed frames, but did not emit speech_started or speech_ended events:
+
+total_events_emitted=0
+event_types={}
+
+That means Stage 24B validates safe frame processing, but not yet reliable live endpoint event generation.
+
+Removed or deprecated legacy path
+
+None.
+
+No wake word path was removed.
+No FasterWhisper path was removed.
+No TTS path was changed.
+No Visual Shell path was changed.
+No command-first execution was enabled.
+No Vosk command recognizer was run.
+
+All Stage 24B switches remain disabled by default.
+
+Source / evidence
+
+Pre-STT shadow validator result:
+
+accepted=true
+total_lines=5
+valid_json_records=5
+observed_records=5
+not_observed_records=0
+reasons.audio_bus_available_observe_only=5
+issues=[]
+
+VAD shadow validator result:
+
+accepted=true
+vad_shadow_records=5
+enabled_records=5
+observed_records=5
+audio_bus_present_records=5
+frames_processed_records=4
+total_frames_processed=184
+total_events_emitted=0
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+reasons.no_new_audio_frames_observe_only=1
+reasons.vad_shadow_observed_audio=4
+issues=[]
+
+Final safe config after hardware validation:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+voice_engine.runtime_candidates_enabled=false
+voice_engine.pre_stt_shadow_enabled=false
+voice_engine.faster_whisper_audio_bus_tap_enabled=false
+voice_engine.vad_shadow_enabled=false
+Validation
+pytest -q tests/scripts/test_set_voice_engine_v2_vad_shadow.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
+pytest -q tests/runtime/voice_engine_v2/test_pre_stt_shadow.py
+pytest -q tests/runtime/voice_engine_v2/test_faster_whisper_audio_bus_tap.py
+pytest -q tests/scripts/test_set_voice_engine_v2_audio_bus_tap.py
+pytest -q tests/runtime/voice_engine_v2
+
+pytest -q tests/core/voice_engine
+pytest -q tests/core/command_intents
+pytest -q tests/devices/audio/vad
+pytest -q tests/devices/audio/realtime
+pytest -q tests/devices/audio/command_asr
+pytest -q tests/test_interaction_route_dispatch.py
+pytest -q tests/benchmarks/voice
+
+Hardware validation:
+
+python scripts/set_voice_engine_v2_runtime_candidates.py --disable
+python scripts/set_voice_engine_v2_vad_shadow.py --disable
+python scripts/set_voice_engine_v2_audio_bus_tap.py --disable
+python scripts/set_voice_engine_v2_pre_stt_shadow.py --disable
+
+python scripts/set_voice_engine_v2_pre_stt_shadow.py --enable
+python scripts/set_voice_engine_v2_audio_bus_tap.py --enable
+python scripts/set_voice_engine_v2_vad_shadow.py --enable
+
+rm -f var/data/voice_engine_v2_pre_stt_shadow.jsonl
+python main.py
+
+python scripts/validate_voice_engine_v2_pre_stt_shadow_log.py \
+  --log-path var/data/voice_engine_v2_pre_stt_shadow.jsonl \
+  --require-observed
+
+python scripts/validate_voice_engine_v2_vad_shadow_log.py \
+  --log-path var/data/voice_engine_v2_pre_stt_shadow.jsonl \
+  --require-enabled \
+  --require-observed \
+  --require-audio-bus-present \
+  --require-frames
+
+python scripts/set_voice_engine_v2_vad_shadow.py --disable
+python scripts/set_voice_engine_v2_audio_bus_tap.py --disable
+python scripts/set_voice_engine_v2_pre_stt_shadow.py --disable
+Follow-up
+
+Stage 24C should improve VAD shadow diagnostics before Vosk is added.
+
+The next stage should not run Vosk yet. It should add telemetry that explains why live hardware produced frames but no endpoint events.
+
+Stage 24C should record at least:
+
+speech_score_min
+speech_score_max
+speech_score_avg
+speech_score_over_threshold_count
+silence_frame_count
+speech_frame_count
+event emission reason
+
+The goal is to confirm whether the missing events are caused by:
+
+Silero score threshold too high
+audio frame duration/window mismatch
+subscription timing
+policy min_speech/min_silence settings
+pre-STT observation timing
+
+Stage 24C must remain observe-only and must not execute actions or prevent FasterWhisper.
+
+
+---
+
+
+## Stage 24C — VAD shadow score diagnostics and endpoint event validation
+
+### Status
+
+Validated on Raspberry Pi hardware.
+
+### What changed
+
+Stage 24C extended VAD shadow telemetry with score diagnostics.
+
+The VAD shadow metadata now records:
+
+```text
+speech_score_min
+speech_score_max
+speech_score_avg
+speech_score_over_threshold_count
+speech_frame_count
+silence_frame_count
+event_emission_reason
+```
+
+The validator now supports:
+
+--require-score-diagnostics
+
+This allows hardware validation to distinguish between:
+
+audio bus missing
+audio frames missing
+VAD score unavailable
+scores below threshold
+speech frames seen but too short
+speech state waiting for silence
+endpoint events emitted
+Why this was needed
+
+Stage 24B proved that VAD shadow receives real audio frames from RealtimeAudioBus, but hardware telemetry showed:
+
+total_events_emitted=0
+event_types={}
+
+Without score diagnostics, NEXA could not determine whether the missing endpoint events were caused by:
+
+threshold too high
+wrong audio window size
+Silero provider mismatch
+insufficient speech duration
+insufficient silence duration
+subscription timing
+
+Stage 24C made that failure mode measurable.
+
+What NEXA gains
+
+NEXA now has actionable VAD telemetry instead of a vague “no events” result.
+
+The hardware run confirmed:
+
+vad_shadow_records=5
+enabled_records=5
+observed_records=5
+audio_bus_present_records=5
+frames_processed_records=4
+total_frames_processed=184
+diagnostics_records=5
+speech_score_records=4
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+
+The diagnostics identified the current cause:
+
+max_speech_score=0.0
+speech_frame_records=0
+silence_frame_records=4
+event_emission_reasons.all_scores_below_threshold:max=0.000:threshold=0.500=4
+
+This means the realtime audio path is alive, but the current Silero score provider is not producing speech probabilities from live frames.
+
+Removed or deprecated legacy path
+
+None.
+
+No wake word path was removed.
+No FasterWhisper path was removed.
+No TTS path was changed.
+No Visual Shell path was changed.
+No command-first execution was enabled.
+No Vosk recognizer was run.
+
+Source / evidence
+
+Hardware validation result:
+
+accepted=true
+vad_shadow_records=5
+enabled_records=5
+observed_records=5
+audio_bus_present_records=5
+frames_processed_records=4
+total_frames_processed=184
+total_events_emitted=0
+diagnostics_records=5
+speech_score_records=4
+speech_frame_records=0
+silence_frame_records=4
+max_speech_score=0.0
+max_speech_frame_count=0
+max_silence_frame_count=46
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+
+The Silero documentation/source describes speech detection as probability-over-threshold per audio chunk and uses a 512-sample window for 16 kHz audio. This supports replacing get_speech_timestamps(...) as the per-frame scoring method with a direct model probability score over 512-sample chunks.
+
+Validation
+pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
+pytest -q tests/scripts/test_set_voice_engine_v2_vad_shadow.py
+pytest -q tests/runtime/voice_engine_v2/test_pre_stt_shadow.py
+pytest -q tests/runtime/voice_engine_v2
+
+pytest -q tests/core/voice_engine
+pytest -q tests/core/command_intents
+pytest -q tests/devices/audio/vad
+pytest -q tests/devices/audio/realtime
+pytest -q tests/devices/audio/command_asr
+pytest -q tests/scripts/test_set_voice_engine_v2_audio_bus_tap.py
+pytest -q tests/test_interaction_route_dispatch.py
+pytest -q tests/benchmarks/voice
+
+Hardware validation:
+
+python scripts/validate_voice_engine_v2_pre_stt_shadow_log.py \
+  --log-path var/data/voice_engine_v2_pre_stt_shadow.jsonl \
+  --require-observed
+
+python scripts/validate_voice_engine_v2_vad_shadow_log.py \
+  --log-path var/data/voice_engine_v2_pre_stt_shadow.jsonl \
+  --require-enabled \
+  --require-observed \
+  --require-audio-bus-present \
+  --require-frames \
+  --require-score-diagnostics
+Follow-up
+
+Stage 24D should replace the current SileroOnnxVadScoreProvider scoring strategy.
+
+The current implementation uses get_speech_timestamps(...) as a per-frame score source, which is not appropriate for frame-by-frame shadow endpointing.
+
+Stage 24D should use direct Silero model probability scoring over 512-sample windows at 16 kHz, keep the path observe-only, and validate that hardware telemetry produces non-zero speech_score_max during spoken commands.
+
+Stage 24D must not run Vosk yet.
+
+
+---

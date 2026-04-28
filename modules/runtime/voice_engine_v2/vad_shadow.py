@@ -38,6 +38,15 @@ class VoiceEngineV2VadShadowSnapshot:
     in_speech: bool = False
     speech_started_count: int = 0
     speech_ended_count: int = 0
+    speech_frame_count: int = 0
+    silence_frame_count: int = 0
+    speech_score_count: int = 0
+    speech_score_min: float | None = None
+    speech_score_max: float | None = None
+    speech_score_avg: float | None = None
+    speech_score_over_threshold_count: int = 0
+    latest_score: float | None = None
+    event_emission_reason: str = ""
     min_speech_ms: int = 0
     min_silence_ms: int = 0
     speech_threshold: float = 0.0
@@ -72,6 +81,15 @@ class VoiceEngineV2VadShadowSnapshot:
             "in_speech": self.in_speech,
             "speech_started_count": self.speech_started_count,
             "speech_ended_count": self.speech_ended_count,
+            "speech_frame_count": self.speech_frame_count,
+            "silence_frame_count": self.silence_frame_count,
+            "speech_score_count": self.speech_score_count,
+            "speech_score_min": self.speech_score_min,
+            "speech_score_max": self.speech_score_max,
+            "speech_score_avg": self.speech_score_avg,
+            "speech_score_over_threshold_count": self.speech_score_over_threshold_count,
+            "latest_score": self.latest_score,
+            "event_emission_reason": self.event_emission_reason,
             "min_speech_ms": self.min_speech_ms,
             "min_silence_ms": self.min_silence_ms,
             "speech_threshold": self.speech_threshold,
@@ -220,6 +238,7 @@ class VoiceEngineV2VadShadowObserver:
                 source=source,
                 frames_processed=len(frames),
                 decisions_processed=len(decisions),
+                decisions=decisions,
                 events=events,
                 latest_frame_sequence=frames[-1].sequence,
                 in_speech=self._policy.in_speech,
@@ -291,13 +310,24 @@ class VoiceEngineV2VadShadowObserver:
         source: str,
         frames_processed: int = 0,
         decisions_processed: int = 0,
+        decisions: list[VadDecision] | None = None,
         events: list[VadEvent] | None = None,
         latest_frame_sequence: int | None = None,
         in_speech: bool = False,
         error: str = "",
     ) -> VoiceEngineV2VadShadowSnapshot:
+        safe_decisions = list(decisions or [])
         safe_events = list(events or [])
         serialized_events = [_event_to_json_dict(event) for event in safe_events]
+        diagnostics = _decision_diagnostics(
+            decisions=safe_decisions,
+            events=safe_events,
+            in_speech=in_speech,
+            min_speech_ms=self._endpointing_policy_config.min_speech_ms,
+            min_silence_ms=self._endpointing_policy_config.min_silence_ms,
+            threshold=self._speech_threshold,
+            reason=reason,
+        )
 
         speech_started_count = sum(
             1 for event in safe_events if str(event.event_type.value) == "speech_started"
@@ -324,6 +354,17 @@ class VoiceEngineV2VadShadowObserver:
             in_speech=in_speech,
             speech_started_count=speech_started_count,
             speech_ended_count=speech_ended_count,
+            speech_frame_count=int(diagnostics["speech_frame_count"]),
+            silence_frame_count=int(diagnostics["silence_frame_count"]),
+            speech_score_count=int(diagnostics["speech_score_count"]),
+            speech_score_min=diagnostics["speech_score_min"],
+            speech_score_max=diagnostics["speech_score_max"],
+            speech_score_avg=diagnostics["speech_score_avg"],
+            speech_score_over_threshold_count=int(
+                diagnostics["speech_score_over_threshold_count"]
+            ),
+            latest_score=diagnostics["latest_score"],
+            event_emission_reason=str(diagnostics["event_emission_reason"]),
             min_speech_ms=self._endpointing_policy_config.min_speech_ms,
             min_silence_ms=self._endpointing_policy_config.min_silence_ms,
             speech_threshold=self._speech_threshold,
@@ -364,6 +405,119 @@ def build_voice_engine_v2_vad_shadow_observer(
             fallback=96,
         ),
     )
+
+
+def _decision_diagnostics(
+    *,
+    decisions: list[VadDecision],
+    events: list[VadEvent],
+    in_speech: bool,
+    min_speech_ms: int,
+    min_silence_ms: int,
+    threshold: float,
+    reason: str,
+) -> dict[str, Any]:
+    if not decisions:
+        return {
+            "speech_frame_count": 0,
+            "silence_frame_count": 0,
+            "speech_score_count": 0,
+            "speech_score_min": None,
+            "speech_score_max": None,
+            "speech_score_avg": None,
+            "speech_score_over_threshold_count": 0,
+            "latest_score": None,
+            "event_emission_reason": _event_emission_reason(
+                decisions=[],
+                events=events,
+                in_speech=in_speech,
+                min_speech_ms=min_speech_ms,
+                min_silence_ms=min_silence_ms,
+                threshold=threshold,
+                reason=reason,
+            ),
+        }
+
+    scores = [float(decision.score) for decision in decisions]
+    speech_frame_count = sum(1 for decision in decisions if decision.is_speech)
+    silence_frame_count = len(decisions) - speech_frame_count
+    over_threshold_count = sum(1 for score in scores if score >= threshold)
+
+    return {
+        "speech_frame_count": speech_frame_count,
+        "silence_frame_count": silence_frame_count,
+        "speech_score_count": len(scores),
+        "speech_score_min": min(scores),
+        "speech_score_max": max(scores),
+        "speech_score_avg": sum(scores) / len(scores),
+        "speech_score_over_threshold_count": over_threshold_count,
+        "latest_score": scores[-1],
+        "event_emission_reason": _event_emission_reason(
+            decisions=decisions,
+            events=events,
+            in_speech=in_speech,
+            min_speech_ms=min_speech_ms,
+            min_silence_ms=min_silence_ms,
+            threshold=threshold,
+            reason=reason,
+        ),
+    }
+
+
+def _event_emission_reason(
+    *,
+    decisions: list[VadDecision],
+    events: list[VadEvent],
+    in_speech: bool,
+    min_speech_ms: int,
+    min_silence_ms: int,
+    threshold: float,
+    reason: str,
+) -> str:
+    if events:
+        return "events_emitted"
+
+    if reason != "vad_shadow_observed_audio":
+        return reason
+
+    if not decisions:
+        return "no_decisions"
+
+    speech_frames = [decision for decision in decisions if decision.is_speech]
+    silence_frames = [decision for decision in decisions if not decision.is_speech]
+
+    if not speech_frames and silence_frames:
+        max_score = max(float(decision.score) for decision in decisions)
+        return f"all_scores_below_threshold:max={max_score:.3f}:threshold={threshold:.3f}"
+
+    if speech_frames and not in_speech:
+        speech_duration = sum(
+            decision.frame_duration_seconds for decision in speech_frames
+        )
+        min_speech_seconds = min_speech_ms / 1000.0
+        if speech_duration < min_speech_seconds:
+            return (
+                "speech_candidate_shorter_than_min_speech:"
+                f"duration={speech_duration:.3f}:required={min_speech_seconds:.3f}"
+            )
+        return "speech_frames_seen_but_policy_not_in_speech"
+
+    if in_speech and not silence_frames:
+        return "in_speech_waiting_for_silence"
+
+    if in_speech and silence_frames:
+        silence_duration = sum(
+            decision.frame_duration_seconds for decision in silence_frames
+        )
+        min_silence_seconds = min_silence_ms / 1000.0
+        if silence_duration < min_silence_seconds:
+            return (
+                "silence_candidate_shorter_than_min_silence:"
+                f"duration={silence_duration:.3f}:required={min_silence_seconds:.3f}"
+            )
+        return "silence_frames_seen_but_no_speech_end_event"
+
+    return "no_events_emitted"
 
 
 def _event_to_json_dict(event: VadEvent) -> dict[str, Any]:
