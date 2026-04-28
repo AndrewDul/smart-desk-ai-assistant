@@ -265,6 +265,68 @@ class VoiceEngineV2VadShadowObserver:
     def enabled(self) -> bool:
         return self._enabled
 
+    def arm(
+        self,
+        owner: Any,
+        *,
+        subscription_name: str = "voice_engine_v2_vad_shadow",
+        start_at_latest: bool = True,
+    ) -> VoiceEngineV2VadShadowSnapshot:
+        observation_started_monotonic = time.monotonic()
+
+        if not self._enabled:
+            return self._snapshot(
+                observed=False,
+                reason="vad_shadow_disabled",
+                audio_bus_present=False,
+                source="",
+                observation_started_monotonic=observation_started_monotonic,
+            )
+
+        audio_bus, source = find_realtime_audio_bus(owner)
+        if audio_bus is None:
+            return self._snapshot(
+                observed=False,
+                reason="audio_bus_unavailable_for_vad_shadow",
+                audio_bus_present=False,
+                source="",
+                observation_started_monotonic=observation_started_monotonic,
+            )
+
+        try:
+            self._reset_subscription(
+                audio_bus,
+                subscription_name=subscription_name,
+                start_at_latest=start_at_latest,
+            )
+            next_sequence = (
+                self._subscription.next_sequence
+                if self._subscription is not None
+                else None
+            )
+            return self._snapshot(
+                observed=True,
+                reason="vad_shadow_armed_observe_only",
+                audio_bus_present=True,
+                source=source,
+                in_speech=self._policy.in_speech,
+                observation_started_monotonic=observation_started_monotonic,
+                audio_bus_latest_sequence=audio_bus.latest_sequence,
+                audio_bus_frame_count=audio_bus.frame_count,
+                audio_bus_duration_seconds=audio_bus.duration_seconds,
+                subscription_next_sequence_before=next_sequence,
+                subscription_next_sequence_after=next_sequence,
+            )
+        except Exception as error:
+            return self._snapshot(
+                observed=False,
+                reason=f"vad_shadow_arm_failed:{type(error).__name__}",
+                audio_bus_present=True,
+                source=source,
+                error=str(error),
+                observation_started_monotonic=observation_started_monotonic,
+            )
+
     def observe(self, owner: Any) -> VoiceEngineV2VadShadowSnapshot:
         observation_started_monotonic = time.monotonic()
 
@@ -374,10 +436,23 @@ class VoiceEngineV2VadShadowObserver:
         if self._subscription is not None and self._audio_bus_id == audio_bus_id:
             return
 
-        self._audio_bus_id = audio_bus_id
-        self._subscription = audio_bus.create_subscription(
-            "voice_engine_v2_vad_shadow",
+        self._reset_subscription(
+            audio_bus,
+            subscription_name="voice_engine_v2_vad_shadow",
             start_at_latest=False,
+        )
+
+    def _reset_subscription(
+        self,
+        audio_bus: AudioBus,
+        *,
+        subscription_name: str,
+        start_at_latest: bool,
+    ) -> None:
+        self._audio_bus_id = id(audio_bus)
+        self._subscription = audio_bus.create_subscription(
+            subscription_name,
+            start_at_latest=start_at_latest,
         )
         self._policy.reset()
         if self._engine is not None:

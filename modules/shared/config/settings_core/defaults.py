@@ -71,6 +71,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "vad_shadow_speech_threshold": 0.5,
         "vad_shadow_min_speech_ms": 120,
         "vad_shadow_min_silence_ms": 250,
+        "vad_timing_bridge_enabled": False,
+        "vad_timing_bridge_log_path": (
+            "var/data/voice_engine_v2_vad_timing_bridge.jsonl"
+        ),
         "vad_endpointing_enabled": False,
         "command_first_enabled": False,
         "fallback_to_legacy_enabled": True,

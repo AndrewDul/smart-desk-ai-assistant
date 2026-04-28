@@ -655,6 +655,100 @@ def _observe_voice_engine_v2_pre_stt_shadow(
     assistant._last_voice_engine_v2_pre_stt_shadow = result
     return bool(getattr(result, "observed", False))
 
+def _voice_engine_v2_current_turn_id(
+    assistant: CoreAssistant,
+    *,
+    fallback_prefix: str,
+) -> str:
+    benchmark_service = getattr(assistant, "turn_benchmark_service", None)
+    current_turn_id = getattr(benchmark_service, "current_turn_id", None)
+    if current_turn_id:
+        return str(current_turn_id)
+    return f"{fallback_prefix}-{time.monotonic():.6f}"
+
+
+def _voice_engine_v2_vad_timing_bridge_adapter(assistant: CoreAssistant):
+    adapter = getattr(assistant, "voice_engine_v2_vad_timing_bridge_adapter", None)
+    if adapter is not None:
+        return adapter
+
+    runtime = getattr(assistant, "runtime", None)
+    runtime_metadata = getattr(runtime, "metadata", {}) if runtime is not None else {}
+    if isinstance(runtime_metadata, dict):
+        return runtime_metadata.get("voice_engine_v2_vad_timing_bridge_adapter")
+
+    return None
+
+
+def _arm_voice_engine_v2_vad_timing_bridge(
+    assistant: CoreAssistant,
+    *,
+    phase: str,
+    capture_mode: str,
+    capture_handoff: dict[str, object] | None = None,
+) -> bool:
+    adapter = _voice_engine_v2_vad_timing_bridge_adapter(assistant)
+    arm = getattr(adapter, "arm", None)
+    if not callable(arm):
+        return False
+
+    try:
+        return bool(
+            arm(
+                owner=assistant,
+                turn_id=_voice_engine_v2_current_turn_id(
+                    assistant,
+                    fallback_prefix="vad_timing_bridge",
+                ),
+                phase=str(phase or "command").strip() or "command",
+                capture_mode=str(capture_mode or "command").strip() or "command",
+                capture_handoff=dict(capture_handoff or {}),
+            )
+        )
+    except Exception as error:
+        append_log(f"Voice Engine v2 VAD timing bridge arm failed safely: {error}")
+        return False
+
+
+def _observe_voice_engine_v2_vad_timing_bridge_after_capture(
+    assistant: CoreAssistant,
+    *,
+    phase: str,
+    capture_mode: str,
+    transcript: TranscriptResult | None,
+) -> bool:
+    adapter = _voice_engine_v2_vad_timing_bridge_adapter(assistant)
+    observe_after_capture = getattr(adapter, "observe_after_capture", None)
+    if not callable(observe_after_capture):
+        return False
+
+    transcript_metadata = {}
+    if transcript is not None:
+        transcript_metadata = dict(getattr(transcript, "metadata", {}) or {})
+
+    try:
+        result = observe_after_capture(
+            owner=assistant,
+            turn_id=_voice_engine_v2_current_turn_id(
+                assistant,
+                fallback_prefix="vad_timing_bridge",
+            ),
+            phase=str(phase or "command").strip() or "command",
+            capture_mode=str(capture_mode or "command").strip() or "command",
+            transcript_present=transcript is not None,
+            transcript_metadata=transcript_metadata,
+        )
+    except Exception as error:
+        append_log(
+            f"Voice Engine v2 VAD timing bridge observe failed safely: {error}"
+        )
+        return False
+
+    assistant._last_voice_engine_v2_vad_timing_bridge = result
+    return bool(getattr(result, "observed", False))
+
+
+
 
 def _capture_transcript_for_assistant(
     assistant: CoreAssistant,
@@ -921,12 +1015,27 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
         capture_handoff=capture_handoff,
     )
 
+    _arm_voice_engine_v2_vad_timing_bridge(
+        assistant,
+        phase=active_phase,
+        capture_mode=capture_mode,
+        capture_handoff=capture_handoff,
+    )
+
     transcript = _capture_transcript_for_assistant(
         assistant,
         timeout=_active_command_timeout(assistant),
         debug=bool(getattr(assistant, "voice_debug", False)),
         mode=capture_mode,
     )
+
+    _observe_voice_engine_v2_vad_timing_bridge_after_capture(
+        assistant,
+        phase=active_phase,
+        capture_mode=capture_mode,
+        transcript=transcript,
+    )
+
     if transcript is None:
         return None
 

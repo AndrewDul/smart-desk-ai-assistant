@@ -1,0 +1,424 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+import json
+from pathlib import Path
+import time
+from typing import Any, Mapping
+
+from modules.runtime.voice_engine_v2.vad_shadow import (
+    VoiceEngineV2VadShadowObserver,
+    build_voice_engine_v2_vad_shadow_observer,
+)
+
+
+DEFAULT_VAD_TIMING_BRIDGE_LOG_PATH = (
+    "var/data/voice_engine_v2_vad_timing_bridge.jsonl"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class VoiceEngineV2VadTimingBridgeRecord:
+    timestamp_utc: str
+    timestamp_monotonic: float
+    enabled: bool
+    observed: bool
+    reason: str
+    hook: str
+    turn_id: str
+    phase: str
+    capture_mode: str
+    legacy_runtime_primary: bool
+    action_executed: bool
+    full_stt_prevented: bool
+    runtime_takeover: bool
+    transcript_present: bool
+    vad_shadow: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    telemetry_written: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.reason.strip():
+            raise ValueError("reason must not be empty")
+        if not self.hook.strip():
+            raise ValueError("hook must not be empty")
+        if self.action_executed:
+            raise ValueError("VAD timing bridge must never execute actions")
+        if self.full_stt_prevented:
+            raise ValueError("VAD timing bridge must never prevent full STT")
+        if self.runtime_takeover:
+            raise ValueError("VAD timing bridge must never take over runtime")
+
+        object.__setattr__(self, "vad_shadow", dict(self.vad_shadow or {}))
+        object.__setattr__(self, "metadata", dict(self.metadata or {}))
+
+    def with_telemetry_written(
+        self,
+        telemetry_written: bool,
+    ) -> VoiceEngineV2VadTimingBridgeRecord:
+        return VoiceEngineV2VadTimingBridgeRecord(
+            timestamp_utc=self.timestamp_utc,
+            timestamp_monotonic=self.timestamp_monotonic,
+            enabled=self.enabled,
+            observed=self.observed,
+            reason=self.reason,
+            hook=self.hook,
+            turn_id=self.turn_id,
+            phase=self.phase,
+            capture_mode=self.capture_mode,
+            legacy_runtime_primary=self.legacy_runtime_primary,
+            action_executed=self.action_executed,
+            full_stt_prevented=self.full_stt_prevented,
+            runtime_takeover=self.runtime_takeover,
+            transcript_present=self.transcript_present,
+            vad_shadow=self.vad_shadow,
+            metadata=self.metadata,
+            telemetry_written=telemetry_written,
+        )
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "timestamp_utc": self.timestamp_utc,
+            "timestamp_monotonic": self.timestamp_monotonic,
+            "enabled": self.enabled,
+            "observed": self.observed,
+            "reason": self.reason,
+            "hook": self.hook,
+            "turn_id": self.turn_id,
+            "phase": self.phase,
+            "capture_mode": self.capture_mode,
+            "legacy_runtime_primary": self.legacy_runtime_primary,
+            "action_executed": self.action_executed,
+            "full_stt_prevented": self.full_stt_prevented,
+            "runtime_takeover": self.runtime_takeover,
+            "transcript_present": self.transcript_present,
+            "vad_shadow": dict(self.vad_shadow),
+            "metadata": dict(self.metadata),
+        }
+
+
+class VoiceEngineV2VadTimingBridgeTelemetryWriter:
+    def __init__(self, path: str | Path, *, enabled: bool) -> None:
+        self._path = Path(path)
+        self._enabled = bool(enabled)
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+    def write(self, record: VoiceEngineV2VadTimingBridgeRecord) -> bool:
+        if not self._enabled:
+            return False
+
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        with self._path.open("a", encoding="utf-8") as file:
+            file.write(json.dumps(record.to_json_dict(), ensure_ascii=False))
+            file.write("\n")
+
+        return True
+
+    def write_safely(self, record: VoiceEngineV2VadTimingBridgeRecord) -> bool:
+        try:
+            return self.write(record)
+        except Exception:
+            return False
+
+
+@dataclass(frozen=True, slots=True)
+class _VadTimingBridgeArmState:
+    turn_id: str
+    phase: str
+    capture_mode: str
+    capture_handoff: dict[str, Any]
+    armed_at_monotonic: float
+    arm_snapshot: dict[str, Any]
+
+
+class VoiceEngineV2VadTimingBridgeAdapter:
+    """Observe-only VAD bridge around legacy capture.
+
+    The bridge arms a dedicated VAD observer before legacy capture starts, then
+    observes it after capture finishes. This measures frames published by the
+    existing FasterWhisper audio bus tap without starting a second microphone
+    stream and without running VAD inference inside the PortAudio callback.
+    """
+
+    def __init__(
+        self,
+        *,
+        settings: Mapping[str, Any],
+        vad_observer: VoiceEngineV2VadShadowObserver | None = None,
+        telemetry_writer: VoiceEngineV2VadTimingBridgeTelemetryWriter | None = None,
+    ) -> None:
+        self._settings = settings
+        self._vad_observer = vad_observer or build_voice_engine_v2_vad_shadow_observer(
+            settings
+        )
+        self._telemetry_writer = telemetry_writer
+        self._arm_state: _VadTimingBridgeArmState | None = None
+
+    @property
+    def enabled(self) -> bool:
+        return bool(
+            _voice_engine_config(self._settings).get(
+                "vad_timing_bridge_enabled",
+                False,
+            )
+        )
+
+    @property
+    def telemetry_path(self) -> str:
+        if self._telemetry_writer is None:
+            return ""
+        return str(self._telemetry_writer.path)
+
+    def arm(
+        self,
+        *,
+        owner: Any,
+        turn_id: str,
+        phase: str,
+        capture_mode: str,
+        capture_handoff: Mapping[str, Any] | None = None,
+    ) -> bool:
+        if not self.enabled:
+            self._arm_state = None
+            return False
+
+        safe, _reason = _safe_to_run_bridge(self._settings)
+        if not safe:
+            self._arm_state = None
+            return False
+
+        try:
+            snapshot = self._vad_observer.arm(
+                owner,
+                subscription_name="voice_engine_v2_vad_timing_bridge",
+                start_at_latest=True,
+            )
+        except Exception:
+            self._arm_state = None
+            return False
+
+        to_json_dict = getattr(snapshot, "to_json_dict", None)
+        arm_snapshot = dict(to_json_dict()) if callable(to_json_dict) else {}
+
+        self._arm_state = _VadTimingBridgeArmState(
+            turn_id=str(turn_id or "").strip(),
+            phase=str(phase or "command").strip() or "command",
+            capture_mode=str(capture_mode or "command").strip() or "command",
+            capture_handoff=dict(capture_handoff or {}),
+            armed_at_monotonic=time.monotonic(),
+            arm_snapshot=arm_snapshot,
+        )
+        return bool(arm_snapshot.get("observed", False))
+
+    def observe_after_capture(
+        self,
+        *,
+        owner: Any,
+        turn_id: str,
+        phase: str,
+        capture_mode: str,
+        transcript_present: bool,
+        transcript_metadata: Mapping[str, Any] | None = None,
+    ) -> VoiceEngineV2VadTimingBridgeRecord:
+        if not self.enabled:
+            return self._record(
+                observed=False,
+                reason="vad_timing_bridge_disabled",
+                hook="post_capture",
+                turn_id=turn_id,
+                phase=phase,
+                capture_mode=capture_mode,
+                transcript_present=transcript_present,
+                vad_shadow={},
+                metadata={},
+                write_telemetry=False,
+            )
+
+        safe, safety_reason = _safe_to_run_bridge(self._settings)
+        if not safe:
+            return self._record(
+                observed=False,
+                reason=f"vad_timing_bridge_not_safe:{safety_reason}",
+                hook="post_capture",
+                turn_id=turn_id,
+                phase=phase,
+                capture_mode=capture_mode,
+                transcript_present=transcript_present,
+                vad_shadow={},
+                metadata={
+                    "transcript_metadata": dict(transcript_metadata or {}),
+                },
+                write_telemetry=True,
+            )
+
+        arm_state = self._arm_state
+        if arm_state is None:
+            return self._record(
+                observed=False,
+                reason="vad_timing_bridge_not_armed",
+                hook="post_capture",
+                turn_id=turn_id,
+                phase=phase,
+                capture_mode=capture_mode,
+                transcript_present=transcript_present,
+                vad_shadow={},
+                metadata={
+                    "transcript_metadata": dict(transcript_metadata or {}),
+                },
+                write_telemetry=True,
+            )
+
+        try:
+            snapshot = self._vad_observer.observe(owner)
+            to_json_dict = getattr(snapshot, "to_json_dict", None)
+            vad_shadow = dict(to_json_dict()) if callable(to_json_dict) else {}
+            frames_processed = _positive_int(vad_shadow.get("frames_processed"))
+            reason = (
+                "vad_timing_bridge_observed_audio"
+                if frames_processed > 0
+                else "vad_timing_bridge_no_new_audio"
+            )
+            observed = bool(vad_shadow.get("observed", False))
+        except Exception as error:
+            vad_shadow = {
+                "enabled": True,
+                "observed": False,
+                "reason": f"vad_timing_bridge_vad_failed:{type(error).__name__}",
+                "error": str(error),
+                "action_executed": False,
+                "full_stt_prevented": False,
+                "runtime_takeover": False,
+            }
+            reason = f"vad_timing_bridge_failed:{type(error).__name__}"
+            observed = False
+
+        record = self._record(
+            observed=observed,
+            reason=reason,
+            hook="post_capture",
+            turn_id=turn_id or arm_state.turn_id,
+            phase=phase or arm_state.phase,
+            capture_mode=capture_mode or arm_state.capture_mode,
+            transcript_present=transcript_present,
+            vad_shadow=vad_shadow,
+            metadata={
+                "armed_at_monotonic": arm_state.armed_at_monotonic,
+                "capture_handoff": dict(arm_state.capture_handoff),
+                "arm_snapshot": dict(arm_state.arm_snapshot),
+                "transcript_metadata": dict(transcript_metadata or {}),
+            },
+            write_telemetry=True,
+        )
+        self._arm_state = None
+        return record
+
+    def _record(
+        self,
+        *,
+        observed: bool,
+        reason: str,
+        hook: str,
+        turn_id: str,
+        phase: str,
+        capture_mode: str,
+        transcript_present: bool,
+        vad_shadow: dict[str, Any],
+        metadata: dict[str, Any],
+        write_telemetry: bool,
+    ) -> VoiceEngineV2VadTimingBridgeRecord:
+        record = VoiceEngineV2VadTimingBridgeRecord(
+            timestamp_utc=datetime.now(UTC).isoformat(),
+            timestamp_monotonic=time.monotonic(),
+            enabled=self.enabled,
+            observed=observed,
+            reason=reason,
+            hook=hook,
+            turn_id=str(turn_id or "").strip(),
+            phase=str(phase or "command").strip() or "command",
+            capture_mode=str(capture_mode or "command").strip() or "command",
+            legacy_runtime_primary=True,
+            action_executed=False,
+            full_stt_prevented=False,
+            runtime_takeover=False,
+            transcript_present=bool(transcript_present),
+            vad_shadow=dict(vad_shadow or {}),
+            metadata=dict(metadata or {}),
+        )
+
+        if not write_telemetry or self._telemetry_writer is None:
+            return record
+
+        return record.with_telemetry_written(
+            self._telemetry_writer.write_safely(record)
+        )
+
+
+def build_voice_engine_v2_vad_timing_bridge_adapter(
+    settings: Mapping[str, Any],
+) -> VoiceEngineV2VadTimingBridgeAdapter:
+    voice_engine_cfg = _voice_engine_config(settings)
+    log_path = str(
+        voice_engine_cfg.get(
+            "vad_timing_bridge_log_path",
+            DEFAULT_VAD_TIMING_BRIDGE_LOG_PATH,
+        )
+        or DEFAULT_VAD_TIMING_BRIDGE_LOG_PATH
+    )
+    return VoiceEngineV2VadTimingBridgeAdapter(
+        settings=settings,
+        telemetry_writer=VoiceEngineV2VadTimingBridgeTelemetryWriter(
+            log_path,
+            enabled=True,
+        ),
+    )
+
+
+def _voice_engine_config(settings: Mapping[str, Any]) -> Mapping[str, Any]:
+    voice_engine_cfg = settings.get("voice_engine", {})
+    if isinstance(voice_engine_cfg, Mapping):
+        return voice_engine_cfg
+    return {}
+
+
+def _safe_to_run_bridge(settings: Mapping[str, Any]) -> tuple[bool, str]:
+    voice_engine = _voice_engine_config(settings)
+
+    if bool(voice_engine.get("enabled", False)):
+        return False, "voice_engine_enabled_must_remain_false"
+    if str(voice_engine.get("mode", "legacy") or "legacy") != "legacy":
+        return False, "voice_engine_mode_must_remain_legacy"
+    if bool(voice_engine.get("command_first_enabled", False)):
+        return False, "command_first_enabled_must_remain_false"
+    if not bool(voice_engine.get("fallback_to_legacy_enabled", True)):
+        return False, "fallback_to_legacy_enabled_must_remain_true"
+    if bool(voice_engine.get("runtime_candidates_enabled", False)):
+        return False, "runtime_candidates_enabled_must_remain_false"
+    if not bool(voice_engine.get("pre_stt_shadow_enabled", False)):
+        return False, "pre_stt_shadow_enabled_must_be_true"
+    if not bool(voice_engine.get("faster_whisper_audio_bus_tap_enabled", False)):
+        return False, "audio_bus_tap_enabled_must_be_true"
+    if not bool(voice_engine.get("vad_shadow_enabled", False)):
+        return False, "vad_shadow_enabled_must_be_true"
+
+    return True, "safe"
+
+
+def _positive_int(raw_value: Any) -> int:
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        return 0
+    return value if value > 0 else 0
+
+
+__all__ = [
+    "DEFAULT_VAD_TIMING_BRIDGE_LOG_PATH",
+    "VoiceEngineV2VadTimingBridgeAdapter",
+    "VoiceEngineV2VadTimingBridgeRecord",
+    "VoiceEngineV2VadTimingBridgeTelemetryWriter",
+    "build_voice_engine_v2_vad_timing_bridge_adapter",
+]

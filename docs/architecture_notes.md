@@ -6859,3 +6859,231 @@ The goal of Stage 24G is to prove that VAD timing can be observed closer to real
 
 
 ---
+
+
+## Stage 24G — observe-only VAD timing bridge
+
+### Status
+
+Implemented and validated on Raspberry Pi hardware.
+
+### What changed
+
+Stage 24G added an observe-only VAD timing bridge around the legacy capture path.
+
+The bridge arms a dedicated VAD shadow subscription before legacy capture starts and observes it after legacy capture completes:
+
+```text
+pre-STT shadow hook
+→ arm VAD timing bridge at latest AudioBus sequence
+→ legacy FasterWhisper capture runs normally
+→ observe bridge after capture
+→ write VAD timing bridge telemetry
+
+The bridge does not start a second microphone stream and does not run VAD inference inside the audio callback.
+
+New files:
+
+modules/runtime/voice_engine_v2/vad_timing_bridge.py
+scripts/set_voice_engine_v2_vad_timing_bridge.py
+tests/runtime/voice_engine_v2/test_vad_timing_bridge.py
+tests/scripts/test_set_voice_engine_v2_vad_timing_bridge.py
+
+Modified files:
+
+modules/runtime/voice_engine_v2/vad_shadow.py
+modules/runtime/builder/core.py
+modules/runtime/main_loop/active_window.py
+modules/shared/config/settings_core/defaults.py
+config/settings.json
+config/settings.example.json
+Why this was needed
+
+Stage 24F proved that the pre-STT VAD shadow observer often read stale audio backlog from the previous capture.
+
+Stage 24G was needed to check whether VAD could be observed closer to the active capture window without taking over production runtime.
+
+What NEXA gains
+
+NEXA now has a safer measurement bridge that can observe audio closer to the current capture.
+
+This gives evidence for the next architecture decision before enabling any command-first runtime behaviour.
+
+Stage 24G showed that:
+
+stale backlog can be avoided by arming a fresh subscription before capture,
+post-capture observation reads fresh current-capture audio,
+last_frame_age_ms dropped from multi-second stale values to low hundreds of milliseconds,
+runtime safety remained clean.
+Removed or deprecated legacy path
+
+No production path was removed.
+
+The following remained untouched:
+
+openWakeWord wake path,
+FasterWhisper fallback,
+Piper TTS,
+Visual Shell,
+legacy runtime,
+runtime candidate takeover,
+command execution.
+
+No Vosk command recognizer was enabled.
+
+No FasterWhisper prevention was enabled.
+
+No pre-STT action execution was enabled.
+
+Config changes
+
+Added safe default keys:
+
+"vad_timing_bridge_enabled": false,
+"vad_timing_bridge_log_path": "var/data/voice_engine_v2_vad_timing_bridge.jsonl"
+
+The bridge can only be enabled when the safety chain is valid:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+voice_engine.runtime_candidates_enabled=false
+voice_engine.pre_stt_shadow_enabled=true
+voice_engine.faster_whisper_audio_bus_tap_enabled=true
+voice_engine.vad_shadow_enabled=true
+voice_engine.vad_timing_bridge_enabled=true
+Source / evidence
+
+Repository tests passed:
+
+pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_bridge.py
+pytest -q tests/scripts/test_set_voice_engine_v2_vad_timing_bridge.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
+pytest -q tests/runtime/voice_engine_v2
+pytest -q tests/devices/audio/vad
+pytest -q tests/devices/audio/realtime
+pytest -q tests/core/voice_engine
+pytest -q tests/core/command_intents
+pytest -q tests/test_core_assistant_import.py
+
+Hardware bridge validation passed with:
+
+accepted=true
+vad_shadow_records=4
+enabled_records=4
+observed_records=4
+audio_bus_present_records=4
+frames_processed_records=4
+total_frames_processed=184
+diagnostics_records=4
+timing_diagnostics_records=4
+speech_score_records=4
+max_speech_score=0.3438757061958313
+max_last_frame_age_ms=305.7026800015592
+cadence_diagnostics_records=4
+stale_audio_records=0
+cadence_diagnostic_reasons:
+  fresh_audio_backlog_observed=4
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+
+Detailed bridge summary:
+
+line=1
+record_reason=vad_timing_bridge_observed_audio
+hook=post_capture
+transcript_present=True
+cadence_reason=fresh_audio_backlog_observed
+stale_audio=False
+subscription_backlog=85
+frames=46
+last_frame_age_ms=187.5616129982518
+speech_end_to_observe_ms=None
+events=0
+
+line=2
+record_reason=vad_timing_bridge_observed_audio
+hook=post_capture
+transcript_present=True
+cadence_reason=fresh_audio_backlog_observed
+stale_audio=False
+subscription_backlog=74
+frames=46
+last_frame_age_ms=115.42143300175667
+speech_end_to_observe_ms=None
+events=0
+
+line=3
+record_reason=vad_timing_bridge_observed_audio
+hook=post_capture
+transcript_present=True
+cadence_reason=fresh_audio_backlog_observed
+stale_audio=False
+subscription_backlog=132
+frames=46
+last_frame_age_ms=58.60811700404156
+speech_end_to_observe_ms=None
+events=0
+
+line=4
+record_reason=vad_timing_bridge_observed_audio
+hook=post_capture
+transcript_present=True
+cadence_reason=fresh_audio_backlog_observed
+stale_audio=False
+subscription_backlog=80
+frames=46
+last_frame_age_ms=305.7026800015592
+speech_end_to_observe_ms=None
+events=0
+Validation
+
+Stage 24G passed repository tests and Raspberry Pi hardware validation.
+
+Safety stayed clean:
+
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+Follow-up
+
+Stage 24G proved that the VAD timing bridge can avoid stale audio backlog.
+
+However, the bridge did not emit speech events during hardware validation:
+
+total_events_emitted=0
+speech_frame_records=0
+max_speech_score=0.3438757061958313
+event_emission_reasons:
+  all_scores_below_threshold
+
+This means the bridge is reading fresh audio, but the observed post-capture frame window appears silence-heavy or misses the strongest speech section.
+
+Next recommended stage is Stage 24H — VAD bridge frame window and score profile diagnostics.
+
+Stage 24H should inspect which part of the current capture is visible to the bridge:
+
+per-observation score distribution,
+first/mid/last score samples,
+speech-score peak location,
+frame source distribution,
+whether the bridge only sees tail silence,
+whether max_frames_per_observation=96 is enough,
+whether the AudioBus ring window or subscription read window drops early speech frames.
+
+Stage 24H must remain:
+
+observe-only,
+no Vosk,
+no action execution,
+no FasterWhisper prevention,
+no runtime takeover,
+no second microphone stream,
+no wake/TTS/Visual Shell changes.
+
+---
