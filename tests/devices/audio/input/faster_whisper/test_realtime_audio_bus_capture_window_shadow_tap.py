@@ -103,3 +103,26 @@ def test_capture_window_shadow_tap_returns_disabled_record_when_tap_disabled() -
     assert record["published"] is False
     assert record["reason"] == "shadow_tap_disabled"
     assert record["source"] == "faster_whisper_capture_window_shadow_tap"
+
+
+
+
+def test_capture_window_shadow_tap_marks_before_transcription_publish_stage() -> None:
+    harness = _Harness()
+    audio_bus = _FakeAudioBus()
+    harness.set_realtime_audio_bus_shadow_tap(audio_bus, enabled=True)
+
+    audio = np.array([0.0, 0.25, -0.25, 0.0], dtype=np.float32)
+
+    record = harness.publish_realtime_audio_bus_capture_window_shadow_tap(
+        audio,
+        capture_finished_at_monotonic=10.0,
+        transcription_finished_at_monotonic=None,
+    )
+
+    assert record["published"] is True
+    assert record["source"] == "faster_whisper_capture_window_shadow_tap"
+    assert record["publish_stage"] == "before_transcription"
+    assert record["capture_finished_to_publish_start_ms"] >= 0.0
+    assert record["transcription_finished_to_publish_start_ms"] is None
+    assert record["conversion_reason"] == "float_scaled_from_float32_to_int16"

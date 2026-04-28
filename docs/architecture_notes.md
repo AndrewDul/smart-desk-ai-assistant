@@ -7754,3 +7754,148 @@ The goal of Stage 24L is to expose a live capture-window event or buffer handoff
 
 
 ---
+
+
+
+## Stage 24L — Pre-transcription capture-window shadow tap
+
+### Status
+
+Implemented and hardware validated as safe observe-only diagnostics.
+
+### What changed
+
+Stage 24L moved the FasterWhisper capture-window shadow tap earlier in the legacy capture flow.
+
+The diagnostic source:
+
+```text
+faster_whisper_capture_window_shadow_tap
+
+is now published before _transcribe_audio_candidate(...) runs.
+
+The capture-window diagnostic metadata now records:
+
+publish_stage,
+capture_finished_to_publish_start_ms,
+transcription_finished_to_publish_start_ms,
+capture_window_publish_to_transcription_finished_ms.
+
+This proves whether the same healthy PCM buffer that FasterWhisper uses can be made available to RealtimeAudioBus immediately after capture, before full STT finishes.
+
+Why this was needed
+
+Stage 24K proved that capture-window PCM is healthy and that Silero VAD can score it strongly when it is replayed into RealtimeAudioBus.
+
+However, the VAD timing bridge still observed after FasterWhisper transcription. That meant useful speech frames could expire from the AudioBus retention window or be replaced by later callback frames.
+
+Stage 24L tested whether capture-window audio can be published before transcription without changing production behaviour.
+
+What NEXA gains
+
+NEXA now has evidence that useful speech PCM can be published almost immediately after capture ends.
+
+Hardware validation showed:
+
+capture_window_metadata_records=5
+publish_stage_counts.before_transcription=5
+max_capture_finished_to_publish_start_ms=2.594
+
+This means the capture-window evidence can be available in a few milliseconds after capture completion.
+
+This is an important step toward Voice Engine v2 because it proves the next bridge does not need to wait for FasterWhisper transcription to begin VAD analysis on the captured command audio.
+
+Removed or deprecated legacy path
+
+Nothing was removed in Stage 24L.
+
+No production takeover was introduced.
+
+No command execution was introduced.
+
+No second microphone stream was introduced.
+
+FasterWhisper remains the legacy STT path.
+
+The safe default runtime configuration remains:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+voice_engine.runtime_candidates_enabled=false
+voice_engine.pre_stt_shadow_enabled=false
+voice_engine.faster_whisper_audio_bus_tap_enabled=false
+voice_engine.vad_shadow_enabled=false
+voice_engine.vad_timing_bridge_enabled=false
+Source / evidence
+
+Evidence used:
+
+Stage 24L unit/regression tests.
+Fresh Raspberry Pi hardware run.
+var/data/voice_engine_v2_pre_stt_shadow.jsonl
+var/data/voice_engine_v2_vad_timing_bridge.jsonl
+
+Hardware validation showed:
+
+accepted=true
+issues=[]
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+stale_audio_records=0
+max_speech_score=0.9999860525131226
+capture_window_metadata_records=5
+publish_stage_counts.before_transcription=5
+max_capture_finished_to_publish_start_ms=2.594
+max_capture_window_publish_to_transcription_finished_ms=22348.866
+source_counts:
+  faster_whisper_callback_shadow_tap=228
+  faster_whisper_capture_window_shadow_tap=3
+
+The large capture_window_publish_to_transcription_finished_ms value confirms that the existing post-STT observation point is too late for reliable capture-window VAD evidence. Stage 24M should observe immediately after capture-window publish.
+
+Validation
+
+Tests passed:
+
+pytest -q tests/devices/audio/input/faster_whisper/test_realtime_audio_bus_capture_window_shadow_tap.py
+pytest -q tests/devices/audio/input/faster_whisper/test_realtime_audio_bus_shadow_tap_diagnostics.py
+pytest -q tests/runtime/voice_engine_v2/test_faster_whisper_audio_bus_tap.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_bridge.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
+pytest -q tests/test_core_assistant_import.py
+
+Hardware validators passed:
+
+python scripts/validate_voice_engine_v2_pre_stt_shadow_log.py \
+  --log-path var/data/voice_engine_v2_pre_stt_shadow.jsonl \
+  --require-observed
+
+python scripts/validate_voice_engine_v2_vad_shadow_log.py \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-enabled \
+  --require-observed \
+  --require-audio-bus-present \
+  --require-frames \
+  --require-score-diagnostics \
+  --require-timing-diagnostics \
+  --require-pcm-profile-diagnostics
+Follow-up
+
+Stage 24M should add an observe-only pre-transcription VAD capture-window observer.
+
+The observer should run immediately after capture-window publish and before FasterWhisper transcription completes.
+
+Stage 24M must remain safe:
+
+no command execution,
+no production takeover,
+no Vosk yet,
+no FasterWhisper bypass,
+no second microphone stream,
+no threshold lowering.
+
+---

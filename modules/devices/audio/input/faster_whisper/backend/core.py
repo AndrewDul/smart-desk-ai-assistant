@@ -536,9 +536,6 @@ class FasterWhisperInputBackend(
                 "error": f"{type(error).__name__}: {error}",
             }
 
-        candidate = self._transcribe_audio_candidate(audio, debug=debug)
-        transcription_finished_at = time.monotonic()
-
         capture_window_shadow_tap: dict[str, Any] = {}
         try:
             publish_capture_window = getattr(
@@ -551,7 +548,7 @@ class FasterWhisperInputBackend(
                     publish_capture_window(
                         audio,
                         capture_finished_at_monotonic=capture_finished_at,
-                        transcription_finished_at_monotonic=transcription_finished_at,
+                        transcription_finished_at_monotonic=None,
                     )
                     or {}
                 )
@@ -562,7 +559,30 @@ class FasterWhisperInputBackend(
                 "reason": f"publish_failed:{type(error).__name__}",
                 "error": str(error),
                 "source": "faster_whisper_capture_window_shadow_tap",
+                "publish_stage": "before_transcription",
             }
+
+        candidate = self._transcribe_audio_candidate(audio, debug=debug)
+        transcription_finished_at = time.monotonic()
+
+        if capture_window_shadow_tap:
+            capture_window_shadow_tap["transcription_finished_at_monotonic"] = (
+                transcription_finished_at
+            )
+            publish_started_at = float(
+                capture_window_shadow_tap.get("publish_started_at_monotonic")
+                or 0.0
+            )
+            if publish_started_at > 0.0:
+                capture_window_shadow_tap[
+                    "capture_window_publish_to_transcription_finished_ms"
+                ] = round(
+                    max(
+                        0.0,
+                        (transcription_finished_at - publish_started_at) * 1000.0,
+                    ),
+                    3,
+                )
 
         if candidate is None:
             return None

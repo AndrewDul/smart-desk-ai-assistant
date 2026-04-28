@@ -409,7 +409,40 @@ class FasterWhisperCaptureMixin:
         sample_count = int(int16_audio.size)
         duration_seconds = sample_count / float(sample_rate)
         publish_started_at = time.monotonic()
+        publish_stage = (
+            "before_transcription"
+            if transcription_finished_at_monotonic is None
+            else "after_transcription"
+        )
         replay_window_started_at = publish_started_at - duration_seconds
+
+        capture_finished_to_publish_start_ms = None
+        if capture_finished_at_monotonic is not None:
+            capture_finished_to_publish_start_ms = round(
+                max(
+                    0.0,
+                    (
+                        publish_started_at
+                        - float(capture_finished_at_monotonic)
+                    )
+                    * 1000.0,
+                ),
+                3,
+            )
+
+        transcription_finished_to_publish_start_ms = None
+        if transcription_finished_at_monotonic is not None:
+            transcription_finished_to_publish_start_ms = round(
+                max(
+                    0.0,
+                    (
+                        publish_started_at
+                        - float(transcription_finished_at_monotonic)
+                    )
+                    * 1000.0,
+                ),
+                3,
+            )
 
         published_frame_count = 0
         published_byte_count = 0
@@ -453,6 +486,13 @@ class FasterWhisperCaptureMixin:
             "reason": "published" if published else "publish_failed",
             "source": source,
             "timestamp_mode": "diagnostic_replay_window_ending_at_publish_start",
+            "publish_stage": publish_stage,
+            "capture_finished_to_publish_start_ms": (
+                capture_finished_to_publish_start_ms
+            ),
+            "transcription_finished_to_publish_start_ms": (
+                transcription_finished_to_publish_start_ms
+            ),
             "sample_rate": sample_rate,
             "chunk_sample_count": chunk_sample_count,
             "audio_sample_count": sample_count,
