@@ -7,6 +7,9 @@ from pathlib import Path
 import time
 from typing import Any, Mapping
 
+from modules.runtime.voice_engine_v2.vad_endpointing_candidate import (
+    build_vad_endpointing_candidate,
+)
 from modules.runtime.voice_engine_v2.vad_shadow import (
     VoiceEngineV2VadShadowObserver,
     build_voice_engine_v2_vad_shadow_observer,
@@ -408,6 +411,14 @@ class VoiceEngineV2VadTimingBridgeAdapter:
             )
             observed = False
 
+        capture_window_shadow_tap = dict(capture_window_metadata or {})
+        endpointing_candidate = build_vad_endpointing_candidate(
+            hook="capture_window_pre_transcription",
+            vad_shadow=vad_shadow,
+            capture_window_metadata=capture_window_shadow_tap,
+            observed_at_monotonic=time.monotonic(),
+        )
+
         return self._record(
             observed=observed,
             reason=reason,
@@ -421,9 +432,8 @@ class VoiceEngineV2VadTimingBridgeAdapter:
                 "armed_at_monotonic": arm_state.armed_at_monotonic,
                 "capture_handoff": dict(arm_state.capture_handoff),
                 "arm_snapshot": dict(arm_state.arm_snapshot),
-                "capture_window_shadow_tap": dict(
-                    capture_window_metadata or {}
-                ),
+                "capture_window_shadow_tap": capture_window_shadow_tap,
+                "endpointing_candidate": endpointing_candidate.to_json_dict(),
             },
             write_telemetry=True,
         )

@@ -275,3 +275,86 @@ def test_vad_timing_bridge_observes_capture_window_before_transcription(
     assert vad_shadow["frame_source_counts"] == {
         "faster_whisper_capture_window_shadow_tap": 7
     }
+
+
+
+def test_vad_timing_bridge_writes_pre_transcription_endpointing_candidate(
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "vad_timing_bridge.jsonl"
+    audio_bus = AudioBus(
+        max_duration_seconds=6.0,
+        sample_rate=16_000,
+        channels=1,
+        sample_width_bytes=2,
+    )
+
+    adapter = VoiceEngineV2VadTimingBridgeAdapter(
+        settings=_safe_settings(),
+        vad_observer=_observer(),
+        telemetry_writer=VoiceEngineV2VadTimingBridgeTelemetryWriter(
+            log_path,
+            enabled=True,
+        ),
+    )
+    owner = SimpleNamespace(_realtime_audio_bus_shadow_tap=audio_bus)
+
+    armed = adapter.arm(
+        owner=owner,
+        turn_id="turn-endpointing-candidate",
+        phase="command",
+        capture_mode="wake_command",
+        capture_handoff={"strategy": "unit_test"},
+    )
+
+    for _index in range(3):
+        audio_bus.publish_pcm(
+            _speech_pcm(),
+            source="faster_whisper_capture_window_shadow_tap",
+        )
+    for _index in range(4):
+        audio_bus.publish_pcm(
+            _silence_pcm(),
+            source="faster_whisper_capture_window_shadow_tap",
+        )
+
+    record = adapter.observe_after_capture_window_publish(
+        owner=owner,
+        capture_window_metadata={
+            "source": "faster_whisper_capture_window_shadow_tap",
+            "publish_stage": "before_transcription",
+            "capture_finished_at_monotonic": 10.0,
+            "publish_started_at_monotonic": 10.01,
+            "capture_finished_to_publish_start_ms": 10.0,
+        },
+    )
+
+    assert armed is True
+    assert record.observed is True
+    assert record.hook == "capture_window_pre_transcription"
+    assert record.transcript_present is False
+    assert record.action_executed is False
+    assert record.full_stt_prevented is False
+    assert record.runtime_takeover is False
+
+    candidate = record.metadata["endpointing_candidate"]
+
+    assert candidate["candidate_present"] is True
+    assert candidate["endpoint_detected"] is True
+    assert candidate["reason"] == "endpoint_detected"
+    assert candidate["source"] == "faster_whisper_capture_window_shadow_tap"
+    assert candidate["publish_stage"] == "before_transcription"
+    assert candidate["frames_processed"] == 7
+    assert candidate["speech_started"] is True
+    assert candidate["speech_ended"] is True
+    assert candidate["action_executed"] is False
+    assert candidate["full_stt_prevented"] is False
+    assert candidate["runtime_takeover"] is False
+
+    payload = json.loads(log_path.read_text(encoding="utf-8").splitlines()[0])
+    logged_candidate = payload["metadata"]["endpointing_candidate"]
+
+    assert logged_candidate["endpoint_detected"] is True
+    assert logged_candidate["reason"] == "endpoint_detected"
+    assert logged_candidate["source"] == "faster_whisper_capture_window_shadow_tap"
+    assert logged_candidate["publish_stage"] == "before_transcription"
