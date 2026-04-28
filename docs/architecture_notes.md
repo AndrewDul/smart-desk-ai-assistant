@@ -9321,3 +9321,140 @@ Stage 24V must still keep command execution disabled, FasterWhisper fallback unt
 
 
 ---
+## Stage 24V — VAD timing command ASR shadow validator
+
+### Status
+
+Implemented as validator-only observability stage.
+
+### What changed
+
+Stage 24V added a validator for command ASR shadow bridge records embedded inside the existing VAD timing bridge telemetry log.
+
+New validator:
+
+```text
+scripts/validate_voice_engine_v2_vad_timing_command_asr_shadow.py
+
+New tests:
+
+tests/scripts/test_validate_voice_engine_v2_vad_timing_command_asr_shadow.py
+
+The validator checks var/data/voice_engine_v2_vad_timing_bridge.jsonl for:
+
+metadata.command_asr_shadow_bridge
+metadata.command_asr_candidate
+
+It validates that command ASR shadow bridge records remain safe when embedded inside VAD timing telemetry.
+
+Why this was needed
+
+Stage 24U connected the command ASR shadow bridge to VAD timing telemetry behind:
+
+voice_engine.command_asr_shadow_bridge_enabled=false
+
+Stage 24V adds the validation layer needed to prove that live VAD timing telemetry remains safe when that flag is explicitly enabled for observation.
+
+This is necessary before any future runtime-shadow experiments with actual command ASR adapter results.
+
+What NEXA gains
+
+NEXA now has a dedicated validator for the exact telemetry file used by the pre-transcription VAD timing bridge.
+
+This gives the project:
+
+direct validation of voice_engine_v2_vad_timing_bridge.jsonl,
+proof that command ASR shadow telemetry is attached only at capture_window_pre_transcription,
+proof that legacy runtime remains primary,
+proof that no command execution occurs,
+proof that full STT is not prevented,
+proof that no runtime takeover occurs,
+proof that no raw PCM is written into telemetry,
+a safer path toward future command-first ASR experiments.
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No runtime path was changed.
+
+No config was changed.
+
+No active Vosk runtime was added.
+
+No command execution was added.
+
+No FasterWhisper bypass was added.
+
+No wake word, TTS, or Visual Shell behavior was changed.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24Q command audio segment contract.
+Stage 24R command ASR candidate contract.
+Stage 24T command ASR shadow bridge.
+Stage 24U VAD timing bridge integration.
+Stage 24V validator and tests.
+Validation
+
+Run:
+
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_timing_command_asr_shadow.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_bridge.py
+pytest -q tests/runtime/voice_engine_v2/test_command_asr_shadow_bridge.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_command_asr_shadow_bridge.py
+pytest -q tests/runtime/voice_engine_v2/test_command_asr.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_command_asr_adapter.py
+pytest -q tests/test_core_assistant_import.py
+
+Validate live telemetry after explicitly enabling the shadow flag for a controlled observation run:
+
+python scripts/validate_voice_engine_v2_vad_timing_command_asr_shadow.py \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-records \
+  --require-candidate-attached \
+  --require-disabled-only
+
+Expected safety result:
+
+accepted=true
+issues=[]
+bridge_records>0
+capture_window_hook_records>0
+non_capture_window_hook_records=0
+legacy_runtime_primary_records>0
+non_legacy_runtime_primary_records=0
+recognizer_enabled_records=0
+recognition_attempted_records=0
+recognized_records=0
+raw_pcm_records=0
+top_level_unsafe_action_records=0
+top_level_unsafe_full_stt_records=0
+top_level_unsafe_takeover_records=0
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+Follow-up
+
+Stage 24W may add a controlled runtime observation procedure that temporarily enables:
+
+voice_engine.vad_timing_bridge_enabled=true
+voice_engine.command_asr_shadow_bridge_enabled=true
+
+only for collecting telemetry, then restores both flags to false.
+
+Stage 24W must still keep:
+
+command execution disabled,
+Vosk runtime inactive by default,
+FasterWhisper fallback untouched,
+legacy runtime primary,
+no second microphone stream,
+no wake word changes,
+no TTS changes,
+no Visual Shell changes.
+
+---
+
+
