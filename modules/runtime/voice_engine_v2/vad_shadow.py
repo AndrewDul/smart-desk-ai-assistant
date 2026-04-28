@@ -58,6 +58,15 @@ class VoiceEngineV2VadShadowSnapshot:
     latest_speech_started_lag_ms: float | None = None
     latest_speech_ended_lag_ms: float | None = None
     latest_speech_end_to_observe_ms: float | None = None
+    audio_bus_latest_sequence: int | None = None
+    audio_bus_frame_count: int | None = None
+    audio_bus_duration_seconds: float | None = None
+    subscription_next_sequence_before: int | None = None
+    subscription_next_sequence_after: int | None = None
+    subscription_backlog_frames: int | None = None
+    stale_audio_threshold_ms: float = 1000.0
+    stale_audio_observed: bool = False
+    cadence_diagnostic_reason: str = ""
     event_emission_reason: str = ""
     min_speech_ms: int = 0
     min_silence_ms: int = 0
@@ -112,6 +121,15 @@ class VoiceEngineV2VadShadowSnapshot:
             "latest_speech_started_lag_ms": self.latest_speech_started_lag_ms,
             "latest_speech_ended_lag_ms": self.latest_speech_ended_lag_ms,
             "latest_speech_end_to_observe_ms": self.latest_speech_end_to_observe_ms,
+            "audio_bus_latest_sequence": self.audio_bus_latest_sequence,
+            "audio_bus_frame_count": self.audio_bus_frame_count,
+            "audio_bus_duration_seconds": self.audio_bus_duration_seconds,
+            "subscription_next_sequence_before": self.subscription_next_sequence_before,
+            "subscription_next_sequence_after": self.subscription_next_sequence_after,
+            "subscription_backlog_frames": self.subscription_backlog_frames,
+            "stale_audio_threshold_ms": self.stale_audio_threshold_ms,
+            "stale_audio_observed": self.stale_audio_observed,
+            "cadence_diagnostic_reason": self.cadence_diagnostic_reason,
             "event_emission_reason": self.event_emission_reason,
             "min_speech_ms": self.min_speech_ms,
             "min_silence_ms": self.min_silence_ms,
@@ -272,9 +290,16 @@ class VoiceEngineV2VadShadowObserver:
         try:
             self._ensure_subscription(audio_bus)
             engine = self._ensure_engine()
+            subscription_next_sequence_before = self._subscription.next_sequence
+            audio_bus_latest_sequence = audio_bus.latest_sequence
+            audio_bus_frame_count = audio_bus.frame_count
+            audio_bus_duration_seconds = audio_bus.duration_seconds
+
             frames = self._subscription.read_available(
                 max_frames=self._max_frames_per_observation
             )
+            subscription_next_sequence_after = self._subscription.next_sequence
+
             if not frames:
                 return self._snapshot(
                     observed=True,
@@ -283,6 +308,11 @@ class VoiceEngineV2VadShadowObserver:
                     source=source,
                     in_speech=self._policy.in_speech,
                     observation_started_monotonic=observation_started_monotonic,
+                    audio_bus_latest_sequence=audio_bus_latest_sequence,
+                    audio_bus_frame_count=audio_bus_frame_count,
+                    audio_bus_duration_seconds=audio_bus_duration_seconds,
+                    subscription_next_sequence_before=subscription_next_sequence_before,
+                    subscription_next_sequence_after=subscription_next_sequence_after,
                 )
 
             decisions: list[VadDecision] = []
@@ -305,6 +335,11 @@ class VoiceEngineV2VadShadowObserver:
                 latest_frame_sequence=frames[-1].sequence,
                 in_speech=self._policy.in_speech,
                 observation_started_monotonic=observation_started_monotonic,
+                audio_bus_latest_sequence=audio_bus_latest_sequence,
+                audio_bus_frame_count=audio_bus_frame_count,
+                audio_bus_duration_seconds=audio_bus_duration_seconds,
+                subscription_next_sequence_before=subscription_next_sequence_before,
+                subscription_next_sequence_after=subscription_next_sequence_after,
             )
 
         except ModuleNotFoundError as error:
@@ -378,6 +413,11 @@ class VoiceEngineV2VadShadowObserver:
         in_speech: bool = False,
         error: str = "",
         observation_started_monotonic: float | None = None,
+        audio_bus_latest_sequence: int | None = None,
+        audio_bus_frame_count: int | None = None,
+        audio_bus_duration_seconds: float | None = None,
+        subscription_next_sequence_before: int | None = None,
+        subscription_next_sequence_after: int | None = None,
     ) -> VoiceEngineV2VadShadowSnapshot:
         safe_decisions = list(decisions or [])
         safe_events = list(events or [])
@@ -389,6 +429,18 @@ class VoiceEngineV2VadShadowObserver:
             events=safe_events,
             observation_started_monotonic=observation_started_monotonic,
             observation_completed_monotonic=observation_completed_monotonic,
+        )
+        cadence_diagnostics = _cadence_diagnostics(
+            frames=safe_frames,
+            audio_bus_latest_sequence=audio_bus_latest_sequence,
+            audio_bus_frame_count=audio_bus_frame_count,
+            audio_bus_duration_seconds=audio_bus_duration_seconds,
+            subscription_next_sequence_before=subscription_next_sequence_before,
+            subscription_next_sequence_after=subscription_next_sequence_after,
+            last_frame_age_ms=timing_diagnostics["last_frame_age_ms"],
+            latest_speech_end_to_observe_ms=timing_diagnostics[
+                "latest_speech_end_to_observe_ms"
+            ],
         )
         diagnostics = _decision_diagnostics(
             decisions=safe_decisions,
@@ -462,6 +514,25 @@ class VoiceEngineV2VadShadowObserver:
             latest_speech_end_to_observe_ms=timing_diagnostics[
                 "latest_speech_end_to_observe_ms"
             ],
+            audio_bus_latest_sequence=cadence_diagnostics["audio_bus_latest_sequence"],
+            audio_bus_frame_count=cadence_diagnostics["audio_bus_frame_count"],
+            audio_bus_duration_seconds=cadence_diagnostics[
+                "audio_bus_duration_seconds"
+            ],
+            subscription_next_sequence_before=cadence_diagnostics[
+                "subscription_next_sequence_before"
+            ],
+            subscription_next_sequence_after=cadence_diagnostics[
+                "subscription_next_sequence_after"
+            ],
+            subscription_backlog_frames=cadence_diagnostics[
+                "subscription_backlog_frames"
+            ],
+            stale_audio_threshold_ms=cadence_diagnostics["stale_audio_threshold_ms"],
+            stale_audio_observed=cadence_diagnostics["stale_audio_observed"],
+            cadence_diagnostic_reason=str(
+                cadence_diagnostics["cadence_diagnostic_reason"]
+            ),
             event_emission_reason=str(diagnostics["event_emission_reason"]),
             min_speech_ms=self._endpointing_policy_config.min_speech_ms,
             min_silence_ms=self._endpointing_policy_config.min_silence_ms,
@@ -595,6 +666,92 @@ def _latest_event(events: list[VadEvent], event_type: str) -> VadEvent | None:
 
 def _elapsed_ms(*, start: float, end: float) -> float:
     return max(0.0, (end - start) * 1000.0)
+
+
+def _cadence_diagnostics(
+    *,
+    frames: list[AudioFrame],
+    audio_bus_latest_sequence: int | None,
+    audio_bus_frame_count: int | None,
+    audio_bus_duration_seconds: float | None,
+    subscription_next_sequence_before: int | None,
+    subscription_next_sequence_after: int | None,
+    last_frame_age_ms: float | None,
+    latest_speech_end_to_observe_ms: float | None,
+) -> dict[str, int | float | bool | str | None]:
+    stale_audio_threshold_ms = 1000.0
+    stale_audio_observed = _is_stale_audio(
+        last_frame_age_ms=last_frame_age_ms,
+        latest_speech_end_to_observe_ms=latest_speech_end_to_observe_ms,
+        threshold_ms=stale_audio_threshold_ms,
+    )
+
+    subscription_backlog_frames: int | None = None
+    if (
+        audio_bus_latest_sequence is not None
+        and subscription_next_sequence_before is not None
+    ):
+        subscription_backlog_frames = max(
+            0,
+            int(audio_bus_latest_sequence) - int(subscription_next_sequence_before) + 1,
+        )
+
+    cadence_diagnostic_reason = _cadence_diagnostic_reason(
+        frames_processed=len(frames),
+        stale_audio_observed=stale_audio_observed,
+        subscription_backlog_frames=subscription_backlog_frames,
+        audio_bus_latest_sequence=audio_bus_latest_sequence,
+        subscription_next_sequence_before=subscription_next_sequence_before,
+    )
+
+    return {
+        "audio_bus_latest_sequence": audio_bus_latest_sequence,
+        "audio_bus_frame_count": audio_bus_frame_count,
+        "audio_bus_duration_seconds": audio_bus_duration_seconds,
+        "subscription_next_sequence_before": subscription_next_sequence_before,
+        "subscription_next_sequence_after": subscription_next_sequence_after,
+        "subscription_backlog_frames": subscription_backlog_frames,
+        "stale_audio_threshold_ms": stale_audio_threshold_ms,
+        "stale_audio_observed": stale_audio_observed,
+        "cadence_diagnostic_reason": cadence_diagnostic_reason,
+    }
+
+
+def _is_stale_audio(
+    *,
+    last_frame_age_ms: float | None,
+    latest_speech_end_to_observe_ms: float | None,
+    threshold_ms: float,
+) -> bool:
+    observed_lags = [
+        value
+        for value in [last_frame_age_ms, latest_speech_end_to_observe_ms]
+        if value is not None
+    ]
+    return any(value > threshold_ms for value in observed_lags)
+
+
+def _cadence_diagnostic_reason(
+    *,
+    frames_processed: int,
+    stale_audio_observed: bool,
+    subscription_backlog_frames: int | None,
+    audio_bus_latest_sequence: int | None,
+    subscription_next_sequence_before: int | None,
+) -> str:
+    if frames_processed <= 0:
+        return "no_new_audio_frames_at_observe_time"
+
+    if stale_audio_observed:
+        return "stale_audio_backlog_observed"
+
+    if subscription_backlog_frames is not None and subscription_backlog_frames > 0:
+        return "fresh_audio_backlog_observed"
+
+    if audio_bus_latest_sequence is not None and subscription_next_sequence_before is not None:
+        return "subscription_cursor_at_latest"
+
+    return "cadence_diagnostics_unavailable"
 
 
 

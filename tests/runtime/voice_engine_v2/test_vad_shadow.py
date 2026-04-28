@@ -117,6 +117,14 @@ def test_vad_shadow_reports_no_new_audio_frames() -> None:
     assert snapshot.observation_duration_ms is not None
     assert snapshot.first_frame_timestamp_monotonic is None
     assert snapshot.last_frame_age_ms is None
+    assert snapshot.audio_bus_latest_sequence is None
+    assert snapshot.audio_bus_frame_count == 0
+    assert snapshot.audio_bus_duration_seconds == 0.0
+    assert snapshot.subscription_next_sequence_before == 0
+    assert snapshot.subscription_next_sequence_after == 0
+    assert snapshot.subscription_backlog_frames is None
+    assert snapshot.stale_audio_observed is False
+    assert snapshot.cadence_diagnostic_reason == "no_new_audio_frames_at_observe_time"
 
 
 def test_vad_shadow_emits_speech_start_and_end_events() -> None:
@@ -188,14 +196,65 @@ def test_vad_shadow_emits_speech_start_and_end_events() -> None:
     assert snapshot.latest_speech_started_lag_ms >= 0.0
     assert snapshot.latest_speech_ended_lag_ms is not None
     assert snapshot.latest_speech_ended_lag_ms >= 0.0
-    assert snapshot.latest_speech_end_to_observe_ms is not None
-    assert snapshot.latest_speech_end_to_observe_ms >= 0.0
+    assert snapshot.audio_bus_latest_sequence == 6
+    assert snapshot.audio_bus_frame_count == 7
+    assert snapshot.audio_bus_duration_seconds > 0.0
+    assert snapshot.subscription_next_sequence_before == 0
+    assert snapshot.subscription_next_sequence_after == 7
+    assert snapshot.subscription_backlog_frames == 7
+    assert snapshot.stale_audio_threshold_ms == 1000.0
+    assert snapshot.stale_audio_observed is False
+    assert snapshot.cadence_diagnostic_reason == "fresh_audio_backlog_observed"
     assert snapshot.event_emission_reason == "events_emitted"
 
     event_types = [event["event_type"] for event in snapshot.events]
     assert "speech_started" in event_types
     assert "speech_ended" in event_types
 
+
+def test_vad_shadow_reports_stale_audio_backlog_reason() -> None:
+    audio_bus = AudioBus(
+        max_duration_seconds=6.0,
+        sample_rate=16_000,
+        channels=1,
+        sample_width_bytes=2,
+    )
+    observer = VoiceEngineV2VadShadowObserver(
+        enabled=True,
+        endpointing_policy_config=EndpointingPolicyConfig(
+            min_speech_ms=120,
+            min_silence_ms=180,
+        ),
+        max_frames_per_observation=16,
+        score_provider_factory=lambda: _fake_score_provider,
+    )
+
+    stale_base_time = time.monotonic() - 5.0
+
+    for index in range(3):
+        audio_bus.publish_pcm(
+            _speech_pcm(),
+            timestamp_monotonic=stale_base_time + (index * 0.10),
+            source="test",
+        )
+
+    for index in range(3, 7):
+        audio_bus.publish_pcm(
+            _silence_pcm(),
+            timestamp_monotonic=stale_base_time + (index * 0.10),
+            source="test",
+        )
+
+    snapshot = observer.observe(_owner_with_bus(audio_bus))
+
+    assert snapshot.frames_processed == 7
+    assert snapshot.events_emitted >= 2
+    assert snapshot.stale_audio_observed is True
+    assert snapshot.last_frame_age_ms is not None
+    assert snapshot.last_frame_age_ms > 1000.0
+    assert snapshot.latest_speech_end_to_observe_ms is not None
+    assert snapshot.latest_speech_end_to_observe_ms > 1000.0
+    assert snapshot.cadence_diagnostic_reason == "stale_audio_backlog_observed"
 
 def test_vad_shadow_reads_only_new_frames_after_first_observation() -> None:
     audio_bus = AudioBus(

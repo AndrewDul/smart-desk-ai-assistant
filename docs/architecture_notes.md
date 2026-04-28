@@ -6675,3 +6675,187 @@ Stage 24F must remain observe-only and must not enable Vosk, action execution, r
 
 
 ---
+
+## Stage 24F — VAD observe cadence and stale backlog diagnostics
+
+### Status
+
+Implemented and validated on Raspberry Pi hardware.
+
+### What changed
+
+Stage 24F added cadence and backlog diagnostics to the Voice Engine v2 VAD shadow observer.
+
+The VAD shadow snapshot now records:
+
+- `audio_bus_latest_sequence`
+- `audio_bus_frame_count`
+- `audio_bus_duration_seconds`
+- `subscription_next_sequence_before`
+- `subscription_next_sequence_after`
+- `subscription_backlog_frames`
+- `stale_audio_threshold_ms`
+- `stale_audio_observed`
+- `cadence_diagnostic_reason`
+
+The VAD shadow validator now reports:
+
+- `cadence_diagnostics_records`
+- `stale_audio_records`
+- `max_subscription_backlog_frames`
+- `cadence_diagnostic_reasons`
+
+### Why this was needed
+
+Stage 24E proved that Silero VAD emits correct `speech_started` and `speech_ended` events from live audio, but the timing diagnostics showed that the observation point could be several seconds behind the latest audio frame.
+
+Stage 24F was needed to determine whether this delay came from the VAD scoring itself or from the hook/cadence of the observer.
+
+The result confirmed that the delay is not caused by Silero scoring. The current VAD shadow observer often reads stale audio backlog from the `RealtimeAudioBus`.
+
+### What NEXA gains
+
+NEXA now has evidence that the current shadow observation point is not sufficient for premium low-latency command execution.
+
+This prevents the project from making a wrong architectural decision, such as enabling command-first actions on a stale observer.
+
+NEXA gains:
+
+- clear proof that `RealtimeAudioBus` and Silero scoring work,
+- clear proof that current observer cadence can be stale,
+- a measurable basis for the next architecture step,
+- stronger safety before moving toward command-first recognition.
+
+### Removed or deprecated legacy path
+
+No production path was removed.
+
+The following remained untouched:
+
+- openWakeWord wake path,
+- FasterWhisper fallback,
+- Piper TTS,
+- Visual Shell,
+- legacy runtime,
+- runtime candidate takeover,
+- command execution.
+
+No Vosk command recognizer was enabled.
+
+No FasterWhisper prevention was enabled.
+
+No pre-STT action execution was enabled.
+
+### Source / evidence
+
+Repository tests passed:
+
+```bash
+pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
+pytest -q tests/scripts/test_set_voice_engine_v2_vad_shadow.py
+pytest -q tests/runtime/voice_engine_v2
+pytest -q tests/devices/audio/vad
+pytest -q tests/devices/audio/realtime
+pytest -q tests/core/voice_engine
+pytest -q tests/core/command_intents
+```
+Hardware validation passed with:
+
+accepted=true
+vad_shadow_records=6
+enabled_records=6
+observed_records=6
+audio_bus_present_records=6
+frames_processed_records=5
+total_frames_processed=230
+total_events_emitted=10
+diagnostics_records=6
+timing_diagnostics_records=6
+event_timing_records=5
+speech_score_records=5
+speech_frame_records=5
+silence_frame_records=5
+max_speech_score=0.9999943971633911
+max_speech_frame_count=36
+max_silence_frame_count=39
+max_last_frame_age_ms=4326.6113760037115
+max_speech_end_to_observe_ms=4895.224224004778
+cadence_diagnostics_records=6
+stale_audio_records=4
+max_subscription_backlog_frames=205
+cadence_diagnostic_reasons:
+  no_new_audio_frames_at_observe_time=1
+  stale_audio_backlog_observed=4
+  fresh_audio_backlog_observed=1
+event_types:
+  speech_started=5
+  speech_ended=5
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+
+Detailed hardware summary showed stale backlog records:
+
+line=2
+cadence_reason=stale_audio_backlog_observed
+subscription_backlog=175
+last_frame_age_ms=4016.925779003941
+speech_end_to_observe_ms=4655.539707004209
+
+line=3
+cadence_reason=stale_audio_backlog_observed
+subscription_backlog=130
+last_frame_age_ms=4326.6113760037115
+speech_end_to_observe_ms=4895.224224004778
+
+line=4
+cadence_reason=stale_audio_backlog_observed
+subscription_backlog=205
+last_frame_age_ms=108.57535900140647
+speech_end_to_observe_ms=1137.6716719969409
+
+line=5
+cadence_reason=stale_audio_backlog_observed
+subscription_backlog=169
+last_frame_age_ms=2788.4571680042427
+speech_end_to_observe_ms=3492.757984000491
+
+A later record showed that fresher observation can approach the target range:
+
+line=6
+cadence_reason=fresh_audio_backlog_observed
+subscription_backlog=145
+last_frame_age_ms=130.8389640034875
+speech_end_to_observe_ms=963.9108659976046
+Validation
+
+Stage 24F passed repository tests and Raspberry Pi hardware validation.
+
+Safety stayed clean:
+
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+Follow-up
+
+Next recommended stage is Stage 24G — observe-only VAD timing bridge.
+
+Stage 24F proved that the current pre-STT observer can read stale audio backlog. Stage 24G should not enable production takeover. It should add a guarded observe-only mechanism that observes VAD closer to the point where the FasterWhisper audio bus tap publishes PCM.
+
+Stage 24G must remain:
+
+observe-only,
+no Vosk yet,
+no action execution,
+no FasterWhisper prevention,
+no runtime takeover,
+no second microphone stream,
+no wake/TTS/Visual Shell changes.
+
+The goal of Stage 24G is to prove that VAD timing can be observed closer to real speech end before designing the final continuous VAD pipeline.
+
+
+---

@@ -44,6 +44,10 @@ def validate_vad_shadow_log(
     max_silence_frame_count = 0
     max_last_frame_age_ms: float | None = None
     max_speech_end_to_observe_ms: float | None = None
+    cadence_diagnostics_records = 0
+    stale_audio_records = 0
+    max_subscription_backlog_frames: int | None = None
+    cadence_diagnostic_reasons: Counter[str] = Counter()
     event_emission_reasons: Counter[str] = Counter()
     unsafe_action_records = 0
     unsafe_full_stt_records = 0
@@ -119,6 +123,27 @@ def validate_vad_shadow_log(
                 max_last_frame_age_ms,
                 last_frame_age_ms,
             )
+
+        if _has_cadence_diagnostics(vad_shadow):
+            cadence_diagnostics_records += 1
+
+        if bool(vad_shadow.get("stale_audio_observed", False)):
+            stale_audio_records += 1
+
+        subscription_backlog_frames = _safe_optional_int(
+            vad_shadow.get("subscription_backlog_frames")
+        )
+        if subscription_backlog_frames is not None:
+            max_subscription_backlog_frames = _max_optional_int(
+                max_subscription_backlog_frames,
+                subscription_backlog_frames,
+            )
+
+        cadence_diagnostic_reason = str(
+            vad_shadow.get("cadence_diagnostic_reason", "")
+        )
+        if cadence_diagnostic_reason:
+            cadence_diagnostic_reasons[cadence_diagnostic_reason] += 1
 
         speech_score_count = _safe_int(vad_shadow.get("speech_score_count"))
         if speech_score_count > 0:
@@ -209,6 +234,10 @@ def validate_vad_shadow_log(
         "max_silence_frame_count": max_silence_frame_count,
         "max_last_frame_age_ms": max_last_frame_age_ms,
         "max_speech_end_to_observe_ms": max_speech_end_to_observe_ms,
+        "cadence_diagnostics_records": cadence_diagnostics_records,
+        "stale_audio_records": stale_audio_records,
+        "max_subscription_backlog_frames": max_subscription_backlog_frames,
+        "cadence_diagnostic_reasons": dict(cadence_diagnostic_reasons),
         "event_emission_reasons": dict(event_emission_reasons),
         "unsafe_action_records": unsafe_action_records,
         "unsafe_full_stt_records": unsafe_full_stt_records,
@@ -266,6 +295,21 @@ def _has_timing_diagnostics(vad_shadow: dict[str, Any]) -> bool:
     }
     return required_keys.issubset(vad_shadow.keys())
 
+def _has_cadence_diagnostics(vad_shadow: dict[str, Any]) -> bool:
+    required_keys = {
+        "audio_bus_latest_sequence",
+        "audio_bus_frame_count",
+        "audio_bus_duration_seconds",
+        "subscription_next_sequence_before",
+        "subscription_next_sequence_after",
+        "subscription_backlog_frames",
+        "stale_audio_threshold_ms",
+        "stale_audio_observed",
+        "cadence_diagnostic_reason",
+    }
+    return required_keys.issubset(vad_shadow.keys())
+
+
 
 def _safe_int(raw_value: Any) -> int:
     try:
@@ -279,6 +323,21 @@ def _safe_float(raw_value: Any) -> float | None:
     if not isinstance(raw_value, int | float):
         return None
     return float(raw_value)
+
+
+def _safe_optional_int(raw_value: Any) -> int | None:
+    if not isinstance(raw_value, int):
+        return None
+    return raw_value
+
+
+def _max_optional_int(
+    current_value: int | None,
+    candidate_value: int,
+) -> int:
+    if current_value is None:
+        return candidate_value
+    return max(current_value, candidate_value)
 
 
 def _max_optional_float(

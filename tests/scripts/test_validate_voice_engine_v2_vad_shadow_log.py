@@ -63,6 +63,15 @@ def _safe_vad_shadow(**overrides: object) -> dict[str, object]:
         "latest_speech_started_lag_ms": 240.0,
         "latest_speech_ended_lag_ms": 120.0,
         "latest_speech_end_to_observe_ms": 160.0,
+        "audio_bus_latest_sequence": 3,
+        "audio_bus_frame_count": 4,
+        "audio_bus_duration_seconds": 0.4,
+        "subscription_next_sequence_before": 0,
+        "subscription_next_sequence_after": 4,
+        "subscription_backlog_frames": 4,
+        "stale_audio_threshold_ms": 1000.0,
+        "stale_audio_observed": False,
+        "cadence_diagnostic_reason": "fresh_audio_backlog_observed",
         "event_emission_reason": "events_emitted",
         "action_executed": False,
         "full_stt_prevented": False,
@@ -106,6 +115,12 @@ def test_validate_vad_shadow_log_accepts_safe_records(tmp_path: Path) -> None:
     assert result["event_timing_records"] == 1
     assert result["max_last_frame_age_ms"] == 100.0
     assert result["max_speech_end_to_observe_ms"] == 160.0
+    assert result["cadence_diagnostics_records"] == 1
+    assert result["stale_audio_records"] == 0
+    assert result["max_subscription_backlog_frames"] == 4
+    assert result["cadence_diagnostic_reasons"] == {
+        "fresh_audio_backlog_observed": 1
+    }
     assert result["speech_score_records"] == 1
     assert result["speech_frame_records"] == 1
     assert result["silence_frame_records"] == 0
@@ -258,6 +273,33 @@ def test_validate_vad_shadow_log_can_require_score_diagnostics(
 
     assert result["accepted"] is False
     assert "vad_shadow_score_diagnostics_records_missing" in result["issues"]
+
+def test_validate_vad_shadow_log_counts_stale_audio_records(
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "vad.jsonl"
+    _write_jsonl(
+        log_path,
+        [
+            _record(
+                _safe_vad_shadow(
+                    stale_audio_observed=True,
+                    subscription_backlog_frames=37,
+                    cadence_diagnostic_reason="stale_audio_backlog_observed",
+                )
+            )
+        ],
+    )
+
+    result = validate_vad_shadow_log(log_path=log_path)
+
+    assert result["accepted"] is True
+    assert result["cadence_diagnostics_records"] == 1
+    assert result["stale_audio_records"] == 1
+    assert result["max_subscription_backlog_frames"] == 37
+    assert result["cadence_diagnostic_reasons"] == {
+        "stale_audio_backlog_observed": 1
+    }
 
 
 
