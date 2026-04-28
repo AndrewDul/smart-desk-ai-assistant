@@ -1,2 +1,4 @@
  M handoff/HANDOFF_GIT_STATUS.txt
-?? handoff/HANDOFF_STAGE_24I_TO_24J.md
+ M handoff/HANDOFF_RECENT_COMMITS.txt
+ M handoff/HANDOFF_WORKING_TREE.diff
+?? handoff/HANDOFF_STAGE_24Q_TO_24R.md

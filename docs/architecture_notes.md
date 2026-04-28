@@ -8824,3 +8824,150 @@ second microphone stream,
 threshold lowering.
 
 ---
+
+
+
+## Stage 24R — Disabled command ASR adapter contract
+
+### Status
+
+Implemented as disabled/observe-only contract.
+
+### What changed
+
+Stage 24R added a disabled command ASR adapter contract for Voice Engine v2.
+
+New module:
+
+```text
+modules/runtime/voice_engine_v2/command_asr.py
+
+New validator:
+
+scripts/validate_voice_engine_v2_command_asr_disabled.py
+
+New tests:
+
+tests/runtime/voice_engine_v2/test_command_asr.py
+tests/scripts/test_validate_voice_engine_v2_command_asr_disabled.py
+
+The new runtime contract defines:
+
+CommandAsrRecognizer
+CommandAsrResult
+CommandAsrCandidate
+DisabledCommandAsrRecognizer
+NullCommandAsrRecognizer
+build_disabled_command_asr_candidate
+
+This stage intentionally does not activate Vosk and does not connect any command ASR recognizer to the live runtime path.
+
+Why this was needed
+
+Stage 24Q created the VoiceEngineV2CommandAudioSegment contract.
+
+Stage 24R defines the next boundary after a command-ready audio segment exists: a command ASR adapter result contract.
+
+Without this layer, a future Vosk adapter could be accidentally mixed directly into VAD telemetry, readiness validation, or runtime routing.
+
+What NEXA gains
+
+NEXA now has a safe command ASR adapter boundary before command ASR is enabled.
+
+This gives Voice Engine v2:
+
+a stable protocol for future command ASR adapters,
+a disabled/null recognizer that is safe by default,
+explicit telemetry proving recognition was not attempted,
+safety checks for no command execution,
+safety checks for no full STT prevention,
+safety checks for no runtime takeover,
+a validator for disabled command ASR telemetry.
+Removed or deprecated legacy path
+
+Nothing was removed in Stage 24R.
+
+No runtime path was changed.
+
+No active Vosk integration was added.
+
+No command execution was added.
+
+No FasterWhisper bypass was added.
+
+No second microphone stream was added.
+
+No wake word, TTS, Visual Shell, or safe config defaults were changed.
+
+The existing modules/devices/audio/command_asr package remains untouched. Stage 24R only adds a runtime Voice Engine v2 disabled telemetry contract around VoiceEngineV2CommandAudioSegment.
+
+Safe runtime defaults remain:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+voice_engine.runtime_candidates_enabled=false
+voice_engine.pre_stt_shadow_enabled=false
+voice_engine.faster_whisper_audio_bus_tap_enabled=false
+voice_engine.vad_shadow_enabled=false
+voice_engine.vad_timing_bridge_enabled=false
+Source / evidence
+
+Evidence used:
+
+handoff/HANDOFF_STAGE_24Q_TO_24R.md
+Stage 24Q command audio segment contract.
+Existing modules/runtime/voice_engine_v2/command_audio_segment.py
+Existing Stage 24Q validators and tests.
+Local Stage 24R syntax verification.
+
+Stage 24R remains disabled because this migration step must not activate Vosk, execute commands, bypass FasterWhisper, or take over production routing.
+
+Validation
+
+Run:
+
+pytest -q tests/runtime/voice_engine_v2/test_command_asr.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_command_asr_disabled.py
+pytest -q tests/runtime/voice_engine_v2/test_command_audio_segment.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_command_audio_segments.py
+pytest -q tests/runtime/voice_engine_v2/test_command_recognition_readiness.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_command_readiness.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_endpointing_candidates.py
+pytest -q tests/test_core_assistant_import.py
+
+Validate disabled command ASR telemetry against the current VAD timing bridge log:
+
+python scripts/validate_voice_engine_v2_command_asr_disabled.py \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-records \
+  --require-segment-backed-disabled-records
+
+Expected disabled safety result:
+
+recognizer_enabled_records=0
+recognition_attempted_records=0
+recognized_records=0
+candidate_present_records=0
+raw_pcm_records=0
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+issues=[]
+accepted=true
+Follow-up
+
+Stage 24S should stay guarded.
+
+The next safe step should prepare a feature-flagged Vosk adapter shell or grammar-to-audio adapter bridge without:
+
+enabling command execution,
+bypassing FasterWhisper,
+starting a second microphone stream,
+changing wake word,
+changing TTS,
+changing Visual Shell,
+changing safe config defaults.
+
+---

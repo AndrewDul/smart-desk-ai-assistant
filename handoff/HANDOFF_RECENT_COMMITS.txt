@@ -1,3 +1,17 @@
+518f2de test(voice-engine): add command audio segment contract
+2df62ac test(voice-engine): add command recognition readiness gate
+a8211b6 test(voice-engine): validate vad endpointing candidates
+97814e4 test(voice-engine): add structured vad endpointing candidate
+d60e3e7 test(voice-engine): observe capture-window vad before transcription
+23d3e69 test(voice-engine): publish capture-window tap before transcription
+d6c9581 test(voice-engine): validate fasterwhisper capture-window audio tap
+ae464e5 test(voice-engine): add fasterwhisper callback tap diagnostics
+e6a95f1 test(voice-engine): add pcm diagnostics for vad bridge
+b928399 test(voice-engine): add vad bridge score profile diagnostics
+40e488d test(voice-engine): add observe-only vad timing bridge
+6d061df test(voice-engine): add vad shadow cadence diagnostics
+a47ba30 test(voice-engine): add vad shadow timing diagnostics
+e5b512e fix(voice-engine): score silero vad shadow frames directly
 46fe2a3 test(voice-engine): add vad shadow score diagnostics
 472c19c feat(voice-engine): add silero vad shadow observer
 b004e5b feat(voice-engine): add guarded faster-whisper audio bus tap
@@ -23,3 +37,4 @@ bfaab0f feat(voice-engine): add hardware-safe shadow mode
 9931815 test(runtime): add voice engine v2 acceptance adapter
 0262d0a test(voice-engine): add command latency benchmark gates
 749f17d perf(voice-engine): add visual-action-first execution adapter
+2feaa3e refactor(runtime): add safe voice engine v2 runtime adapter
