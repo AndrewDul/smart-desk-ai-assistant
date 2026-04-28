@@ -10683,16 +10683,7 @@ Follow-up
 
 Stage 24AE should analyze the Stage 24AD offline recognition reports and add language-scoped grammar/vocabulary probing so the EN model is tested with EN command phrases only and the PL model is tested with PL command phrases only.
 
-Stage 24AE must still not:
 
-execute commands,
-bypass FasterWhisper,
-start live Voice Engine v2 microphone recognition,
-change wake word,
-change TTS,
-change Visual Shell,
-enable Voice Engine v2 runtime takeover,
-connect Vosk recognition to live runtime.
 
 -----------
 
@@ -10712,6 +10703,7 @@ The offline Vosk fixture probe can now be called with:
 ```bash
 --language en
 --language pl
+```
 
 When --language en is used, the probe builds Vosk grammar vocabulary only from English command phrases.
 
@@ -10803,15 +10795,159 @@ Follow-up
 
 Stage 24AF should add a small aggregate report tool for offline fixture recognition quality so EN/PL fixture probe reports can be summarized without manually inspecting each JSON file.
 
-Stage 24AF must still not:
-
-execute commands,
-bypass FasterWhisper,
-start live Voice Engine v2 microphone recognition,
-change wake word,
-change TTS,
-change Visual Shell,
-enable Voice Engine v2 runtime takeover,
-connect Vosk recognition to live runtime.
 
 -----
+
+## Stage 24AF — Offline Vosk fixture aggregate report
+
+### Status
+
+Implemented as an offline report aggregation stage. Not connected to live runtime.
+
+### What changed
+
+Stage 24AF added a small aggregate report tool for offline Vosk fixture recognition reports.
+
+New module:
+
+```text
+modules/runtime/voice_engine_v2/vosk_fixture_report_summary.py
+```
+
+New CLI:
+
+scripts/summarize_voice_engine_v2_vosk_fixture_reports.py
+
+The tool reads local JSON reports from:
+
+var/data/stage24ae_vosk_fixture_probes/
+
+and produces one aggregate summary containing:
+
+accepted
+total_reports
+accepted_reports
+rejected_reports
+attempted_reports
+matched_reports
+unmatched_reports
+language_match_records
+language_mismatch_records
+unsafe_flag_records
+language_counts
+expected_language_counts
+intent_counts
+elapsed_ms
+per_language
+per_intent
+issues
+records
+
+No live runtime integration was added.
+
+No live microphone stream was started by Voice Engine v2.
+
+No command execution was enabled.
+
+No FasterWhisper bypass was enabled.
+
+No wake word, audio input, TTS, or Visual Shell behavior was changed.
+
+Why this was needed
+
+Stage 24AD proved that real EN/PL fixtures can be imported and recognized offline.
+
+Stage 24AE made fixture recognition cleaner by using language-scoped Vosk grammar vocabulary.
+
+After those stages, the project needed one compact summary of recognition quality instead of manually checking each JSON report.
+
+Stage 24AF makes the offline evidence easier to inspect, compare, and use as a gate before any future live shadow recognition work.
+
+What NEXA gains
+
+NEXA now has a repeatable offline aggregate quality gate for Vosk command fixtures.
+
+This gives the project:
+
+one accepted/rejected summary for fixture recognition,
+per-language command counts,
+per-intent command counts,
+matched/unmatched counts,
+language match validation,
+unsafe flag detection,
+elapsed time summary,
+cleaner evidence for future command-first ASR work,
+no live runtime takeover,
+no command execution risk,
+no FasterWhisper bypass in production.
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No runtime route was changed.
+
+No live Vosk recognizer was connected.
+
+No production command path was changed.
+
+No config flag was enabled.
+
+The aggregate summary reads ignored local reports from var/data/ and writes an ignored local summary JSON under var/data/.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24AD offline Vosk fixture reports.
+Stage 24AE language-scoped offline Vosk fixture reports.
+Existing Voice Engine v2 safety telemetry fields.
+Existing local ignored runtime asset policy for var/data/.
+Real Raspberry Pi probe reports for:
+en_show_desktop
+en_hide_desktop
+en_what_time_is_it
+pl_pokaz_pulpit
+pl_schowaj_pulpit
+pl_ktora_godzina
+Validation
+
+Unit and script tests:
+
+pytest -q tests/runtime/voice_engine_v2/test_vosk_fixture_report_summary.py
+pytest -q tests/scripts/test_summarize_voice_engine_v2_vosk_fixture_reports.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_fixture_recognition_probe.py
+pytest -q tests/scripts/test_probe_voice_engine_v2_vosk_fixture_recognition.py
+pytest -q tests/test_core_assistant_import.py
+
+Manual aggregate report command:
+
+python scripts/summarize_voice_engine_v2_vosk_fixture_reports.py \
+  --report-dir var/data/stage24ae_vosk_fixture_probes \
+  --require-reports \
+  --require-language en \
+  --require-language pl \
+  --output-path var/data/stage24af_vosk_fixture_report_summary.json
+
+Expected aggregate result:
+
+accepted=true
+total_reports=6
+accepted_reports=6
+matched_reports=6
+language_match_records=6
+language_mismatch_records=0
+unsafe_flag_records=0
+language_counts.en=3
+language_counts.pl=3
+
+Expected safety fields remained false:
+
+runtime_integration=false
+command_execution_enabled=false
+faster_whisper_bypass_enabled=false
+microphone_stream_started=false
+live_command_recognition_enabled=false
+raw_pcm_included=false
+action_executed=false
+full_stt_prevented=false
+runtime_takeover=false
