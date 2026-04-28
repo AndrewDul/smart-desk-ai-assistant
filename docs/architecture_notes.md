@@ -8466,3 +8466,177 @@ second microphone stream,
 threshold lowering.
 
 ---
+
+
+## Stage 24P — Command recognition readiness gate
+
+### Status
+
+Implemented and validated as observe-only readiness gate.
+
+### What changed
+
+Stage 24P added a command recognition readiness gate for Voice Engine v2.
+
+New module:
+
+```text
+modules/runtime/voice_engine_v2/command_recognition_readiness.py
+
+New validator:
+
+scripts/validate_voice_engine_v2_command_readiness.py
+
+New tests:
+
+tests/runtime/voice_engine_v2/test_command_recognition_readiness.py
+tests/scripts/test_validate_voice_engine_v2_command_readiness.py
+
+The readiness gate evaluates whether a structured pre-transcription VAD endpointing candidate is suitable for future command recognizer input.
+
+It checks:
+
+pre-transcription hook,
+capture-window source,
+before-transcription publish stage,
+candidate presence,
+endpoint detection,
+speech score threshold,
+frames processed,
+capture-finished-to-VAD-observed latency,
+safety fields.
+
+The readiness gate remains observe-only. It does not execute commands, prevent full STT, bypass FasterWhisper, start another microphone stream, or take over runtime.
+
+Why this was needed
+
+Stage 24N created structured VAD endpointing candidates.
+
+Stage 24O added a validator for those candidates.
+
+Stage 24P adds the next safety layer: a readiness gate that decides whether a candidate is good enough to become input for a future command recognizer.
+
+This avoids sending weak, incomplete, stale, unsafe, or post-transcription evidence into future command ASR work.
+
+What NEXA gains
+
+NEXA now has an explicit quality gate before command recognition.
+
+The system can distinguish between:
+
+endpointing candidates that are ready for command recognition,
+candidates that are present but incomplete,
+candidates with insufficient speech score,
+candidates with missing latency metrics,
+candidates from the wrong source or hook,
+unsafe records that must fail closed.
+
+This gives Voice Engine v2 a clean bridge toward future command-first recognition without prematurely adding Vosk or executing actions.
+
+Removed or deprecated legacy path
+
+Nothing was removed in Stage 24P.
+
+No runtime path was changed.
+
+No production takeover was introduced.
+
+No command execution was introduced.
+
+No Vosk recognizer was added.
+
+No FasterWhisper bypass was introduced.
+
+The safe default runtime configuration remains:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+voice_engine.runtime_candidates_enabled=false
+voice_engine.pre_stt_shadow_enabled=false
+voice_engine.faster_whisper_audio_bus_tap_enabled=false
+voice_engine.vad_shadow_enabled=false
+voice_engine.vad_timing_bridge_enabled=false
+Source / evidence
+
+Evidence used:
+
+Stage 24P unit/regression tests.
+Stage 24N/24O Raspberry Pi hardware telemetry.
+var/data/voice_engine_v2_vad_timing_bridge.jsonl.
+
+Command readiness validator result:
+
+accepted=true
+issues=[]
+readiness_records=6
+ready_records=5
+not_ready_records=1
+readiness_reason_counts:
+  ready_for_command_recognition=5
+  not_ready:endpoint_detected=1
+candidate_reason_counts:
+  endpoint_detected=5
+  speech_not_ended_yet=1
+source_counts:
+  faster_whisper_capture_window_shadow_tap=6
+publish_stage_counts:
+  before_transcription=6
+max_speech_score=0.9999922513961792
+max_frames_processed=47
+max_capture_finished_to_vad_observed_ms=228.085
+max_capture_finished_to_vad_observed_ms_threshold=750.0
+max_capture_window_publish_to_vad_observed_ms=226.232
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+
+The single not_ready:endpoint_detected record is accepted for Stage 24P because the observed candidate represented a legitimate intermediate VAD state: speech_not_ended_yet. Strict mode with --require-no-not-ready is intentionally deferred until the command audio segment contract is stable.
+
+Validation
+
+Tests passed:
+
+pytest -q tests/scripts/test_validate_voice_engine_v2_command_readiness.py
+pytest -q tests/runtime/voice_engine_v2/test_command_recognition_readiness.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_endpointing_candidates.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_endpointing_candidate.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_bridge.py
+pytest -q tests/test_core_assistant_import.py
+
+Command readiness validator passed:
+
+python scripts/validate_voice_engine_v2_command_readiness.py \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-readiness-records \
+  --require-ready
+Follow-up
+
+Stage 24Q should remain observe-only and define the command audio segment contract.
+
+The next stage should introduce a safe model for future command recognizer input, for example:
+
+CommandAudioSegment
+
+The segment should describe:
+
+source,
+sample rate,
+sample width,
+duration,
+frame count,
+endpointing candidate summary,
+safety fields,
+command recognizer readiness metadata.
+
+Stage 24Q must still avoid:
+
+command execution,
+Vosk integration as active recognizer,
+production takeover,
+FasterWhisper bypass,
+second microphone stream,
+threshold lowering.
+
+---
