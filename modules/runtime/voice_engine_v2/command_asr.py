@@ -195,7 +195,7 @@ class CommandAsrCandidate:
         }
 
 
-def build_disabled_command_asr_candidate(
+def build_command_asr_candidate(
     *,
     record: Mapping[str, Any],
     recognizer: CommandAsrRecognizer | None = None,
@@ -255,11 +255,32 @@ def build_disabled_command_asr_candidate(
         normalized_text=str(result_payload.get("normalized_text") or ""),
         language=_optional_str(result_payload.get("language")),
         confidence=_optional_float(result_payload.get("confidence")),
-        alternatives=tuple(str(item) for item in result_payload.get("alternatives", [])),
+        alternatives=tuple(
+            str(item) for item in result_payload.get("alternatives", [])
+        ),
         raw_pcm_included=False,
         action_executed=bool(result_payload.get("action_executed", False)),
         full_stt_prevented=bool(result_payload.get("full_stt_prevented", False)),
         runtime_takeover=bool(result_payload.get("runtime_takeover", False)),
+    )
+
+
+def build_disabled_command_asr_candidate(
+    *,
+    record: Mapping[str, Any],
+    recognizer: CommandAsrRecognizer | None = None,
+    min_speech_score: float = 0.5,
+    max_capture_finished_to_vad_observed_ms: float | None = 750.0,
+    min_frames_processed: int = 1,
+) -> CommandAsrCandidate:
+    return build_command_asr_candidate(
+        record=record,
+        recognizer=recognizer,
+        min_speech_score=min_speech_score,
+        max_capture_finished_to_vad_observed_ms=(
+            max_capture_finished_to_vad_observed_ms
+        ),
+        min_frames_processed=min_frames_processed,
     )
 
 
@@ -308,5 +329,6 @@ __all__ = [
     "CommandAsrResult",
     "DisabledCommandAsrRecognizer",
     "NullCommandAsrRecognizer",
+    "build_command_asr_candidate",
     "build_disabled_command_asr_candidate",
 ]

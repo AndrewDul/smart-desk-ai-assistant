@@ -8971,3 +8971,124 @@ changing Visual Shell,
 changing safe config defaults.
 
 ---
+
+
+## Stage 24S — Guarded Vosk command ASR adapter shell
+
+### Status
+
+Implemented as guarded adapter shell. Not connected to live runtime.
+
+### What changed
+
+Stage 24S added a runtime bridge between the Voice Engine v2 command ASR contract and the existing device-level command ASR package.
+
+New file:
+
+```text
+modules/runtime/voice_engine_v2/vosk_command_asr_adapter.py
+
+New tests:
+
+tests/runtime/voice_engine_v2/test_vosk_command_asr_adapter.py
+
+Modified file:
+
+modules/runtime/voice_engine_v2/command_asr.py
+
+command_asr.py now exposes a generic build_command_asr_candidate() function while keeping build_disabled_command_asr_candidate() for Stage 24R compatibility.
+
+The new VoskCommandAsrAdapter wraps the existing device-level VoskCommandRecognizer contract from:
+
+modules/devices/audio/command_asr/vosk_command_recognizer.py
+
+The adapter is disabled by default and requires explicit injected PCM access in tests. It does not read from the microphone and does not start a Vosk runtime.
+
+Why this was needed
+
+Stage 24R created the disabled command ASR result contract.
+
+Stage 24S prepares the next boundary: mapping a future command recognizer result into the runtime Voice Engine v2 telemetry contract without mixing recognizer code into VAD endpointing, readiness validation, or runtime routing.
+
+This keeps the future Vosk path modular:
+
+CommandAudioSegment
+→ CommandAsrRecognizer protocol
+→ VoskCommandAsrAdapter
+→ CommandAsrCandidate telemetry
+What NEXA gains
+
+NEXA now has a guarded bridge for future command-first ASR.
+
+This gives the project:
+
+a clean adapter shell for Vosk command recognition,
+reuse of the existing canonical command grammar,
+no duplicate command phrase source,
+no active runtime takeover,
+no command execution,
+no FasterWhisper bypass,
+no second microphone stream,
+no wake word or TTS changes,
+explicit tests proving the adapter is disabled by default.
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No live runtime path was changed.
+
+No config was changed.
+
+No active Vosk model loading was added.
+
+No microphone stream was added.
+
+No command execution was added.
+
+No Visual Shell execution was added.
+
+The existing modules/devices/audio/command_asr package remains the grammar/recognizer source. Stage 24S only adds a runtime adapter shell around it.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24Q VoiceEngineV2CommandAudioSegment contract.
+Stage 24R CommandAsrRecognizer and CommandAsrResult contract.
+Existing modules/devices/audio/command_asr package.
+Existing VoskCommandRecognizer tests.
+Local Stage 24S adapter tests.
+Validation
+
+Run:
+
+pytest -q tests/runtime/voice_engine_v2/test_command_asr.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_command_asr_adapter.py
+pytest -q tests/devices/audio/command_asr/test_vosk_command_recognizer_contract.py
+pytest -q tests/runtime/voice_engine_v2/test_command_audio_segment.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_command_asr_disabled.py
+pytest -q tests/test_core_assistant_import.py
+
+Expected safety result:
+
+VoskCommandAsrAdapter is disabled by default.
+No command execution occurs.
+No full STT prevention occurs.
+No runtime takeover occurs.
+No raw PCM is included in telemetry.
+No config flags are changed.
+Follow-up
+
+Stage 24T should still remain guarded.
+
+The next safe step should be a runtime-shadow telemetry bridge that can instantiate the disabled Vosk adapter contract behind existing safe flags, but still without:
+
+active command execution,
+FasterWhisper bypass,
+live Vosk model loading,
+second microphone stream,
+wake word changes,
+TTS changes,
+Visual Shell changes.
+
+---
