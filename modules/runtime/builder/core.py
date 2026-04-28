@@ -103,18 +103,23 @@ class RuntimeBuilder(
         pan_tilt, pan_tilt_status = self._build_pan_tilt(pan_tilt_cfg)
         mobility, mobility_status = self._build_mobility(mobility_cfg)
         voice_engine_v2_bundle = self._build_voice_engine_v2()
-
-        realtime_audio_bus, audio_bus_tap_status = (
-            configure_faster_whisper_audio_bus_shadow_tap(
-                voice_input=voice_input,
-                settings=self.settings,
-            )
-        )
         vad_shadow_observer = build_voice_engine_v2_vad_shadow_observer(
             self.settings
         )
         vad_timing_bridge_adapter = build_voice_engine_v2_vad_timing_bridge_adapter(
             self.settings
+        )
+
+        realtime_audio_bus, audio_bus_tap_status = (
+            configure_faster_whisper_audio_bus_shadow_tap(
+                voice_input=voice_input,
+                settings=self.settings,
+                capture_window_observer=getattr(
+                    vad_timing_bridge_adapter,
+                    "observe_after_capture_window_publish",
+                    None,
+                ),
+            )
         )
 
         self._attach_audio_coordinator(voice_input, audio_coordinator)

@@ -16,6 +16,7 @@ class FasterWhisperAudioBusTapStatus:
     channels: int | None = None
     sample_width_bytes: int | None = None
     max_duration_seconds: float | None = None
+    capture_window_observer_attached: bool = False
 
     def to_metadata(self) -> dict[str, Any]:
         return {
@@ -27,6 +28,9 @@ class FasterWhisperAudioBusTapStatus:
             "channels": self.channels,
             "sample_width_bytes": self.sample_width_bytes,
             "max_duration_seconds": self.max_duration_seconds,
+            "capture_window_observer_attached": (
+                self.capture_window_observer_attached
+            ),
         }
 
 
@@ -34,6 +38,7 @@ def configure_faster_whisper_audio_bus_shadow_tap(
     *,
     voice_input: Any,
     settings: Mapping[str, Any],
+    capture_window_observer: Any | None = None,
 ) -> tuple[AudioBus | None, FasterWhisperAudioBusTapStatus]:
     voice_engine_cfg = _voice_engine_config(settings)
 
@@ -48,6 +53,7 @@ def configure_faster_whisper_audio_bus_shadow_tap(
 
     if not enabled:
         _detach_if_supported(voice_input)
+        _detach_capture_window_observer_if_supported(voice_input)
         return (
             None,
             FasterWhisperAudioBusTapStatus(
@@ -55,6 +61,7 @@ def configure_faster_whisper_audio_bus_shadow_tap(
                 attached=False,
                 reason="disabled",
                 source=source_name,
+                capture_window_observer_attached=False,
             ),
         )
 
@@ -102,6 +109,12 @@ def configure_faster_whisper_audio_bus_shadow_tap(
             source_name=source_name,
         )
         setter(audio_bus, enabled=True)
+        capture_window_observer_attached = (
+            _attach_capture_window_observer_if_supported(
+                voice_input,
+                capture_window_observer,
+            )
+        )
     except Exception as error:
         return (
             None,
@@ -114,6 +127,7 @@ def configure_faster_whisper_audio_bus_shadow_tap(
                 channels=channels,
                 sample_width_bytes=sample_width_bytes,
                 max_duration_seconds=max_duration_seconds,
+                capture_window_observer_attached=False,
             ),
         )
 
@@ -128,8 +142,48 @@ def configure_faster_whisper_audio_bus_shadow_tap(
             channels=channels,
             sample_width_bytes=sample_width_bytes,
             max_duration_seconds=max_duration_seconds,
+            capture_window_observer_attached=capture_window_observer_attached,
         ),
     )
+
+
+def _attach_capture_window_observer_if_supported(
+    voice_input: Any,
+    observer: Any | None,
+) -> bool:
+    setter = getattr(
+        voice_input,
+        "set_realtime_audio_bus_capture_window_observer",
+        None,
+    )
+    if not callable(setter):
+        return False
+
+    if not callable(observer):
+        try:
+            setter(None, enabled=False)
+        except Exception:
+            return False
+        return False
+
+    try:
+        setter(observer, enabled=True)
+        return True
+    except Exception:
+        return False
+
+
+def _detach_capture_window_observer_if_supported(voice_input: Any) -> None:
+    setter = getattr(
+        voice_input,
+        "set_realtime_audio_bus_capture_window_observer",
+        None,
+    )
+    if callable(setter):
+        try:
+            setter(None, enabled=False)
+        except Exception:
+            return
 
 
 def _detach_if_supported(voice_input: Any) -> None:

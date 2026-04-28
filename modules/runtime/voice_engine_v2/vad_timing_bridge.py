@@ -316,6 +316,118 @@ class VoiceEngineV2VadTimingBridgeAdapter:
         self._arm_state = None
         return record
 
+    def observe_after_capture_window_publish(
+        self,
+        *,
+        owner: Any,
+        capture_window_metadata: Mapping[str, Any] | None = None,
+    ) -> VoiceEngineV2VadTimingBridgeRecord:
+        if not self.enabled:
+            return self._record(
+                observed=False,
+                reason="vad_timing_bridge_disabled",
+                hook="capture_window_pre_transcription",
+                turn_id="",
+                phase="command",
+                capture_mode="command",
+                transcript_present=False,
+                vad_shadow={},
+                metadata={
+                    "capture_window_shadow_tap": dict(
+                        capture_window_metadata or {}
+                    ),
+                },
+                write_telemetry=False,
+            )
+
+        safe, safety_reason = _safe_to_run_bridge(self._settings)
+        if not safe:
+            return self._record(
+                observed=False,
+                reason=f"vad_timing_bridge_not_safe:{safety_reason}",
+                hook="capture_window_pre_transcription",
+                turn_id="",
+                phase="command",
+                capture_mode="command",
+                transcript_present=False,
+                vad_shadow={},
+                metadata={
+                    "capture_window_shadow_tap": dict(
+                        capture_window_metadata or {}
+                    ),
+                },
+                write_telemetry=True,
+            )
+
+        arm_state = self._arm_state
+        if arm_state is None:
+            return self._record(
+                observed=False,
+                reason="vad_timing_bridge_not_armed",
+                hook="capture_window_pre_transcription",
+                turn_id="",
+                phase="command",
+                capture_mode="command",
+                transcript_present=False,
+                vad_shadow={},
+                metadata={
+                    "capture_window_shadow_tap": dict(
+                        capture_window_metadata or {}
+                    ),
+                },
+                write_telemetry=True,
+            )
+
+        try:
+            snapshot = self._vad_observer.observe(owner)
+            to_json_dict = getattr(snapshot, "to_json_dict", None)
+            vad_shadow = dict(to_json_dict()) if callable(to_json_dict) else {}
+            frames_processed = _positive_int(vad_shadow.get("frames_processed"))
+            reason = (
+                "vad_timing_bridge_pre_transcription_observed_audio"
+                if frames_processed > 0
+                else "vad_timing_bridge_pre_transcription_no_new_audio"
+            )
+            observed = bool(vad_shadow.get("observed", False))
+        except Exception as error:
+            vad_shadow = {
+                "enabled": True,
+                "observed": False,
+                "reason": (
+                    "vad_timing_bridge_pre_transcription_vad_failed:"
+                    f"{type(error).__name__}"
+                ),
+                "error": str(error),
+                "action_executed": False,
+                "full_stt_prevented": False,
+                "runtime_takeover": False,
+            }
+            reason = (
+                "vad_timing_bridge_pre_transcription_failed:"
+                f"{type(error).__name__}"
+            )
+            observed = False
+
+        return self._record(
+            observed=observed,
+            reason=reason,
+            hook="capture_window_pre_transcription",
+            turn_id=arm_state.turn_id,
+            phase=arm_state.phase,
+            capture_mode=arm_state.capture_mode,
+            transcript_present=False,
+            vad_shadow=vad_shadow,
+            metadata={
+                "armed_at_monotonic": arm_state.armed_at_monotonic,
+                "capture_handoff": dict(arm_state.capture_handoff),
+                "arm_snapshot": dict(arm_state.arm_snapshot),
+                "capture_window_shadow_tap": dict(
+                    capture_window_metadata or {}
+                ),
+            },
+            write_telemetry=True,
+        )
+
     def _record(
         self,
         *,

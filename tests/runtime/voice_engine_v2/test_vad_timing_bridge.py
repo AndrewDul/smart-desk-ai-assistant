@@ -200,3 +200,78 @@ def test_vad_timing_bridge_refuses_unsafe_runtime_state(tmp_path: Path) -> None:
     assert payload["action_executed"] is False
     assert payload["full_stt_prevented"] is False
     assert payload["runtime_takeover"] is False
+
+
+
+def test_vad_timing_bridge_observes_capture_window_before_transcription(
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "vad_timing_bridge.jsonl"
+    audio_bus = AudioBus(
+        max_duration_seconds=6.0,
+        sample_rate=16_000,
+        channels=1,
+        sample_width_bytes=2,
+    )
+
+    adapter = VoiceEngineV2VadTimingBridgeAdapter(
+        settings=_safe_settings(),
+        vad_observer=_observer(),
+        telemetry_writer=VoiceEngineV2VadTimingBridgeTelemetryWriter(
+            log_path,
+            enabled=True,
+        ),
+    )
+    owner = SimpleNamespace(_realtime_audio_bus_shadow_tap=audio_bus)
+
+    armed = adapter.arm(
+        owner=owner,
+        turn_id="turn-pre-transcription",
+        phase="command",
+        capture_mode="wake_command",
+        capture_handoff={"strategy": "unit_test"},
+    )
+
+    for _index in range(3):
+        audio_bus.publish_pcm(
+            _speech_pcm(),
+            source="faster_whisper_capture_window_shadow_tap",
+        )
+    for _index in range(4):
+        audio_bus.publish_pcm(
+            _silence_pcm(),
+            source="faster_whisper_capture_window_shadow_tap",
+        )
+
+    record = adapter.observe_after_capture_window_publish(
+        owner=owner,
+        capture_window_metadata={
+            "source": "faster_whisper_capture_window_shadow_tap",
+            "publish_stage": "before_transcription",
+        },
+    )
+
+    assert armed is True
+    assert record.observed is True
+    assert record.reason == "vad_timing_bridge_pre_transcription_observed_audio"
+    assert record.hook == "capture_window_pre_transcription"
+    assert record.transcript_present is False
+    assert record.action_executed is False
+    assert record.full_stt_prevented is False
+    assert record.runtime_takeover is False
+    assert record.telemetry_written is True
+
+    payload = json.loads(log_path.read_text(encoding="utf-8").splitlines()[0])
+    vad_shadow = payload["vad_shadow"]
+
+    assert payload["hook"] == "capture_window_pre_transcription"
+    assert payload["transcript_present"] is False
+    assert payload["metadata"]["capture_window_shadow_tap"]["publish_stage"] == (
+        "before_transcription"
+    )
+    assert vad_shadow["frames_processed"] == 7
+    assert vad_shadow["speech_started_count"] >= 1
+    assert vad_shadow["speech_ended_count"] >= 1
+    assert vad_shadow["frame_source_counts"] == {
+        "faster_whisper_capture_window_shadow_tap": 7
+    }

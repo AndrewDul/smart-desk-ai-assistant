@@ -89,3 +89,20 @@ def test_realtime_audio_bus_probe_is_fail_open_when_bus_property_fails() -> None
     assert snapshot.audio_bus_present is True
     assert snapshot.source == "assistant.realtime_audio_bus"
     assert snapshot.probe_error == "RuntimeError"
+
+
+
+
+def test_realtime_audio_bus_probe_reads_faster_whisper_shadow_tap_bus() -> None:
+    bus = AudioBus(
+        max_duration_seconds=1.0,
+        sample_rate=16000,
+        channels=1,
+        sample_width_bytes=2,
+    )
+    owner = SimpleNamespace(_realtime_audio_bus_shadow_tap=bus)
+
+    found_bus, source = find_realtime_audio_bus(owner)
+
+    assert found_bus is bus
+    assert source == "faster_whisper._realtime_audio_bus_shadow_tap"

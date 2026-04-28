@@ -126,3 +126,43 @@ def test_capture_window_shadow_tap_marks_before_transcription_publish_stage() ->
     assert record["capture_finished_to_publish_start_ms"] >= 0.0
     assert record["transcription_finished_to_publish_start_ms"] is None
     assert record["conversion_reason"] == "float_scaled_from_float32_to_int16"
+
+
+
+
+def test_capture_window_shadow_tap_notifies_observer_after_publish() -> None:
+    harness = _Harness()
+    audio_bus = _FakeAudioBus()
+    observed_records: list[dict[str, object]] = []
+
+    def observer(*, owner, capture_window_metadata):
+        observed_records.append(
+            {
+                "owner": owner,
+                "capture_window_metadata": dict(capture_window_metadata),
+            }
+        )
+
+    harness.set_realtime_audio_bus_shadow_tap(audio_bus, enabled=True)
+    harness.set_realtime_audio_bus_capture_window_observer(
+        observer,
+        enabled=True,
+    )
+
+    record = harness.publish_realtime_audio_bus_capture_window_shadow_tap(
+        np.array([0.0, 0.5, -0.5, 0.0], dtype=np.float32),
+        capture_finished_at_monotonic=10.0,
+        transcription_finished_at_monotonic=None,
+    )
+
+    assert record["published"] is True
+    assert len(observed_records) == 1
+    assert observed_records[0]["owner"] is harness
+    assert (
+        observed_records[0]["capture_window_metadata"]["source"]
+        == "faster_whisper_capture_window_shadow_tap"
+    )
+    assert (
+        observed_records[0]["capture_window_metadata"]["publish_stage"]
+        == "before_transcription"
+    )

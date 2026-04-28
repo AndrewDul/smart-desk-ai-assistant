@@ -46,6 +46,17 @@ def find_realtime_audio_bus(owner: Any) -> tuple[Any | None, str]:
     if runtime_bus is not None:
         return runtime_bus, "assistant.audio_runtime.realtime_audio_bus"
 
+    faster_whisper_shadow_bus = getattr(
+        owner,
+        "_realtime_audio_bus_shadow_tap",
+        None,
+    )
+    if faster_whisper_shadow_bus is not None:
+        return (
+            faster_whisper_shadow_bus,
+            "faster_whisper._realtime_audio_bus_shadow_tap",
+        )
+
     runtime = getattr(owner, "runtime", None)
     metadata = getattr(runtime, "metadata", {}) if runtime is not None else {}
     if isinstance(metadata, dict):

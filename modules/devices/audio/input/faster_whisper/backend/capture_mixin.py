@@ -3,7 +3,7 @@ from __future__ import annotations
 import queue
 import time
 from collections import deque
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import sounddevice as sd
@@ -22,6 +22,23 @@ class FasterWhisperCaptureMixin:
         self._realtime_audio_bus_shadow_tap_recent_records = deque(maxlen=32)
         self._realtime_audio_bus_capture_window_shadow_tap_recent_records = deque(
             maxlen=8
+        )
+        self._realtime_audio_bus_capture_window_observer: (
+            Callable[..., Any] | None
+        ) = None
+        self._realtime_audio_bus_capture_window_observer_enabled = False
+
+    def set_realtime_audio_bus_capture_window_observer(
+        self,
+        observer: Callable[..., Any] | None,
+        *,
+        enabled: bool,
+    ) -> None:
+        self._realtime_audio_bus_capture_window_observer = (
+            observer if enabled and callable(observer) else None
+        )
+        self._realtime_audio_bus_capture_window_observer_enabled = bool(
+            enabled and callable(observer)
         )
 
     def realtime_audio_bus_shadow_tap_diagnostics_snapshot(self) -> dict[str, Any]:
@@ -394,6 +411,7 @@ class FasterWhisperCaptureMixin:
             self._append_realtime_audio_bus_capture_window_shadow_tap_diagnostic(
                 record
             )
+            self._notify_realtime_audio_bus_capture_window_observer(record)
             return record
 
         sample_rate = self._positive_int_for_audio_profile(
@@ -510,7 +528,40 @@ class FasterWhisperCaptureMixin:
             "conversion_reason": conversion_reason,
         }
         self._append_realtime_audio_bus_capture_window_shadow_tap_diagnostic(record)
+        self._notify_realtime_audio_bus_capture_window_observer(record)
         return record
+
+    def _notify_realtime_audio_bus_capture_window_observer(
+        self,
+        record: dict[str, Any],
+    ) -> None:
+        if not bool(
+            getattr(
+                self,
+                "_realtime_audio_bus_capture_window_observer_enabled",
+                False,
+            )
+        ):
+            return
+
+        observer = getattr(
+            self,
+            "_realtime_audio_bus_capture_window_observer",
+            None,
+        )
+        if not callable(observer):
+            return
+
+        try:
+            observer(
+                owner=self,
+                capture_window_metadata=dict(record or {}),
+            )
+        except Exception as error:
+            self.LOGGER.warning(
+                "FasterWhisper capture-window observer failed safely: %s",
+                error,
+            )
 
     def _append_realtime_audio_bus_capture_window_shadow_tap_diagnostic(
         self,

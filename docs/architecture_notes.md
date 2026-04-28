@@ -7899,3 +7899,190 @@ no second microphone stream,
 no threshold lowering.
 
 ---
+
+
+## Stage 24M — Pre-transcription VAD capture-window observer
+
+### Status
+
+Implemented and hardware validated as safe observe-only diagnostics.
+
+### What changed
+
+Stage 24M added an observe-only pre-transcription VAD observer for FasterWhisper capture-window audio.
+
+The FasterWhisper backend can now notify a neutral capture-window observer immediately after publishing:
+
+```text
+faster_whisper_capture_window_shadow_tap
+
+The runtime attaches VoiceEngineV2VadTimingBridgeAdapter.observe_after_capture_window_publish(...) as that observer when diagnostic flags are enabled.
+
+This creates a new telemetry hook:
+
+capture_window_pre_transcription
+
+The new flow is:
+
+legacy command capture finishes
+→ capture-window PCM is published to RealtimeAudioBus
+→ VAD timing bridge observes immediately
+→ FasterWhisper transcription continues normally
+→ legacy runtime continues normally
+
+This remains observe-only and does not execute any command.
+
+Why this was needed
+
+Stage 24K proved that FasterWhisper capture-window PCM is healthy and that Silero VAD scores it strongly.
+
+Stage 24L proved that the capture-window PCM can be published before FasterWhisper transcription starts, with hardware evidence showing:
+
+max_capture_finished_to_publish_start_ms=2.594
+publish_stage_counts.before_transcription=5
+
+However, the existing post_capture VAD timing bridge still observed too late, after FasterWhisper transcription. That caused useful capture-window frames to be mixed with or replaced by later callback frames.
+
+Stage 24M fixed the observation timing problem by observing immediately after capture-window publication and before FasterWhisper transcription completes.
+
+What NEXA gains
+
+NEXA now has safe, measured, pre-transcription VAD evidence on the same captured command audio that FasterWhisper later transcribes.
+
+This is a major Voice Engine v2 milestone because it proves:
+
+useful speech PCM is available before full STT finishes,
+Silero VAD can detect speech before FasterWhisper returns text,
+the future command-first path can be built before FasterWhisper fallback,
+the system does not need a second microphone stream,
+the system does not need unsafe Silero threshold lowering,
+the current work can proceed toward VAD endpointing and command-first recognition.
+
+This directly supports the target architecture:
+
+Wake word
+→ RealtimeAudioBus
+→ Silero VAD endpointing
+→ command-first recognizer
+→ deterministic intent resolver
+→ fast action
+
+Fallback only when needed:
+→ FasterWhisper
+→ router / LLM / conversation
+→ Piper TTS
+Removed or deprecated legacy path
+
+Nothing was removed in Stage 24M.
+
+The legacy FasterWhisper path remains active.
+
+No production takeover was introduced.
+
+No command execution was introduced.
+
+No Vosk recognizer was added yet.
+
+No second microphone stream was introduced.
+
+The safe default runtime configuration remains:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+voice_engine.runtime_candidates_enabled=false
+voice_engine.pre_stt_shadow_enabled=false
+voice_engine.faster_whisper_audio_bus_tap_enabled=false
+voice_engine.vad_shadow_enabled=false
+voice_engine.vad_timing_bridge_enabled=false
+Source / evidence
+
+Evidence used:
+
+Stage 24M unit/regression tests.
+Fresh Raspberry Pi hardware run.
+var/data/voice_engine_v2_pre_stt_shadow.jsonl
+var/data/voice_engine_v2_vad_timing_bridge.jsonl
+
+Hardware validation showed:
+
+accepted=true
+issues=[]
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+
+hook_counts:
+  capture_window_pre_transcription=5
+  post_capture=5
+
+reason_counts:
+  vad_timing_bridge_pre_transcription_observed_audio=5
+  vad_timing_bridge_observed_audio=5
+
+source_counts:
+  faster_whisper_callback_shadow_tap=351
+  faster_whisper_capture_window_shadow_tap=100
+
+publish_stage_counts:
+  before_transcription=5
+
+pre_transcription_records=5
+pre_transcription_frames=221
+max_pre_transcription_speech_score=0.9999957084655762
+
+The hardware result confirms that the new pre-transcription observer sees strong speech evidence before FasterWhisper transcription completes.
+
+Validation
+
+Tests passed:
+
+pytest -q tests/devices/audio/input/faster_whisper/test_realtime_audio_bus_capture_window_shadow_tap.py
+pytest -q tests/runtime/voice_engine_v2/test_realtime_audio_bus_probe.py
+pytest -q tests/runtime/voice_engine_v2/test_faster_whisper_audio_bus_tap.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_bridge.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
+pytest -q tests/test_core_assistant_import.py
+
+Hardware validators passed:
+
+python scripts/validate_voice_engine_v2_pre_stt_shadow_log.py \
+  --log-path var/data/voice_engine_v2_pre_stt_shadow.jsonl \
+  --require-observed
+
+python scripts/validate_voice_engine_v2_vad_shadow_log.py \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-enabled \
+  --require-observed \
+  --require-audio-bus-present \
+  --require-frames \
+  --require-score-diagnostics \
+  --require-timing-diagnostics \
+  --require-score-profile-diagnostics \
+  --require-pcm-profile-diagnostics
+Follow-up
+
+Stage 24N should remain observe-only and start converting the pre-transcription VAD evidence into a structured endpointing candidate.
+
+The next stage should not execute commands yet.
+
+Stage 24N should focus on:
+
+summarising capture_window_pre_transcription VAD events,
+extracting speech start/end evidence,
+measuring capture-finished-to-VAD-observed latency,
+producing a safe endpointing candidate record,
+keeping FasterWhisper as fallback.
+
+Stage 24N must still avoid:
+
+command execution,
+Vosk integration,
+production takeover,
+FasterWhisper bypass,
+second microphone stream,
+threshold lowering.
+
+---
