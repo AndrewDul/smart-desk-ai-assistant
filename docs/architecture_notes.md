@@ -7512,3 +7512,101 @@ no second microphone stream,
 no wake/TTS/Visual Shell changes.
 
 ---
+
+
+## Stage 24J — FasterWhisper callback tap source diagnostics
+
+### Status
+
+Partially implemented / observe-only diagnostics.
+
+### What changed
+
+Stage 24J audited the real FasterWhisper callback tap source and added guarded diagnostics around `faster_whisper_callback_shadow_tap`.
+
+The callback tap now records:
+- raw callback mono profile,
+- converted int16 mono profile,
+- publish timestamp,
+- callback `time_info`,
+- callback status,
+- published byte count,
+- conversion warnings,
+- recent tap records snapshot.
+
+The FasterWhisper `TranscriptResult.metadata` now includes:
+- `realtime_audio_bus_shadow_tap_at_capture_finished`,
+- `faster_whisper_stt_capture_audio_profile`.
+
+This allows the VAD timing bridge telemetry to compare:
+1. audio published by the live callback tap,
+2. audio actually captured and passed into FasterWhisper STT.
+
+### Why this was needed
+
+Stage 24I proved that the VAD timing bridge reads fresh AudioBus frames with `stale_audio_records=0`, but the PCM profile from `faster_whisper_callback_shadow_tap` was near-silent. At the same time, legacy FasterWhisper STT correctly heard real commands such as "What is your name?", "What time is it?", and "Introduce yourself."
+
+The source audit showed that `_publish_realtime_audio_bus_shadow_tap(...)` publishes individual callback frames before they are queued for FasterWhisper capture. The active runtime observes the VAD timing bridge only after `_capture_transcript_for_assistant(...)` returns, which means after capture and FasterWhisper transcription. Because the AudioBus retention window is short and the input stream continues publishing during transcription, the bridge can observe fresh post-capture silence instead of the utterance that FasterWhisper used.
+
+The audit also identified a guarded conversion risk: if the callback ever receives float PCM in `[-1.0, 1.0]`, the current `astype(np.int16)` conversion would collapse most samples to near-zero values. The new diagnostics detect this without changing runtime behaviour.
+
+### What NEXA gains
+
+NEXA gains precise evidence for the next Voice Engine v2 decision:
+- whether the callback tap receives real int16 PCM,
+- whether float-to-int16 collapse is happening,
+- whether the actual STT capture audio is healthy,
+- whether the VAD timing bridge is observing post-transcription silence rather than the spoken utterance.
+
+This keeps the migration evidence-based and avoids unsafe threshold tuning or adding another microphone stream.
+
+### Removed or deprecated legacy path
+
+Nothing was removed in Stage 24J.
+
+The existing FasterWhisper callback tap remains observe-only and guarded by:
+
+```text
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+voice_engine.faster_whisper_audio_bus_tap_enabled=true only during diagnostics
+voice_engine.vad_timing_bridge_enabled=true only during diagnostics
+
+No production takeover was introduced.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24I hardware telemetry showing fresh AudioBus frames but near-silent PCM profile.
+Runtime source audit of:
+modules/devices/audio/input/faster_whisper/backend/capture_mixin.py
+modules/devices/audio/input/faster_whisper/backend/core.py
+modules/runtime/main_loop/active_window.py
+modules/runtime/voice_engine_v2/vad_timing_bridge.py
+modules/devices/audio/realtime/audio_bus.py
+modules/devices/audio/realtime/audio_frame.py
+Validation
+
+Repository tests to validate:
+
+pytest -q tests/devices/audio/input/faster_whisper/test_realtime_audio_bus_shadow_tap_diagnostics.py
+pytest -q tests/runtime/voice_engine_v2/test_faster_whisper_audio_bus_tap.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_bridge.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
+pytest -q tests/test_core_assistant_import.py
+
+Hardware validation should confirm whether:
+
+conversion_warning is empty or reports float-to-int16 collapse,
+faster_whisper_stt_capture_audio_profile contains real speech energy,
+bridge-observed pcm_profile_signal_level remains near-silent because observation happens after transcription.
+Follow-up
+
+If hardware confirms that STT capture audio is healthy but bridge still sees post-transcription silence, Stage 24K should move the observe point closer to capture completion or introduce an observe-only capture-window handoff, without starting a second microphone stream and without executing pre-STT actions.
+
+
+---

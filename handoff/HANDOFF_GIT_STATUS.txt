@@ -1,4 +1,2 @@
- D config/settings.json.bak-20260428-005531
- D config/settings.json.bak-20260428-005532
- D config/settings.json.bak-20260428-005708
-?? handoff/
+ M handoff/HANDOFF_GIT_STATUS.txt
+?? handoff/HANDOFF_STAGE_24I_TO_24J.md

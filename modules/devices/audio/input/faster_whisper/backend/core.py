@@ -499,6 +499,43 @@ class FasterWhisperInputBackend(
             return None
 
         capture_finished_at = time.monotonic()
+
+        tap_snapshot_at_capture_finished: dict[str, Any] = {}
+        try:
+            tap_snapshot = getattr(
+                self,
+                "realtime_audio_bus_shadow_tap_diagnostics_snapshot",
+                None,
+            )
+            if callable(tap_snapshot):
+                tap_snapshot_at_capture_finished = dict(tap_snapshot() or {})
+        except Exception as error:
+            tap_snapshot_at_capture_finished = {
+                "error": f"{type(error).__name__}: {error}",
+            }
+
+        capture_audio_profile: dict[str, Any] = {}
+        try:
+            capture_audio_profile_fn = getattr(
+                self,
+                "_realtime_audio_bus_shadow_tap_audio_profile",
+                None,
+            )
+            if callable(capture_audio_profile_fn):
+                capture_audio_profile = dict(
+                    capture_audio_profile_fn(
+                        audio,
+                        label="faster_whisper_stt_capture_audio",
+                    )
+                    or {}
+                )
+        except Exception as error:
+            capture_audio_profile = {
+                "label": "faster_whisper_stt_capture_audio",
+                "available": False,
+                "error": f"{type(error).__name__}: {error}",
+            }
+
         candidate = self._transcribe_audio_candidate(audio, debug=debug)
         if candidate is None:
             return None
@@ -554,6 +591,16 @@ class FasterWhisperInputBackend(
             "capture_elapsed_seconds",
             max(0.0, capture_finished_at - started_at),
         )
+        if tap_snapshot_at_capture_finished:
+            metadata.setdefault(
+                "realtime_audio_bus_shadow_tap_at_capture_finished",
+                tap_snapshot_at_capture_finished,
+            )
+        if capture_audio_profile:
+            metadata.setdefault(
+                "faster_whisper_stt_capture_audio_profile",
+                capture_audio_profile,
+            )
 
         return TranscriptResult(
             text=cleaned,

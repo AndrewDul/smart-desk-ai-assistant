@@ -19,20 +19,221 @@ class FasterWhisperCaptureMixin:
         self._realtime_audio_bus_shadow_tap = audio_bus if enabled else None
         self._realtime_audio_bus_shadow_tap_enabled = bool(enabled and audio_bus is not None)
         self._realtime_audio_bus_shadow_tap_publish_errors = 0
+        self._realtime_audio_bus_shadow_tap_recent_records = deque(maxlen=32)
+
+    def realtime_audio_bus_shadow_tap_diagnostics_snapshot(self) -> dict[str, Any]:
+        recent_records = list(
+            getattr(self, "_realtime_audio_bus_shadow_tap_recent_records", [])
+            or []
+        )
+        return {
+            "enabled": bool(
+                getattr(self, "_realtime_audio_bus_shadow_tap_enabled", False)
+            ),
+            "attached": getattr(self, "_realtime_audio_bus_shadow_tap", None)
+            is not None,
+            "publish_errors": int(
+                getattr(self, "_realtime_audio_bus_shadow_tap_publish_errors", 0)
+                or 0
+            ),
+            "recent_record_count": len(recent_records),
+            "recent_records": recent_records[-5:],
+            "last_record": recent_records[-1] if recent_records else {},
+        }
+
+    def _append_realtime_audio_bus_shadow_tap_diagnostic(
+        self,
+        record: dict[str, Any],
+    ) -> None:
+        records = getattr(
+            self,
+            "_realtime_audio_bus_shadow_tap_recent_records",
+            None,
+        )
+        if records is None:
+            records = deque(maxlen=32)
+            self._realtime_audio_bus_shadow_tap_recent_records = records
+        records.append(dict(record))
+
+    def _realtime_audio_bus_shadow_tap_audio_profile(
+        self,
+        audio: Any,
+        *,
+        label: str,
+    ) -> dict[str, Any]:
+        profile = self._audio_array_profile(audio)
+        profile["label"] = str(label or "audio")
+        return profile
+
+    @staticmethod
+    def _audio_array_profile(audio: Any) -> dict[str, Any]:
+        try:
+            array = np.asarray(audio)
+        except Exception as error:
+            return {
+                "available": False,
+                "reason": f"array_unavailable:{type(error).__name__}",
+            }
+
+        profile: dict[str, Any] = {
+            "available": True,
+            "dtype": str(array.dtype),
+            "shape": list(array.shape),
+            "sample_count": int(array.size),
+        }
+
+        if array.size <= 0:
+            profile.update(
+                {
+                    "reason": "empty",
+                    "raw_min": None,
+                    "raw_max": None,
+                    "raw_peak_abs": None,
+                    "normalized_rms": None,
+                    "normalized_mean_abs": None,
+                    "normalized_peak_abs": None,
+                    "normalized_near_zero_ratio": None,
+                }
+            )
+            return profile
+
+        flat = array.reshape(-1)
+
+        if not np.issubdtype(flat.dtype, np.number):
+            profile.update(
+                {
+                    "available": False,
+                    "reason": "non_numeric",
+                    "raw_min": None,
+                    "raw_max": None,
+                    "raw_peak_abs": None,
+                    "normalized_rms": None,
+                    "normalized_mean_abs": None,
+                    "normalized_peak_abs": None,
+                    "normalized_near_zero_ratio": None,
+                }
+            )
+            return profile
+
+        raw_min = float(np.min(flat))
+        raw_max = float(np.max(flat))
+        raw_peak_abs = float(np.max(np.abs(flat)))
+
+        if np.issubdtype(flat.dtype, np.integer):
+            if flat.dtype == np.int16:
+                scale = 32768.0
+            else:
+                info = np.iinfo(flat.dtype)
+                scale = float(max(abs(int(info.min)), abs(int(info.max)), 1))
+            normalized = flat.astype(np.float32, copy=False) / scale
+        else:
+            normalized = flat.astype(np.float32, copy=False)
+
+        finite_mask = np.isfinite(normalized)
+        if not np.any(finite_mask):
+            profile.update(
+                {
+                    "available": False,
+                    "reason": "non_finite",
+                    "raw_min": round(raw_min, 6),
+                    "raw_max": round(raw_max, 6),
+                    "raw_peak_abs": round(raw_peak_abs, 6),
+                    "normalized_rms": None,
+                    "normalized_mean_abs": None,
+                    "normalized_peak_abs": None,
+                    "normalized_near_zero_ratio": None,
+                }
+            )
+            return profile
+
+        normalized = normalized[finite_mask]
+        abs_normalized = np.abs(normalized)
+        near_zero_threshold = 1.0 / 32768.0
+
+        profile.update(
+            {
+                "reason": "ok",
+                "raw_min": round(raw_min, 6),
+                "raw_max": round(raw_max, 6),
+                "raw_peak_abs": round(raw_peak_abs, 6),
+                "normalized_rms": round(
+                    float(np.sqrt(np.mean(np.square(normalized), dtype=np.float64))),
+                    6,
+                ),
+                "normalized_mean_abs": round(float(np.mean(abs_normalized)), 6),
+                "normalized_peak_abs": round(float(np.max(abs_normalized)), 6),
+                "normalized_near_zero_ratio": round(
+                    float(np.mean(abs_normalized <= near_zero_threshold)),
+                    6,
+                ),
+            }
+        )
+        return profile
+
+    @staticmethod
+    def _audio_callback_time_info_snapshot(time_info: Any) -> dict[str, float | None]:
+        fields = (
+            "inputBufferAdcTime",
+            "currentTime",
+            "outputBufferDacTime",
+        )
+        snapshot: dict[str, float | None] = {}
+        for field in fields:
+            value = getattr(time_info, field, None)
+            if value is None and isinstance(time_info, dict):
+                value = time_info.get(field)
+            try:
+                snapshot[field] = None if value is None else float(value)
+            except (TypeError, ValueError):
+                snapshot[field] = None
+        return snapshot
+
+    @staticmethod
+    def _conversion_warning(
+        *,
+        raw_profile: dict[str, Any],
+        converted_profile: dict[str, Any],
+    ) -> str:
+        raw_dtype = str(raw_profile.get("dtype") or "")
+        raw_peak = float(raw_profile.get("normalized_peak_abs") or 0.0)
+        converted_raw_peak = float(converted_profile.get("raw_peak_abs") or 0.0)
+        converted_peak = float(converted_profile.get("normalized_peak_abs") or 0.0)
+
+        if (
+            raw_dtype.startswith("float")
+            and raw_peak >= 0.01
+            and converted_raw_peak <= 1.0
+        ):
+            return "float_audio_cast_to_int16_without_scaling"
+
+        if raw_peak >= 0.05 and converted_peak <= 0.005:
+            return "converted_pcm_much_weaker_than_raw_audio"
+
+        return ""
 
     def _audio_callback(self, indata, frames, time_info, status) -> None:
+        callback_started_at = time.monotonic()
+
         if status:
             self.LOGGER.warning("FasterWhisper audio callback status: %s", status)
         try:
             if indata.ndim == 2:
-                mono = indata[:, 0].copy()
+                raw_mono = indata[:, 0].copy()
             else:
-                mono = indata.copy()
+                raw_mono = indata.copy()
 
+            mono = raw_mono
             if mono.dtype != np.int16:
                 mono = mono.astype(np.int16, copy=False)
 
-            self._publish_realtime_audio_bus_shadow_tap(mono)
+            self._publish_realtime_audio_bus_shadow_tap(
+                raw_mono=raw_mono,
+                converted_mono=mono,
+                frames=frames,
+                time_info=time_info,
+                callback_status=status,
+                callback_started_at=callback_started_at,
+            )
 
             try:
                 self.audio_queue.put_nowait(mono)
@@ -48,34 +249,90 @@ class FasterWhisperCaptureMixin:
         except Exception as error:
             self.LOGGER.warning("FasterWhisper audio callback error: %s", error)
 
-    def _publish_realtime_audio_bus_shadow_tap(self, mono: np.ndarray) -> None:
+    def _publish_realtime_audio_bus_shadow_tap(
+        self,
+        mono: np.ndarray | None = None,
+        *,
+        raw_mono: Any | None = None,
+        converted_mono: np.ndarray | None = None,
+        frames: int | None = None,
+        time_info: Any | None = None,
+        callback_status: Any | None = None,
+        callback_started_at: float | None = None,
+    ) -> None:
         if not bool(getattr(self, "_realtime_audio_bus_shadow_tap_enabled", False)):
             return
 
         audio_bus = getattr(self, "_realtime_audio_bus_shadow_tap", None)
-        if audio_bus is None:
+        converted = converted_mono if converted_mono is not None else mono
+        if converted is None:
             return
+
+        timestamp_monotonic = (
+            float(callback_started_at)
+            if callback_started_at is not None
+            else time.monotonic()
+        )
+
+        raw_profile = self._audio_array_profile(
+            raw_mono if raw_mono is not None else converted
+        )
+        converted_profile = self._audio_array_profile(converted)
+
+        publish_status = "not_published"
+        publish_error = ""
+        published_byte_count = 0
 
         publish_pcm = getattr(audio_bus, "publish_pcm", None)
-        if not callable(publish_pcm):
-            return
+        if audio_bus is None:
+            publish_status = "audio_bus_unavailable"
+        elif not callable(publish_pcm):
+            publish_status = "publish_pcm_unavailable"
+        else:
+            try:
+                pcm = np.asarray(converted).tobytes(order="C")
+                publish_pcm(
+                    pcm,
+                    timestamp_monotonic=timestamp_monotonic,
+                    source="faster_whisper_callback_shadow_tap",
+                )
+                publish_status = "published"
+                published_byte_count = len(pcm)
+            except Exception as error:
+                publish_status = f"publish_failed:{type(error).__name__}"
+                publish_error = str(error)
+                error_count = int(
+                    getattr(self, "_realtime_audio_bus_shadow_tap_publish_errors", 0)
+                )
+                self._realtime_audio_bus_shadow_tap_publish_errors = error_count + 1
+                if error_count < 3:
+                    self.LOGGER.warning(
+                        "FasterWhisper realtime audio bus shadow tap publish failed: %s",
+                        error,
+                    )
 
         try:
-            publish_pcm(
-                mono.tobytes(order="C"),
-                timestamp_monotonic=time.monotonic(),
-                source="faster_whisper_callback_shadow_tap",
-            )
-        except Exception as error:
-            error_count = int(
-                getattr(self, "_realtime_audio_bus_shadow_tap_publish_errors", 0)
-            )
-            self._realtime_audio_bus_shadow_tap_publish_errors = error_count + 1
-            if error_count < 3:
-                self.LOGGER.warning(
-                    "FasterWhisper realtime audio bus shadow tap publish failed: %s",
-                    error,
-                )
+            frames_argument = None if frames is None else int(frames)
+        except (TypeError, ValueError):
+            frames_argument = None
+
+        diagnostic_record = {
+            "timestamp_monotonic": timestamp_monotonic,
+            "source": "faster_whisper_callback_shadow_tap",
+            "publish_status": publish_status,
+            "publish_error": publish_error,
+            "frames_argument": frames_argument,
+            "published_byte_count": published_byte_count,
+            "callback_status": str(callback_status or ""),
+            "callback_time_info": self._audio_callback_time_info_snapshot(time_info),
+            "raw_profile": raw_profile,
+            "converted_profile": converted_profile,
+            "conversion_warning": self._conversion_warning(
+                raw_profile=raw_profile,
+                converted_profile=converted_profile,
+            ),
+        }
+        self._append_realtime_audio_bus_shadow_tap_diagnostic(diagnostic_record)
 
     def _ensure_stream_open(self) -> None:
         if self._stream is not None:
