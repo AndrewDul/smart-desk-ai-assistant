@@ -16,6 +16,7 @@ def test_voice_engine_v2_does_not_replace_legacy_runtime_by_default() -> None:
     assert voice_engine["realtime_audio_bus_enabled"] is False
     assert voice_engine["vad_shadow_enabled"] is False
     assert voice_engine["vosk_shadow_asr_result_enabled"] is False
+    assert voice_engine["vosk_shadow_recognition_preflight_enabled"] is False
     assert voice_engine["vad_endpointing_enabled"] is False
     assert voice_engine["command_first_enabled"] is False
     assert voice_engine["fallback_to_legacy_enabled"] is True

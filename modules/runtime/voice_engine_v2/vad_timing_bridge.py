@@ -40,6 +40,12 @@ from modules.runtime.voice_engine_v2.vosk_shadow_asr_result import (
     VoskShadowAsrResultSettings,
     build_vosk_shadow_asr_result,
 )
+from modules.runtime.voice_engine_v2.vosk_shadow_recognition_preflight import (
+    VOSK_SHADOW_RECOGNITION_PREFLIGHT_STAGE,
+    VOSK_SHADOW_RECOGNITION_PREFLIGHT_VERSION,
+    VoskShadowRecognitionPreflightSettings,
+    build_vosk_shadow_recognition_preflight,
+)
 from modules.runtime.voice_engine_v2.vad_shadow import (
     VoiceEngineV2VadShadowObserver,
     build_voice_engine_v2_vad_shadow_observer,
@@ -526,6 +532,11 @@ class VoiceEngineV2VadTimingBridgeAdapter:
             hook=hook,
             metadata=safe_metadata,
         )
+        safe_metadata = _maybe_attach_vosk_shadow_recognition_preflight(
+            settings=self._settings,
+            hook=hook,
+            metadata=safe_metadata,
+        )
 
         record = VoiceEngineV2VadTimingBridgeRecord(
             timestamp_utc=timestamp_utc,
@@ -941,6 +952,109 @@ def _maybe_attach_vosk_shadow_asr_result(
             "segment_sample_rate": None,
             "segment_pcm_encoding": "",
             "pcm_retrieval_performed": False,
+            "raw_pcm_included": False,
+            "action_executed": False,
+            "full_stt_prevented": False,
+            "runtime_takeover": False,
+            "runtime_integration": False,
+            "command_execution_enabled": False,
+            "faster_whisper_bypass_enabled": False,
+            "microphone_stream_started": False,
+            "independent_microphone_stream_started": False,
+            "live_command_recognition_enabled": False,
+        }
+
+    return safe_metadata
+
+
+def _maybe_attach_vosk_shadow_recognition_preflight(
+    *,
+    settings: Mapping[str, Any],
+    hook: str,
+    metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    safe_metadata = dict(metadata or {})
+    voice_engine = _voice_engine_config(settings)
+
+    if not bool(voice_engine.get("vosk_shadow_recognition_preflight_enabled", False)):
+        return safe_metadata
+
+    if not bool(voice_engine.get("command_asr_shadow_bridge_enabled", False)):
+        return safe_metadata
+
+    if not bool(voice_engine.get("vosk_live_shadow_contract_enabled", False)):
+        return safe_metadata
+
+    if not bool(voice_engine.get("vosk_shadow_invocation_plan_enabled", False)):
+        return safe_metadata
+
+    if not bool(voice_engine.get("vosk_shadow_pcm_reference_enabled", False)):
+        return safe_metadata
+
+    if not bool(voice_engine.get("vosk_shadow_asr_result_enabled", False)):
+        return safe_metadata
+
+    if hook != "capture_window_pre_transcription":
+        return safe_metadata
+
+    if "command_asr_shadow_bridge" not in safe_metadata:
+        return safe_metadata
+
+    if "vosk_live_shadow" not in safe_metadata:
+        return safe_metadata
+
+    if "vosk_shadow_invocation_plan" not in safe_metadata:
+        return safe_metadata
+
+    if "vosk_shadow_pcm_reference" not in safe_metadata:
+        return safe_metadata
+
+    if "vosk_shadow_asr_result" not in safe_metadata:
+        return safe_metadata
+
+    try:
+        preflight = build_vosk_shadow_recognition_preflight(
+            hook=hook,
+            metadata=safe_metadata,
+            settings=VoskShadowRecognitionPreflightSettings(enabled=True),
+        )
+        safe_metadata[preflight.metadata_key] = preflight.to_json_dict()
+    except Exception as error:
+        safe_metadata["vosk_shadow_recognition_preflight"] = {
+            "preflight_stage": VOSK_SHADOW_RECOGNITION_PREFLIGHT_STAGE,
+            "preflight_version": VOSK_SHADOW_RECOGNITION_PREFLIGHT_VERSION,
+            "enabled": True,
+            "preflight_ready": False,
+            "recognition_allowed": False,
+            "recognition_blocked": True,
+            "reason": (
+                "vosk_shadow_recognition_preflight_failed:"
+                f"{type(error).__name__}"
+            ),
+            "metadata_key": "vosk_shadow_recognition_preflight",
+            "hook": str(hook or ""),
+            "source": "",
+            "publish_stage": "",
+            "recognizer_name": "vosk_command_asr",
+            "live_shadow_present": False,
+            "invocation_plan_present": False,
+            "invocation_plan_ready": False,
+            "pcm_reference_present": False,
+            "pcm_reference_ready": False,
+            "asr_result_present": False,
+            "asr_result_not_attempted": False,
+            "audio_sample_count": 0,
+            "published_byte_count": 0,
+            "sample_rate": None,
+            "pcm_encoding": "",
+            "pcm_retrieval_allowed": False,
+            "pcm_retrieval_performed": False,
+            "recognition_invocation_allowed": False,
+            "recognition_invocation_performed": False,
+            "recognition_attempted": False,
+            "result_present": False,
+            "recognized": False,
+            "command_matched": False,
             "raw_pcm_included": False,
             "action_executed": False,
             "full_stt_prevented": False,

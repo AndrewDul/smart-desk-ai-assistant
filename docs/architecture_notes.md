@@ -11592,3 +11592,123 @@ live_command_recognition_enabled=false
 action_executed=false
 full_stt_prevented=false
 runtime_takeover=false
+
+-----
+
+
+
+## Stage 24AY — Attach Vosk shadow recognition preflight to VAD timing telemetry
+
+### Status
+
+Implemented as an observe-only telemetry attachment.
+
+### What changed
+
+Stage 24AY attaches `metadata.vosk_shadow_recognition_preflight` to VAD timing telemetry behind a new disabled-by-default flag:
+
+- `voice_engine.vosk_shadow_recognition_preflight_enabled=false`
+
+The preflight is attached only when all previous observe-only Vosk shadow gates are enabled and present:
+
+- `voice_engine.command_asr_shadow_bridge_enabled=true`
+- `voice_engine.vosk_live_shadow_contract_enabled=true`
+- `voice_engine.vosk_shadow_invocation_plan_enabled=true`
+- `voice_engine.vosk_shadow_pcm_reference_enabled=true`
+- `voice_engine.vosk_shadow_asr_result_enabled=true`
+- `voice_engine.vosk_shadow_recognition_preflight_enabled=true`
+- `hook=capture_window_pre_transcription`
+- `metadata.command_asr_shadow_bridge` exists
+- `metadata.vosk_live_shadow` exists
+- `metadata.vosk_shadow_invocation_plan` exists
+- `metadata.vosk_shadow_pcm_reference` exists
+- `metadata.vosk_shadow_asr_result` exists
+
+When attached, the preflight may report `preflight_ready=true`, but recognition remains blocked by stage policy:
+
+- `recognition_allowed=false`
+- `recognition_blocked=true`
+- `recognition_invocation_allowed=false`
+- `recognition_invocation_performed=false`
+- `recognition_attempted=false`
+- `result_present=false`
+
+### Why this was needed
+
+Stage 24AX added the recognition preflight contract, but the contract was not yet visible in runtime-adjacent VAD timing telemetry.
+
+This stage creates a safe telemetry position for the preflight so future runtime observation can validate readiness before any real Vosk recognition is introduced.
+
+This prevents the first recognition step from being added directly to the bridge without a readiness and safety boundary.
+
+### What NEXA gains
+
+NEXA gains a clear runtime telemetry checkpoint between observe-only ASR result metadata and a future controlled Vosk recognition invocation.
+
+This supports the Voice Engine v2 goal of fast built-in command response while still protecting the current production path:
+
+- FasterWhisper remains primary,
+- command execution remains disabled,
+- raw PCM remains excluded from telemetry,
+- no PCM retrieval happens,
+- runtime takeover remains impossible,
+- no second microphone stream is started.
+
+### Removed or deprecated legacy path
+
+Nothing was removed.
+
+No production STT path was replaced.
+
+No command execution path was changed.
+
+No FasterWhisper path was bypassed.
+
+No Vosk recognition was attempted.
+
+No Visual Shell path was changed.
+
+No TTS path was changed.
+
+### Source / evidence
+
+Evidence used:
+
+- Stage 24AW real runtime full-chain observation,
+- Stage 24AX recognition preflight contract,
+- existing VAD timing bridge telemetry chain,
+- Voice Engine v2 safety rule that real recognition must not be introduced before a preflight boundary is observable.
+
+### Validation
+
+Tests to validate Stage 24AY:
+
+```bash
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_vosk_shadow_recognition_preflight.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_shadow_recognition_preflight.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_vosk_shadow_asr_result.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_shadow_asr_result.py
+pytest -q tests/core/voice_engine/test_voice_engine_settings_baseline.py
+pytest -q tests/test_core_assistant_import.py
+
+Expected result:
+
+all tests pass,
+voice_engine.vosk_shadow_recognition_preflight_enabled=false by default,
+preflight is not attached by default,
+preflight requires ASR result metadata,
+attached preflight can become preflight_ready=true,
+recognition remains blocked,
+no PCM retrieval happens,
+no recognition invocation happens,
+no command execution happens,
+no FasterWhisper bypass happens,
+no runtime takeover happens.
+Follow-up
+
+The next stage should add a dedicated JSONL validator for metadata.vosk_shadow_recognition_preflight.
+
+That validator must reject recognition permission, recognition invocation, PCM retrieval, command execution, FasterWhisper bypass, runtime takeover and second microphone streams by default.
+
+
+---
