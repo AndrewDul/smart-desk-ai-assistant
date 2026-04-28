@@ -9092,3 +9092,114 @@ TTS changes,
 Visual Shell changes.
 
 ---
+
+
+
+## Stage 24T — Command ASR shadow bridge contract
+
+### Status
+
+Implemented as standalone observe-only bridge contract. Not connected to live runtime.
+
+### What changed
+
+Stage 24T added a command ASR shadow bridge that can enrich an existing Voice Engine v2 telemetry record with command ASR metadata.
+
+New module:
+
+```text
+modules/runtime/voice_engine_v2/command_asr_shadow_bridge.py
+
+New validator:
+
+scripts/validate_voice_engine_v2_command_asr_shadow_bridge.py
+
+New tests:
+
+tests/runtime/voice_engine_v2/test_command_asr_shadow_bridge.py
+tests/scripts/test_validate_voice_engine_v2_command_asr_shadow_bridge.py
+
+The bridge can produce:
+
+metadata.command_asr_shadow_bridge
+metadata.command_asr_candidate
+
+The bridge is disabled by default. When disabled, it only records bridge disabled metadata and does not attach a command ASR candidate. When explicitly enabled in tests, it can attach a safe command ASR candidate using either the disabled recognizer or a provided guarded recognizer adapter.
+
+Why this was needed
+
+Stage 24R introduced the command ASR contract.
+
+Stage 24S introduced the guarded Vosk adapter shell.
+
+Stage 24T creates the next boundary: a standalone telemetry bridge that can attach command ASR candidate metadata to a VAD timing bridge-style record without modifying the live VAD timing bridge runtime.
+
+This allows the project to test the telemetry shape and safety invariants before any runtime integration.
+
+What NEXA gains
+
+NEXA now has a safe bridge contract for command ASR shadow telemetry.
+
+This gives Voice Engine v2:
+
+a clean way to attach command_asr_candidate metadata,
+disabled-by-default behavior,
+no live Vosk runtime activation,
+no command execution,
+no FasterWhisper bypass,
+no second microphone stream,
+no raw PCM in telemetry,
+validator coverage for bridge records,
+a safe path toward future runtime-shadow integration.
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No config was changed.
+
+No live runtime path was changed.
+
+No vad_timing_bridge.py integration was added in this stage.
+
+No command execution was added.
+
+No active Vosk model loading was added.
+
+No wake word, TTS, Visual Shell, or FasterWhisper path was changed.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24Q VoiceEngineV2CommandAudioSegment contract.
+Stage 24R CommandAsrRecognizer / CommandAsrCandidate contract.
+Stage 24S VoskCommandAsrAdapter.
+Existing VAD timing bridge telemetry shape.
+Stage 24T bridge and validator tests.
+Validation
+
+Run:
+
+pytest -q tests/runtime/voice_engine_v2/test_command_asr_shadow_bridge.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_command_asr_shadow_bridge.py
+pytest -q tests/runtime/voice_engine_v2/test_command_asr.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_command_asr_adapter.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_command_asr_disabled.py
+pytest -q tests/runtime/voice_engine_v2/test_command_audio_segment.py
+pytest -q tests/test_core_assistant_import.py
+
+Expected safety result:
+
+Bridge is disabled by default.
+No command execution occurs.
+No full STT prevention occurs.
+No runtime takeover occurs.
+No raw PCM is included in telemetry.
+No live runtime path is changed.
+No config is changed.
+Follow-up
+
+Stage 24U may connect the shadow bridge into VAD timing bridge telemetry behind an explicit disabled-by-default config flag, but still must not execute commands, bypass FasterWhisper, load active Vosk runtime, create a second microphone stream, or change wake/TTS/Visual Shell behavior.
+
+
+---
