@@ -9457,4 +9457,160 @@ no Visual Shell changes.
 
 ---
 
+## Stage 24W — Controlled command ASR shadow observation procedure
 
+### Status
+
+Implemented as controlled operational procedure. Not a runtime feature.
+
+### What changed
+
+Stage 24W added a script that safely manages a temporary command ASR shadow observation run.
+
+New script:
+
+```text
+scripts/run_voice_engine_v2_stage24w_observation.py
+
+New tests:
+
+tests/scripts/test_run_voice_engine_v2_stage24w_observation.py
+
+The script supports:
+
+python scripts/run_voice_engine_v2_stage24w_observation.py status
+python scripts/run_voice_engine_v2_stage24w_observation.py enable
+python scripts/run_voice_engine_v2_stage24w_observation.py validate
+python scripts/run_voice_engine_v2_stage24w_observation.py restore
+
+The enable action creates a backup of config/settings.json, then temporarily enables only observe-only telemetry flags:
+
+voice_engine.pre_stt_shadow_enabled=true
+voice_engine.faster_whisper_audio_bus_tap_enabled=true
+voice_engine.vad_shadow_enabled=true
+voice_engine.vad_timing_bridge_enabled=true
+voice_engine.command_asr_shadow_bridge_enabled=true
+
+At the same time it keeps the runtime guarded:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+voice_engine.runtime_candidates_enabled=false
+
+The restore action restores from backup when available and forces the observation flags back to false.
+
+Why this was needed
+
+Stage 24U connected command ASR shadow metadata to VAD timing telemetry behind a disabled-by-default flag.
+
+Stage 24V added a validator for command ASR shadow records inside voice_engine_v2_vad_timing_bridge.jsonl.
+
+Stage 24W adds the safe operational procedure needed to collect real runtime telemetry without accidentally leaving observation flags enabled.
+
+This reduces risk during live testing on Raspberry Pi because the procedure explicitly supports backup, validation, and restore.
+
+What NEXA gains
+
+NEXA now has a controlled way to collect real pre-transcription command ASR shadow telemetry.
+
+This gives the project:
+
+repeatable runtime observation steps,
+automatic settings backup,
+explicit safe guard values,
+validation through the Stage 24V validator,
+restore path back to safe defaults,
+no command execution,
+no full STT prevention,
+no runtime takeover,
+no active Vosk runtime,
+no second microphone stream,
+no raw PCM in telemetry.
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No runtime path was changed.
+
+No config default was changed.
+
+No active command ASR was enabled.
+
+No Vosk runtime was activated.
+
+No FasterWhisper fallback behavior was changed.
+
+No wake word, TTS, or Visual Shell behavior was changed.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24Q command audio segment contract.
+Stage 24R command ASR candidate contract.
+Stage 24T command ASR shadow bridge.
+Stage 24U VAD timing bridge integration.
+Stage 24V VAD timing command ASR shadow validator.
+Stage 24W procedure tests.
+Validation
+
+Run:
+
+pytest -q tests/scripts/test_run_voice_engine_v2_stage24w_observation.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_timing_command_asr_shadow.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_bridge.py
+pytest -q tests/runtime/voice_engine_v2/test_command_asr_shadow_bridge.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_command_asr_shadow_bridge.py
+pytest -q tests/runtime/voice_engine_v2/test_command_asr.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_command_asr_adapter.py
+pytest -q tests/test_core_assistant_import.py
+
+Controlled runtime observation procedure:
+
+python scripts/run_voice_engine_v2_stage24w_observation.py status
+
+python scripts/run_voice_engine_v2_stage24w_observation.py enable
+
+# Run NEXA manually and speak a few short command-like turns.
+# Example:
+# - "NeXa, what time is it"
+# - "NeXa, show desktop"
+# - "NeXa, hide desktop"
+# - "NeXa, pokaż pulpit"
+
+python scripts/run_voice_engine_v2_stage24w_observation.py validate
+
+python scripts/run_voice_engine_v2_stage24w_observation.py restore
+
+python scripts/run_voice_engine_v2_stage24w_observation.py status
+
+Expected validation safety result:
+
+accepted=true
+issues=[]
+bridge_records>0
+candidate_attached_records>0
+recognizer_enabled_records=0
+recognition_attempted_records=0
+recognized_records=0
+raw_pcm_records=0
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+top_level_unsafe_action_records=0
+top_level_unsafe_full_stt_records=0
+top_level_unsafe_takeover_records=0
+Follow-up
+
+Stage 24X may analyze real Stage 24W runtime telemetry and decide whether the next step should be:
+
+keeping the bridge disabled and improving telemetry,
+adding a stricter runtime observation validator,
+or preparing a disabled-by-default real Vosk model loading probe.
+
+Stage 24X must not enable command execution, bypass FasterWhisper, start a second microphone stream, or change wake word/TTS/Visual Shell behavior.
+
+
+---
