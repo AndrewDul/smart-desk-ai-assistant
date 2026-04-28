@@ -10951,3 +10951,165 @@ raw_pcm_included=false
 action_executed=false
 full_stt_prevented=false
 runtime_takeover=false
+
+----
+
+## Stage 24AG — Offline Vosk fixture matrix runner
+
+### Status
+
+Implemented as an offline fixture matrix runner. Not connected to live runtime.
+
+### What changed
+
+Stage 24AG added a single offline matrix runner for the current EN/PL Vosk command fixtures.
+
+New module:
+
+```text
+modules/runtime/voice_engine_v2/vosk_fixture_matrix_runner.py
+
+New CLI:
+
+scripts/run_voice_engine_v2_vosk_fixture_matrix.py
+
+The runner executes the scoped offline Vosk fixture probes for:
+
+en_show_desktop
+en_hide_desktop
+en_what_time_is_it
+pl_pokaz_pulpit
+pl_schowaj_pulpit
+pl_ktora_godzina
+
+It writes per-fixture reports under:
+
+var/data/stage24ag_vosk_fixture_matrix/
+
+and writes one matrix summary under:
+
+var/data/stage24ag_vosk_fixture_matrix_summary.json
+
+The matrix summary embeds the Stage 24AF aggregate report, including:
+
+accepted_reports
+matched_reports
+language_match_records
+language_mismatch_records
+unsafe_flag_records
+language_counts
+intent_counts
+elapsed_ms
+per_language
+per_intent
+
+No live runtime integration was added.
+
+No live microphone stream was started by Voice Engine v2.
+
+No command execution was enabled.
+
+No FasterWhisper bypass was enabled.
+
+No wake word, audio input, TTS, or Visual Shell behavior was changed.
+
+Why this was needed
+
+Stage 24AD proved that real EN/PL command fixtures can be imported and recognized offline.
+
+Stage 24AE made fixture recognition cleaner by using language-scoped grammar vocabulary.
+
+Stage 24AF added an aggregate summary over existing reports.
+
+Stage 24AG removes the manual multi-command procedure by adding a repeatable offline matrix runner that runs the scoped probes and summary as one validation command.
+
+This gives the project a cleaner acceptance gate before any future live command-ASR shadow work.
+
+What NEXA gains
+
+NEXA now has a repeatable offline matrix validation command for Vosk command fixtures.
+
+This gives the project:
+
+one command for scoped EN/PL fixture probing,
+one command for aggregate offline recognition evidence,
+strict command match validation,
+strict language match validation,
+unsafe flag validation,
+elapsed time visibility,
+cleaner regression procedure,
+no live runtime takeover,
+no command execution risk,
+no FasterWhisper bypass in production.
+
+This supports the Voice Engine v2 command-first direction while keeping the live system safe.
+
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No runtime route was changed.
+
+No live Vosk recognizer was connected.
+
+No production command path was changed.
+
+No config flag was enabled.
+
+The previous manual Stage 24AE + Stage 24AF commands remain valid, but Stage 24AG becomes the preferred offline acceptance gate for the current fixture set.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24AD real EN/PL fixture import and offline Vosk recognition.
+Stage 24AE language-scoped Vosk fixture reports.
+Stage 24AF aggregate report contract.
+Real Raspberry Pi fixture matrix reports under var/data/stage24ag_vosk_fixture_matrix/.
+Matrix summary under var/data/stage24ag_vosk_fixture_matrix_summary.json.
+Validation
+
+Unit and script tests:
+
+pytest -q tests/runtime/voice_engine_v2/test_vosk_fixture_matrix_runner.py
+pytest -q tests/scripts/test_run_voice_engine_v2_vosk_fixture_matrix.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_fixture_report_summary.py
+pytest -q tests/scripts/test_summarize_voice_engine_v2_vosk_fixture_reports.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_fixture_recognition_probe.py
+pytest -q tests/scripts/test_probe_voice_engine_v2_vosk_fixture_recognition.py
+pytest -q tests/test_core_assistant_import.py
+
+Manual matrix command:
+
+python scripts/run_voice_engine_v2_vosk_fixture_matrix.py \
+  --report-dir var/data/stage24ag_vosk_fixture_matrix \
+  --summary-output-path var/data/stage24ag_vosk_fixture_matrix_summary.json \
+  --require-language en \
+  --require-language pl
+
+Expected matrix result:
+
+accepted=true
+total_items=6
+accepted_items=6
+failed_items=0
+summary.accepted=true
+summary.total_reports=6
+summary.accepted_reports=6
+summary.matched_reports=6
+summary.language_match_records=6
+summary.language_mismatch_records=0
+summary.unsafe_flag_records=0
+
+Expected safety fields remained false:
+
+runtime_integration=false
+command_execution_enabled=false
+faster_whisper_bypass_enabled=false
+microphone_stream_started=false
+live_command_recognition_enabled=false
+raw_pcm_included=false
+action_executed=false
+full_stt_prevented=false
+runtime_takeover=false
+
