@@ -11440,3 +11440,155 @@ result.recognition_attempted=false
 result.recognized=false
 
 -------
+
+
+## Stage 24AK — Attach Vosk live shadow contract to VAD timing telemetry
+
+### Status
+
+Implemented as observe-only telemetry attachment behind disabled-by-default config.
+
+### What changed
+
+Stage 24AK attaches the existing Vosk live shadow contract to Voice Engine v2 VAD timing bridge telemetry.
+
+The attachment is guarded by:
+
+```text
+voice_engine.vosk_live_shadow_contract_enabled=false
+
+The contract is attached only when all safety preconditions are true:
+
+voice_engine.command_asr_shadow_bridge_enabled=true
+voice_engine.vosk_live_shadow_contract_enabled=true
+hook=capture_window_pre_transcription
+metadata.command_asr_shadow_bridge exists
+
+Changed files:
+
+modules/runtime/voice_engine_v2/vad_timing_bridge.py
+config/settings.json
+config/settings.example.json
+modules/shared/config/settings_core/defaults.py
+
+New validation and regression coverage:
+
+tests/runtime/voice_engine_v2/test_vad_timing_vosk_live_shadow_contract.py
+scripts/validate_voice_engine_v2_vad_timing_vosk_live_shadow.py
+tests/scripts/test_validate_voice_engine_v2_vad_timing_vosk_live_shadow.py
+
+The attached contract shape is intentionally observe-only:
+
+enabled=true
+observed=false
+reason=vosk_live_shadow_result_missing
+recognition_attempted=false
+recognized=false
+command_matched=false
+
+Safety fields remain false:
+
+runtime_integration=false
+command_execution_enabled=false
+faster_whisper_bypass_enabled=false
+microphone_stream_started=false
+independent_microphone_stream_started=false
+live_command_recognition_enabled=false
+raw_pcm_included=false
+action_executed=false
+full_stt_prevented=false
+runtime_takeover=false
+
+Stage 24AK does not start Vosk live recognition.
+
+Stage 24AK does not execute commands.
+
+Stage 24AK does not bypass FasterWhisper.
+
+Stage 24AK does not start a second microphone stream.
+
+Stage 24AK does not take over runtime.
+
+Stage 24AK does not change wake word, audio input, TTS, or Visual Shell behavior.
+
+Why this was needed
+
+Stage 24AJ created the Vosk live shadow contract, but it was not yet attached to real VAD timing telemetry.
+
+Stage 24AK connects that contract to the existing pre-transcription telemetry point without activating recognition.
+
+This gives the next controlled observation procedure a stable telemetry location to validate before any future live Vosk recognition is considered.
+
+The attachment point is intentionally limited to capture_window_pre_transcription because that hook already represents the safe pre-STT observation boundary created by the earlier VAD timing bridge stages.
+
+What NEXA gains
+
+NEXA gains a safer migration path toward command-first recognition.
+
+This stage gives the project:
+
+a real telemetry location for future Vosk shadow observation,
+a disabled-by-default config flag,
+explicit safety invariants,
+validation that FasterWhisper remains the active STT path,
+validation that no command execution can occur through this contract,
+validation that no second microphone stream is started,
+a clean boundary between telemetry preparation and future recognition.
+
+This supports the Voice Engine v2 goal of eventually reducing built-in command latency while keeping the current legacy runtime stable.
+
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No production voice path was replaced.
+
+No legacy routing branch was changed.
+
+No command execution path was changed.
+
+No Visual Shell path was changed.
+
+No TTS path was changed.
+
+The Vosk live shadow contract remains observe-only and disabled by default.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24AJ Vosk live shadow contract tests.
+Existing VAD timing bridge telemetry.
+Existing command ASR shadow bridge metadata.
+Local Stage 24AK regression tests.
+Voice Engine v2 migration rule that command recognition must be introduced safely before runtime takeover.
+Runtime safety requirement that FasterWhisper must not be bypassed during observe-only stages.
+Validation
+
+Tests that validate Stage 24AK:
+
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_vosk_live_shadow_contract.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_timing_vosk_live_shadow.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_live_shadow_contract.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vosk_live_shadow_contract.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_bridge.py
+pytest -q tests/test_core_assistant_import.py
+
+Expected result:
+
+all tests pass
+voice_engine.vosk_live_shadow_contract_enabled=false by default
+metadata.vosk_live_shadow is not attached when disabled
+metadata.vosk_live_shadow is attached only on capture_window_pre_transcription when both shadow flags are enabled
+recognition_attempted=false
+recognized=false
+command_matched=false
+runtime_integration=false
+command_execution_enabled=false
+faster_whisper_bypass_enabled=false
+microphone_stream_started=false
+independent_microphone_stream_started=false
+live_command_recognition_enabled=false
+action_executed=false
+full_stt_prevented=false
+runtime_takeover=false

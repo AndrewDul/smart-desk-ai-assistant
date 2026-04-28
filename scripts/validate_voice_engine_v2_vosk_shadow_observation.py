@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+import sys
+from typing import Any
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from scripts.run_voice_engine_v2_vosk_shadow_observation import (  # noqa: E402
+    DEFAULT_SETTINGS_PATH,
+    OBSERVATION_FLAGS,
+    RESTORED_OBSERVATION_FLAGS,
+    baseline_safety_issues,
+    load_settings,
+    observation_flag_status,
+)
+from scripts.validate_voice_engine_v2_vad_timing_vosk_live_shadow import (  # noqa: E402
+    DEFAULT_LOG_PATH,
+    validate_vad_timing_vosk_live_shadow_log,
+)
+
+
+def validate_observation_config(
+    *,
+    settings_path: Path,
+    require_restored: bool,
+) -> dict[str, Any]:
+    settings = load_settings(settings_path)
+    baseline_issues = baseline_safety_issues(settings)
+    observation_flags = observation_flag_status(settings)
+    issues = list(baseline_issues)
+
+    if require_restored:
+        for key, expected_value in RESTORED_OBSERVATION_FLAGS.items():
+            actual_value = observation_flags.get(key, False)
+            if actual_value is not expected_value:
+                issues.append(f"voice_engine.{key}_must_be_false_after_observation")
+
+    return {
+        "accepted": not issues,
+        "settings_path": str(settings_path),
+        "require_restored": require_restored,
+        "baseline_issues": baseline_issues,
+        "observation_flags": observation_flags,
+        "expected_observation_flags": (
+            RESTORED_OBSERVATION_FLAGS if require_restored else OBSERVATION_FLAGS
+        ),
+        "issues": issues,
+    }
+
+
+def validate_vosk_shadow_observation(
+    *,
+    settings_path: Path,
+    log_path: Path,
+    require_contract_attached: bool,
+    require_restored_config: bool,
+) -> dict[str, Any]:
+    config_result = validate_observation_config(
+        settings_path=settings_path,
+        require_restored=require_restored_config,
+    )
+    telemetry_result = validate_vad_timing_vosk_live_shadow_log(
+        log_path=log_path,
+        require_records=True,
+        require_contract_attached=require_contract_attached,
+        require_enabled_shape_only=True,
+        require_capture_window_hook=True,
+    )
+
+    accepted = bool(config_result.get("accepted", False)) and bool(
+        telemetry_result.get("accepted", False)
+    )
+
+    return {
+        "accepted": accepted,
+        "validator": "vosk_shadow_observation",
+        "settings_path": str(settings_path),
+        "log_path": str(log_path),
+        "config": config_result,
+        "telemetry": telemetry_result,
+        "issues": [
+            *[f"config:{issue}" for issue in config_result.get("issues", [])],
+            *[f"telemetry:{issue}" for issue in telemetry_result.get("issues", [])],
+        ],
+    }
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Validate the observe-only Voice Engine v2 Vosk shadow observation "
+            "procedure after runtime telemetry capture."
+        )
+    )
+    parser.add_argument(
+        "--settings",
+        type=Path,
+        default=DEFAULT_SETTINGS_PATH,
+        help="Path to config/settings.json.",
+    )
+    parser.add_argument(
+        "--log-path",
+        type=Path,
+        default=DEFAULT_LOG_PATH,
+        help="Path to VAD timing bridge JSONL telemetry.",
+    )
+    parser.add_argument(
+        "--require-contract-attached",
+        action="store_true",
+        help="Require at least one metadata.vosk_live_shadow record.",
+    )
+    parser.add_argument(
+        "--allow-active-observation-config",
+        action="store_true",
+        help=(
+            "Allow observation flags to remain enabled. Use only before the "
+            "restore command, never for final acceptance."
+        ),
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    try:
+        result = validate_vosk_shadow_observation(
+            settings_path=args.settings,
+            log_path=args.log_path,
+            require_contract_attached=args.require_contract_attached,
+            require_restored_config=not args.allow_active_observation_config,
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as error:
+        result = {
+            "accepted": False,
+            "validator": "vosk_shadow_observation",
+            "error": str(error),
+        }
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 2
+
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if bool(result.get("accepted", False)) else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

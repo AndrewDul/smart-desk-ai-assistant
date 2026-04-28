@@ -7,7 +7,7 @@ from modules.runtime.voice_engine_v2.command_asr import CommandAsrResult
 
 
 VOSK_LIVE_SHADOW_CONTRACT_STAGE = "vosk_live_shadow_contract"
-VOSK_LIVE_SHADOW_CONTRACT_VERSION = "stage_24aj_v1"
+VOSK_LIVE_SHADOW_CONTRACT_VERSION = "vosk_live_shadow_contract_v1"
 
 DEFAULT_VOSK_LIVE_SHADOW_METADATA_KEY = "vosk_live_shadow"
 DEFAULT_VOSK_LIVE_SHADOW_INPUT_SOURCE = "existing_command_audio_segment"

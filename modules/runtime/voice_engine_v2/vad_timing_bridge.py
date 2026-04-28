@@ -16,6 +16,12 @@ from modules.runtime.voice_engine_v2.command_asr_shadow_bridge import (
 from modules.runtime.voice_engine_v2.vad_endpointing_candidate import (
     build_vad_endpointing_candidate,
 )
+from modules.runtime.voice_engine_v2.vosk_live_shadow_contract import (
+    VOSK_LIVE_SHADOW_CONTRACT_STAGE,
+    VOSK_LIVE_SHADOW_CONTRACT_VERSION,
+    VoskLiveShadowContractSettings,
+    build_vosk_live_shadow_contract,
+)
 from modules.runtime.voice_engine_v2.vad_shadow import (
     VoiceEngineV2VadShadowObserver,
     build_voice_engine_v2_vad_shadow_observer,
@@ -467,7 +473,6 @@ class VoiceEngineV2VadTimingBridgeAdapter:
         )
         safe_vad_shadow = dict(vad_shadow or {})
         safe_metadata = dict(metadata or {})
-
         safe_metadata = _maybe_attach_command_asr_shadow(
             settings=self._settings,
             timestamp_utc=timestamp_utc,
@@ -481,6 +486,11 @@ class VoiceEngineV2VadTimingBridgeAdapter:
             capture_mode=normalized_capture_mode,
             transcript_present=transcript_present,
             vad_shadow=safe_vad_shadow,
+            metadata=safe_metadata,
+        )
+        safe_metadata = _maybe_attach_vosk_live_shadow_contract(
+            settings=self._settings,
+            hook=hook,
             metadata=safe_metadata,
         )
 
@@ -585,6 +595,77 @@ def _maybe_attach_command_asr_shadow(
     enriched_metadata = enriched_payload.get("metadata")
     if isinstance(enriched_metadata, Mapping):
         return dict(enriched_metadata)
+
+    return safe_metadata
+
+
+def _maybe_attach_vosk_live_shadow_contract(
+    *,
+    settings: Mapping[str, Any],
+    hook: str,
+    metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    safe_metadata = dict(metadata or {})
+    voice_engine = _voice_engine_config(settings)
+
+    if not bool(voice_engine.get("vosk_live_shadow_contract_enabled", False)):
+        return safe_metadata
+
+    if not bool(voice_engine.get("command_asr_shadow_bridge_enabled", False)):
+        return safe_metadata
+
+    if hook != "capture_window_pre_transcription":
+        return safe_metadata
+
+    command_asr_shadow_raw = safe_metadata.get("command_asr_shadow_bridge")
+    command_asr_shadow = (
+        dict(command_asr_shadow_raw)
+        if isinstance(command_asr_shadow_raw, Mapping)
+        else {}
+    )
+    if not command_asr_shadow:
+        return safe_metadata
+
+    try:
+        contract = build_vosk_live_shadow_contract(
+            settings=VoskLiveShadowContractSettings(enabled=True),
+        )
+        safe_metadata[contract.metadata_key] = contract.to_json_dict()
+    except Exception as error:
+        safe_metadata["vosk_live_shadow"] = {
+            "contract_stage": VOSK_LIVE_SHADOW_CONTRACT_STAGE,
+            "contract_version": VOSK_LIVE_SHADOW_CONTRACT_VERSION,
+            "enabled": True,
+            "observed": False,
+            "reason": f"vosk_live_shadow_contract_failed:{type(error).__name__}",
+            "metadata_key": "vosk_live_shadow",
+            "input_source": "existing_command_audio_segment",
+            "recognizer_name": "vosk_command_asr_shadow",
+            "recognizer_enabled": False,
+            "recognition_attempted": False,
+            "recognized": False,
+            "transcript": "",
+            "normalized_text": "",
+            "language": None,
+            "confidence": None,
+            "alternatives": [],
+            "command_matched": False,
+            "command_intent_key": None,
+            "command_language": None,
+            "command_matched_phrase": None,
+            "command_confidence": None,
+            "command_alternatives": [],
+            "runtime_integration": False,
+            "command_execution_enabled": False,
+            "faster_whisper_bypass_enabled": False,
+            "microphone_stream_started": False,
+            "independent_microphone_stream_started": False,
+            "live_command_recognition_enabled": False,
+            "raw_pcm_included": False,
+            "action_executed": False,
+            "full_stt_prevented": False,
+            "runtime_takeover": False,
+        }
 
     return safe_metadata
 
