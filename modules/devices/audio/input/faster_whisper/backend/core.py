@@ -537,6 +537,33 @@ class FasterWhisperInputBackend(
             }
 
         candidate = self._transcribe_audio_candidate(audio, debug=debug)
+        transcription_finished_at = time.monotonic()
+
+        capture_window_shadow_tap: dict[str, Any] = {}
+        try:
+            publish_capture_window = getattr(
+                self,
+                "publish_realtime_audio_bus_capture_window_shadow_tap",
+                None,
+            )
+            if callable(publish_capture_window):
+                capture_window_shadow_tap = dict(
+                    publish_capture_window(
+                        audio,
+                        capture_finished_at_monotonic=capture_finished_at,
+                        transcription_finished_at_monotonic=transcription_finished_at,
+                    )
+                    or {}
+                )
+        except Exception as error:
+            capture_window_shadow_tap = {
+                "enabled": True,
+                "published": False,
+                "reason": f"publish_failed:{type(error).__name__}",
+                "error": str(error),
+                "source": "faster_whisper_capture_window_shadow_tap",
+            }
+
         if candidate is None:
             return None
 
@@ -600,6 +627,11 @@ class FasterWhisperInputBackend(
             metadata.setdefault(
                 "faster_whisper_stt_capture_audio_profile",
                 capture_audio_profile,
+            )
+        if capture_window_shadow_tap:
+            metadata.setdefault(
+                "realtime_audio_bus_capture_window_shadow_tap",
+                capture_window_shadow_tap,
             )
 
         return TranscriptResult(

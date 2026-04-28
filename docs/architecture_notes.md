@@ -7610,3 +7610,147 @@ If hardware confirms that STT capture audio is healthy but bridge still sees pos
 
 
 ---
+
+
+## Stage 24K — FasterWhisper capture-window shadow tap
+
+### Status
+
+Implemented and hardware validated as safe observe-only diagnostics.
+
+### What changed
+
+Stage 24K added an observe-only capture-window shadow tap for FasterWhisper.
+
+A new diagnostic source was introduced:
+
+```text
+faster_whisper_capture_window_shadow_tap
+
+This source replays the actual audio buffer that FasterWhisper already captured and used for transcription into RealtimeAudioBus as diagnostic PCM frames.
+
+The implementation records:
+
+capture-window input audio profile,
+converted int16 PCM profile,
+conversion reason,
+published frame count,
+published byte count,
+diagnostic replay timestamps,
+capture/transcription timing metadata.
+
+This does not start a second microphone stream and does not change the production voice route.
+
+Why this was needed
+
+Stage 24I and Stage 24J showed that the VAD timing bridge could read fresh AudioBus frames, but the PCM observed from faster_whisper_callback_shadow_tap was near-silent.
+
+At the same time, legacy FasterWhisper successfully transcribed real commands.
+
+Stage 24K tested whether the problem was Silero VAD, AudioBus, or the specific audio source being observed. The capture-window source confirmed that the actual FasterWhisper capture buffer contains strong speech signal when converted safely to int16 PCM.
+
+What NEXA gains
+
+NEXA now has strong evidence that:
+
+Silero VAD scoring works correctly on NEXA hardware,
+RealtimeAudioBus can carry useful speech PCM,
+the current near-silent problem is source/timing related, not a VAD threshold problem,
+future Voice Engine v2 work should move observation closer to live capture-window timing instead of lowering thresholds or adding another microphone stream.
+
+This protects the premium Voice Engine v2 migration from unsafe fixes and keeps the path toward low-latency command-first routing evidence-based.
+
+Removed or deprecated legacy path
+
+Nothing was removed in Stage 24K.
+
+The capture-window tap is diagnostic-only and remains guarded by existing Voice Engine v2 flags.
+
+The safe default runtime configuration remains:
+
+voice_engine.enabled=false
+voice_engine.mode=legacy
+voice_engine.command_first_enabled=false
+voice_engine.fallback_to_legacy_enabled=true
+voice_engine.runtime_candidates_enabled=false
+voice_engine.pre_stt_shadow_enabled=false
+voice_engine.faster_whisper_audio_bus_tap_enabled=false
+voice_engine.vad_shadow_enabled=false
+voice_engine.vad_timing_bridge_enabled=false
+
+No production takeover was introduced.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24K pytest regression tests.
+Fresh hardware run on Raspberry Pi runtime.
+var/data/voice_engine_v2_pre_stt_shadow.jsonl
+var/data/voice_engine_v2_vad_timing_bridge.jsonl
+
+Hardware validation showed:
+
+accepted=true
+issues=[]
+unsafe_action_records=0
+unsafe_full_stt_records=0
+unsafe_takeover_records=0
+stale_audio_records=0
+source_counts:
+  faster_whisper_callback_shadow_tap=133
+  faster_whisper_capture_window_shadow_tap=100
+capture_window_metadata_records=5
+callback_metadata_records=5
+max_speech_score=0.999992847442627
+pcm_profile_signal_levels:
+  high=1
+  medium=4
+event_emission_reasons:
+  events_emitted=5
+event_types:
+  speech_started=5
+  speech_ended=2
+Validation
+
+Tests passed:
+
+pytest -q tests/devices/audio/input/faster_whisper/test_realtime_audio_bus_capture_window_shadow_tap.py
+pytest -q tests/devices/audio/input/faster_whisper/test_realtime_audio_bus_shadow_tap_diagnostics.py
+pytest -q tests/runtime/voice_engine_v2/test_faster_whisper_audio_bus_tap.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_timing_bridge.py
+pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
+pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
+pytest -q tests/test_core_assistant_import.py
+
+Hardware validators passed:
+
+python scripts/validate_voice_engine_v2_pre_stt_shadow_log.py \
+  --log-path var/data/voice_engine_v2_pre_stt_shadow.jsonl \
+  --require-observed
+
+python scripts/validate_voice_engine_v2_vad_shadow_log.py \
+  --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
+  --require-enabled \
+  --require-observed \
+  --require-audio-bus-present \
+  --require-frames \
+  --require-score-diagnostics \
+  --require-timing-diagnostics \
+  --require-pcm-profile-diagnostics
+Follow-up
+
+Stage 24L should move from diagnostic replay toward a safe live-capture observation bridge.
+
+The next stage must still remain observe-only:
+
+no command execution,
+no Vosk yet,
+no production takeover,
+no second microphone stream,
+no FasterWhisper bypass.
+
+The goal of Stage 24L is to expose a live capture-window event or buffer handoff at the moment speech capture completes, so VAD timing diagnostics can observe the same useful PCM without waiting until after full FasterWhisper transcription.
+
+
+---

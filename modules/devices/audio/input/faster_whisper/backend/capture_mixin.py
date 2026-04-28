@@ -20,6 +20,9 @@ class FasterWhisperCaptureMixin:
         self._realtime_audio_bus_shadow_tap_enabled = bool(enabled and audio_bus is not None)
         self._realtime_audio_bus_shadow_tap_publish_errors = 0
         self._realtime_audio_bus_shadow_tap_recent_records = deque(maxlen=32)
+        self._realtime_audio_bus_capture_window_shadow_tap_recent_records = deque(
+            maxlen=8
+        )
 
     def realtime_audio_bus_shadow_tap_diagnostics_snapshot(self) -> dict[str, Any]:
         recent_records = list(
@@ -333,6 +336,209 @@ class FasterWhisperCaptureMixin:
             ),
         }
         self._append_realtime_audio_bus_shadow_tap_diagnostic(diagnostic_record)
+
+    def publish_realtime_audio_bus_capture_window_shadow_tap(
+        self,
+        audio: Any,
+        *,
+        capture_finished_at_monotonic: float | None = None,
+        transcription_finished_at_monotonic: float | None = None,
+    ) -> dict[str, Any]:
+        """Replay the captured FasterWhisper audio window into AudioBus.
+
+        This is diagnostic-only. It does not start a microphone stream, does not
+        affect FasterWhisper transcription, and does not execute actions.
+        """
+
+        source = "faster_whisper_capture_window_shadow_tap"
+
+        if not bool(getattr(self, "_realtime_audio_bus_shadow_tap_enabled", False)):
+            return {
+                "enabled": False,
+                "attached": False,
+                "published": False,
+                "reason": "shadow_tap_disabled",
+                "source": source,
+            }
+
+        audio_bus = getattr(self, "_realtime_audio_bus_shadow_tap", None)
+        publish_pcm = getattr(audio_bus, "publish_pcm", None)
+        if audio_bus is None or not callable(publish_pcm):
+            return {
+                "enabled": True,
+                "attached": False,
+                "published": False,
+                "reason": "audio_bus_unavailable",
+                "source": source,
+            }
+
+        input_profile = self._audio_array_profile(audio)
+        int16_audio, conversion_reason = self._capture_window_audio_to_int16(audio)
+        int16_profile = self._audio_array_profile(int16_audio)
+
+        if int16_audio is None or int16_audio.size <= 0:
+            record = {
+                "enabled": True,
+                "attached": True,
+                "published": False,
+                "reason": "empty_capture_window",
+                "source": source,
+                "capture_finished_at_monotonic": capture_finished_at_monotonic,
+                "transcription_finished_at_monotonic": (
+                    transcription_finished_at_monotonic
+                ),
+                "input_profile": input_profile,
+                "int16_profile": int16_profile,
+                "conversion_reason": conversion_reason,
+            }
+            self._append_realtime_audio_bus_capture_window_shadow_tap_diagnostic(
+                record
+            )
+            return record
+
+        sample_rate = self._positive_int_for_audio_profile(
+            getattr(self, "sample_rate", None),
+            fallback=16000,
+        )
+        blocksize = self._positive_int_for_audio_profile(
+            getattr(self, "blocksize", None),
+            fallback=1024,
+        )
+        chunk_sample_count = max(1, blocksize)
+
+        sample_count = int(int16_audio.size)
+        duration_seconds = sample_count / float(sample_rate)
+        publish_started_at = time.monotonic()
+        replay_window_started_at = publish_started_at - duration_seconds
+
+        published_frame_count = 0
+        published_byte_count = 0
+        publish_errors: list[str] = []
+
+        for start in range(0, sample_count, chunk_sample_count):
+            chunk = int16_audio[start : start + chunk_sample_count]
+            if chunk.size <= 0:
+                continue
+
+            timestamp_monotonic = replay_window_started_at + (
+                float(start) / float(sample_rate)
+            )
+            try:
+                pcm = chunk.tobytes(order="C")
+                publish_pcm(
+                    pcm,
+                    timestamp_monotonic=timestamp_monotonic,
+                    source=source,
+                )
+                published_frame_count += 1
+                published_byte_count += len(pcm)
+            except Exception as error:
+                publish_errors.append(f"{type(error).__name__}: {error}")
+                error_count = int(
+                    getattr(self, "_realtime_audio_bus_shadow_tap_publish_errors", 0)
+                )
+                self._realtime_audio_bus_shadow_tap_publish_errors = error_count + 1
+                if error_count < 3:
+                    self.LOGGER.warning(
+                        "FasterWhisper capture-window shadow tap publish failed: %s",
+                        error,
+                    )
+
+        publish_completed_at = time.monotonic()
+        published = published_frame_count > 0 and not publish_errors
+        record = {
+            "enabled": True,
+            "attached": True,
+            "published": published,
+            "reason": "published" if published else "publish_failed",
+            "source": source,
+            "timestamp_mode": "diagnostic_replay_window_ending_at_publish_start",
+            "sample_rate": sample_rate,
+            "chunk_sample_count": chunk_sample_count,
+            "audio_sample_count": sample_count,
+            "audio_duration_seconds": round(duration_seconds, 6),
+            "published_frame_count": published_frame_count,
+            "published_byte_count": published_byte_count,
+            "publish_error_count": len(publish_errors),
+            "publish_errors": publish_errors[:3],
+            "capture_finished_at_monotonic": capture_finished_at_monotonic,
+            "transcription_finished_at_monotonic": transcription_finished_at_monotonic,
+            "publish_started_at_monotonic": publish_started_at,
+            "publish_completed_at_monotonic": publish_completed_at,
+            "input_profile": input_profile,
+            "int16_profile": int16_profile,
+            "conversion_reason": conversion_reason,
+        }
+        self._append_realtime_audio_bus_capture_window_shadow_tap_diagnostic(record)
+        return record
+
+    def _append_realtime_audio_bus_capture_window_shadow_tap_diagnostic(
+        self,
+        record: dict[str, Any],
+    ) -> None:
+        records = getattr(
+            self,
+            "_realtime_audio_bus_capture_window_shadow_tap_recent_records",
+            None,
+        )
+        if records is None:
+            records = deque(maxlen=8)
+            self._realtime_audio_bus_capture_window_shadow_tap_recent_records = (
+                records
+            )
+        records.append(dict(record))
+
+    @staticmethod
+    def _capture_window_audio_to_int16(
+        audio: Any,
+    ) -> tuple[np.ndarray | None, str]:
+        try:
+            array = np.asarray(audio)
+        except Exception as error:
+            return None, f"array_unavailable:{type(error).__name__}"
+
+        if array.size <= 0:
+            return None, "empty"
+
+        if array.ndim > 1:
+            array = array.reshape(-1)
+
+        if np.issubdtype(array.dtype, np.integer):
+            if array.dtype == np.int16:
+                return array.astype(np.int16, copy=True), "already_int16"
+
+            info = np.iinfo(array.dtype)
+            scale = float(max(abs(int(info.min)), abs(int(info.max)), 1))
+            normalized = array.astype(np.float32, copy=False) / scale
+            converted = np.clip(normalized, -1.0, 1.0)
+            return (
+                np.round(converted * 32767.0).astype(np.int16),
+                f"integer_scaled_from_{array.dtype}_to_int16",
+            )
+
+        if not np.issubdtype(array.dtype, np.floating):
+            return None, f"unsupported_dtype:{array.dtype}"
+
+        normalized = array.astype(np.float32, copy=False)
+        normalized = np.nan_to_num(
+            normalized,
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0,
+        )
+        normalized = np.clip(normalized, -1.0, 1.0)
+        return (
+            np.round(normalized * 32767.0).astype(np.int16),
+            f"float_scaled_from_{array.dtype}_to_int16",
+        )
+
+    @staticmethod
+    def _positive_int_for_audio_profile(raw_value: Any, *, fallback: int) -> int:
+        try:
+            value = int(raw_value)
+        except (TypeError, ValueError):
+            return int(fallback)
+        return value if value > 0 else int(fallback)
 
     def _ensure_stream_open(self) -> None:
         if self._stream is not None:
