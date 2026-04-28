@@ -11113,3 +11113,166 @@ action_executed=false
 full_stt_prevented=false
 runtime_takeover=false
 
+-----
+
+
+
+## Stage 24AH — Offline Vosk fixture matrix quality gate
+
+### Status
+
+Implemented as an offline quality gate over the Stage 24AG Vosk fixture matrix summary. Not connected to live runtime.
+
+### What changed
+
+Stage 24AH added a strict offline quality gate for the Vosk fixture matrix summary.
+
+New module:
+
+```text
+modules/runtime/voice_engine_v2/vosk_fixture_quality_gate.py
+
+New CLI:
+
+scripts/check_voice_engine_v2_vosk_fixture_matrix_quality.py
+
+The quality gate reads:
+
+var/data/stage24ag_vosk_fixture_matrix_summary.json
+
+and validates thresholds such as:
+
+accepted=true
+total_items >= 6
+accepted_items >= 6
+failed_items == 0
+summary.accepted=true
+summary.total_reports >= 6
+summary.matched_reports >= 6
+summary.language_match_records >= 6
+summary.language_mismatch_records == 0
+summary.unsafe_flag_records == 0
+summary.elapsed_ms.max <= configured threshold
+
+The gate also verifies that safety fields remain false:
+
+runtime_integration=false
+command_execution_enabled=false
+faster_whisper_bypass_enabled=false
+microphone_stream_started=false
+live_command_recognition_enabled=false
+
+No live runtime integration was added.
+
+No live microphone stream was started by Voice Engine v2.
+
+No command execution was enabled.
+
+No FasterWhisper bypass was enabled.
+
+No wake word, audio input, TTS, or Visual Shell behavior was changed.
+
+Why this was needed
+
+Stage 24AG made offline fixture probing repeatable as one matrix command.
+
+Stage 24AH turns the matrix output into an explicit pass/fail gate so future work cannot accidentally proceed with incomplete reports, language mismatches, unsafe flags, or excessive offline recognition elapsed time.
+
+This keeps the Voice Engine v2 migration evidence-based and prevents premature live runtime integration.
+
+What NEXA gains
+
+NEXA now has a hard offline acceptance gate for Vosk command fixture quality.
+
+This gives the project:
+
+minimum fixture coverage validation,
+accepted item validation,
+matched command validation,
+EN/PL language match validation,
+unsafe flag validation,
+optional elapsed time threshold validation,
+stronger regression protection,
+cleaner evidence before live shadow recognition,
+no live runtime takeover,
+no command execution risk,
+no FasterWhisper bypass in production.
+Removed or deprecated legacy path
+
+Nothing was removed.
+
+No runtime route was changed.
+
+No live Vosk recognizer was connected.
+
+No production command path was changed.
+
+No config flag was enabled.
+
+The Stage 24AG matrix runner remains the producer of the summary. Stage 24AH is only the quality gate over that summary.
+
+Source / evidence
+
+Evidence used:
+
+Stage 24AD real EN/PL fixture import and offline Vosk recognition.
+Stage 24AE language-scoped Vosk fixture reports.
+Stage 24AF aggregate report summary.
+Stage 24AG offline fixture matrix summary.
+Stage 24AH quality gate output under var/data/stage24ah_vosk_fixture_quality_gate.json.
+Validation
+
+Unit and script tests:
+
+pytest -q tests/runtime/voice_engine_v2/test_vosk_fixture_quality_gate.py
+pytest -q tests/scripts/test_check_voice_engine_v2_vosk_fixture_matrix_quality.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_fixture_matrix_runner.py
+pytest -q tests/scripts/test_run_voice_engine_v2_vosk_fixture_matrix.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_fixture_report_summary.py
+pytest -q tests/scripts/test_summarize_voice_engine_v2_vosk_fixture_reports.py
+pytest -q tests/runtime/voice_engine_v2/test_vosk_fixture_recognition_probe.py
+pytest -q tests/scripts/test_probe_voice_engine_v2_vosk_fixture_recognition.py
+pytest -q tests/test_core_assistant_import.py
+
+Manual matrix command:
+
+python scripts/run_voice_engine_v2_vosk_fixture_matrix.py \
+  --report-dir var/data/stage24ag_vosk_fixture_matrix \
+  --summary-output-path var/data/stage24ag_vosk_fixture_matrix_summary.json \
+  --require-language en \
+  --require-language pl
+
+Manual quality gate command:
+
+python scripts/check_voice_engine_v2_vosk_fixture_matrix_quality.py \
+  --summary-path var/data/stage24ag_vosk_fixture_matrix_summary.json \
+  --require-language en \
+  --require-language pl \
+  --max-elapsed-ms 2000 \
+  --output-path var/data/stage24ah_vosk_fixture_quality_gate.json
+
+Expected quality gate result:
+
+accepted=true
+issues=[]
+observed.total_items=6
+observed.accepted_items=6
+observed.failed_items=0
+observed.matched_reports=6
+observed.language_match_records=6
+observed.language_mismatch_records=0
+observed.unsafe_flag_records=0
+observed.elapsed_ms.max <= 2000
+
+Expected safety fields remained false:
+
+runtime_integration=false
+command_execution_enabled=false
+faster_whisper_bypass_enabled=false
+microphone_stream_started=false
+live_command_recognition_enabled=false
+
+
+----
+
+
