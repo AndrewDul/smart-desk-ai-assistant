@@ -44,7 +44,7 @@ class TTSPipeline(
     - avoid spawning multiple concurrent Piper synth jobs that fight for CPU
     - prefetch likely next chunks in the background
     - keep interruption responsive
-    - fall back to eSpeak when Piper is unavailable
+    - fall back to eSpeak only when explicitly enabled for emergency recovery
     - reduce first-audio latency for short live replies
     """
 
@@ -68,6 +68,7 @@ class TTSPipeline(
         playback_poll_seconds: float = 0.005,
         preferred_playback_backend: str = "",
         direct_sounddevice_playback_enabled: bool = False,
+        allow_espeak_fallback: bool = False,
         console_echo_enabled: bool = False,
         spoken_text_log_enabled: bool = False,
         hot_path_success_log_enabled: bool = False,
@@ -134,6 +135,7 @@ class TTSPipeline(
         )
         self._preferred_playback_backend = str(preferred_playback_backend or "").strip()
         self._direct_sounddevice_playback_enabled = bool(direct_sounddevice_playback_enabled)
+        self._allow_espeak_fallback = bool(allow_espeak_fallback)
         self._last_good_playback_backend: str | None = None
         self._sounddevice_playback_ready: bool | None = None
         self._console_echo_enabled = bool(console_echo_enabled)
@@ -236,6 +238,7 @@ class TTSPipeline(
             f"synthesis_poll={self._synthesis_poll_seconds:.3f}s, "
             f"playback_poll={self._playback_poll_seconds:.3f}s, "
             f"preferred_playback_backend={self._preferred_playback_backend or '-'}, "
+            f"espeak_fallback={'on' if self._allow_espeak_fallback else 'off'}, "
             f"current_job_wait={self._current_job_wait_seconds:.1f}s, "
             f"direct_current_chars={self._direct_current_synthesis_max_chars}, "
             f"action_fast_direct_current_chars={self._action_fast_direct_current_synthesis_max_chars}, "

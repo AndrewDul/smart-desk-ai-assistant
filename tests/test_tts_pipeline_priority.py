@@ -63,15 +63,23 @@ class _SpeechApiProbe(TTSPipelineSpeechApiMixin):
         console_echo_enabled: bool = False,
         spoken_text_log_enabled: bool = False,
         hot_path_success_log_enabled: bool = False,
+        preferred_engine: str = "piper",
+        allow_espeak_fallback: bool = False,
+        piper_success: bool = True,
+        espeak_success: bool = False,
     ) -> None:
         self.enabled = True
-        self.preferred_engine = "piper"
+        self.preferred_engine = str(preferred_engine)
         self.audio_coordinator = None
         self._speak_lock = threading.Lock()
         self._stop_requested = threading.Event()
         self._console_echo_enabled = bool(console_echo_enabled)
         self._spoken_text_log_enabled = bool(spoken_text_log_enabled)
         self._tts_hot_path_success_log_enabled = bool(hot_path_success_log_enabled)
+        self._allow_espeak_fallback = bool(allow_espeak_fallback)
+        self._piper_success = bool(piper_success)
+        self._espeak_success = bool(espeak_success)
+        self.espeak_calls: list[tuple[str, str]] = []
 
     def _normalize_text_for_log(self, text: str) -> str:
         return str(text or "").strip()
@@ -89,6 +97,10 @@ class _SpeechApiProbe(TTSPipelineSpeechApiMixin):
         self._stop_requested.clear()
 
     def _speak_with_piper(self, text: str, lang: str, *, prepare_next=None, latency_profile=None) -> bool:
+        if not self._piper_success:
+            self._playback_report = {}
+            return False
+
         self._playback_report = {
             "engine": "piper",
             "success": True,
@@ -98,7 +110,15 @@ class _SpeechApiProbe(TTSPipelineSpeechApiMixin):
         return True
 
     def _speak_with_espeak(self, text: str, lang: str) -> bool:
-        return False
+        self.espeak_calls.append((str(text), str(lang)))
+        if self._espeak_success:
+            self._playback_report = {
+                "engine": "espeak",
+                "success": True,
+                "first_audio_started_at_monotonic": 0.0,
+                "first_audio_latency_ms": 0.0,
+            }
+        return self._espeak_success
 
     def _consume_playback_report(self) -> dict[str, object]:
         report = dict(getattr(self, "_playback_report", {}) or {})
@@ -283,6 +303,39 @@ class TTSPipelinePriorityTests(unittest.TestCase):
         self.assertEqual(report["engine"], "piper")
         self.assertFalse(report["interrupted"])
 
+
+    def test_piper_engine_blocks_espeak_fallback_by_default(self) -> None:
+        probe = _SpeechApiProbe(piper_success=False, espeak_success=True)
+
+        with patch("modules.devices.audio.output.tts_pipeline.speech_api_mixin.append_log") as log_mock:
+            spoken = probe.speak("Powtórz.", language="pl")
+
+        self.assertFalse(spoken)
+        self.assertEqual(probe.espeak_calls, [])
+        report = probe.latest_speak_report()
+        self.assertFalse(report["success"])
+        self.assertEqual(report["engine"], "none")
+        self.assertTrue(
+            any(
+                "TTS eSpeak fallback blocked by config" in str(call.args[0])
+                for call in log_mock.call_args_list
+            )
+        )
+
+    def test_piper_engine_can_use_espeak_when_explicitly_enabled(self) -> None:
+        probe = _SpeechApiProbe(
+            allow_espeak_fallback=True,
+            piper_success=False,
+            espeak_success=True,
+        )
+
+        spoken = probe.speak("Emergency fallback.", language="en")
+
+        self.assertTrue(spoken)
+        self.assertEqual(len(probe.espeak_calls), 1)
+        report = probe.latest_speak_report()
+        self.assertTrue(report["success"])
+        self.assertEqual(report["engine"], "espeak")
 
     def test_speak_does_not_echo_to_console_by_default(self) -> None:
         probe = _SpeechApiProbe()

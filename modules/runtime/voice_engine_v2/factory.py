@@ -16,6 +16,13 @@ from modules.devices.audio.command_asr import (
 from modules.runtime.contracts import RuntimeBackendStatus
 from modules.runtime.voice_engine_v2.acceptance import VoiceEngineV2AcceptanceAdapter
 from modules.runtime.voice_engine_v2.models import VoiceEngineV2RuntimeBundle
+from modules.runtime.voice_engine_v2.pre_stt_shadow import (
+    VoiceEngineV2PreSttShadowAdapter,
+    VoiceEngineV2PreSttShadowTelemetryWriter,
+)
+from modules.runtime.voice_engine_v2.runtime_candidate_telemetry import (
+    VoiceEngineV2RuntimeCandidateTelemetryWriter,
+)
 from modules.runtime.voice_engine_v2.runtime_candidates import (
     VoiceEngineV2RuntimeCandidateAdapter,
 )
@@ -25,13 +32,6 @@ from modules.runtime.voice_engine_v2.shadow_runtime_hook import (
 )
 from modules.runtime.voice_engine_v2.shadow_telemetry import (
     VoiceEngineV2ShadowTelemetryWriter,
-)
-from modules.runtime.voice_engine_v2.runtime_candidate_telemetry import (
-    VoiceEngineV2RuntimeCandidateTelemetryWriter,
-)
-from modules.runtime.voice_engine_v2.pre_stt_shadow import (
-    VoiceEngineV2PreSttShadowAdapter,
-    VoiceEngineV2PreSttShadowTelemetryWriter,
 )
 
 
@@ -79,7 +79,7 @@ def build_voice_engine_v2_runtime(
     pre_stt_shadow_adapter = VoiceEngineV2PreSttShadowAdapter(
         settings=voice_engine_settings,
         telemetry_writer=pre_stt_shadow_telemetry_writer,
-    )    
+    )
     shadow_telemetry_writer = VoiceEngineV2ShadowTelemetryWriter(
         voice_engine_settings.shadow_log_path,
         enabled=voice_engine_settings.shadow_mode_enabled,
@@ -104,7 +104,6 @@ def build_voice_engine_v2_runtime(
         pre_stt_shadow_adapter=pre_stt_shadow_adapter,
         shadow_mode_adapter=shadow_mode_adapter,
         shadow_runtime_hook=shadow_runtime_hook,
-
     )
 
 
@@ -129,19 +128,7 @@ def _build_status(settings: VoiceEngineSettings) -> RuntimeBackendStatus:
                 "enabled": True,
                 "legacy_runtime_primary": False,
                 "command_pipeline_can_run": True,
-                "realtime_audio_bus_enabled": settings.realtime_audio_bus_enabled,
-                "vad_endpointing_enabled": settings.vad_endpointing_enabled,
-                "command_first_enabled": settings.command_first_enabled,
-                "shadow_mode_enabled": settings.shadow_mode_enabled,
-                "shadow_mode_can_run": settings.shadow_mode_can_run,
-                "runtime_candidates_enabled": settings.runtime_candidates_enabled,
-                "runtime_candidates_can_run": settings.runtime_candidates_can_run,
-                "runtime_candidate_intent_allowlist": list(
-                    settings.runtime_candidate_intent_allowlist
-                ),
-                "pre_stt_shadow_enabled": settings.pre_stt_shadow_enabled,
-                "pre_stt_shadow_can_run": settings.pre_stt_shadow_can_run,
-                "pre_stt_shadow_log_path": settings.pre_stt_shadow_log_path,
+                **_settings_status_metadata(settings),
             },
         )
 
@@ -161,10 +148,86 @@ def _build_status(settings: VoiceEngineSettings) -> RuntimeBackendStatus:
             "enabled": settings.enabled,
             "legacy_runtime_primary": True,
             "command_pipeline_can_run": False,
-            "shadow_mode_enabled": settings.shadow_mode_enabled,
-            "shadow_mode_can_run": settings.shadow_mode_can_run,
-            "realtime_audio_bus_enabled": settings.realtime_audio_bus_enabled,
-            "vad_endpointing_enabled": settings.vad_endpointing_enabled,
-            "command_first_enabled": settings.command_first_enabled,
+            **_settings_status_metadata(settings),
         },
     )
+
+
+def _settings_status_metadata(settings: VoiceEngineSettings) -> dict[str, Any]:
+    return {
+        "realtime_audio_bus_enabled": settings.realtime_audio_bus_enabled,
+        "faster_whisper_audio_bus_tap_enabled": (
+            settings.faster_whisper_audio_bus_tap_enabled
+        ),
+        "faster_whisper_audio_bus_tap_max_duration_seconds": (
+            settings.faster_whisper_audio_bus_tap_max_duration_seconds
+        ),
+        "audio_bus_observe_can_run": settings.audio_bus_observe_can_run,
+        "vad_endpointing_enabled": settings.vad_endpointing_enabled,
+        "vad_shadow_enabled": settings.vad_shadow_enabled,
+        "vad_shadow_can_run": settings.vad_shadow_can_run,
+        "vad_shadow_max_frames_per_observation": (
+            settings.vad_shadow_max_frames_per_observation
+        ),
+        "vad_shadow_speech_threshold": settings.vad_shadow_speech_threshold,
+        "vad_shadow_min_speech_ms": settings.vad_shadow_min_speech_ms,
+        "vad_shadow_min_silence_ms": settings.vad_shadow_min_silence_ms,
+        "vad_timing_bridge_enabled": settings.vad_timing_bridge_enabled,
+        "vad_timing_bridge_can_run": settings.vad_timing_bridge_can_run,
+        "vad_timing_bridge_log_path": settings.vad_timing_bridge_log_path,
+        "command_first_enabled": settings.command_first_enabled,
+        "command_asr_shadow_bridge_enabled": (
+            settings.command_asr_shadow_bridge_enabled
+        ),
+        "command_asr_shadow_can_run": settings.command_asr_shadow_can_run,
+        "vosk_live_shadow_contract_enabled": (
+            settings.vosk_live_shadow_contract_enabled
+        ),
+        "vosk_live_shadow_contract_can_run": (
+            settings.vosk_live_shadow_contract_can_run
+        ),
+        "vosk_shadow_invocation_plan_enabled": (
+            settings.vosk_shadow_invocation_plan_enabled
+        ),
+        "vosk_shadow_pcm_reference_enabled": (
+            settings.vosk_shadow_pcm_reference_enabled
+        ),
+        "vosk_shadow_asr_result_enabled": (
+            settings.vosk_shadow_asr_result_enabled
+        ),
+        "vosk_shadow_recognition_preflight_enabled": (
+            settings.vosk_shadow_recognition_preflight_enabled
+        ),
+        "vosk_shadow_invocation_attempt_enabled": (
+            settings.vosk_shadow_invocation_attempt_enabled
+        ),
+        "vosk_shadow_controlled_recognition_enabled": (
+            settings.vosk_shadow_controlled_recognition_enabled
+        ),
+        "vosk_shadow_controlled_recognition_dry_run_enabled": (
+            settings.vosk_shadow_controlled_recognition_dry_run_enabled
+        ),
+        "vosk_shadow_controlled_recognition_result_enabled": (
+            settings.vosk_shadow_controlled_recognition_result_enabled
+        ),
+        "vosk_shadow_candidate_comparison_enabled": (
+            settings.vosk_shadow_candidate_comparison_enabled
+        ),
+        "vosk_controlled_recognition_can_run": (
+            settings.vosk_controlled_recognition_can_run
+        ),
+        "vosk_command_model_paths": settings.vosk_command_model_paths,
+        "vosk_command_sample_rate": settings.vosk_command_sample_rate,
+        "vosk_command_models_configured": settings.vosk_command_models_configured,
+        "shadow_mode_enabled": settings.shadow_mode_enabled,
+        "shadow_mode_can_run": settings.shadow_mode_can_run,
+        "runtime_candidates_enabled": settings.runtime_candidates_enabled,
+        "runtime_candidates_can_run": settings.runtime_candidates_can_run,
+        "runtime_candidate_intent_allowlist": list(
+            settings.runtime_candidate_intent_allowlist
+        ),
+        "runtime_candidate_log_path": settings.runtime_candidate_log_path,
+        "pre_stt_shadow_enabled": settings.pre_stt_shadow_enabled,
+        "pre_stt_shadow_can_run": settings.pre_stt_shadow_can_run,
+        "pre_stt_shadow_log_path": settings.pre_stt_shadow_log_path,
+    }

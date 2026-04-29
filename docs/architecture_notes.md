@@ -12192,3 +12192,30 @@ The first recognition invocation must be shadow-only and must not execute action
 
 ---
 
+
+## SPRINT 1 — Voice Engine v2 settings contract hardening
+
+Voice Engine v2 now has a stronger central settings contract in `modules/core/voice_engine/voice_engine_settings.py`.
+
+The contract now parses the real runtime configuration for:
+- legacy FasterWhisper audio-bus observation,
+- VAD shadow and VAD timing bridge,
+- command ASR shadow bridge,
+- Vosk live-shadow contract gates,
+- controlled Vosk recognition gates,
+- language-specific Vosk command model paths,
+- Vosk command sample rate,
+- runtime candidate intent allowlist.
+
+This does not enable Vosk as the live command path yet. The production voice runtime remains protected behind the existing legacy path until the observe-only Vosk path is validated.
+
+`modules/runtime/voice_engine_v2/factory.py` now exposes these gates through backend status metadata, so runtime health and Visual Shell diagnostics can report whether the Vosk/VAD/audio-bus path is only configured, observe-capable, or disabled.
+
+Architecture rule preserved:
+- no command logic was added to `modules/core/assistant_impl/interaction_mixin.py`,
+- no `if intent == ...` runtime shortcuts were introduced,
+- Vosk remains behind explicit settings gates,
+- PL/EN model paths remain separate.
+
+Next step:
+Build controlled Vosk observe-only wiring from the existing model paths into the Voice Engine v2 factory/adapter path without making it the primary live command runtime.

@@ -213,6 +213,7 @@ class HealthVoiceChecks(HealthCheckHelpers):
             return self._info("voice output", "disabled by config", critical=False)
 
         engine = str(voice_output_cfg.get("engine", "piper")).strip().lower()
+        allow_espeak_fallback = bool(voice_output_cfg.get("allow_espeak_fallback", False))
         if engine != "piper":
             espeak_ok = bool(shutil.which("espeak-ng") or shutil.which("espeak"))
             if espeak_ok:
@@ -254,24 +255,43 @@ class HealthVoiceChecks(HealthCheckHelpers):
         fallback_ok = bool(shutil.which("espeak-ng") or shutil.which("espeak"))
         python_ok = bool(shutil.which("python") or shutil.which("python3"))
 
-        if missing_models and not fallback_ok:
-            return self._error(
-                "voice output",
-                "missing Piper files for: "
-                f"{', '.join(sorted(set(missing_models)))} and no eSpeak fallback found",
-            )
+        if missing_models:
+            if not allow_espeak_fallback:
+                return self._error(
+                    "voice output",
+                    "missing Piper files for: "
+                    f"{', '.join(sorted(set(missing_models)))}; eSpeak fallback disabled",
+                )
+            if not fallback_ok:
+                return self._error(
+                    "voice output",
+                    "missing Piper files for: "
+                    f"{', '.join(sorted(set(missing_models)))} and no eSpeak fallback found",
+                )
 
-        if not piper_python_ok and not fallback_ok:
-            return self._error(
-                "voice output",
-                "missing piper Python package and no eSpeak fallback found",
-            )
+        if not piper_python_ok:
+            if not allow_espeak_fallback:
+                return self._error(
+                    "voice output",
+                    "missing piper Python package; eSpeak fallback disabled",
+                )
+            if not fallback_ok:
+                return self._error(
+                    "voice output",
+                    "missing piper Python package and no eSpeak fallback found",
+                )
 
-        if not playback_ok and not fallback_ok:
-            return self._error(
-                "voice output",
-                "no WAV playback tool and no eSpeak fallback found",
-            )
+        if not playback_ok:
+            if not allow_espeak_fallback:
+                return self._error(
+                    "voice output",
+                    "no WAV playback tool; eSpeak fallback disabled",
+                )
+            if not fallback_ok:
+                return self._error(
+                    "voice output",
+                    "no WAV playback tool and no eSpeak fallback found",
+                )
 
         if not python_ok:
             return self._error("voice output", "python runtime for Piper not available")

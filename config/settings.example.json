@@ -19,11 +19,11 @@
     "wake_energy_rms_threshold": 0.003,
     "wake_enable_speex_noise_suppression": false,
     "wake_debug": true,
-    "wake_barge_in_enabled": true,
-    "wake_barge_in_timeout_seconds": 0.18,
-    "wake_barge_in_min_output_age_seconds": 0.35,
-    "wake_barge_in_resume_timeout_seconds": 1.25,
-    "wake_barge_in_refractory_seconds": 0.75,
+    "wake_barge_in_enabled": false,
+    "wake_barge_in_timeout_seconds": 0.35,
+    "wake_barge_in_min_output_age_seconds": 0.75,
+    "wake_barge_in_resume_timeout_seconds": 1.5,
+    "wake_barge_in_refractory_seconds": 1.5,
     "device_index": 2,
     "device_name_contains": "reSpeaker",
     "timeout_seconds": 7,
@@ -125,7 +125,8 @@
     },
     "process_poll_seconds": 0.02,
     "playback_poll_seconds": 0.005,
-    "preferred_playback_backend": "aplay"
+    "preferred_playback_backend": "aplay",
+    "allow_espeak_fallback": false
   },
   "display": {
     "enabled": true,

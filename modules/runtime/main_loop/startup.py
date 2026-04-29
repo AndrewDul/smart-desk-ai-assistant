@@ -304,12 +304,31 @@ def _log_runtime_mode(assistant: CoreAssistant) -> None:
     )
     fallback_note = " Standby STT wake fallback is disabled."
 
+    voice_input_cfg = assistant.settings.get("voice_input", {})
+    wake_barge_in_enabled = bool(voice_input_cfg.get("wake_barge_in_enabled", False))
+    if wake_barge_in_enabled:
+        wake_barge_in_note = (
+            " Wake barge-in during assistant speech is enabled; "
+            "this should only be used with echo-safe runtime validation."
+        )
+        wake_barge_in_status = "enabled"
+    else:
+        wake_barge_in_note = (
+            " Wake barge-in during assistant speech is disabled to prevent "
+            "self-interruptions in half-duplex mode."
+        )
+        wake_barge_in_status = "disabled"
+
     append_log(
         f"Runtime state={lifecycle_state}. "
         "Half-duplex voice mode active. "
         f"Wake path={backend_label} ({wake_name}). "
-        "Wake barge-in during assistant speech is disabled to prevent self-interruptions."
+        f"{wake_barge_in_note}"
         f"{shared_note}{fallback_note}"
         + (f" Status: {status_message}." if status_message else "")
     )
-    print(f"Runtime state: {lifecycle_state}. Voice mode: half-duplex.")
+    print(
+        f"Runtime state: {lifecycle_state}. "
+        f"Voice mode: half-duplex. "
+        f"Wake barge-in: {wake_barge_in_status}."
+    )

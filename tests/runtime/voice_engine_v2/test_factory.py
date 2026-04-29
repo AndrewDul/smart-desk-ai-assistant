@@ -203,3 +203,49 @@ def test_voice_engine_v2_factory_reports_shadow_can_run_while_legacy_primary() -
     assert metadata["status"]["selected_backend"] == "disabled"
     assert metadata["status"]["metadata"]["legacy_runtime_primary"] is True
     assert metadata["status"]["metadata"]["shadow_mode_can_run"] is True
+
+
+def test_voice_engine_v2_factory_reports_vosk_shadow_settings_metadata() -> None:
+    bundle = build_voice_engine_v2_runtime(
+        {
+            "voice_engine": {
+                "enabled": False,
+                "version": "v2",
+                "mode": "legacy",
+                "fallback_to_legacy_enabled": True,
+                "faster_whisper_audio_bus_tap_enabled": True,
+                "vad_shadow_enabled": True,
+                "vad_timing_bridge_enabled": True,
+                "vad_timing_bridge_log_path": "var/data/test_vad_timing.jsonl",
+                "command_asr_shadow_bridge_enabled": True,
+                "vosk_live_shadow_contract_enabled": True,
+                "vosk_shadow_recognition_preflight_enabled": True,
+                "vosk_shadow_controlled_recognition_enabled": True,
+                "vosk_shadow_controlled_recognition_dry_run_enabled": False,
+                "vosk_command_model_paths": {
+                    "en": "var/models/vosk/en-test",
+                    "pl": "var/models/vosk/pl-test",
+                },
+                "vosk_command_sample_rate": 16000,
+            }
+        }
+    )
+
+    metadata = bundle.to_metadata()
+    status_metadata = metadata["status"]["metadata"]
+
+    assert bundle.enabled is False
+    assert bundle.command_pipeline_can_run is False
+    assert status_metadata["legacy_runtime_primary"] is True
+    assert status_metadata["audio_bus_observe_can_run"] is True
+    assert status_metadata["vad_shadow_can_run"] is True
+    assert status_metadata["vad_timing_bridge_can_run"] is True
+    assert status_metadata["command_asr_shadow_can_run"] is True
+    assert status_metadata["vosk_live_shadow_contract_can_run"] is True
+    assert status_metadata["vosk_controlled_recognition_can_run"] is True
+    assert status_metadata["vosk_command_model_paths"] == {
+        "en": "var/models/vosk/en-test",
+        "pl": "var/models/vosk/pl-test",
+    }
+    assert status_metadata["vosk_command_sample_rate"] == 16000
+    assert status_metadata["vosk_command_models_configured"] is True

@@ -122,6 +122,30 @@ class TTSPipelineSpeechApiMixin:
                         interrupted = True
                         return False
 
+                if not self._should_allow_espeak_fallback():
+                    append_log(
+                        "TTS eSpeak fallback blocked by config: "
+                        f"preferred_engine={self.preferred_engine}, lang={lang}"
+                    )
+                    self._log_voice_output_failure(lang)
+                    return False
+
+                if not self._should_allow_espeak_fallback():
+                    append_log(
+                        "TTS eSpeak fallback blocked by config: "
+                        f"preferred_engine={self.preferred_engine}, lang={lang}"
+                    )
+                    self._log_voice_output_failure(lang)
+                    return False
+
+                if not self._should_allow_espeak_fallback():
+                    append_log(
+                        "TTS eSpeak fallback blocked by config: "
+                        f"preferred_engine={self.preferred_engine}, lang={lang}"
+                    )
+                    self._log_voice_output_failure(lang)
+                    return False
+
                 used_espeak = self._speak_with_espeak(tts_text, lang)
                 if used_espeak:
                     used_engine = "espeak"
@@ -207,6 +231,30 @@ class TTSPipelineSpeechApiMixin:
                     f"first_audio_ms={first_audio_latency_ms:.1f}, "
                     f"elapsed={time.monotonic() - started_at:.3f}s"
                 )
+
+    def _should_allow_espeak_fallback(self) -> bool:
+        preferred_engine = str(
+            getattr(self, "preferred_engine", "piper") or "piper"
+        ).strip().lower()
+        if preferred_engine in {"espeak", "espeak-ng"}:
+            return True
+        return bool(getattr(self, "_allow_espeak_fallback", False))
+
+    def _should_allow_espeak_fallback(self) -> bool:
+        preferred_engine = str(
+            getattr(self, "preferred_engine", "piper") or "piper"
+        ).strip().lower()
+        if preferred_engine in {"espeak", "espeak-ng"}:
+            return True
+        return bool(getattr(self, "_allow_espeak_fallback", False))
+
+    def _should_allow_espeak_fallback(self) -> bool:
+        preferred_engine = str(
+            getattr(self, "preferred_engine", "piper") or "piper"
+        ).strip().lower()
+        if preferred_engine in {"espeak", "espeak-ng"}:
+            return True
+        return bool(getattr(self, "_allow_espeak_fallback", False))
 
     def _should_echo_spoken_text_to_console(self) -> bool:
         return bool(getattr(self, "_console_echo_enabled", False))
