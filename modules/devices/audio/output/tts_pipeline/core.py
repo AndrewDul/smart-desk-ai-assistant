@@ -203,7 +203,8 @@ class TTSPipeline(
                 "Nie mogę tego teraz zrobić.",
                 "Przypomnienie.",
                 "Nazywam się NeXa.",
-            ],
+                            "Mogę z Tobą porozmawiać, pomóc Ci coś zapamiętać, podać czas, pokazać pulpit oraz przedstawić status runtime, testy i benchmarki.",
+],
             "en": [
                 "Okay.",
                 "Of course.",
@@ -216,7 +217,8 @@ class TTSPipeline(
                 "I cannot do that right now.",
                 "Reminder.",
                 "My name is NeXa.",
-            ],
+                            "I can talk with you, help you remember something, tell you the time, show the desktop, and report runtime status, tests, and benchmarks.",
+],
         }
 
         append_log(

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from modules.devices.audio.output.tts_pipeline import TTSPipeline
+
 import threading
 from pathlib import Path
 
@@ -68,3 +70,9 @@ def test_current_time_cache_phrases_are_short_numeric_and_deduplicated(tmp_path:
         assert phrase[2] == " "
         assert phrase[:2].isdigit()
         assert phrase[3:].isdigit()
+
+def test_default_common_cache_includes_natural_help_responses() -> None:
+    pipeline = TTSPipeline(enabled=False, preferred_engine="piper")
+
+    assert "I can talk with you, help you remember something, tell you the time, show the desktop, and report runtime status, tests, and benchmarks." in pipeline._common_cache_phrases["en"]
+    assert "Mogę z Tobą porozmawiać, pomóc Ci coś zapamiętać, podać czas, pokazać pulpit oraz przedstawić status runtime, testy i benchmarki." in pipeline._common_cache_phrases["pl"]

@@ -79,6 +79,11 @@ class RuntimeCandidateExecutionPlanBuilder:
                 legacy_action="show_shell",
                 tool_name="visual_shell.show_shell",
             ),
+            "assistant.help": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="assistant.help",
+                legacy_action="help",
+                tool_name="system.help",
+            ),
         }
     )
 

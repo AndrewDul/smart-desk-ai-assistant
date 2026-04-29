@@ -147,8 +147,26 @@ def test_runtime_candidate_executor_rejects_exit_even_if_recognized() -> None:
 
     assert plan is None
     assert builder.supported_intents == (
+        "assistant.help",
         "assistant.identity",
         "system.current_time",
         "visual_shell.show_desktop",
         "visual_shell.show_shell",
     )
+
+
+def test_runtime_candidate_plan_maps_assistant_help_to_system_help_action() -> None:
+    builder = RuntimeCandidateExecutionPlanBuilder()
+    turn_result = _turn_result("help")
+
+    plan = builder.build_plan(turn_result=turn_result, transcript="help")
+
+    assert plan is not None
+    assert plan.spec.voice_engine_intent_key == "assistant.help"
+    assert plan.spec.legacy_action == "help"
+    assert plan.spec.tool_name == "system.help"
+    assert plan.route_decision.primary_intent == "help"
+    assert plan.route_decision.tool_invocations[0].tool_name == "system.help"
+    assert plan.route_decision.metadata["voice_engine_intent_key"] == "assistant.help"
+    assert plan.route_decision.metadata["legacy_action"] == "help"
+    assert plan.route_decision.metadata["llm_prevented"] is True

@@ -267,3 +267,20 @@ def test_vosk_vocabulary_excludes_vosk_exclude_even_when_recovery_enabled() -> N
     assert all("nexa" not in phrase.lower() for phrase in english_vocabulary)
     assert all("nexa" not in phrase.lower() for phrase in polish_vocabulary)
 
+
+
+def test_default_grammar_recognizes_assistant_help_aliases() -> None:
+    grammar = build_default_command_grammar()
+
+    english_result = grammar.match("help")
+    polish_result = grammar.match("pomoc")
+
+    assert english_result.status == CommandRecognitionStatus.MATCHED
+    assert english_result.intent_key == "assistant.help"
+    assert english_result.language == CommandLanguage.ENGLISH
+    assert english_result.matched_phrase == "help"
+
+    assert polish_result.status == CommandRecognitionStatus.MATCHED
+    assert polish_result.intent_key == "assistant.help"
+    assert polish_result.language == CommandLanguage.POLISH
+    assert polish_result.matched_phrase == "pomoc"

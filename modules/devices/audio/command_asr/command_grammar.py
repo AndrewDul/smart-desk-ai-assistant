@@ -494,6 +494,12 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             "assistant.help",
+            "help",
+            CommandLanguage.ENGLISH,
+            tags=("assistant",),
+        ),
+        CommandPhrase(
+            "assistant.help",
             "help me",
             CommandLanguage.ENGLISH,
             tags=("assistant",),

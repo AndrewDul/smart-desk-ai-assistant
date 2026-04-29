@@ -734,8 +734,8 @@ class ActionSystemActionsMixin:
         del route, payload
         spoken = self._localized(
             language,
-            "Mogę rozmawiać z Tobą, zapamiętywać informacje, ustawiać przypomnienia, uruchamiać timery, focus mode i break mode, podawać czas i datę oraz raportować stan runtime, benchmarki i status debug.",
-            "I can talk with you, remember information, set reminders, start timers, focus mode and break mode, tell you the time and date, and report runtime, benchmarks, or debug status.",
+            "Mogę z Tobą porozmawiać, pomóc Ci coś zapamiętać, podać czas, pokazać pulpit oraz przedstawić status runtime, testy i benchmarki.",
+            "I can talk with you, help you remember something, tell you the time, show the desktop, and report runtime status, tests, and benchmarks.",
         )
         return self._deliver_simple_action_response(
             language=language,

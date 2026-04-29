@@ -12484,3 +12484,24 @@ Visual Shell desktop commands are now eligible for the guarded Voice Engine v2 r
 - Polish and English command phrases remain separated in the command grammar and are resolved per turn.
 
 This keeps simple desktop commands deterministic, observable and LLM-free while preserving the legacy fallback path for unsupported or unsafe commands.
+
+## Voice Engine v2 assistant help runtime candidate
+
+The built-in assistant help command is now eligible for the guarded Voice Engine v2 runtime candidate path.
+
+- `assistant.help` maps to the existing ActionFlow `help` action through the `system.help` tool.
+- The command remains deterministic and LLM-free when Vosk recognizes a supported help phrase.
+- Polish and English help phrases remain owned by the command grammar and language detection layer.
+- Risky actions remain excluded from the runtime candidate allowlist.
+- `status` and `debug_status` are intentionally not included yet because they require a separate grammar and intent audit.
+
+## Voice Engine v2 natural help response cache
+
+The deterministic help command keeps a natural spoken response while avoiding
+unnecessary first-audio delay.
+
+- `assistant.help` remains a Vosk runtime candidate command.
+- Polish and English help phrases are kept separate.
+- The full natural help responses are warmed in the Piper cache at startup.
+- Display text remains compact, but spoken output remains sentence-based.
+- This preserves premium voice UX without moving command logic into the TTS layer.

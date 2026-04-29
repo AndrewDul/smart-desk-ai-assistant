@@ -302,3 +302,29 @@ def test_runtime_candidate_adapter_keeps_allowlist_for_vosk_shadow_exit() -> Non
     assert result.intent_key == "system.exit"
     assert result.route_decision is None
 
+def test_runtime_candidate_adapter_accepts_allowlisted_help_command() -> None:
+    bundle = _bundle(
+        runtime_candidates_enabled=True,
+        allowlist=[
+            "assistant.identity",
+            "system.current_time",
+            "visual_shell.show_desktop",
+            "visual_shell.show_shell",
+            "assistant.help",
+        ],
+    )
+
+    result = bundle.runtime_candidate_adapter.process_transcript(
+        turn_id="turn-candidate-help",
+        transcript="help",
+        language_hint=CommandLanguage.ENGLISH,
+        started_monotonic=1.0,
+        speech_end_monotonic=1.0,
+    )
+
+    assert result.accepted is True
+    assert result.intent_key == "assistant.help"
+    assert result.route_decision is not None
+    assert result.route_decision.primary_intent == "help"
+    assert result.route_decision.tool_invocations[0].tool_name == "system.help"
+    assert result.route_decision.metadata["llm_prevented"] is True

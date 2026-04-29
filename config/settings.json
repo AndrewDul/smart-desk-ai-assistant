@@ -151,7 +151,8 @@
       "assistant.identity",
       "system.current_time",
       "visual_shell.show_desktop",
-      "visual_shell.show_shell"
+      "visual_shell.show_shell",
+      "assistant.help"
     ],
     "vosk_command_model_paths": {
       "en": "var/models/vosk/vosk-model-small-en-us-0.15",
