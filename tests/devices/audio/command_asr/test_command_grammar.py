@@ -120,6 +120,7 @@ def test_grammar_exports_language_scoped_vosk_vocabulary() -> None:
     assert "pokaż pulpit" in polish_vocabulary
     assert "schowaj pulpit" in polish_vocabulary
     assert "która godzina" in polish_vocabulary
+    assert "która jest godzina" in polish_vocabulary
     assert "show desktop" not in polish_vocabulary
     assert "what time is it" not in polish_vocabulary
 
@@ -166,6 +167,37 @@ def test_natural_time_alias_from_runtime_observation() -> None:
     assert result.is_match
     assert result.intent_key == "system.current_time"
     assert result.language.value == "en"
+
+
+def test_default_grammar_recognizes_polish_natural_time_alias_from_vosk_observation() -> None:
+    grammar = build_default_command_grammar()
+
+    result = grammar.match("która jest godzina")
+
+    assert result.is_match
+    assert result.intent_key == "system.current_time"
+    assert result.language.value == "pl"
+
+
+def test_default_grammar_matches_vosk_unknown_polish_time_alternative() -> None:
+    grammar = build_default_command_grammar()
+
+    result = grammar.match("[unk] | która jest godzina")
+
+    assert result.is_match
+    assert result.intent_key == "system.current_time"
+    assert result.language.value == "pl"
+    assert result.normalized_transcript == "ktora jest godzina"
+
+
+def test_default_grammar_does_not_match_cross_language_short_alternatives() -> None:
+    grammar = build_default_command_grammar()
+
+    result = grammar.match("is | jest")
+
+    assert not result.is_match
+    assert result.intent_key is None
+    assert result.language.value == "unknown"
 
 
 def test_vosk_vocabulary_excludes_stt_recovery_aliases_by_default() -> None:

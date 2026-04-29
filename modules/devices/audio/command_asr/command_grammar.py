@@ -31,6 +31,41 @@ def normalize_command_text(text: str) -> str:
     return _SPACES_PATTERN.sub(" ", without_punctuation).strip()
 
 
+def _normalized_command_candidates(text: str) -> tuple[str, ...]:
+    """Return safe normalized alternatives for short command matching.
+
+    Vosk limited-grammar recognition may return fallback alternatives such as
+    "[unk] | która jest godzina". The command matcher should evaluate the real
+    phrase alternative without treating the placeholder token as command text.
+    """
+
+    raw_candidates = [text]
+    if "|" in text:
+        raw_candidates.extend(part for part in text.split("|"))
+
+    normalized_candidates: list[str] = []
+    seen: set[str] = set()
+
+    for raw_candidate in raw_candidates:
+        normalized = normalize_command_text(raw_candidate)
+        normalized = _strip_vosk_unknown_tokens(normalized)
+        if not normalized or normalized in seen:
+            continue
+        normalized_candidates.append(normalized)
+        seen.add(normalized)
+
+    return tuple(normalized_candidates)
+
+
+def _strip_vosk_unknown_tokens(normalized: str) -> str:
+    tokens = [
+        token
+        for token in normalized.split()
+        if token not in {"unk", "unknown"}
+    ]
+    return _SPACES_PATTERN.sub(" ", " ".join(tokens)).strip()
+
+
 class CommandGrammar:
     """Deterministic bilingual command grammar for Voice Engine v2."""
 
@@ -76,48 +111,51 @@ class CommandGrammar:
         ).append(phrase)
 
     def match(self, transcript: str) -> CommandRecognitionResult:
-        normalized = normalize_command_text(transcript)
+        normalized_candidates = _normalized_command_candidates(transcript)
+        normalized = normalized_candidates[0] if normalized_candidates else ""
         detected_language = detect_command_language(transcript)
 
-        if not normalized:
+        if not normalized_candidates:
             return CommandRecognitionResult.no_match(
                 transcript=transcript,
                 normalized_transcript=normalized,
                 language=CommandLanguage.UNKNOWN,
             )
 
-        exact_match = self._exact_index.get(normalized)
-        if exact_match is not None:
-            return CommandRecognitionResult.matched(
-                transcript=transcript,
-                normalized_transcript=normalized,
-                language=exact_match.language,
-                confidence=1.0,
-                intent_key=exact_match.intent_key,
-                matched_phrase=exact_match.phrase,
-            )
+        for candidate in normalized_candidates:
+            exact_match = self._exact_index.get(candidate)
+            if exact_match is not None:
+                return CommandRecognitionResult.matched(
+                    transcript=transcript,
+                    normalized_transcript=candidate,
+                    language=exact_match.language,
+                    confidence=1.0,
+                    intent_key=exact_match.intent_key,
+                    matched_phrase=exact_match.phrase,
+                )
 
-        compact_matches = self._compact_index.get(self._compact(normalized), [])
-        if len(compact_matches) == 1:
-            phrase = compact_matches[0]
-            return CommandRecognitionResult.matched(
-                transcript=transcript,
-                normalized_transcript=normalized,
-                language=phrase.language,
-                confidence=0.92,
-                intent_key=phrase.intent_key,
-                matched_phrase=phrase.phrase,
-            )
+        for candidate in normalized_candidates:
+            compact_matches = self._compact_index.get(self._compact(candidate), [])
+            if len(compact_matches) == 1:
+                phrase = compact_matches[0]
+                return CommandRecognitionResult.matched(
+                    transcript=transcript,
+                    normalized_transcript=candidate,
+                    language=phrase.language,
+                    confidence=0.92,
+                    intent_key=phrase.intent_key,
+                    matched_phrase=phrase.phrase,
+                )
 
-        if len(compact_matches) > 1:
-            return CommandRecognitionResult.ambiguous(
-                transcript=transcript,
-                normalized_transcript=normalized,
-                language=detected_language,
-                alternatives=tuple(
-                    sorted({phrase.intent_key for phrase in compact_matches})
-                ),
-            )
+            if len(compact_matches) > 1:
+                return CommandRecognitionResult.ambiguous(
+                    transcript=transcript,
+                    normalized_transcript=candidate,
+                    language=detected_language,
+                    alternatives=tuple(
+                        sorted({phrase.intent_key for phrase in compact_matches})
+                    ),
+                )
 
         return CommandRecognitionResult.no_match(
             transcript=transcript,
@@ -385,6 +423,12 @@ def build_default_command_grammar() -> CommandGrammar:
         CommandPhrase(
             "system.current_time",
             "która godzina",
+            CommandLanguage.POLISH,
+            tags=("system", "time"),
+        ),
+        CommandPhrase(
+            "system.current_time",
+            "która jest godzina",
             CommandLanguage.POLISH,
             tags=("system", "time"),
         ),

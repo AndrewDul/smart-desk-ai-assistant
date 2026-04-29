@@ -12219,3 +12219,23 @@ Architecture rule preserved:
 
 Next step:
 Build controlled Vosk observe-only wiring from the existing model paths into the Voice Engine v2 factory/adapter path without making it the primary live command runtime.
+
+## SPRINT 3A — Polish Vosk command grammar hardening
+
+Live observe-only Vosk telemetry showed that English command recognition is stable and that Polish identity recognition works, but the Polish natural time command may arrive from Vosk as an alternative transcript such as `[unk] | która jest godzina`.
+
+The command grammar now evaluates safe normalized alternatives and strips Vosk placeholder tokens such as `unk` before deterministic matching. This allows the real command phrase alternative to match without adding runtime shortcuts or executing any action.
+
+A Polish natural time alias was added:
+- `która jest godzina` → `system.current_time`
+
+Safety boundaries preserved:
+- Vosk remains observe-only.
+- No command execution is enabled.
+- No runtime takeover is enabled.
+- No command logic was added to `modules/core/assistant_impl/interaction_mixin.py`.
+- PL/EN aliases remain language-scoped.
+- Cross-language short alternatives such as `is | jest` still do not match a command.
+
+Next step:
+Re-run the PL/EN Vosk observe-only matrix and require both English and Polish command matches before moving toward guarded runtime candidates.
