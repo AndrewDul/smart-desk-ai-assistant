@@ -12461,3 +12461,13 @@ Confirmed runtime behavior:
 
 Remaining latency focus:
 - Further latency reduction should target capture endpointing and speech-to-route timing, not the current TTS fast-action path.
+
+## Voice command capture endpointing tuning
+
+- Added short-command endpointing tuning inside the FasterWhisper capture frontend.
+- The tuning is based only on capture profile timing values: short end silence, short minimum speech, and short pre-roll.
+- The capture layer remains intent-agnostic. It does not know about command names, canonical intents, routes, or executors.
+- Short command profiles now use a shorter audio queue wait, a smaller trailing speech window, and a faster low-energy break threshold.
+- Conversation capture remains on the conservative path.
+- Goal: reduce wake-command capture tail latency while preserving modular voice architecture.
+

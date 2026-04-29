@@ -740,6 +740,17 @@ class FasterWhisperCaptureMixin:
         last_voiced_observation: float | None = None
         low_energy_after_start = 0
 
+        # Short command profiles need faster endpointing than long-form conversation.
+        # This is based only on capture profile timing, not on command intent.
+        fast_endpointing = (
+            effective_end_silence <= 0.20
+            and effective_min_speech <= 0.10
+            and effective_pre_roll <= 0.14
+        )
+        queue_read_timeout = 0.04 if fast_endpointing else 0.08
+        trailing_chunk_multiplier = 1 if fast_endpointing else 2
+        low_energy_break_chunks = 1 if fast_endpointing else 2
+
         while self._now() - start_time <= hard_timeout:
             if self._input_blocked_by_assistant_output():
                 if debug:
@@ -749,7 +760,7 @@ class FasterWhisperCaptureMixin:
                 return None
 
             try:
-                chunk = self.audio_queue.get(timeout=0.08)
+                chunk = self.audio_queue.get(timeout=queue_read_timeout)
             except queue.Empty:
                 if speech_started and last_speech_at is not None:
                     if (self._now() - last_speech_at) >= effective_end_silence:
@@ -784,7 +795,7 @@ class FasterWhisperCaptureMixin:
             else:
                 recorded_chunks.append(chunk_f32)
 
-                trailing_chunks = recorded_chunks[-max(1, pre_roll_max_chunks * 2):]
+                trailing_chunks = recorded_chunks[-max(1, pre_roll_max_chunks * trailing_chunk_multiplier):]
                 trailing_window = self._concat_audio(trailing_chunks)
                 trailing_has_speech = self._window_contains_speech(trailing_window)
 
@@ -807,7 +818,7 @@ class FasterWhisperCaptureMixin:
                     and last_voiced_observation is not None
                     and (self._now() - last_voiced_observation)
                     >= max(self.no_speech_decay_seconds, effective_end_silence)
-                    and low_energy_after_start >= 2
+                    and low_energy_after_start >= low_energy_break_chunks
                 ):
                     break
 
