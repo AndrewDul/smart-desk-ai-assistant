@@ -661,11 +661,6 @@ class FasterWhisperInputBackend(
                 "faster_whisper_stt_capture_audio_profile",
                 capture_audio_profile,
             )
-        if pre_whisper_candidate:
-            metadata.setdefault(
-                "voice_engine_v2_pre_whisper_candidate",
-                pre_whisper_candidate,
-            )
         if capture_window_shadow_tap:
             metadata.setdefault(
                 "realtime_audio_bus_capture_window_shadow_tap",

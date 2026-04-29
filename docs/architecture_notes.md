@@ -12347,3 +12347,29 @@ accepted Vosk candidate only for allowlisted safe commands. The existing
 CoreAssistant interaction flow still owns route execution through ActionFlow,
 so command logic remains outside random runtime files and no `if intent == ...`
 logic was added to the audio backend.
+
+## 2026-04-29 — Vosk pre-Whisper candidate live failure recovery
+
+Fixed a live runtime regression in the FasterWhisper backend where the Vosk pre-Whisper candidate transcript result builder referenced a stale local variable named `pre_whisper_candidate`.
+
+The correct candidate object is already passed into `_transcript_result_from_vosk_pre_whisper_candidate(...)` as `candidate`. The stale reference caused `SpeechRecognitionService capture failed: name 'pre_whisper_candidate' is not defined` during live command capture, which made NeXa appear to hear the wake phrase but not respond to commands.
+
+The fix removes the stale reference and adds a regression test that protects the pre-Whisper transcript result path from reintroducing the invalid local variable.
+
+Architecture impact:
+- Preserves the safe legacy FasterWhisper path.
+- Keeps Vosk pre-Whisper candidate integration fail-open.
+- Prevents candidate metadata handling from breaking command capture.
+- Keeps command execution outside the ASR adapter.
+- Keeps raw PCM out of telemetry.
+- Keeps runtime takeover disabled unless explicitly enabled by guarded settings.
+
+Runtime result after rollback:
+- Wake phrase detection works.
+- Command capture works again.
+- Legacy fast-lane actions execute.
+- Polish and English responses still route per turn.
+- No new `pre_whisper_candidate` NameError appears after the fix.
+
+Next step:
+Before enabling Vosk pre-Whisper candidate again, add a stronger runtime guard around candidate conversion so any candidate failure always falls back to normal FasterWhisper transcription instead of breaking the command window.
