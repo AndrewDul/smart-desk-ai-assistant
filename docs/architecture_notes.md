@@ -12249,3 +12249,54 @@ The safety boundary remains unchanged:
 - no runtime takeover,
 - no full STT prevention,
 - Vosk remains observe-only.
+
+## SPRINT 4 — Guarded Vosk runtime candidate decision
+
+Voice Engine v2 now has a guarded runtime-candidate entry point for Vosk observe-only results.
+
+`VoiceEngineV2RuntimeCandidateAdapter.process_vosk_shadow_result(...)` accepts metadata from the existing Vosk observe-only telemetry path and evaluates it through the same deterministic command pipeline, allowlist, confidence policy and runtime-candidate execution-plan builder used by transcript candidates.
+
+This does not execute actions and does not take over the runtime. It only produces a candidate route decision and telemetry when all safety conditions are met.
+
+Safety gates require:
+- recognition was attempted,
+- recognition invocation was performed,
+- command was recognized and matched,
+- language is known per turn (`en` or `pl`),
+- confidence is at least `0.80`,
+- raw PCM is not included in telemetry,
+- no action was executed,
+- full STT was not prevented,
+- runtime takeover is false,
+- runtime integration is false,
+- command execution is disabled,
+- FasterWhisper bypass is false,
+- no independent microphone stream was started,
+- live command recognition is disabled.
+
+The existing runtime-candidate allowlist remains active. By default, only:
+- `assistant.identity`
+- `system.current_time`
+
+can become accepted runtime candidates.
+
+Risky commands such as `system.exit` remain rejected even if Vosk recognizes them.
+
+Architecture rule preserved:
+- no command logic was added to `modules/core/assistant_impl/interaction_mixin.py`,
+- no `if intent == ...` runtime shortcuts were introduced,
+- Vosk remains observe-only,
+- legacy runtime remains primary,
+- runtime candidates produce telemetry and route plans only.
+
+### SPRINT 4 follow-up — Vosk candidate helper wiring and risky-intent guard
+
+The guarded Vosk runtime-candidate adapter now includes the missing helper methods used by `process_vosk_shadow_result(...)`.
+
+The runtime-candidate gate also rejects intents that are not supported by the execution-plan builder, even if someone manually adds them to `runtime_candidate_intent_allowlist`. This keeps risky or unsupported commands such as `system.exit` out of the guarded candidate path.
+
+This preserves the current safety boundary:
+- Vosk candidates do not execute actions,
+- Vosk candidates do not take over runtime,
+- legacy runtime remains primary,
+- unsupported/risky intents are rejected before an execution plan can be built.

@@ -28,6 +28,44 @@ def _bundle(
     )
 
 
+def _safe_vosk_shadow_result(
+    *,
+    transcript: str,
+    normalized_text: str,
+    language: str,
+    confidence: float = 1.0,
+    command_matched: bool = True,
+    recognized: bool = True,
+    action_executed: bool = False,
+    runtime_takeover: bool = False,
+) -> dict[str, object]:
+    return {
+        "result_stage": "vosk_shadow_asr_result",
+        "result_version": "vosk_shadow_asr_result_v1",
+        "reason": "vosk_shadow_asr_recognized" if recognized else "vosk_shadow_asr_not_recognized",
+        "recognizer_name": "vosk_command_asr",
+        "recognizer_enabled": True,
+        "recognition_invocation_performed": True,
+        "recognition_attempted": True,
+        "recognized": recognized,
+        "command_matched": command_matched,
+        "transcript": transcript,
+        "normalized_text": normalized_text,
+        "language": language,
+        "confidence": confidence,
+        "raw_pcm_included": False,
+        "action_executed": action_executed,
+        "full_stt_prevented": False,
+        "runtime_takeover": runtime_takeover,
+        "runtime_integration": False,
+        "command_execution_enabled": False,
+        "faster_whisper_bypass_enabled": False,
+        "microphone_stream_started": False,
+        "independent_microphone_stream_started": False,
+        "live_command_recognition_enabled": False,
+    }
+
+
 def test_runtime_candidate_adapter_refuses_when_disabled() -> None:
     bundle = _bundle(runtime_candidates_enabled=False)
 
@@ -156,3 +194,111 @@ def test_runtime_candidate_adapter_refuses_when_full_v2_pipeline_is_active() -> 
     assert result.accepted is False
     assert result.reason == "runtime_candidates_not_safe"
     assert bundle.settings.command_pipeline_can_run is True
+
+
+def test_runtime_candidate_adapter_accepts_safe_polish_vosk_shadow_result() -> None:
+    bundle = _bundle(runtime_candidates_enabled=True)
+
+    result = bundle.runtime_candidate_adapter.process_vosk_shadow_result(
+        turn_id="turn-vosk-polish-time",
+        result_metadata=_safe_vosk_shadow_result(
+            transcript="która jest godzina",
+            normalized_text="ktora jest godzina",
+            language="pl",
+        ),
+        started_monotonic=1.0,
+        speech_end_monotonic=1.0,
+        metadata={"source": "unit_test"},
+    )
+
+    assert result.accepted is True
+    assert result.intent_key == "system.current_time"
+    assert result.route_decision is not None
+    assert result.route_decision.primary_intent == "ask_time"
+    assert result.metadata["candidate_source"] == "vosk_shadow_asr_result"
+    assert result.metadata["runtime_candidate"] is True
+    assert result.metadata["vosk_shadow_result"]["raw_pcm_included"] is False
+
+
+def test_runtime_candidate_adapter_accepts_safe_english_vosk_shadow_result() -> None:
+    bundle = _bundle(runtime_candidates_enabled=True)
+
+    result = bundle.runtime_candidate_adapter.process_vosk_shadow_result(
+        turn_id="turn-vosk-english-identity",
+        result_metadata=_safe_vosk_shadow_result(
+            transcript="what is your name",
+            normalized_text="what is your name",
+            language="en",
+        ),
+        started_monotonic=1.0,
+        speech_end_monotonic=1.0,
+    )
+
+    assert result.accepted is True
+    assert result.intent_key == "assistant.identity"
+    assert result.route_decision is not None
+    assert result.route_decision.primary_intent == "introduce_self"
+
+
+def test_runtime_candidate_adapter_rejects_unmatched_vosk_shadow_result() -> None:
+    bundle = _bundle(runtime_candidates_enabled=True)
+
+    result = bundle.runtime_candidate_adapter.process_vosk_shadow_result(
+        turn_id="turn-vosk-unmatched",
+        result_metadata=_safe_vosk_shadow_result(
+            transcript="is | czas",
+            normalized_text="is czas",
+            language="unknown",
+            recognized=False,
+            command_matched=False,
+            confidence=0.0,
+        ),
+        started_monotonic=1.0,
+        speech_end_monotonic=1.0,
+    )
+
+    assert result.accepted is False
+    assert result.reason == "vosk_shadow_result_not_recognized"
+    assert result.route_decision is None
+    assert result.metadata["runtime_candidate_source_safe"] is False
+
+
+def test_runtime_candidate_adapter_rejects_unsafe_vosk_shadow_result() -> None:
+    bundle = _bundle(runtime_candidates_enabled=True)
+
+    result = bundle.runtime_candidate_adapter.process_vosk_shadow_result(
+        turn_id="turn-vosk-unsafe",
+        result_metadata=_safe_vosk_shadow_result(
+            transcript="what time is it",
+            normalized_text="what time is it",
+            language="en",
+            action_executed=True,
+        ),
+        started_monotonic=1.0,
+        speech_end_monotonic=1.0,
+    )
+
+    assert result.accepted is False
+    assert result.reason == "unsafe_vosk_shadow_result:action_executed"
+    assert result.route_decision is None
+
+
+def test_runtime_candidate_adapter_keeps_allowlist_for_vosk_shadow_exit() -> None:
+    bundle = _bundle(runtime_candidates_enabled=True)
+
+    result = bundle.runtime_candidate_adapter.process_vosk_shadow_result(
+        turn_id="turn-vosk-exit-not-allowlisted",
+        result_metadata=_safe_vosk_shadow_result(
+            transcript="exit",
+            normalized_text="exit",
+            language="en",
+        ),
+        started_monotonic=1.0,
+        speech_end_monotonic=1.0,
+    )
+
+    assert result.accepted is False
+    assert result.reason == "intent_not_allowlisted:system.exit"
+    assert result.intent_key == "system.exit"
+    assert result.route_decision is None
+

@@ -39,6 +39,39 @@ def _read_jsonl(path: Path) -> list[dict[str, object]]:
     ]
 
 
+def _safe_vosk_shadow_result(
+    *,
+    transcript: str,
+    normalized_text: str,
+    language: str,
+) -> dict[str, object]:
+    return {
+        "result_stage": "vosk_shadow_asr_result",
+        "result_version": "vosk_shadow_asr_result_v1",
+        "reason": "vosk_shadow_asr_recognized",
+        "recognizer_name": "vosk_command_asr",
+        "recognizer_enabled": True,
+        "recognition_invocation_performed": True,
+        "recognition_attempted": True,
+        "recognized": True,
+        "command_matched": True,
+        "transcript": transcript,
+        "normalized_text": normalized_text,
+        "language": language,
+        "confidence": 1.0,
+        "raw_pcm_included": False,
+        "action_executed": False,
+        "full_stt_prevented": False,
+        "runtime_takeover": False,
+        "runtime_integration": False,
+        "command_execution_enabled": False,
+        "faster_whisper_bypass_enabled": False,
+        "microphone_stream_started": False,
+        "independent_microphone_stream_started": False,
+        "live_command_recognition_enabled": False,
+    }
+
+
 def test_runtime_candidate_telemetry_records_accepted_time_candidate(
     tmp_path: Path,
 ) -> None:
@@ -153,3 +186,36 @@ def test_runtime_candidate_telemetry_appends_multiple_records(
     assert records[0]["primary_intent"] == "introduce_self"
     assert records[1]["voice_engine_intent"] == "system.current_time"
     assert records[1]["primary_intent"] == "ask_time"
+
+
+def test_runtime_candidate_telemetry_records_vosk_shadow_source_metadata(
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "runtime_candidates.jsonl"
+    bundle = _bundle(log_path=log_path)
+
+    result = bundle.runtime_candidate_adapter.process_vosk_shadow_result(
+        turn_id="turn-vosk-time",
+        result_metadata=_safe_vosk_shadow_result(
+            transcript="która jest godzina",
+            normalized_text="ktora jest godzina",
+            language="pl",
+        ),
+        started_monotonic=1.0,
+        speech_end_monotonic=1.0,
+        metadata={"source": "unit_test"},
+    )
+
+    assert result.accepted is True
+    assert result.telemetry_written is True
+
+    records = _read_jsonl(log_path)
+
+    assert len(records) == 1
+    assert records[0]["accepted"] is True
+    assert records[0]["voice_engine_intent"] == "system.current_time"
+    assert records[0]["primary_intent"] == "ask_time"
+    assert records[0]["language"] == "pl"
+    assert records[0]["metadata"]["candidate_source"] == "vosk_shadow_asr_result"
+    assert records[0]["metadata"]["vosk_shadow_result"]["raw_pcm_included"] is False
+

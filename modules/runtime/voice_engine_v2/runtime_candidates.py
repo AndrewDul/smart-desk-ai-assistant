@@ -161,6 +161,67 @@ class VoiceEngineV2RuntimeCandidateAdapter:
         )
         return self.process_request(request)
 
+    def process_vosk_shadow_result(
+        self,
+        *,
+        turn_id: str,
+        result_metadata: Mapping[str, Any],
+        started_monotonic: float = 0.0,
+        speech_end_monotonic: float | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> VoiceEngineV2RuntimeCandidateResult:
+        """Evaluate a Vosk observe-only ASR result as a guarded runtime candidate.
+
+        This method never executes an action. It only converts a safe
+        observe-only Vosk command result into the existing runtime-candidate
+        decision path, which still keeps the legacy runtime primary.
+        """
+
+        transcript = self._extract_vosk_shadow_transcript(result_metadata)
+        language_hint = self._command_language_from_vosk_result(result_metadata)
+        request_metadata = {
+            **dict(metadata or {}),
+            "candidate_source": "vosk_shadow_asr_result",
+            "vosk_shadow_result": self._safe_vosk_shadow_result_summary(
+                result_metadata
+            ),
+        }
+
+        request = VoiceEngineV2RuntimeCandidateRequest(
+            turn_id=turn_id,
+            transcript=transcript or "<missing_vosk_shadow_transcript>",
+            language_hint=language_hint,
+            started_monotonic=started_monotonic,
+            speech_end_monotonic=speech_end_monotonic,
+            metadata=request_metadata,
+        )
+
+        if not self._settings.runtime_candidates_enabled:
+            return self.process_request(request)
+
+        if not self._settings.runtime_candidates_can_run:
+            return self.process_request(request)
+
+        rejection_reason = self._vosk_shadow_result_rejection_reason(
+            result_metadata,
+            transcript=transcript,
+            language_hint=language_hint,
+        )
+        if rejection_reason is not None:
+            return self._finalize(
+                self._rejected(
+                    request=request,
+                    reason=rejection_reason,
+                    metadata={
+                        **request_metadata,
+                        "runtime_candidate": False,
+                        "runtime_candidate_source_safe": False,
+                    },
+                )
+            )
+
+        return self.process_request(request)
+
     def process_request(
         self,
         request: VoiceEngineV2RuntimeCandidateRequest,
@@ -229,7 +290,10 @@ class VoiceEngineV2RuntimeCandidateAdapter:
             )
 
         intent_key = turn_result.intent.key
-        if intent_key not in self._settings.runtime_candidate_intent_allowlist:
+        if (
+            intent_key not in self._settings.runtime_candidate_intent_allowlist
+            or intent_key not in self._execution_plan_builder.supported_intents
+        ):
             return self._finalize(
                 self._rejected(
                     request=request,
@@ -240,6 +304,9 @@ class VoiceEngineV2RuntimeCandidateAdapter:
                         "intent_key": intent_key,
                         "allowlist": list(
                             self._settings.runtime_candidate_intent_allowlist
+                        ),
+                        "supported_intents": list(
+                            self._execution_plan_builder.supported_intents
                         ),
                     },
                 )
@@ -284,6 +351,121 @@ class VoiceEngineV2RuntimeCandidateAdapter:
                 },
             )
         )
+
+    @staticmethod
+    def _extract_vosk_shadow_transcript(result_metadata: Mapping[str, Any]) -> str:
+        normalized_text = str(result_metadata.get("normalized_text", "") or "").strip()
+        if normalized_text:
+            return normalized_text
+
+        transcript = str(result_metadata.get("transcript", "") or "").strip()
+        return transcript
+
+    @staticmethod
+    def _command_language_from_vosk_result(
+        result_metadata: Mapping[str, Any],
+    ) -> CommandLanguage:
+        language = str(result_metadata.get("language", "") or "").strip().lower()
+        if language == "en":
+            return CommandLanguage.ENGLISH
+        if language == "pl":
+            return CommandLanguage.POLISH
+        return CommandLanguage.UNKNOWN
+
+    @staticmethod
+    def _vosk_shadow_result_rejection_reason(
+        result_metadata: Mapping[str, Any],
+        *,
+        transcript: str,
+        language_hint: CommandLanguage,
+    ) -> str | None:
+        unsafe_true_fields = (
+            "raw_pcm_included",
+            "action_executed",
+            "full_stt_prevented",
+            "runtime_takeover",
+            "runtime_integration",
+            "command_execution_enabled",
+            "faster_whisper_bypass_enabled",
+            "microphone_stream_started",
+            "independent_microphone_stream_started",
+            "live_command_recognition_enabled",
+        )
+
+        for field_name in unsafe_true_fields:
+            if bool(result_metadata.get(field_name, False)):
+                return f"unsafe_vosk_shadow_result:{field_name}"
+
+        if not bool(result_metadata.get("recognition_attempted", False)):
+            return "vosk_shadow_result_not_attempted"
+
+        if not bool(result_metadata.get("recognition_invocation_performed", False)):
+            return "vosk_shadow_result_not_invoked"
+
+        if not bool(result_metadata.get("recognized", False)):
+            return "vosk_shadow_result_not_recognized"
+
+        if not bool(result_metadata.get("command_matched", False)):
+            return "vosk_shadow_result_not_matched"
+
+        if not transcript.strip():
+            return "vosk_shadow_result_missing_transcript"
+
+        if language_hint is CommandLanguage.UNKNOWN:
+            return "vosk_shadow_result_language_unknown"
+
+        confidence = float(result_metadata.get("confidence", 0.0) or 0.0)
+        if confidence < 0.80:
+            return "vosk_shadow_result_confidence_below_threshold"
+
+        return None
+
+    @staticmethod
+    def _safe_vosk_shadow_result_summary(
+        result_metadata: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        safe_fields = (
+            "result_stage",
+            "result_version",
+            "reason",
+            "recognizer_name",
+            "recognizer_enabled",
+            "recognition_invocation_performed",
+            "recognition_attempted",
+            "recognized",
+            "command_matched",
+            "transcript",
+            "normalized_text",
+            "language",
+            "confidence",
+            "turn_id",
+            "hook",
+            "source",
+            "publish_stage",
+            "segment_present",
+            "segment_reason",
+            "segment_audio_duration_ms",
+            "segment_audio_sample_count",
+            "segment_published_byte_count",
+            "segment_sample_rate",
+            "segment_pcm_encoding",
+            "pcm_retrieval_performed",
+            "raw_pcm_included",
+            "action_executed",
+            "full_stt_prevented",
+            "runtime_takeover",
+            "runtime_integration",
+            "command_execution_enabled",
+            "faster_whisper_bypass_enabled",
+            "microphone_stream_started",
+            "independent_microphone_stream_started",
+            "live_command_recognition_enabled",
+        )
+        return {
+            field_name: result_metadata.get(field_name)
+            for field_name in safe_fields
+            if field_name in result_metadata
+        }
 
     def _finalize(
         self,
