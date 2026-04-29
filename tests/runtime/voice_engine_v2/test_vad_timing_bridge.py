@@ -705,3 +705,155 @@ def test_vad_timing_bridge_controlled_vosk_path_attaches_asr_result_without_runt
     payload = json.loads(log_path.read_text(encoding="utf-8").splitlines()[0])
     assert payload["metadata"]["vosk_shadow_asr_result"]["result_present"] is True
 
+
+def test_vad_timing_bridge_attaches_candidate_comparison_after_legacy_transcript(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from modules.runtime.voice_engine_v2 import vad_timing_bridge as vad_timing_bridge_module
+
+    class FakeBilingualVoskCommandRecognizer:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+        def recognize_pcm(self, pcm: bytes) -> CommandRecognitionResult:
+            assert isinstance(pcm, bytes)
+            assert pcm
+            return CommandRecognitionResult.matched(
+                transcript="show desktop",
+                normalized_transcript="show desktop",
+                language=CommandLanguage.ENGLISH,
+                confidence=1.0,
+                intent_key="visual_shell.show_desktop",
+                matched_phrase="show desktop",
+            )
+
+        def reset(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        vad_timing_bridge_module,
+        "BilingualVoskCommandRecognizer",
+        FakeBilingualVoskCommandRecognizer,
+    )
+
+    log_path = tmp_path / "vad_timing_bridge.jsonl"
+    audio_bus = AudioBus(
+        max_duration_seconds=6.0,
+        sample_rate=16_000,
+        channels=1,
+        sample_width_bytes=2,
+    )
+
+    settings = _safe_settings(command_asr_shadow_bridge_enabled=True)
+    voice_engine = settings["voice_engine"]
+    assert isinstance(voice_engine, dict)
+    voice_engine.update(
+        {
+            "vosk_live_shadow_contract_enabled": True,
+            "vosk_shadow_invocation_plan_enabled": True,
+            "vosk_shadow_pcm_reference_enabled": True,
+            "vosk_shadow_asr_result_enabled": True,
+            "vosk_shadow_recognition_preflight_enabled": True,
+            "vosk_shadow_invocation_attempt_enabled": True,
+            "vosk_shadow_candidate_comparison_enabled": True,
+            "vosk_shadow_controlled_recognition_enabled": True,
+            "vosk_shadow_controlled_recognition_dry_run_enabled": True,
+            "vosk_shadow_controlled_recognition_result_enabled": True,
+            "vosk_command_model_paths": {
+                "en": "var/models/vosk/vosk-model-small-en-us-0.15",
+                "pl": "var/models/vosk/vosk-model-small-pl-0.22",
+            },
+            "vosk_command_sample_rate": 16_000,
+        }
+    )
+
+    adapter = VoiceEngineV2VadTimingBridgeAdapter(
+        settings=settings,
+        vad_observer=_observer(),
+        telemetry_writer=VoiceEngineV2VadTimingBridgeTelemetryWriter(
+            log_path,
+            enabled=True,
+        ),
+    )
+    owner = SimpleNamespace(
+        _realtime_audio_bus_shadow_tap=audio_bus,
+        _realtime_audio_bus_capture_window_shadow_tap_last_pcm=_speech_pcm(16_000),
+    )
+
+    armed = adapter.arm(
+        owner=owner,
+        turn_id="turn-candidate-comparison",
+        phase="command",
+        capture_mode="wake_command",
+        capture_handoff={"strategy": "unit_test"},
+    )
+
+    for _index in range(3):
+        audio_bus.publish_pcm(
+            _speech_pcm(),
+            source="faster_whisper_capture_window_shadow_tap",
+        )
+    for _index in range(4):
+        audio_bus.publish_pcm(
+            _silence_pcm(),
+            source="faster_whisper_capture_window_shadow_tap",
+        )
+
+    capture_finished_at_monotonic = time.monotonic()
+    pre_record = adapter.observe_after_capture_window_publish(
+        owner=owner,
+        capture_window_metadata={
+            "source": "faster_whisper_capture_window_shadow_tap",
+            "publish_stage": "before_transcription",
+            "sample_rate": 16_000,
+            "channels": 1,
+            "audio_sample_count": 16_000,
+            "audio_duration_seconds": 1.0,
+            "published_frame_count": 16,
+            "published_byte_count": 32_000,
+            "capture_finished_at_monotonic": capture_finished_at_monotonic,
+            "publish_started_at_monotonic": capture_finished_at_monotonic + 0.01,
+            "capture_finished_to_publish_start_ms": 10.0,
+        },
+    )
+    post_record = adapter.observe_after_capture(
+        owner=owner,
+        turn_id="turn-candidate-comparison",
+        phase="command",
+        capture_mode="wake_command",
+        transcript_present=True,
+        transcript_metadata={
+            "transcript_text": "show desktop",
+            "transcript_language": "en",
+            "transcript_confidence": 0.91,
+            "backend_label": "faster_whisper",
+        },
+    )
+
+    assert armed is True
+    assert pre_record.metadata["vosk_shadow_asr_result"]["result_present"] is True
+
+    comparison = post_record.metadata["vosk_shadow_candidate_comparison"]
+
+    assert comparison["enabled"] is True
+    assert comparison["comparison_present"] is True
+    assert comparison["reason"] == "candidate_agrees_with_legacy"
+    assert comparison["vosk_intent_key"] == "visual_shell.show_desktop"
+    assert comparison["legacy_intent_key"] == "visual_shell.show_desktop"
+    assert comparison["language_match"] is True
+    assert comparison["intent_match"] is True
+    assert comparison["candidate_agrees_with_legacy"] is True
+    assert comparison["safe_to_promote_later"] is True
+    assert comparison["action_executed"] is False
+    assert comparison["full_stt_prevented"] is False
+    assert comparison["runtime_takeover"] is False
+
+    payloads = [
+        json.loads(line)
+        for line in log_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert payloads[-1]["hook"] == "post_capture"
+    assert "vosk_shadow_candidate_comparison" in payloads[-1]["metadata"]
+

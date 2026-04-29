@@ -122,3 +122,116 @@ def test_grammar_exports_language_scoped_vosk_vocabulary() -> None:
     assert "która godzina" in polish_vocabulary
     assert "show desktop" not in polish_vocabulary
     assert "what time is it" not in polish_vocabulary
+
+
+def test_runtime_recovery_aliases_from_candidate_comparison_logs() -> None:
+    grammar = build_default_command_grammar()
+
+    time_recovery = grammar.match("more time is it.")
+    assert time_recovery.is_match
+    assert time_recovery.intent_key == "system.current_time"
+    assert time_recovery.language.value == "en"
+
+    polish_identity_recovery = grammar.match("Jak się nazywaś?")
+    assert polish_identity_recovery.is_match
+    assert polish_identity_recovery.intent_key == "assistant.identity"
+    assert polish_identity_recovery.language.value == "pl"
+
+    polish_identity_natural = grammar.match("Jak masz na imię?")
+    assert polish_identity_natural.is_match
+    assert polish_identity_natural.intent_key == "assistant.identity"
+    assert polish_identity_natural.language.value == "pl"
+
+
+def test_runtime_recovery_aliases_do_not_mix_command_languages() -> None:
+    grammar = build_default_command_grammar()
+
+    english_phrases = grammar.phrases_for_language(CommandLanguage.ENGLISH)
+    polish_phrases = grammar.phrases_for_language(CommandLanguage.POLISH)
+
+    assert "more time is it" in english_phrases
+    assert "more time is it" not in polish_phrases
+
+    assert "jak się nazywaś" in polish_phrases
+    assert "jak masz na imię" in polish_phrases
+    assert "jak się nazywaś" not in english_phrases
+    assert "jak masz na imię" not in english_phrases
+
+
+def test_natural_time_alias_from_runtime_observation() -> None:
+    grammar = build_default_command_grammar()
+
+    result = grammar.match("What time it is?")
+
+    assert result.is_match
+    assert result.intent_key == "system.current_time"
+    assert result.language.value == "en"
+
+
+def test_vosk_vocabulary_excludes_stt_recovery_aliases_by_default() -> None:
+    grammar = build_default_command_grammar()
+
+    english_vocabulary = grammar.to_vosk_vocabulary(
+        language=CommandLanguage.ENGLISH,
+    )
+    polish_vocabulary = grammar.to_vosk_vocabulary(
+        language=CommandLanguage.POLISH,
+    )
+
+    assert "what time it is" in english_vocabulary
+    assert "more time is it" not in english_vocabulary
+    assert "jak się nazywaś" not in polish_vocabulary
+    assert "pokaż pulpid" not in polish_vocabulary
+    assert "pokaz pulpid" not in polish_vocabulary
+    assert "pokaż pulbit" not in polish_vocabulary
+
+    english_recovery_vocabulary = grammar.to_vosk_vocabulary(
+        language=CommandLanguage.ENGLISH,
+        include_stt_recovery=True,
+    )
+    polish_recovery_vocabulary = grammar.to_vosk_vocabulary(
+        language=CommandLanguage.POLISH,
+        include_stt_recovery=True,
+    )
+
+    assert "more time is it" in english_recovery_vocabulary
+    assert "jak się nazywaś" in polish_recovery_vocabulary
+    assert "pokaż pulpid" in polish_recovery_vocabulary
+
+
+def test_vosk_vocabulary_excludes_small_model_unsupported_natural_aliases() -> None:
+    grammar = build_default_command_grammar()
+
+    polish_match = grammar.match("odsłoń pulpit")
+    assert polish_match.is_match
+    assert polish_match.intent_key == "visual_shell.show_desktop"
+    assert polish_match.language.value == "pl"
+
+    english_vocabulary = grammar.to_vosk_vocabulary(
+        language=CommandLanguage.ENGLISH,
+    )
+    polish_vocabulary = grammar.to_vosk_vocabulary(
+        language=CommandLanguage.POLISH,
+    )
+
+    assert "odsłoń pulpit" not in polish_vocabulary
+    assert all("nexa" not in phrase.lower() for phrase in english_vocabulary)
+    assert all("nexa" not in phrase.lower() for phrase in polish_vocabulary)
+
+
+def test_vosk_vocabulary_excludes_vosk_exclude_even_when_recovery_enabled() -> None:
+    grammar = build_default_command_grammar()
+
+    english_vocabulary = grammar.to_vosk_vocabulary(
+        language=CommandLanguage.ENGLISH,
+        include_stt_recovery=True,
+    )
+    polish_vocabulary = grammar.to_vosk_vocabulary(
+        language=CommandLanguage.POLISH,
+        include_stt_recovery=True,
+    )
+
+    assert "odsłoń pulpit" not in polish_vocabulary
+    assert all("nexa" not in phrase.lower() for phrase in english_vocabulary)
+    assert all("nexa" not in phrase.lower() for phrase in polish_vocabulary)
+

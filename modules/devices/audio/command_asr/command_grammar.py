@@ -136,8 +136,15 @@ class CommandGrammar:
         self,
         *,
         language: CommandLanguage | None = None,
+        include_stt_recovery: bool = False,
     ) -> tuple[str, ...]:
-        """Return phrase list suitable for limited grammar ASR engines."""
+        """Return phrase list suitable for limited grammar ASR engines.
+
+        STT recovery aliases are useful when matching a full legacy transcript,
+        but they should not be exported to Vosk by default. Some recovery
+        phrases contain words that are not present in small Vosk model
+        vocabularies and would produce runtime grammar warnings.
+        """
 
         phrases = self._phrases
         if language in (CommandLanguage.ENGLISH, CommandLanguage.POLISH):
@@ -145,6 +152,19 @@ class CommandGrammar:
                 phrase
                 for phrase in self._phrases
                 if phrase.language == language
+            ]
+
+        phrases = [
+            phrase
+            for phrase in phrases
+            if "vosk_exclude" not in phrase.tags
+        ]
+
+        if not include_stt_recovery:
+            phrases = [
+                phrase
+                for phrase in phrases
+                if "stt_recovery" not in phrase.tags
             ]
 
         return tuple(sorted({phrase.phrase for phrase in phrases}))
@@ -210,7 +230,7 @@ def build_default_command_grammar() -> CommandGrammar:
             "visual_shell.show_desktop",
             "odsłoń pulpit",
             CommandLanguage.POLISH,
-            tags=("visual_shell", "desktop"),
+            tags=("visual_shell", "desktop", 'vosk_exclude'),
         ),
         CommandPhrase(
             "visual_shell.show_desktop",
@@ -381,6 +401,18 @@ def build_default_command_grammar() -> CommandGrammar:
             tags=("system", "time"),
         ),
         CommandPhrase(
+            "system.current_time",
+            "what time it is",
+            CommandLanguage.ENGLISH,
+            tags=('system', 'time'),
+        ),
+        CommandPhrase(
+            "system.current_time",
+            "more time is it",
+            CommandLanguage.ENGLISH,
+            tags=('system', 'time', 'stt_recovery'),
+        ),
+        CommandPhrase(
             "system.current_date",
             "jaka jest data",
             CommandLanguage.POLISH,
@@ -424,6 +456,18 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             "assistant.identity",
+            "jak się nazywaś",
+            CommandLanguage.POLISH,
+            tags=('assistant', 'identity', 'stt_recovery'),
+        ),
+        CommandPhrase(
+            "assistant.identity",
+            "jak masz na imię",
+            CommandLanguage.POLISH,
+            tags=('assistant', 'identity'),
+        ),
+        CommandPhrase(
+            "assistant.identity",
             "what is your name",
             CommandLanguage.ENGLISH,
             tags=("assistant",),
@@ -452,7 +496,7 @@ def build_default_command_grammar() -> CommandGrammar:
             "system.exit",
             "close nexa",
             CommandLanguage.ENGLISH,
-            tags=("system", "exit"),
+            tags=("system", "exit", 'vosk_exclude'),
         ),
         CommandPhrase(
             "system.exit",
@@ -476,7 +520,7 @@ def build_default_command_grammar() -> CommandGrammar:
             "system.exit",
             "zamknij nexa",
             CommandLanguage.POLISH,
-            tags=("system", "exit"),
+            tags=("system", "exit", 'vosk_exclude'),
         ),
         CommandPhrase(
             "system.exit",

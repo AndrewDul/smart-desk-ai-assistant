@@ -710,6 +710,30 @@ def _arm_voice_engine_v2_vad_timing_bridge(
         return False
 
 
+def _voice_engine_v2_transcript_metadata(
+    transcript: TranscriptResult | None,
+) -> dict[str, object]:
+    if transcript is None:
+        return {}
+
+    metadata = dict(getattr(transcript, "metadata", {}) or {})
+    transcript_text = str(getattr(transcript, "text", "") or "").strip()
+    transcript_language = str(getattr(transcript, "language", "") or "").strip()
+    transcript_normalized_text = str(
+        getattr(transcript, "normalized_text", "") or ""
+    ).strip()
+
+    metadata.setdefault("transcript_text", transcript_text)
+    metadata.setdefault("transcript_language", transcript_language or "auto")
+    metadata.setdefault("transcript_normalized_text", transcript_normalized_text)
+    try:
+        metadata.setdefault("transcript_confidence", float(transcript.confidence or 0.0))
+    except (TypeError, ValueError):
+        metadata.setdefault("transcript_confidence", 0.0)
+
+    return metadata
+
+
 def _observe_voice_engine_v2_vad_timing_bridge_after_capture(
     assistant: CoreAssistant,
     *,
@@ -722,9 +746,7 @@ def _observe_voice_engine_v2_vad_timing_bridge_after_capture(
     if not callable(observe_after_capture):
         return False
 
-    transcript_metadata = {}
-    if transcript is not None:
-        transcript_metadata = dict(getattr(transcript, "metadata", {}) or {})
+    transcript_metadata = _voice_engine_v2_transcript_metadata(transcript)
 
     try:
         result = observe_after_capture(

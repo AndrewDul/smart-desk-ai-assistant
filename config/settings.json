@@ -155,7 +155,8 @@
       "en": "var/models/vosk/vosk-model-small-en-us-0.15",
       "pl": "var/models/vosk/vosk-model-small-pl-0.22"
     },
-    "vosk_command_sample_rate": 16000
+    "vosk_command_sample_rate": 16000,
+    "vosk_shadow_candidate_comparison_enabled": false
   },
   "voice_output": {
     "enabled": true,

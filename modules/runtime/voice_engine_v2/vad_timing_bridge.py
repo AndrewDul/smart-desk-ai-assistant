@@ -61,6 +61,12 @@ from modules.runtime.voice_engine_v2.vosk_shadow_invocation_attempt import (
     VoskShadowInvocationAttemptSettings,
     build_vosk_shadow_invocation_attempt,
 )
+from modules.runtime.voice_engine_v2.vosk_shadow_candidate_comparison import (
+    VOSK_SHADOW_CANDIDATE_COMPARISON_STAGE,
+    VOSK_SHADOW_CANDIDATE_COMPARISON_VERSION,
+    VoskShadowCandidateComparisonSettings,
+    build_vosk_shadow_candidate_comparison,
+)
 from modules.runtime.voice_engine_v2.vad_shadow import (
     VoiceEngineV2VadShadowObserver,
     build_voice_engine_v2_vad_shadow_observer,
@@ -211,6 +217,7 @@ class VoiceEngineV2VadTimingBridgeAdapter:
         )
         self._telemetry_writer = telemetry_writer
         self._arm_state: _VadTimingBridgeArmState | None = None
+        self._last_capture_window_vosk_shadow_metadata: dict[str, Any] = {}
 
     @property
     def enabled(self) -> bool:
@@ -350,6 +357,30 @@ class VoiceEngineV2VadTimingBridgeAdapter:
             reason = f"vad_timing_bridge_failed:{type(error).__name__}"
             observed = False
 
+        post_capture_metadata: dict[str, Any] = {
+            "armed_at_monotonic": arm_state.armed_at_monotonic,
+            "capture_handoff": dict(arm_state.capture_handoff),
+            "arm_snapshot": dict(arm_state.arm_snapshot),
+            "transcript_metadata": dict(transcript_metadata or {}),
+        }
+        capture_window_metadata = dict(
+            self._last_capture_window_vosk_shadow_metadata or {}
+        )
+        capture_window_asr_result = capture_window_metadata.get(
+            "vosk_shadow_asr_result"
+        )
+        capture_window_candidate = capture_window_metadata.get(
+            "command_asr_candidate"
+        )
+        if isinstance(capture_window_asr_result, Mapping):
+            post_capture_metadata["capture_window_vosk_shadow_asr_result"] = dict(
+                capture_window_asr_result
+            )
+        if isinstance(capture_window_candidate, Mapping):
+            post_capture_metadata["capture_window_command_asr_candidate"] = dict(
+                capture_window_candidate
+            )
+
         record = self._record(
             owner=owner,
             observed=observed,
@@ -360,15 +391,11 @@ class VoiceEngineV2VadTimingBridgeAdapter:
             capture_mode=capture_mode or arm_state.capture_mode,
             transcript_present=transcript_present,
             vad_shadow=vad_shadow,
-            metadata={
-                "armed_at_monotonic": arm_state.armed_at_monotonic,
-                "capture_handoff": dict(arm_state.capture_handoff),
-                "arm_snapshot": dict(arm_state.arm_snapshot),
-                "transcript_metadata": dict(transcript_metadata or {}),
-            },
+            metadata=post_capture_metadata,
             write_telemetry=True,
         )
         self._arm_state = None
+        self._last_capture_window_vosk_shadow_metadata = {}
         return record
 
     def observe_after_capture_window_publish(
@@ -471,7 +498,7 @@ class VoiceEngineV2VadTimingBridgeAdapter:
             observed_at_monotonic=time.monotonic(),
         )
 
-        return self._record(
+        record = self._record(
             owner=owner,
             observed=observed,
             reason=reason,
@@ -490,6 +517,8 @@ class VoiceEngineV2VadTimingBridgeAdapter:
             },
             write_telemetry=True,
         )
+        self._last_capture_window_vosk_shadow_metadata = dict(record.metadata)
+        return record
 
     def _record(
         self,
@@ -559,6 +588,12 @@ class VoiceEngineV2VadTimingBridgeAdapter:
         safe_metadata = _maybe_attach_vosk_shadow_invocation_attempt(
             settings=self._settings,
             hook=hook,
+            metadata=safe_metadata,
+        )
+        safe_metadata = _maybe_attach_vosk_shadow_candidate_comparison(
+            settings=self._settings,
+            hook=hook,
+            turn_id=normalized_turn_id,
             metadata=safe_metadata,
         )
 
@@ -1230,6 +1265,78 @@ def _maybe_attach_vosk_shadow_invocation_attempt(
             "result_present": False,
             "recognized": False,
             "command_matched": False,
+            "raw_pcm_included": False,
+            "action_executed": False,
+            "full_stt_prevented": False,
+            "runtime_takeover": False,
+            "runtime_integration": False,
+            "command_execution_enabled": False,
+            "faster_whisper_bypass_enabled": False,
+            "microphone_stream_started": False,
+            "independent_microphone_stream_started": False,
+            "live_command_recognition_enabled": False,
+        }
+
+    return safe_metadata
+
+
+def _maybe_attach_vosk_shadow_candidate_comparison(
+    *,
+    settings: Mapping[str, Any],
+    hook: str,
+    turn_id: str,
+    metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    safe_metadata = dict(metadata or {})
+    voice_engine = _voice_engine_config(settings)
+
+    if not bool(voice_engine.get("vosk_shadow_candidate_comparison_enabled", False)):
+        return safe_metadata
+
+    if hook != "post_capture":
+        return safe_metadata
+
+    try:
+        comparison = build_vosk_shadow_candidate_comparison(
+            hook=hook,
+            turn_id=turn_id,
+            metadata=safe_metadata,
+            settings=VoskShadowCandidateComparisonSettings(enabled=True),
+        )
+        safe_metadata[comparison.metadata_key] = comparison.to_json_dict()
+    except Exception as error:
+        safe_metadata["vosk_shadow_candidate_comparison"] = {
+            "comparison_stage": VOSK_SHADOW_CANDIDATE_COMPARISON_STAGE,
+            "comparison_version": VOSK_SHADOW_CANDIDATE_COMPARISON_VERSION,
+            "enabled": True,
+            "comparison_present": False,
+            "reason": f"vosk_shadow_candidate_comparison_failed:{type(error).__name__}",
+            "metadata_key": "vosk_shadow_candidate_comparison",
+            "hook": str(hook or ""),
+            "turn_id": str(turn_id or ""),
+            "vosk_result_present": False,
+            "vosk_recognition_attempted": False,
+            "vosk_recognized": False,
+            "vosk_command_matched": False,
+            "vosk_transcript": "",
+            "vosk_normalized_text": "",
+            "vosk_language": None,
+            "vosk_intent_key": None,
+            "vosk_matched_phrase": None,
+            "vosk_confidence": None,
+            "legacy_transcript_present": False,
+            "legacy_transcript": "",
+            "legacy_normalized_text": "",
+            "legacy_language": None,
+            "legacy_intent_key": None,
+            "legacy_matched_phrase": None,
+            "legacy_confidence": None,
+            "legacy_backend_label": "",
+            "transcript_match": False,
+            "language_match": False,
+            "intent_match": False,
+            "candidate_agrees_with_legacy": False,
+            "safe_to_promote_later": False,
             "raw_pcm_included": False,
             "action_executed": False,
             "full_stt_prevented": False,

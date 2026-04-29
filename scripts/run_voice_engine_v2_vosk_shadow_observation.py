@@ -39,6 +39,7 @@ OBSERVATION_FLAGS: dict[str, bool] = {
     "vosk_shadow_asr_result_enabled": True,
     "vosk_shadow_recognition_preflight_enabled": True,
     "vosk_shadow_invocation_attempt_enabled": True,
+    "vosk_shadow_candidate_comparison_enabled": True,
     "vosk_shadow_controlled_recognition_enabled": True,
     "vosk_shadow_controlled_recognition_dry_run_enabled": True,
     "vosk_shadow_controlled_recognition_result_enabled": True,

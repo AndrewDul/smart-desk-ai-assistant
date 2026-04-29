@@ -82,6 +82,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "vosk_shadow_asr_result_enabled": False,
         "vosk_shadow_recognition_preflight_enabled": False,
         "vosk_shadow_invocation_attempt_enabled": False,
+        "vosk_shadow_candidate_comparison_enabled": False,
         "vosk_shadow_controlled_recognition_enabled": False,
         "vosk_shadow_controlled_recognition_dry_run_enabled": False,
         "vosk_shadow_controlled_recognition_result_enabled": False,
