@@ -81,6 +81,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "vosk_shadow_pcm_reference_enabled": False,
         "vosk_shadow_asr_result_enabled": False,
         "vosk_shadow_recognition_preflight_enabled": False,
+        "vosk_shadow_invocation_attempt_enabled": False,
         "vad_endpointing_enabled": False,
         "command_first_enabled": False,
         "fallback_to_legacy_enabled": True,

@@ -87,6 +87,7 @@
     "vosk_shadow_pcm_reference_enabled": false,
     "vosk_shadow_asr_result_enabled": false,
     "vosk_shadow_recognition_preflight_enabled": false,
+    "vosk_shadow_invocation_attempt_enabled": false,
     "vad_endpointing_enabled": false,
     "command_first_enabled": false,
     "fallback_to_legacy_enabled": true,

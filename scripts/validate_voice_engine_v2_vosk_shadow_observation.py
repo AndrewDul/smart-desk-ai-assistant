@@ -36,6 +36,9 @@ from scripts.validate_voice_engine_v2_vosk_shadow_asr_result import (  # noqa: E
 from scripts.validate_voice_engine_v2_vosk_shadow_recognition_preflight import (  # noqa: E402
     validate_vosk_shadow_recognition_preflight_log,
 )
+from scripts.validate_voice_engine_v2_vosk_shadow_invocation_attempt import (  # noqa: E402
+    validate_vosk_shadow_invocation_attempt_log,
+)
 
 
 def validate_observation_config(
@@ -80,8 +83,10 @@ def validate_vosk_shadow_observation(
     require_asr_result_not_attempted: bool,
     require_recognition_preflight_attached: bool,
     require_recognition_preflight_ready: bool,
-    require_restored_config: bool,
-    allow_recognition_attempt: bool,
+    require_invocation_attempt_attached: bool = False,
+    require_invocation_attempt_ready: bool = False,
+    require_restored_config: bool = True,
+    allow_recognition_attempt: bool = False,
 ) -> dict[str, Any]:
     config_result = validate_observation_config(
         settings_path=settings_path,
@@ -131,6 +136,15 @@ def validate_vosk_shadow_observation(
         require_capture_window_hook=True,
         require_expected_source=True,
     )
+    invocation_attempt_result = validate_vosk_shadow_invocation_attempt_log(
+        log_path=log_path,
+        require_records=True,
+        require_attempt_attached=require_invocation_attempt_attached,
+        require_enabled=require_invocation_attempt_attached,
+        require_ready=require_invocation_attempt_ready,
+        require_capture_window_hook=True,
+        require_expected_source=True,
+    )
 
     accepted = (
         bool(config_result.get("accepted", False))
@@ -139,6 +153,7 @@ def validate_vosk_shadow_observation(
         and bool(pcm_reference_result.get("accepted", False))
         and bool(asr_result.get("accepted", False))
         and bool(recognition_preflight_result.get("accepted", False))
+        and bool(invocation_attempt_result.get("accepted", False))
     )
 
     return {
@@ -152,6 +167,7 @@ def validate_vosk_shadow_observation(
         "pcm_reference": pcm_reference_result,
         "asr_result": asr_result,
         "recognition_preflight": recognition_preflight_result,
+        "invocation_attempt": invocation_attempt_result,
         "issues": [
             *[f"config:{issue}" for issue in config_result.get("issues", [])],
             *[f"telemetry:{issue}" for issue in telemetry_result.get("issues", [])],
@@ -170,6 +186,10 @@ def validate_vosk_shadow_observation(
             *[
                 f"recognition_preflight:{issue}"
                 for issue in recognition_preflight_result.get("issues", [])
+            ],
+            *[
+                f"invocation_attempt:{issue}"
+                for issue in invocation_attempt_result.get("issues", [])
             ],
         ],
     }
@@ -240,6 +260,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Require at least one ready-but-blocked Vosk recognition preflight record.",
     )
     parser.add_argument(
+        "--require-invocation-attempt-attached",
+        action="store_true",
+        help="Require at least one metadata.vosk_shadow_invocation_attempt record.",
+    )
+    parser.add_argument(
+        "--require-invocation-attempt-ready",
+        action="store_true",
+        help="Require at least one ready-but-blocked Vosk invocation attempt record.",
+    )
+    parser.add_argument(
         "--allow-recognition-attempt",
         action="store_true",
         help=(
@@ -276,6 +306,12 @@ def main(argv: list[str] | None = None) -> int:
             ),
             require_recognition_preflight_ready=(
                 args.require_recognition_preflight_ready
+            ),
+            require_invocation_attempt_attached=(
+                args.require_invocation_attempt_attached
+            ),
+            require_invocation_attempt_ready=(
+                args.require_invocation_attempt_ready
             ),
             require_restored_config=not args.allow_active_observation_config,
             allow_recognition_attempt=args.allow_recognition_attempt,
