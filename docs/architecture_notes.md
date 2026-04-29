@@ -12239,3 +12239,13 @@ Safety boundaries preserved:
 
 Next step:
 Re-run the PL/EN Vosk observe-only matrix and require both English and Polish command matches before moving toward guarded runtime candidates.
+
+### SPRINT 3A follow-up — unmatched Vosk alternatives stay language-unknown
+
+Unmatched Vosk alternative transcripts containing `|` now return `CommandLanguage.UNKNOWN` instead of trusting a single detected language token. This keeps mixed short alternatives such as `is | jest` from being treated as a Polish command context when no deterministic command phrase matched.
+
+The safety boundary remains unchanged:
+- no action execution,
+- no runtime takeover,
+- no full STT prevention,
+- Vosk remains observe-only.

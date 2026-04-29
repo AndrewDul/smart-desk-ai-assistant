@@ -157,10 +157,16 @@ class CommandGrammar:
                     ),
                 )
 
+        no_match_language = (
+            CommandLanguage.UNKNOWN
+            if len(normalized_candidates) > 1
+            else detected_language
+        )
+
         return CommandRecognitionResult.no_match(
             transcript=transcript,
             normalized_transcript=normalized,
-            language=detected_language,
+            language=no_match_language,
         )
 
     def phrases_for_language(self, language: CommandLanguage) -> tuple[str, ...]:
