@@ -219,6 +219,29 @@ class TTSPipelineCacheQueueMixin:
 
         self._enqueue_synthesis(text, lang, priority=self._PRIORITY_NEXT)
 
+    def _current_time_cache_phrases(self) -> tuple[str, ...]:
+        """
+        Return short numeric time phrases that are likely to be requested soon.
+
+        This keeps fast command replies responsive without adding command logic
+        to the TTS layer. The action flow still decides when the time command is
+        valid; TTS only prepares small audio cache candidates.
+        """
+        from datetime import datetime, timedelta
+
+        try:
+            from zoneinfo import ZoneInfo
+
+            now = datetime.now(ZoneInfo("Europe/London"))
+        except Exception:
+            now = datetime.now()
+
+        phrases: list[str] = []
+        for minute_offset in range(0, 3):
+            phrases.append((now + timedelta(minutes=minute_offset)).strftime("%H %M"))
+
+        return tuple(dict.fromkeys(phrases))
+
     def _warm_common_cache(self) -> None:
         try:
             time.sleep(self._cache_warmup_delay_seconds)
@@ -230,7 +253,10 @@ class TTSPipelineCacheQueueMixin:
                 if not self._piper_model_ready(lang):
                     continue
 
-                for phrase in phrases:
+                dynamic_phrases = self._current_time_cache_phrases()
+                warmup_phrases = tuple(dict.fromkeys([*phrases, *dynamic_phrases]))
+
+                for phrase in warmup_phrases:
                     if self._stop_requested.is_set():
                         return
 

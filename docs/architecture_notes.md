@@ -12443,3 +12443,21 @@ Architecture decision:
 The action-fast TTS path now preserves a normal cache copy when it synthesizes through the runtime WAV directory. This keeps the low-latency `/dev/shm` playback path while allowing repeated deterministic action responses, such as numeric time replies, to become cache hits instead of requiring a fresh Piper synthesis on every repeat.
 
 This remains inside the TTS pipeline and does not move command logic into action handlers. The command layer still only chooses the response text; the audio layer owns synthesis, runtime WAV cleanup, and cache retention.
+
+## Voice runtime fast action TTS cache warmup
+
+The voice runtime now warms short numeric current-time TTS phrases for both Polish and English during Piper cache warmup.
+
+Reason:
+- `system.current_time` / `ask_time` is a high-frequency fast command.
+- Runtime telemetry showed Piper daemon synthesis could still add hundreds of milliseconds on the first time response after startup or minute rollover.
+- Prewarming the current and near-future short numeric forms keeps the command path deterministic without moving command logic into the TTS layer.
+
+Confirmed runtime behavior:
+- `what time is it` and `która jest godzina` stay on the Vosk runtime candidate path.
+- `first_audio_ms` for cached time replies drops to single-digit milliseconds.
+- TTS remains a speech-output optimization only; intent resolution and action execution stay in ActionFlow / Voice Engine v2 runtime candidate routing.
+- No LLM or Whisper primary routing is introduced for simple time commands.
+
+Remaining latency focus:
+- Further latency reduction should target capture endpointing and speech-to-route timing, not the current TTS fast-action path.
