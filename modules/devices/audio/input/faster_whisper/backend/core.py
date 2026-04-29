@@ -479,6 +479,210 @@ class FasterWhisperInputBackend(
     def listen_for_command(self, timeout: float = 8.0, debug: bool = False) -> str | None:
         return self.listen(timeout=timeout, debug=debug)
 
+    def set_voice_engine_v2_vosk_pre_whisper_candidate_adapter(
+        self,
+        adapter: Any | None,
+    ) -> None:
+        self._voice_engine_v2_vosk_pre_whisper_candidate_adapter = adapter
+
+    def _try_voice_engine_v2_vosk_pre_whisper_candidate(
+        self,
+        *,
+        audio: np.ndarray,
+        request: TranscriptRequest,
+        mode: str,
+        capture_profile_name: str,
+        capture_profile: dict[str, float],
+        capture_finished_at: float,
+        capture_window_shadow_tap: dict[str, Any],
+        started_at: float,
+    ) -> dict[str, Any]:
+        adapter = getattr(
+            self,
+            "_voice_engine_v2_vosk_pre_whisper_candidate_adapter",
+            None,
+        )
+        if adapter is None:
+            adapter = getattr(
+                self,
+                "voice_engine_v2_vosk_pre_whisper_candidate_adapter",
+                None,
+            )
+        if adapter is None:
+            return {}
+
+        try_process = getattr(adapter, "try_process_capture_window", None)
+        if not callable(try_process):
+            return {
+                "candidate_stage": "vosk_pre_whisper_candidate",
+                "attempted": False,
+                "accepted": False,
+                "reason": "adapter_process_unavailable",
+            }
+
+        metadata = dict(request.metadata or {})
+        metadata.setdefault("mode", mode)
+        metadata.setdefault("backend_label", "faster_whisper")
+        metadata.setdefault("adapter", "backend_native")
+        metadata.setdefault("capture_profile", capture_profile_name)
+        metadata.setdefault(
+            "capture_timeout_seconds",
+            float(capture_profile["timeout_seconds"]),
+        )
+        metadata.setdefault(
+            "capture_end_silence_seconds",
+            float(capture_profile["end_silence_seconds"]),
+        )
+        metadata.setdefault(
+            "capture_min_speech_seconds",
+            float(capture_profile["min_speech_seconds"]),
+        )
+        metadata.setdefault(
+            "capture_pre_roll_seconds",
+            float(capture_profile["pre_roll_seconds"]),
+        )
+        metadata.setdefault("capture_finished_at_monotonic", capture_finished_at)
+        metadata.setdefault(
+            "capture_elapsed_seconds",
+            max(0.0, capture_finished_at - started_at),
+        )
+
+        try:
+            decision = try_process(
+                audio=audio,
+                turn_id=str(
+                    metadata.get("benchmark_turn_id")
+                    or metadata.get("turn_id")
+                    or f"pre-whisper-{time.monotonic_ns()}"
+                ),
+                sample_rate=int(getattr(self, "sample_rate", self.MODEL_SAMPLE_RATE)),
+                started_monotonic=started_at,
+                speech_end_monotonic=capture_finished_at,
+                capture_window_shadow_tap=capture_window_shadow_tap,
+                request_metadata=metadata,
+            )
+        except Exception as error:
+            self.LOGGER.warning(
+                "Voice Engine v2 Vosk pre-Whisper candidate failed safely: %s",
+                error,
+            )
+            return {
+                "candidate_stage": "vosk_pre_whisper_candidate",
+                "attempted": False,
+                "accepted": False,
+                "reason": f"adapter_failed:{type(error).__name__}",
+            }
+
+        to_json_dict = getattr(decision, "to_json_dict", None)
+        if callable(to_json_dict):
+            return dict(to_json_dict() or {})
+
+        return {}
+
+    def _transcript_result_from_vosk_pre_whisper_candidate(
+        self,
+        *,
+        candidate: dict[str, Any],
+        request: TranscriptRequest,
+        mode: str,
+        capture_profile_name: str,
+        capture_profile: dict[str, float],
+        capture_finished_at: float,
+        capture_window_shadow_tap: dict[str, Any],
+        capture_audio_profile: dict[str, Any],
+        tap_snapshot_at_capture_finished: dict[str, Any],
+        started_at: float,
+        audio: np.ndarray,
+    ) -> TranscriptResult:
+        ended_at = time.monotonic()
+
+        if capture_window_shadow_tap:
+            capture_window_shadow_tap["vosk_pre_whisper_finished_at_monotonic"] = ended_at
+            publish_started_at = float(
+                capture_window_shadow_tap.get("publish_started_at_monotonic")
+                or 0.0
+            )
+            if publish_started_at > 0.0:
+                capture_window_shadow_tap[
+                    "capture_window_publish_to_vosk_candidate_finished_ms"
+                ] = round(max(0.0, (ended_at - publish_started_at) * 1000.0), 3)
+
+        try:
+            audio_duration_seconds = max(0.0, float(audio.size) / float(self.sample_rate))
+        except Exception:
+            audio_duration_seconds = 0.0
+
+        text = str(
+            candidate.get("transcript")
+            or candidate.get("normalized_text")
+            or ""
+        ).strip()
+        language = str(candidate.get("language") or "auto").strip().lower() or "auto"
+
+        try:
+            confidence = float(candidate.get("confidence") or 0.0)
+        except (TypeError, ValueError):
+            confidence = 0.0
+        confidence = max(0.0, min(1.0, confidence))
+
+        metadata = dict(request.metadata or {})
+        metadata.setdefault("mode", mode)
+        metadata.setdefault("backend_label", "vosk_command_asr")
+        metadata.setdefault("adapter", "backend_native")
+        metadata.setdefault("audio_duration_seconds", audio_duration_seconds)
+        metadata.setdefault("detected_language", language)
+        metadata.setdefault("language_probability", confidence)
+        metadata.setdefault("transcription_elapsed_seconds", 0.0)
+        metadata.setdefault("forced_language", language)
+        metadata.setdefault("transcription_path", "vosk_pre_whisper_candidate")
+        metadata.setdefault("rescue_used", False)
+        metadata.setdefault("retry_used", False)
+        metadata.setdefault("engine", "vosk")
+        metadata.setdefault("capture_profile", capture_profile_name)
+        metadata.setdefault("capture_timeout_seconds", float(capture_profile["timeout_seconds"]))
+        metadata.setdefault("capture_end_silence_seconds", float(capture_profile["end_silence_seconds"]))
+        metadata.setdefault("capture_min_speech_seconds", float(capture_profile["min_speech_seconds"]))
+        metadata.setdefault("capture_pre_roll_seconds", float(capture_profile["pre_roll_seconds"]))
+        metadata.setdefault("capture_finished_at_monotonic", capture_finished_at)
+        metadata.setdefault(
+            "capture_elapsed_seconds",
+            max(0.0, capture_finished_at - started_at),
+        )
+        metadata.setdefault("faster_whisper_bypassed", True)
+        metadata.setdefault("voice_engine_v2_pre_whisper_candidate", candidate)
+
+        if tap_snapshot_at_capture_finished:
+            metadata.setdefault(
+                "realtime_audio_bus_shadow_tap_at_capture_finished",
+                tap_snapshot_at_capture_finished,
+            )
+        if capture_audio_profile:
+            metadata.setdefault(
+                "faster_whisper_stt_capture_audio_profile",
+                capture_audio_profile,
+            )
+        if pre_whisper_candidate:
+            metadata.setdefault(
+                "voice_engine_v2_pre_whisper_candidate",
+                pre_whisper_candidate,
+            )
+        if capture_window_shadow_tap:
+            metadata.setdefault(
+                "realtime_audio_bus_capture_window_shadow_tap",
+                capture_window_shadow_tap,
+            )
+
+        return TranscriptResult(
+            text=text,
+            language=language,
+            confidence=confidence,
+            is_final=True,
+            source=request.source if isinstance(request.source, InputSource) else InputSource.VOICE,
+            started_at=started_at,
+            ended_at=ended_at,
+            metadata=metadata,
+        )
+
 
     def transcribe(self, request: TranscriptRequest) -> TranscriptResult | None:
         started_at = time.monotonic()
@@ -561,6 +765,31 @@ class FasterWhisperInputBackend(
                 "source": "faster_whisper_capture_window_shadow_tap",
                 "publish_stage": "before_transcription",
             }
+
+        pre_whisper_candidate = self._try_voice_engine_v2_vosk_pre_whisper_candidate(
+            audio=audio,
+            request=request,
+            mode=mode,
+            capture_profile_name=capture_profile_name,
+            capture_profile=capture_profile,
+            capture_finished_at=capture_finished_at,
+            capture_window_shadow_tap=capture_window_shadow_tap,
+            started_at=started_at,
+        )
+        if bool(pre_whisper_candidate.get("accepted", False)):
+            return self._transcript_result_from_vosk_pre_whisper_candidate(
+                candidate=pre_whisper_candidate,
+                request=request,
+                mode=mode,
+                capture_profile_name=capture_profile_name,
+                capture_profile=capture_profile,
+                capture_finished_at=capture_finished_at,
+                capture_window_shadow_tap=capture_window_shadow_tap,
+                capture_audio_profile=capture_audio_profile,
+                tap_snapshot_at_capture_finished=tap_snapshot_at_capture_finished,
+                started_at=started_at,
+                audio=audio,
+            )
 
         candidate = self._transcribe_audio_candidate(audio, debug=debug)
         transcription_finished_at = time.monotonic()
@@ -647,6 +876,11 @@ class FasterWhisperInputBackend(
             metadata.setdefault(
                 "faster_whisper_stt_capture_audio_profile",
                 capture_audio_profile,
+            )
+        if pre_whisper_candidate:
+            metadata.setdefault(
+                "voice_engine_v2_pre_whisper_candidate",
+                pre_whisper_candidate,
             )
         if capture_window_shadow_tap:
             metadata.setdefault(

@@ -308,22 +308,20 @@ class CoreAssistantResponseMixin:
 
     @staticmethod
     def _stream_report_delivered(stream_report: Any) -> bool:
+        """Return True only when the stream actually produced audible speech.
+
+        A non-empty text payload is not enough to mark delivery as successful.
+        Otherwise action handlers can produce a false positive where telemetry
+        says the response was delivered but the user hears silence.
+        """
+
         if stream_report is None:
             return False
 
         try:
-            if int(getattr(stream_report, "chunks_spoken", 0) or 0) > 0:
-                return True
+            return int(getattr(stream_report, "chunks_spoken", 0) or 0) > 0
         except Exception:
-            pass
-
-        try:
-            if str(getattr(stream_report, "full_text", "") or "").strip():
-                return True
-        except Exception:
-            pass
-
-        return False
+            return False
     
     def _extract_streamed_response_text(
         self,
@@ -453,8 +451,8 @@ class CoreAssistantResponseMixin:
         safe_chunk_kinds = [str(item).strip() for item in raw_chunk_kinds if str(item).strip()]
 
         chunks_spoken = int(getattr(base_report, "chunks_spoken", 0) or 0)
-        if chunks_spoken <= 0 and safe_full_text:
-            chunks_spoken = 1
+        if chunks_spoken < 0:
+            chunks_spoken = 0
 
         return StreamExecutionReport(
             chunks_spoken=chunks_spoken,

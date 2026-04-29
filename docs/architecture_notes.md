@@ -12326,3 +12326,24 @@ Safety boundary:
 - Vosk observe flags remain disabled unless explicitly prepared for observation.
 
 This step improves latency for safe built-in commands while preserving fallback behaviour and existing action execution boundaries.
+
+## Voice Engine v2 Vosk-before-Whisper candidate hook
+
+Added a guarded Vosk-before-Whisper candidate path for the FasterWhisper rich
+transcribe flow. The hook runs after the captured command audio window is
+published into the existing capture-window shadow tap and before
+FasterWhisper transcription starts.
+
+The new module `modules/runtime/voice_engine_v2/vosk_pre_whisper_candidate.py`
+has a single responsibility: convert the already captured audio window into
+PCM S16LE, run the existing bilingual Vosk command ASR adapter, and pass the
+safe observe-style result into the existing runtime candidate adapter. It never
+executes actions, never starts an independent microphone stream, never logs raw
+PCM and remains fail-open. If the Vosk/runtime candidate is rejected, the
+normal FasterWhisper path continues unchanged.
+
+The FasterWhisper backend now returns a normal `TranscriptResult` from the
+accepted Vosk candidate only for allowlisted safe commands. The existing
+CoreAssistant interaction flow still owns route execution through ActionFlow,
+so command logic remains outside random runtime files and no `if intent == ...`
+logic was added to the audio backend.

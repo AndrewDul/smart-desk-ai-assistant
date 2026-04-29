@@ -12,6 +12,9 @@ from modules.runtime.voice_engine_v2.vad_shadow import (
 from modules.runtime.voice_engine_v2.vad_timing_bridge import (
     build_voice_engine_v2_vad_timing_bridge_adapter,
 )
+from modules.runtime.voice_engine_v2.vosk_pre_whisper_candidate import (
+    build_voice_engine_v2_vosk_pre_whisper_candidate_adapter,
+)
 from modules.shared.config.settings import load_settings
 
 from .ai_broker_mixin import RuntimeBuilderAiBrokerMixin
@@ -103,6 +106,12 @@ class RuntimeBuilder(
         pan_tilt, pan_tilt_status = self._build_pan_tilt(pan_tilt_cfg)
         mobility, mobility_status = self._build_mobility(mobility_cfg)
         voice_engine_v2_bundle = self._build_voice_engine_v2()
+        vosk_pre_whisper_candidate_adapter = (
+            build_voice_engine_v2_vosk_pre_whisper_candidate_adapter(
+                settings=self.settings,
+                runtime_candidate_adapter=voice_engine_v2_bundle.runtime_candidate_adapter,
+            )
+        )
         vad_shadow_observer = build_voice_engine_v2_vad_shadow_observer(
             self.settings
         )
@@ -121,6 +130,23 @@ class RuntimeBuilder(
                 ),
             )
         )
+
+        attach_pre_whisper_candidate = getattr(
+            voice_input,
+            "set_voice_engine_v2_vosk_pre_whisper_candidate_adapter",
+            None,
+        )
+        if callable(attach_pre_whisper_candidate):
+            attach_pre_whisper_candidate(vosk_pre_whisper_candidate_adapter)
+        else:
+            try:
+                setattr(
+                    voice_input,
+                    "voice_engine_v2_vosk_pre_whisper_candidate_adapter",
+                    vosk_pre_whisper_candidate_adapter,
+                )
+            except Exception:
+                pass
 
         self._attach_audio_coordinator(voice_input, audio_coordinator)
         self._attach_audio_coordinator(wake_gate, audio_coordinator)
@@ -159,6 +185,9 @@ class RuntimeBuilder(
             ),
             "voice_engine_v2_runtime_candidate_adapter": (
                 voice_engine_v2_bundle.runtime_candidate_adapter
+            ),
+            "voice_engine_v2_vosk_pre_whisper_candidate_adapter": (
+                vosk_pre_whisper_candidate_adapter
             ),
             "voice_engine_v2_pre_stt_shadow_adapter": (
                 voice_engine_v2_bundle.pre_stt_shadow_adapter

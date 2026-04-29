@@ -98,6 +98,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "shadow_mode_enabled": False,
         "shadow_log_path": "var/data/voice_engine_v2_shadow.jsonl",
         "runtime_candidates_enabled": False,
+        "vosk_pre_whisper_candidate_enabled": False,
         "runtime_candidate_intent_allowlist": [
             "assistant.identity",
             "system.current_time",
