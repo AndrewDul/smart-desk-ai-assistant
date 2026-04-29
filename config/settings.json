@@ -146,7 +146,7 @@
     "pre_stt_shadow_enabled": false,
     "pre_stt_shadow_log_path": "var/data/voice_engine_v2_pre_stt_shadow.jsonl",
     "runtime_candidate_log_path": "var/data/voice_engine_v2_runtime_candidates.jsonl",
-    "runtime_candidates_enabled": false,
+    "runtime_candidates_enabled": true,
     "runtime_candidate_intent_allowlist": [
       "assistant.identity",
       "system.current_time"
@@ -157,7 +157,7 @@
     },
     "vosk_command_sample_rate": 16000,
     "vosk_shadow_candidate_comparison_enabled": false,
-    "vosk_pre_whisper_candidate_enabled": false
+    "vosk_pre_whisper_candidate_enabled": true
   },
   "voice_output": {
     "enabled": true,

@@ -123,7 +123,7 @@ class TestVoiceCommandScenarios(unittest.TestCase):
 
         self.assertTrue(result)
         self.assertEqual(self._last_voice_language(), "en")
-        self.assertIn("It is", self._last_voice_text())
+        self.assertRegex(self._last_voice_text(), r"^\d{2} \d{2}$")
         self.assertEqual(self._last_display_title(), "TIME")
         self.assertIsNone(self.assistant.pending_follow_up)
 
@@ -132,7 +132,7 @@ class TestVoiceCommandScenarios(unittest.TestCase):
 
         self.assertTrue(result)
         self.assertEqual(self._last_voice_language(), "pl")
-        self.assertIn("Jest", self._last_voice_text())
+        self.assertRegex(self._last_voice_text(), r"^\d{2} \d{2}$")
         self.assertEqual(self._last_display_title(), "TIME")
         self.assertIsNone(self.assistant.pending_follow_up)
 

@@ -525,3 +525,24 @@ class TTSPipelinePriorityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+def test_action_fast_runtime_wav_is_retained_in_cache_before_cleanup() -> None:
+    from pathlib import Path
+    from tempfile import TemporaryDirectory
+
+    with TemporaryDirectory() as temp_dir:
+        base = Path(temp_dir)
+        probe = _PriorityProbe(base / "cache", runtime_wav_dir=base / "runtime")
+
+        cache_path = probe._cached_wav_path("16 49", "pl")
+        runtime_path = base / "runtime" / f"{cache_path.stem}.current{cache_path.suffix}"
+        runtime_path.parent.mkdir(parents=True, exist_ok=True)
+        runtime_path.write_bytes(b"RIFFfake-runtime-wav")
+
+        probe._cleanup_runtime_wav_path(
+            ready_wav_path=runtime_path,
+            cache_path=cache_path,
+        )
+
+        assert cache_path.read_bytes() == b"RIFFfake-runtime-wav"
+        assert not runtime_path.exists()

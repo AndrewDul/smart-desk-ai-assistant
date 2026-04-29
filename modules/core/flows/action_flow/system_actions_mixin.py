@@ -892,7 +892,7 @@ class ActionSystemActionsMixin:
     ) -> bool:
         del route, payload
         now = self._now_london()
-        spoken = self._localized(language, f"Jest {now.strftime('%H:%M')}.", f"It is {now.strftime('%H:%M')}.")
+        spoken = now.strftime("%H %M")
         return self._deliver_simple_action_response(
             language=language,
             action="ask_time",

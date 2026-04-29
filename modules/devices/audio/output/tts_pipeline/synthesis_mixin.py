@@ -605,12 +605,47 @@ class TTSPipelineSynthesisMixin:
             return
         if not self._is_runtime_wav_path(ready_wav_path):
             return
-        if ready_wav_path.exists():
-            try:
-                ready_wav_path.unlink()
-            except OSError:
-                pass
 
+        self._retain_runtime_wav_cache_copy(
+            ready_wav_path=ready_wav_path,
+            cache_path=cache_path,
+        )
+
+        try:
+            ready_wav_path.unlink(missing_ok=True)
+        except OSError as error:
+            append_log(
+                "TTS runtime wav cleanup skipped: "
+                f"path={ready_wav_path}, error={error}"
+            )
+
+    def _retain_runtime_wav_cache_copy(self, *, ready_wav_path: Path, cache_path: Path) -> None:
+        if cache_path.exists():
+            return
+
+        temporary_path: Path | None = None
+        try:
+            if not ready_wav_path.exists():
+                return
+            if ready_wav_path.stat().st_size <= 0:
+                return
+
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary_path = cache_path.with_name(
+                f"{cache_path.name}.{time.monotonic_ns()}.tmp"
+            )
+            temporary_path.write_bytes(ready_wav_path.read_bytes())
+            temporary_path.replace(cache_path)
+        except OSError as error:
+            append_log(
+                "TTS runtime wav cache retain skipped: "
+                f"source={ready_wav_path}, cache={cache_path}, error={error}"
+            )
+            if temporary_path is not None:
+                try:
+                    temporary_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     @staticmethod
     def _bypass_pending_direct_current_wav_path(cache_path: Path) -> Path:

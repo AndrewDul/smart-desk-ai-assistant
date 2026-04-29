@@ -12412,3 +12412,34 @@ per-turn language separation:
 
 No new command intents were added to the Vosk runtime allowlist in this change. Expansion remains blocked
 until the existing safe commands are consistently fast, observable, and fail-open.
+
+## 2026-04-29 — Voice Engine v2 controlled Vosk pre-Whisper fast path activation
+
+Activated the guarded Vosk pre-Whisper runtime candidate path for the controlled command allowlist.
+
+Runtime behaviour:
+- `runtime_candidates_enabled` is enabled.
+- `vosk_pre_whisper_candidate_enabled` is enabled.
+- Vosk can now accept safe short commands before FasterWhisper when the command is recognized with a safe shadow result.
+- The active allowlist remains limited to:
+  - `assistant.identity`
+  - `system.current_time`
+- Risky commands such as `system.exit` remain blocked from Vosk candidate takeover.
+- Unsafe Vosk shadow records still fail open into the legacy/FasterWhisper path.
+- The fail-open guard prevents accepted Vosk candidate conversion errors from breaking capture.
+
+Observed runtime impact:
+- `assistant.identity` via `vosk_command_asr` reached about 1.3 seconds end-to-end with the short response template.
+- `system.current_time` still sits around 2.5–2.7 seconds because the remaining delay is mostly capture/window timing and TTS first-audio latency.
+- The next latency work should focus on wake-command capture/VAD endpoint timing and first-audio path optimisation, not more validator-only work.
+
+Architecture decision:
+- This is still a controlled fast path, not a full Voice Engine v2 takeover.
+- Legacy routing remains the safety fallback.
+- The command path remains deterministic and does not use LLM for simple commands.
+
+## Voice runtime latency hardening - retained action-fast WAV cache
+
+The action-fast TTS path now preserves a normal cache copy when it synthesizes through the runtime WAV directory. This keeps the low-latency `/dev/shm` playback path while allowing repeated deterministic action responses, such as numeric time replies, to become cache hits instead of requiring a fresh Piper synthesis on every repeat.
+
+This remains inside the TTS pipeline and does not move command logic into action handlers. The command layer still only chooses the response text; the audio layer owns synthesis, runtime WAV cleanup, and cache retention.
