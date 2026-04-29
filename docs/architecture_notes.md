@@ -12471,3 +12471,16 @@ Remaining latency focus:
 - Conversation capture remains on the conservative path.
 - Goal: reduce wake-command capture tail latency while preserving modular voice architecture.
 
+## Voice Engine v2 Visual Shell runtime candidate bridge
+
+Visual Shell desktop commands are now eligible for the guarded Voice Engine v2 runtime candidate path:
+
+- `visual_shell.show_desktop` routes to the existing `show_desktop` action.
+- `visual_shell.show_shell` routes to the existing `show_shell` action.
+- ActionFlow delegates these actions to the existing Visual Shell command lane instead of duplicating renderer transport logic.
+- The capture layer remains intent-agnostic.
+- `interaction_mixin.py` remains only the runtime candidate orchestrator and does not contain Visual Shell command logic.
+- Risky commands such as `system.exit` remain outside the runtime candidate execution plan.
+- Polish and English command phrases remain separated in the command grammar and are resolved per turn.
+
+This keeps simple desktop commands deterministic, observable and LLM-free while preserving the legacy fallback path for unsupported or unsafe commands.

@@ -149,7 +149,9 @@
     "runtime_candidates_enabled": true,
     "runtime_candidate_intent_allowlist": [
       "assistant.identity",
-      "system.current_time"
+      "system.current_time",
+      "visual_shell.show_desktop",
+      "visual_shell.show_shell"
     ],
     "vosk_command_model_paths": {
       "en": "var/models/vosk/vosk-model-small-en-us-0.15",

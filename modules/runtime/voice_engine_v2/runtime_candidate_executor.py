@@ -51,7 +51,7 @@ class RuntimeCandidateExecutionPlan:
 class RuntimeCandidateExecutionPlanBuilder:
     """Build safe legacy ActionFlow routes for selected runtime candidates.
 
-    Stage 19 intentionally supports only identity and current-time candidates.
+    This builder supports only explicitly allowlisted safe candidates.
     It does not execute the action directly and it does not contain TTS/display
     logic. This keeps interaction_mixin as an orchestrator and preserves the
     existing ActionFlow execution contract.
@@ -68,6 +68,16 @@ class RuntimeCandidateExecutionPlanBuilder:
                 voice_engine_intent_key="system.current_time",
                 legacy_action="ask_time",
                 tool_name="clock.time",
+            ),
+            "visual_shell.show_desktop": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="visual_shell.show_desktop",
+                legacy_action="show_desktop",
+                tool_name="visual_shell.show_desktop",
+            ),
+            "visual_shell.show_shell": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="visual_shell.show_shell",
+                legacy_action="show_shell",
+                tool_name="visual_shell.show_shell",
             ),
         }
     )

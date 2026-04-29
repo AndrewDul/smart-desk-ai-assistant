@@ -22,6 +22,7 @@ from .resolver_mixin import ActionResolverMixin
 from .response_helpers_mixin import ActionResponseHelpersMixin
 from .system_actions_mixin import ActionSystemActionsMixin
 from .timer_actions_mixin import ActionTimerActionsMixin
+from .visual_shell_actions_mixin import ActionVisualShellActionsMixin
 
 LOGGER = get_logger(__name__)
 
@@ -34,6 +35,7 @@ class ActionFlowOrchestrator(
     ActionReminderActionsMixin,
     ActionTimerActionsMixin,
     ActionPanTiltActionsMixin,
+    ActionVisualShellActionsMixin,
 ):
     """
     Final action execution flow for NeXa.
@@ -58,6 +60,8 @@ class ActionFlowOrchestrator(
         "clock.day": "ask_day",
         "clock.month": "ask_month",
         "clock.year": "ask_year",
+        "visual_shell.show_desktop": "show_desktop",
+        "visual_shell.show_shell": "show_shell",
         "memory.list": "memory_list",
         "memory.clear": "memory_clear",
         "memory.store": "memory_store",
@@ -92,6 +96,8 @@ class ActionFlowOrchestrator(
         "show_month",
         "ask_year",
         "show_year",
+        "show_desktop",
+        "show_shell",
         "memory_list",
         "memory_clear",
         "memory_store",
@@ -127,6 +133,8 @@ class ActionFlowOrchestrator(
         "show_month": ("podanie miesiąca", "tell the month"),
         "ask_year": ("podanie roku", "tell the year"),
         "show_year": ("podanie roku", "tell the year"),
+        "show_desktop": ("pokazanie pulpitu", "show desktop"),
+        "show_shell": ("schowanie pulpitu", "hide desktop"),
         "memory_list": ("pokazanie pamięci", "show memory"),
         "memory_clear": ("wyczyszczenie pamięci", "clear memory"),
         "memory_store": ("zapisanie w pamięci", "save to memory"),
