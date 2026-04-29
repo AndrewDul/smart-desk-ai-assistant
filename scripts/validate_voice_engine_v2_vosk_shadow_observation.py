@@ -42,6 +42,9 @@ from scripts.validate_voice_engine_v2_vosk_shadow_invocation_attempt import (  #
 from scripts.validate_voice_engine_v2_vad_timing_cursor_policy import (  # noqa: E402
     validate_vad_timing_cursor_policy,
 )
+from scripts.validate_voice_engine_v2_recognition_permission_contract import (  # noqa: E402
+    validate_recognition_permission_contract,
+)
 
 
 def validate_observation_config(
@@ -90,6 +93,7 @@ def validate_vosk_shadow_observation(
     require_invocation_attempt_ready: bool = False,
     require_capture_window_readiness: bool = False,
     reject_post_capture_readiness: bool = False,
+    require_recognition_permission_contract: bool = False,
     require_restored_config: bool = True,
     allow_recognition_attempt: bool = False,
 ) -> dict[str, Any]:
@@ -159,6 +163,21 @@ def validate_vosk_shadow_observation(
         require_capture_window_source_for_readiness=require_capture_window_readiness,
     )
 
+    if require_recognition_permission_contract:
+        recognition_permission_result = validate_recognition_permission_contract(
+            log_path=log_path,
+            require_records=True,
+            require_permission_contracts=True,
+            fail_on_permission_grant=True,
+        )
+    else:
+        recognition_permission_result = {
+            "accepted": True,
+            "validator": "recognition_permission_contract",
+            "required_permission_contracts": False,
+            "issues": [],
+        }
+
     accepted = (
         bool(config_result.get("accepted", False))
         and bool(telemetry_result.get("accepted", False))
@@ -168,6 +187,7 @@ def validate_vosk_shadow_observation(
         and bool(recognition_preflight_result.get("accepted", False))
         and bool(invocation_attempt_result.get("accepted", False))
         and bool(cursor_policy_result.get("accepted", False))
+        and bool(recognition_permission_result.get("accepted", False))
     )
 
     return {
@@ -183,6 +203,7 @@ def validate_vosk_shadow_observation(
         "recognition_preflight": recognition_preflight_result,
         "invocation_attempt": invocation_attempt_result,
         "cursor_policy": cursor_policy_result,
+        "recognition_permission": recognition_permission_result,
         "issues": [
             *[f"config:{issue}" for issue in config_result.get("issues", [])],
             *[f"telemetry:{issue}" for issue in telemetry_result.get("issues", [])],
@@ -209,6 +230,10 @@ def validate_vosk_shadow_observation(
             *[
                 f"cursor_policy:{issue}"
                 for issue in cursor_policy_result.get("issues", [])
+            ],
+            *[
+                f"recognition_permission:{issue}"
+                for issue in recognition_permission_result.get("issues", [])
             ],
         ],
     }
@@ -305,6 +330,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--require-recognition-permission-contract",
+        action="store_true",
+        help=(
+            "Require capture-window recognition permission contracts to remain "
+            "blocked before real Vosk recognition is enabled."
+        ),
+    )
+    parser.add_argument(
         "--allow-recognition-attempt",
         action="store_true",
         help=(
@@ -353,6 +386,9 @@ def main(argv: list[str] | None = None) -> int:
             ),
             reject_post_capture_readiness=(
                 args.reject_post_capture_readiness
+            ),
+            require_recognition_permission_contract=(
+                args.require_recognition_permission_contract
             ),
             require_restored_config=not args.allow_active_observation_config,
             allow_recognition_attempt=args.allow_recognition_attempt,

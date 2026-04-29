@@ -265,6 +265,7 @@ def test_vosk_shadow_observation_accepts_cursor_policy_gate(tmp_path: Path) -> N
         require_invocation_attempt_ready=True,
         require_capture_window_readiness=True,
         reject_post_capture_readiness=True,
+        require_recognition_permission_contract=True,
         require_restored_config=True,
         allow_recognition_attempt=False,
     )
@@ -274,6 +275,10 @@ def test_vosk_shadow_observation_accepts_cursor_policy_gate(tmp_path: Path) -> N
     assert result["cursor_policy"]["accepted_readiness_records"] == 1
     assert result["cursor_policy"]["non_capture_window_readiness_records"] == 0
     assert result["cursor_policy"]["capture_window_stale_readiness_records"] == 0
+    assert result["recognition_permission"]["accepted"] is True
+    assert result["recognition_permission"]["blocked_permission_records"] == 1
+    assert result["recognition_permission"]["permission_grant_records"] == 0
+    assert result["recognition_permission"]["unsafe_permission_records"] == 0
     assert result["issues"] == []
 
 
@@ -305,6 +310,7 @@ def test_vosk_shadow_observation_cli_accepts_cursor_policy_gate(
             "--require-invocation-attempt-ready",
             "--require-capture-window-readiness",
             "--reject-post-capture-readiness",
+            "--require-recognition-permission-contract",
         ]
     )
     payload = json.loads(capsys.readouterr().out)
@@ -313,3 +319,6 @@ def test_vosk_shadow_observation_cli_accepts_cursor_policy_gate(
     assert payload["accepted"] is True
     assert payload["cursor_policy"]["accepted"] is True
     assert payload["cursor_policy"]["accepted_readiness_records"] == 1
+    assert payload["recognition_permission"]["accepted"] is True
+    assert payload["recognition_permission"]["blocked_permission_records"] == 1
+    assert payload["recognition_permission"]["permission_grant_records"] == 0
