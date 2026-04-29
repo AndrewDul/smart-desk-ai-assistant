@@ -141,7 +141,7 @@ class TestVoiceCommandScenarios(unittest.TestCase):
 
         self.assertTrue(result)
         self.assertEqual(self._last_voice_language(), "en")
-        self.assertIn("Do you want me to close the assistant", self._last_voice_text())
+        self.assertIn("Close?", self._last_voice_text())
         self.assertEqual(self._last_display_title(), "CHAT")
         self.assertEqual(self.assistant.pending_follow_up, {"type": "confirm_exit", "lang": "en"})
 
@@ -152,7 +152,7 @@ class TestVoiceCommandScenarios(unittest.TestCase):
 
         self.assertTrue(result)
         self.assertEqual(self._last_voice_language(), "en")
-        self.assertIn("I will stay on", self._last_voice_text())
+        self.assertIn("Staying on.", self._last_voice_text())
         self.assertEqual(self._last_display_title(), "CHAT")
         self.assertIsNone(self.assistant.pending_follow_up)
 
@@ -163,7 +163,7 @@ class TestVoiceCommandScenarios(unittest.TestCase):
 
         self.assertFalse(result)
         self.assertEqual(self._last_voice_language(), "en")
-        self.assertIn("Closing the assistant", self._last_voice_text())
+        self.assertIn("Closing.", self._last_voice_text())
         self.assertEqual(self._last_display_title(), "ACTION")
         self.assertIsNone(self.assistant.pending_follow_up)
 

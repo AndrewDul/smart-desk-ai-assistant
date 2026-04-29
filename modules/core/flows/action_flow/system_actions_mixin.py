@@ -866,8 +866,8 @@ class ActionSystemActionsMixin:
 
         spoken = self._localized(
             language,
-            "Nazywam się NeXa. Jestem lokalnym asystentem biurkowym działającym na Raspberry Pi.",
-            "My name is NeXa. I am a local desk assistant running on Raspberry Pi.",
+            "Nazywam się NeXa.",
+            "My name is NeXa.",
         )
         return self._deliver_simple_action_response(
             language=language,

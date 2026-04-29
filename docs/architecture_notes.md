@@ -12394,3 +12394,21 @@ openWakeWord -> RealtimeAudioBus -> Silero VAD -> Vosk PL/EN command recognition
 
 Next step:
 Run a short guarded live smoke test with only `runtime_candidates_enabled=true` and `vosk_pre_whisper_candidate_enabled=true`, keeping `voice_engine.enabled=false`, `mode=legacy`, `command_first_enabled=false`, and `fallback_to_legacy_enabled=true`.
+
+## 2026-04-29 — Voice runtime response latency hardening
+
+Vosk pre-Whisper command recognition is now proven in live runtime for the initial safe allowlist:
+`assistant.identity` and `system.current_time`.
+
+The latest live smoke showed that accepted Vosk candidates reach the action flow with
+`stt_backend=vosk_command_asr`, `stt_ms=0.0`, and `stt_conf=1.00`.
+
+The remaining latency is dominated by response delivery and TTS playback, not command recognition.
+The `introduce_self` response was shortened to command-safe PL/EN templates while preserving strict
+per-turn language separation:
+
+- PL: `Nazywam się NeXa.`
+- EN: `My name is NeXa.`
+
+No new command intents were added to the Vosk runtime allowlist in this change. Expansion remains blocked
+until the existing safe commands are consistently fast, observable, and fail-open.
