@@ -169,3 +169,6 @@ Thumbs.db
 var/backups/config/*.bak
 var/data/*.jsonl.bak
 var/data/voice_engine_v2_observations/*.jsonl
+
+# Local settings backups
+config/settings.json.bak-*

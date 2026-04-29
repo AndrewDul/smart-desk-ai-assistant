@@ -12300,3 +12300,29 @@ This preserves the current safety boundary:
 - Vosk candidates do not take over runtime,
 - legacy runtime remains primary,
 - unsupported/risky intents are rejected before an execution plan can be built.
+
+## SPRINT 5A — Guarded runtime candidates enabled
+
+The existing Voice Engine v2 runtime-candidate hook in `CoreAssistantInteractionMixin.handle_command()` is now enabled through configuration.
+
+The live flow is:
+
+- legacy FasterWhisper transcript is still produced first,
+- Voice Engine v2 evaluates the transcript as a guarded runtime candidate,
+- only allowlisted deterministic intents can be accepted,
+- accepted candidates are dispatched through the existing action route system,
+- rejected candidates fall through to the existing legacy fast lane / router path.
+
+Current allowlist:
+- `assistant.identity`
+- `system.current_time`
+
+Safety boundary:
+- Voice Engine v2 remains disabled as a full command-first runtime,
+- `command_first_enabled` remains false,
+- legacy runtime remains the safety net,
+- unsupported or risky intents such as `system.exit` remain rejected,
+- no Vosk live takeover is enabled,
+- Vosk observe flags remain disabled unless explicitly prepared for observation.
+
+This step improves latency for safe built-in commands while preserving fallback behaviour and existing action execution boundaries.
