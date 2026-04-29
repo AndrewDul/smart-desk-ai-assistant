@@ -772,19 +772,26 @@ class FasterWhisperInputBackend(
             started_at=started_at,
         )
         if bool(pre_whisper_candidate.get("accepted", False)):
-            return self._transcript_result_from_vosk_pre_whisper_candidate(
-                candidate=pre_whisper_candidate,
-                request=request,
-                mode=mode,
-                capture_profile_name=capture_profile_name,
-                capture_profile=capture_profile,
-                capture_finished_at=capture_finished_at,
-                capture_window_shadow_tap=capture_window_shadow_tap,
-                capture_audio_profile=capture_audio_profile,
-                tap_snapshot_at_capture_finished=tap_snapshot_at_capture_finished,
-                started_at=started_at,
-                audio=audio,
-            )
+            try:
+                return self._transcript_result_from_vosk_pre_whisper_candidate(
+                    candidate=pre_whisper_candidate,
+                    request=request,
+                    mode=mode,
+                    capture_profile_name=capture_profile_name,
+                    capture_profile=capture_profile,
+                    capture_finished_at=capture_finished_at,
+                    capture_window_shadow_tap=capture_window_shadow_tap,
+                    capture_audio_profile=capture_audio_profile,
+                    tap_snapshot_at_capture_finished=tap_snapshot_at_capture_finished,
+                    started_at=started_at,
+                    audio=audio,
+                )
+            except Exception as error:
+                self.LOGGER.warning(
+                    "Voice Engine v2 Vosk pre-Whisper transcript conversion "
+                    "failed safely; falling back to FasterWhisper: %s",
+                    error,
+                )
 
         candidate = self._transcribe_audio_candidate(audio, debug=debug)
         transcription_finished_at = time.monotonic()

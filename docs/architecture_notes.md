@@ -12373,3 +12373,24 @@ Runtime result after rollback:
 
 Next step:
 Before enabling Vosk pre-Whisper candidate again, add a stronger runtime guard around candidate conversion so any candidate failure always falls back to normal FasterWhisper transcription instead of breaking the command window.
+
+## 2026-04-29 — Vosk pre-Whisper candidate fail-open hardening
+
+Added a fail-open guard around the Vosk pre-Whisper accepted-candidate transcript conversion path inside the FasterWhisper backend.
+
+Before this hardening, a bug inside candidate-to-transcript conversion could break the live command capture window after wake detection. That made NeXa appear to wake correctly but then not respond to the spoken command.
+
+The new guard keeps the runtime safe:
+- Vosk candidate recognition can be attempted before FasterWhisper.
+- If candidate conversion succeeds, the command can use the fast candidate path.
+- If candidate conversion raises any exception, the backend logs the failure and falls back to normal FasterWhisper transcription.
+- The ASR adapter still does not execute actions.
+- Raw PCM is still not written into telemetry.
+- Runtime takeover remains guarded by settings.
+- Legacy command routing remains the safe primary path until Vosk command-first mode is explicitly promoted.
+
+This moves NeXa closer to the target voice runtime architecture:
+openWakeWord -> RealtimeAudioBus -> Silero VAD -> Vosk PL/EN command recognition -> deterministic command runtime, with FasterWhisper only as fallback for uncertain or failed command recognition.
+
+Next step:
+Run a short guarded live smoke test with only `runtime_candidates_enabled=true` and `vosk_pre_whisper_candidate_enabled=true`, keeping `voice_engine.enabled=false`, `mode=legacy`, `command_first_enabled=false`, and `fallback_to_legacy_enabled=true`.
