@@ -39,6 +39,9 @@ from scripts.validate_voice_engine_v2_vosk_shadow_recognition_preflight import (
 from scripts.validate_voice_engine_v2_vosk_shadow_invocation_attempt import (  # noqa: E402
     validate_vosk_shadow_invocation_attempt_log,
 )
+from scripts.validate_voice_engine_v2_vad_timing_cursor_policy import (  # noqa: E402
+    validate_vad_timing_cursor_policy,
+)
 
 
 def validate_observation_config(
@@ -85,6 +88,8 @@ def validate_vosk_shadow_observation(
     require_recognition_preflight_ready: bool,
     require_invocation_attempt_attached: bool = False,
     require_invocation_attempt_ready: bool = False,
+    require_capture_window_readiness: bool = False,
+    reject_post_capture_readiness: bool = False,
     require_restored_config: bool = True,
     allow_recognition_attempt: bool = False,
 ) -> dict[str, Any]:
@@ -145,6 +150,14 @@ def validate_vosk_shadow_observation(
         require_capture_window_hook=True,
         require_expected_source=True,
     )
+    cursor_policy_result = validate_vad_timing_cursor_policy(
+        log_path=log_path,
+        require_records=True,
+        require_readiness_candidates=require_capture_window_readiness,
+        reject_post_capture_readiness=reject_post_capture_readiness,
+        reject_stale_readiness=require_capture_window_readiness,
+        require_capture_window_source_for_readiness=require_capture_window_readiness,
+    )
 
     accepted = (
         bool(config_result.get("accepted", False))
@@ -154,6 +167,7 @@ def validate_vosk_shadow_observation(
         and bool(asr_result.get("accepted", False))
         and bool(recognition_preflight_result.get("accepted", False))
         and bool(invocation_attempt_result.get("accepted", False))
+        and bool(cursor_policy_result.get("accepted", False))
     )
 
     return {
@@ -168,6 +182,7 @@ def validate_vosk_shadow_observation(
         "asr_result": asr_result,
         "recognition_preflight": recognition_preflight_result,
         "invocation_attempt": invocation_attempt_result,
+        "cursor_policy": cursor_policy_result,
         "issues": [
             *[f"config:{issue}" for issue in config_result.get("issues", [])],
             *[f"telemetry:{issue}" for issue in telemetry_result.get("issues", [])],
@@ -190,6 +205,10 @@ def validate_vosk_shadow_observation(
             *[
                 f"invocation_attempt:{issue}"
                 for issue in invocation_attempt_result.get("issues", [])
+            ],
+            *[
+                f"cursor_policy:{issue}"
+                for issue in cursor_policy_result.get("issues", [])
             ],
         ],
     }
@@ -270,6 +289,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Require at least one ready-but-blocked Vosk invocation attempt record.",
     )
     parser.add_argument(
+        "--require-capture-window-readiness",
+        action="store_true",
+        help=(
+            "Require at least one capture_window_pre_transcription readiness "
+            "candidate accepted by the VAD timing cursor policy gate."
+        ),
+    )
+    parser.add_argument(
+        "--reject-post-capture-readiness",
+        action="store_true",
+        help=(
+            "Reject any post_capture record that appears to be used as "
+            "command-first readiness evidence."
+        ),
+    )
+    parser.add_argument(
         "--allow-recognition-attempt",
         action="store_true",
         help=(
@@ -312,6 +347,12 @@ def main(argv: list[str] | None = None) -> int:
             ),
             require_invocation_attempt_ready=(
                 args.require_invocation_attempt_ready
+            ),
+            require_capture_window_readiness=(
+                args.require_capture_window_readiness
+            ),
+            reject_post_capture_readiness=(
+                args.reject_post_capture_readiness
             ),
             require_restored_config=not args.allow_active_observation_config,
             allow_recognition_attempt=args.allow_recognition_attempt,
