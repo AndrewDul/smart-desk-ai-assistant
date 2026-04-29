@@ -5,10 +5,14 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
+from modules.devices.audio.command_asr.command_language import CommandLanguage
+from modules.devices.audio.command_asr.command_result import CommandRecognitionResult
+
 from modules.devices.audio.realtime import AudioBus
 from modules.devices.audio.realtime.audio_frame import AudioFrame
 from modules.devices.audio.vad import EndpointingPolicyConfig
 from modules.runtime.voice_engine_v2.vad_shadow import VoiceEngineV2VadShadowObserver
+from modules.runtime.voice_engine_v2 import vad_timing_bridge as vad_timing_bridge_module
 from modules.runtime.voice_engine_v2.vad_timing_bridge import (
     VoiceEngineV2VadTimingBridgeAdapter,
     VoiceEngineV2VadTimingBridgeTelemetryWriter,
@@ -551,3 +555,153 @@ def test_vad_timing_bridge_attaches_disabled_command_asr_shadow_when_enabled(
     assert logged_bridge["recognition_attempted"] is False
     assert logged_bridge["recognized"] is False
     assert logged_candidate["raw_pcm_included"] is False
+
+
+def test_vad_timing_bridge_controlled_vosk_path_attaches_asr_result_without_runtime_takeover(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    class FakeBilingualVoskCommandRecognizer:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+        def recognize_pcm(self, pcm: bytes) -> CommandRecognitionResult:
+            assert isinstance(pcm, bytes)
+            assert pcm
+            return CommandRecognitionResult.matched(
+                transcript="show desktop",
+                normalized_transcript="show desktop",
+                language=CommandLanguage.ENGLISH,
+                confidence=1.0,
+                intent_key="visual_shell.show_desktop",
+                matched_phrase="show desktop",
+            )
+
+        def reset(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        vad_timing_bridge_module,
+        "BilingualVoskCommandRecognizer",
+        FakeBilingualVoskCommandRecognizer,
+    )
+
+    log_path = tmp_path / "vad_timing_bridge.jsonl"
+    audio_bus = AudioBus(
+        max_duration_seconds=6.0,
+        sample_rate=16_000,
+        channels=1,
+        sample_width_bytes=2,
+    )
+
+    settings = _safe_settings(command_asr_shadow_bridge_enabled=True)
+    voice_engine = settings["voice_engine"]
+    assert isinstance(voice_engine, dict)
+    voice_engine.update(
+        {
+            "vosk_live_shadow_contract_enabled": True,
+            "vosk_shadow_invocation_plan_enabled": True,
+            "vosk_shadow_pcm_reference_enabled": True,
+            "vosk_shadow_asr_result_enabled": True,
+            "vosk_shadow_recognition_preflight_enabled": True,
+            "vosk_shadow_invocation_attempt_enabled": True,
+            "vosk_shadow_controlled_recognition_enabled": True,
+            "vosk_shadow_controlled_recognition_dry_run_enabled": True,
+            "vosk_shadow_controlled_recognition_result_enabled": True,
+            "vosk_command_model_paths": {
+                "en": "var/models/vosk/vosk-model-small-en-us-0.15",
+                "pl": "var/models/vosk/vosk-model-small-pl-0.22",
+            },
+            "vosk_command_sample_rate": 16_000,
+        }
+    )
+
+    adapter = VoiceEngineV2VadTimingBridgeAdapter(
+        settings=settings,
+        vad_observer=_observer(),
+        telemetry_writer=VoiceEngineV2VadTimingBridgeTelemetryWriter(
+            log_path,
+            enabled=True,
+        ),
+    )
+    owner = SimpleNamespace(
+        _realtime_audio_bus_shadow_tap=audio_bus,
+        _realtime_audio_bus_capture_window_shadow_tap_last_pcm=_speech_pcm(16_000),
+    )
+
+    armed = adapter.arm(
+        owner=owner,
+        turn_id="turn-controlled-vosk",
+        phase="command",
+        capture_mode="wake_command",
+        capture_handoff={"strategy": "unit_test"},
+    )
+
+    for _index in range(3):
+        audio_bus.publish_pcm(
+            _speech_pcm(),
+            source="faster_whisper_capture_window_shadow_tap",
+        )
+    for _index in range(4):
+        audio_bus.publish_pcm(
+            _silence_pcm(),
+            source="faster_whisper_capture_window_shadow_tap",
+        )
+
+    capture_finished_at_monotonic = time.monotonic()
+
+    record = adapter.observe_after_capture_window_publish(
+        owner=owner,
+        capture_window_metadata={
+            "source": "faster_whisper_capture_window_shadow_tap",
+            "publish_stage": "before_transcription",
+            "sample_rate": 16_000,
+            "channels": 1,
+            "audio_sample_count": 16_000,
+            "audio_duration_seconds": 1.0,
+            "published_frame_count": 16,
+            "published_byte_count": 32_000,
+            "capture_finished_at_monotonic": capture_finished_at_monotonic,
+            "publish_started_at_monotonic": capture_finished_at_monotonic + 0.01,
+            "capture_finished_to_publish_start_ms": 10.0,
+        },
+    )
+
+    assert armed is True
+    assert record.observed is True
+
+    bridge = record.metadata["command_asr_shadow_bridge"]
+    candidate = record.metadata["command_asr_candidate"]
+    asr_result = record.metadata["vosk_shadow_asr_result"]
+
+    assert bridge["reason"] == "command_asr_shadow_bridge_observed"
+    assert bridge["recognizer_enabled"] is True
+    assert bridge["recognition_attempted"] is True
+    assert bridge["recognized"] is True
+
+    assert candidate["candidate_present"] is True
+    assert candidate["reason"] == "command_asr_candidate_present"
+    assert candidate["asr_reason"] == "vosk_command_asr_recognized"
+    assert candidate["language"] == "en"
+    assert candidate["raw_pcm_included"] is False
+    assert candidate["action_executed"] is False
+    assert candidate["full_stt_prevented"] is False
+    assert candidate["runtime_takeover"] is False
+
+    assert asr_result["enabled"] is True
+    assert asr_result["result_present"] is True
+    assert asr_result["recognition_attempted"] is True
+    assert asr_result["recognized"] is True
+    assert asr_result["command_matched"] is True
+    assert asr_result["language"] == "en"
+    assert asr_result["raw_pcm_included"] is False
+    assert asr_result["action_executed"] is False
+    assert asr_result["full_stt_prevented"] is False
+    assert asr_result["runtime_takeover"] is False
+    assert asr_result["microphone_stream_started"] is False
+    assert asr_result["independent_microphone_stream_started"] is False
+    assert asr_result["faster_whisper_bypass_enabled"] is False
+
+    payload = json.loads(log_path.read_text(encoding="utf-8").splitlines()[0])
+    assert payload["metadata"]["vosk_shadow_asr_result"]["result_present"] is True
+

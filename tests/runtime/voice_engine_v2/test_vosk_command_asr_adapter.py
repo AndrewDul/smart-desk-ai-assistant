@@ -246,3 +246,41 @@ def test_vosk_command_asr_adapter_rejects_unsafe_record_before_adapter() -> None
             record=_record(candidate=_candidate(), action_executed=True),
             recognizer=adapter,
         )
+
+def test_vosk_command_asr_adapter_maps_bilingual_polish_recognition_result() -> None:
+    from modules.devices.audio.command_asr.bilingual_vosk_command_recognizer import (
+        BilingualVoskCommandRecognizer,
+    )
+
+    bilingual_recognizer = BilingualVoskCommandRecognizer(
+        english_recognizer=VoskCommandRecognizer(
+            grammar=build_default_command_grammar(),
+            pcm_transcript_provider=lambda pcm: None,
+        ),
+        polish_recognizer=VoskCommandRecognizer(
+            grammar=build_default_command_grammar(),
+            pcm_transcript_provider=lambda pcm: "pokaż pulpit",
+        ),
+    )
+    adapter = VoskCommandAsrAdapter(
+        settings=VoskCommandAsrAdapterSettings(enabled=True),
+        recognizer=bilingual_recognizer,
+        segment_pcm_provider=lambda segment: b"\x00\x00" * 1600,
+    )
+
+    candidate = build_command_asr_candidate(
+        record=_record(candidate=_candidate()),
+        recognizer=adapter,
+    )
+
+    payload = candidate.to_json_dict()
+
+    assert payload["candidate_present"] is True
+    assert payload["recognition_attempted"] is True
+    assert payload["recognized"] is True
+    assert payload["language"] == "pl"
+    assert payload["asr_reason"] == "vosk_command_asr_recognized"
+    assert payload["raw_pcm_included"] is False
+    assert payload["action_executed"] is False
+    assert payload["full_stt_prevented"] is False
+    assert payload["runtime_takeover"] is False

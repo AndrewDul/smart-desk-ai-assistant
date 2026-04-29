@@ -166,3 +166,51 @@ def test_capture_window_shadow_tap_notifies_observer_after_publish() -> None:
         observed_records[0]["capture_window_metadata"]["publish_stage"]
         == "before_transcription"
     )
+
+def test_capture_window_shadow_tap_exposes_pcm_only_during_observer_callback() -> None:
+    harness = _Harness()
+    audio_bus = _FakeAudioBus()
+    observed_records: list[dict[str, object]] = []
+
+    def observer(*, owner, capture_window_metadata):
+        pcm = getattr(
+            owner,
+            "_realtime_audio_bus_capture_window_shadow_tap_last_pcm",
+            b"",
+        )
+        observed_records.append(
+            {
+                "pcm_length": len(pcm),
+                "metadata": dict(capture_window_metadata),
+            }
+        )
+
+    harness.set_realtime_audio_bus_shadow_tap(audio_bus, enabled=True)
+    harness.set_realtime_audio_bus_capture_window_observer(
+        observer,
+        enabled=True,
+    )
+
+    record = harness.publish_realtime_audio_bus_capture_window_shadow_tap(
+        np.array([0.0, 0.5, -0.5, 0.0], dtype=np.float32),
+        capture_finished_at_monotonic=10.0,
+        transcription_finished_at_monotonic=None,
+    )
+
+    assert record["published"] is True
+    assert len(observed_records) == 1
+    assert observed_records[0]["pcm_length"] == 8
+
+    metadata = observed_records[0]["metadata"]
+    assert "raw_pcm" not in metadata
+    assert "pcm" not in metadata
+    assert "pcm_bytes" not in metadata
+
+    assert (
+        getattr(
+            harness,
+            "_realtime_audio_bus_capture_window_shadow_tap_last_pcm",
+            b"",
+        )
+        == b""
+    )

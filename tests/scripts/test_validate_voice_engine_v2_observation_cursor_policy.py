@@ -266,6 +266,8 @@ def test_vosk_shadow_observation_accepts_cursor_policy_gate(tmp_path: Path) -> N
         require_capture_window_readiness=True,
         reject_post_capture_readiness=True,
         require_recognition_permission_contract=True,
+        require_controlled_recognition_readiness=True,
+        require_controlled_recognition_boundary=True,
         require_restored_config=True,
         allow_recognition_attempt=False,
     )
@@ -279,6 +281,25 @@ def test_vosk_shadow_observation_accepts_cursor_policy_gate(tmp_path: Path) -> N
     assert result["recognition_permission"]["blocked_permission_records"] == 1
     assert result["recognition_permission"]["permission_grant_records"] == 0
     assert result["recognition_permission"]["unsafe_permission_records"] == 0
+    assert result["controlled_recognition_readiness"]["accepted"] is True
+    assert result["controlled_recognition_readiness"]["safe_command_candidate_records"] == 1
+    assert (
+        result["controlled_recognition_readiness"]["follow_up_candidate_records"]
+        == 0
+    )
+    assert (
+        result["controlled_recognition_readiness"]["rejected_command_candidate_records"]
+        == 0
+    )
+    assert result["controlled_recognition_boundary"]["accepted"] is True
+    assert (
+        result["controlled_recognition_boundary"]["settings"]["controlled_flags_enabled"]
+        == []
+    )
+    assert (
+        result["controlled_recognition_boundary"]["decision"]
+        == "controlled_recognition_boundary_ready_but_current_stage_disabled"
+    )
     assert result["issues"] == []
 
 
@@ -311,6 +332,8 @@ def test_vosk_shadow_observation_cli_accepts_cursor_policy_gate(
             "--require-capture-window-readiness",
             "--reject-post-capture-readiness",
             "--require-recognition-permission-contract",
+            "--require-controlled-recognition-readiness",
+            "--require-controlled-recognition-boundary",
         ]
     )
     payload = json.loads(capsys.readouterr().out)
@@ -322,3 +345,13 @@ def test_vosk_shadow_observation_cli_accepts_cursor_policy_gate(
     assert payload["recognition_permission"]["accepted"] is True
     assert payload["recognition_permission"]["blocked_permission_records"] == 1
     assert payload["recognition_permission"]["permission_grant_records"] == 0
+    assert payload["controlled_recognition_readiness"]["accepted"] is True
+    assert (
+        payload["controlled_recognition_readiness"]["safe_command_candidate_records"]
+        == 1
+    )
+    assert payload["controlled_recognition_boundary"]["accepted"] is True
+    assert (
+        payload["controlled_recognition_boundary"]["settings"]["controlled_flags_enabled"]
+        == []
+    )

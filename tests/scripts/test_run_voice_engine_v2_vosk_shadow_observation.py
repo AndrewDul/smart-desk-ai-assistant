@@ -162,5 +162,6 @@ def test_validate_observation_log_accepts_attached_waiting_contract(
 
     assert exit_code == 0
     assert payload["accepted"] is True
-    assert payload["telemetry"]["contract_records"] == 1
-    assert payload["telemetry"]["recognition_attempted_records"] == 0
+    assert payload["telemetry"]["live_shadow"]["contract_records"] == 1
+    assert payload["telemetry"]["asr_result"]["result_records"] == 0
+    assert payload["telemetry"]["live_shadow"]["recognition_attempted_records"] == 0

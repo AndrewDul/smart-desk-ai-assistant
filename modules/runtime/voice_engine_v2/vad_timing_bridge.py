@@ -7,11 +7,20 @@ from pathlib import Path
 import time
 from typing import Any, Mapping
 
+from modules.devices.audio.command_asr.bilingual_vosk_command_recognizer import (
+    BilingualVoskCommandRecognizer,
+    DEFAULT_ENGLISH_VOSK_MODEL_PATH,
+    DEFAULT_POLISH_VOSK_MODEL_PATH,
+)
 from modules.runtime.voice_engine_v2.command_asr_shadow_bridge import (
     COMMAND_ASR_SHADOW_BRIDGE_STAGE,
     COMMAND_ASR_SHADOW_BRIDGE_VERSION,
     CommandAsrShadowBridgeSettings,
     enrich_record_with_command_asr_shadow,
+)
+from modules.runtime.voice_engine_v2.vosk_command_asr_adapter import (
+    VoskCommandAsrAdapter,
+    VoskCommandAsrAdapterSettings,
 )
 from modules.runtime.voice_engine_v2.vad_endpointing_candidate import (
     build_vad_endpointing_candidate,
@@ -342,6 +351,7 @@ class VoiceEngineV2VadTimingBridgeAdapter:
             observed = False
 
         record = self._record(
+            owner=owner,
             observed=observed,
             reason=reason,
             hook="post_capture",
@@ -462,6 +472,7 @@ class VoiceEngineV2VadTimingBridgeAdapter:
         )
 
         return self._record(
+            owner=owner,
             observed=observed,
             reason=reason,
             hook="capture_window_pre_transcription",
@@ -483,6 +494,7 @@ class VoiceEngineV2VadTimingBridgeAdapter:
     def _record(
         self,
         *,
+        owner: Any | None = None,
         observed: bool,
         reason: str,
         hook: str,
@@ -505,6 +517,7 @@ class VoiceEngineV2VadTimingBridgeAdapter:
         safe_metadata = dict(metadata or {})
         safe_metadata = _maybe_attach_command_asr_shadow(
             settings=self._settings,
+            owner=owner,
             timestamp_utc=timestamp_utc,
             timestamp_monotonic=timestamp_monotonic,
             enabled=self.enabled,
@@ -579,6 +592,7 @@ class VoiceEngineV2VadTimingBridgeAdapter:
 def _maybe_attach_command_asr_shadow(
     *,
     settings: Mapping[str, Any],
+    owner: Any | None,
     timestamp_utc: str,
     timestamp_monotonic: float,
     enabled: bool,
@@ -624,6 +638,10 @@ def _maybe_attach_command_asr_shadow(
         enriched_payload = enrich_record_with_command_asr_shadow(
             record=record_payload,
             settings=CommandAsrShadowBridgeSettings(enabled=True),
+            recognizer=_build_controlled_bilingual_command_asr(
+                voice_engine=voice_engine,
+                owner=owner,
+            ),
         )
     except Exception as error:
         safe_metadata["command_asr_shadow_bridge"] = {
@@ -652,6 +670,64 @@ def _maybe_attach_command_asr_shadow(
         return dict(enriched_metadata)
 
     return safe_metadata
+
+
+def _build_controlled_bilingual_command_asr(
+    *,
+    voice_engine: Mapping[str, Any],
+    owner: Any | None,
+) -> VoskCommandAsrAdapter | None:
+    if not _controlled_vosk_recognition_enabled(voice_engine):
+        return None
+
+    model_paths = _mapping(voice_engine.get("vosk_command_model_paths"))
+    english_model_path = str(
+        model_paths.get("en") or DEFAULT_ENGLISH_VOSK_MODEL_PATH
+    )
+    polish_model_path = str(
+        model_paths.get("pl") or DEFAULT_POLISH_VOSK_MODEL_PATH
+    )
+    sample_rate = _positive_int(
+        voice_engine.get("vosk_command_sample_rate"),
+        fallback=16_000,
+    )
+
+    recognizer = BilingualVoskCommandRecognizer(
+        english_model_path=english_model_path,
+        polish_model_path=polish_model_path,
+        sample_rate=sample_rate,
+    )
+
+    return VoskCommandAsrAdapter(
+        settings=VoskCommandAsrAdapterSettings(enabled=True),
+        recognizer=recognizer,
+        segment_pcm_provider=lambda segment: _capture_window_pcm_from_owner(owner),
+    )
+
+
+def _controlled_vosk_recognition_enabled(
+    voice_engine: Mapping[str, Any],
+) -> bool:
+    return bool(
+        voice_engine.get("vosk_shadow_controlled_recognition_enabled", False)
+        and voice_engine.get("vosk_shadow_controlled_recognition_dry_run_enabled", False)
+        and voice_engine.get("vosk_shadow_controlled_recognition_result_enabled", False)
+    )
+
+
+def _capture_window_pcm_from_owner(owner: Any | None) -> bytes | None:
+    if owner is None:
+        return None
+
+    pcm = getattr(
+        owner,
+        "_realtime_audio_bus_capture_window_shadow_tap_last_pcm",
+        b"",
+    )
+    if isinstance(pcm, bytes) and pcm:
+        return pcm
+
+    return None
 
 
 def _maybe_attach_vosk_live_shadow_contract(
@@ -1219,11 +1295,18 @@ def _safe_to_run_bridge(settings: Mapping[str, Any]) -> tuple[bool, str]:
     return True, "safe"
 
 
-def _positive_int(raw_value: Any) -> int:
+def _mapping(raw_value: Any) -> dict[str, Any]:
+    return dict(raw_value) if isinstance(raw_value, Mapping) else {}
+
+
+def _positive_int(raw_value: Any, *, fallback: int = 0) -> int:
     try:
         value = int(raw_value)
     except (TypeError, ValueError):
-        return 0
+        try:
+            value = int(fallback)
+        except (TypeError, ValueError):
+            return 0
     return value if value > 0 else 0
 
 

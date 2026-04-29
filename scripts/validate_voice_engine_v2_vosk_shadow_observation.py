@@ -45,6 +45,12 @@ from scripts.validate_voice_engine_v2_vad_timing_cursor_policy import (  # noqa:
 from scripts.validate_voice_engine_v2_recognition_permission_contract import (  # noqa: E402
     validate_recognition_permission_contract,
 )
+from scripts.validate_voice_engine_v2_controlled_recognition_readiness import (  # noqa: E402
+    validate_controlled_recognition_readiness,
+)
+from scripts.validate_voice_engine_v2_controlled_recognition_boundary import (  # noqa: E402
+    validate_controlled_recognition_boundary,
+)
 
 
 def validate_observation_config(
@@ -94,6 +100,8 @@ def validate_vosk_shadow_observation(
     require_capture_window_readiness: bool = False,
     reject_post_capture_readiness: bool = False,
     require_recognition_permission_contract: bool = False,
+    require_controlled_recognition_readiness: bool = False,
+    require_controlled_recognition_boundary: bool = False,
     require_restored_config: bool = True,
     allow_recognition_attempt: bool = False,
 ) -> dict[str, Any]:
@@ -178,6 +186,40 @@ def validate_vosk_shadow_observation(
             "issues": [],
         }
 
+    if require_controlled_recognition_readiness:
+        controlled_recognition_readiness_result = (
+            validate_controlled_recognition_readiness(
+                log_path=log_path,
+                require_records=True,
+                require_command_candidates=True,
+            )
+        )
+    else:
+        controlled_recognition_readiness_result = {
+            "accepted": True,
+            "validator": "controlled_recognition_readiness",
+            "required_command_candidates": False,
+            "issues": [],
+        }
+
+    if require_controlled_recognition_boundary:
+        controlled_recognition_boundary_result = (
+            validate_controlled_recognition_boundary(
+                settings_path=settings_path,
+                log_path=log_path,
+                require_records=True,
+                require_command_candidates=True,
+                require_restored_config=require_restored_config,
+            )
+        )
+    else:
+        controlled_recognition_boundary_result = {
+            "accepted": True,
+            "validator": "controlled_recognition_boundary",
+            "required_command_candidates": False,
+            "issues": [],
+        }
+
     accepted = (
         bool(config_result.get("accepted", False))
         and bool(telemetry_result.get("accepted", False))
@@ -188,6 +230,8 @@ def validate_vosk_shadow_observation(
         and bool(invocation_attempt_result.get("accepted", False))
         and bool(cursor_policy_result.get("accepted", False))
         and bool(recognition_permission_result.get("accepted", False))
+        and bool(controlled_recognition_readiness_result.get("accepted", False))
+        and bool(controlled_recognition_boundary_result.get("accepted", False))
     )
 
     return {
@@ -204,6 +248,8 @@ def validate_vosk_shadow_observation(
         "invocation_attempt": invocation_attempt_result,
         "cursor_policy": cursor_policy_result,
         "recognition_permission": recognition_permission_result,
+        "controlled_recognition_readiness": controlled_recognition_readiness_result,
+        "controlled_recognition_boundary": controlled_recognition_boundary_result,
         "issues": [
             *[f"config:{issue}" for issue in config_result.get("issues", [])],
             *[f"telemetry:{issue}" for issue in telemetry_result.get("issues", [])],
@@ -234,6 +280,14 @@ def validate_vosk_shadow_observation(
             *[
                 f"recognition_permission:{issue}"
                 for issue in recognition_permission_result.get("issues", [])
+            ],
+            *[
+                f"controlled_recognition_readiness:{issue}"
+                for issue in controlled_recognition_readiness_result.get("issues", [])
+            ],
+            *[
+                f"controlled_recognition_boundary:{issue}"
+                for issue in controlled_recognition_boundary_result.get("issues", [])
             ],
         ],
     }
@@ -338,6 +392,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--require-controlled-recognition-readiness",
+        action="store_true",
+        help=(
+            "Require command/wake_command capture-window candidates for a future "
+            "controlled observe-only Vosk recognition stage while keeping current "
+            "recognition blocked."
+        ),
+    )
+    parser.add_argument(
+        "--require-controlled-recognition-boundary",
+        action="store_true",
+        help=(
+            "Require safe restored config and disabled controlled-recognition "
+            "flags before any future controlled Vosk recognition invocation."
+        ),
+    )
+    parser.add_argument(
         "--allow-recognition-attempt",
         action="store_true",
         help=(
@@ -389,6 +460,12 @@ def main(argv: list[str] | None = None) -> int:
             ),
             require_recognition_permission_contract=(
                 args.require_recognition_permission_contract
+            ),
+            require_controlled_recognition_readiness=(
+                args.require_controlled_recognition_readiness
+            ),
+            require_controlled_recognition_boundary=(
+                args.require_controlled_recognition_boundary
             ),
             require_restored_config=not args.allow_active_observation_config,
             allow_recognition_attempt=args.allow_recognition_attempt,

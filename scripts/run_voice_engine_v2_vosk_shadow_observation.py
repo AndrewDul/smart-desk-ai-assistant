@@ -19,6 +19,9 @@ from scripts.validate_voice_engine_v2_vad_timing_vosk_live_shadow import (  # no
     DEFAULT_LOG_PATH,
     validate_vad_timing_vosk_live_shadow_log,
 )
+from scripts.validate_voice_engine_v2_vosk_shadow_asr_result import (  # noqa: E402
+    validate_vosk_shadow_asr_result_log,
+)
 
 
 DEFAULT_SETTINGS_PATH = Path("config/settings.json")
@@ -36,6 +39,9 @@ OBSERVATION_FLAGS: dict[str, bool] = {
     "vosk_shadow_asr_result_enabled": True,
     "vosk_shadow_recognition_preflight_enabled": True,
     "vosk_shadow_invocation_attempt_enabled": True,
+    "vosk_shadow_controlled_recognition_enabled": True,
+    "vosk_shadow_controlled_recognition_dry_run_enabled": True,
+    "vosk_shadow_controlled_recognition_result_enabled": True,
 }
 RESTORED_OBSERVATION_FLAGS: dict[str, bool] = {
     key: False for key in OBSERVATION_FLAGS
@@ -267,19 +273,54 @@ def validate_observation_log(
     *,
     log_path: Path,
     require_contract_attached: bool,
+    require_asr_result_attached: bool,
+    require_recognition_attempt: bool,
 ) -> dict[str, Any]:
-    result = validate_vad_timing_vosk_live_shadow_log(
+    live_shadow_result = validate_vad_timing_vosk_live_shadow_log(
         log_path=log_path,
         require_records=True,
         require_contract_attached=require_contract_attached,
-        require_enabled_shape_only=True,
+        require_enabled_shape_only=not require_recognition_attempt,
         require_capture_window_hook=True,
     )
+    asr_result = validate_vosk_shadow_asr_result_log(
+        log_path=log_path,
+        require_records=True,
+        require_result_attached=(
+            require_asr_result_attached or require_recognition_attempt
+        ),
+        require_enabled=(require_asr_result_attached or require_recognition_attempt),
+        require_not_attempted=False,
+        require_capture_window_hook=True,
+        require_expected_source=True,
+        allow_recognition_attempt=require_recognition_attempt,
+    )
+
+    issues = [
+        f"live_shadow:{issue}"
+        for issue in live_shadow_result.get("issues", [])
+    ]
+    issues.extend(
+        f"asr_result:{issue}"
+        for issue in asr_result.get("issues", [])
+    )
+
+    if require_recognition_attempt and int(
+        asr_result.get("recognition_attempt_records", 0) or 0
+    ) <= 0:
+        issues.append("asr_result:recognition_attempt_records_missing")
+
     return {
-        "accepted": bool(result.get("accepted", False)),
+        "accepted": not issues,
         "action": "validate",
         "log_path": str(log_path),
-        "telemetry": result,
+        "telemetry": {
+            "live_shadow": live_shadow_result,
+            "asr_result": asr_result,
+        },
+        "recognition_attempt_required": require_recognition_attempt,
+        "asr_result_attached_required": require_asr_result_attached,
+        "issues": issues,
     }
 
 
@@ -324,6 +365,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Require at least one metadata.vosk_live_shadow record during validation.",
     )
     parser.add_argument(
+        "--require-asr-result-attached",
+        action="store_true",
+        help="Require at least one metadata.vosk_shadow_asr_result record during validation.",
+    )
+    parser.add_argument(
+        "--require-recognition-attempt",
+        action="store_true",
+        help=(
+            "Require at least one controlled observe-only Vosk recognition "
+            "attempt from existing capture-window PCM."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print the planned prepare/restore result without writing settings.json.",
@@ -354,6 +408,8 @@ def main(argv: list[str] | None = None) -> int:
             result = validate_observation_log(
                 log_path=args.log_path,
                 require_contract_attached=args.require_contract_attached,
+                require_asr_result_attached=args.require_asr_result_attached,
+                require_recognition_attempt=args.require_recognition_attempt,
             )
         elif args.restore:
             result = restore_observation(

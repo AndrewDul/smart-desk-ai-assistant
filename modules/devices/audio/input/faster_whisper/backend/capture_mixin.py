@@ -27,6 +27,7 @@ class FasterWhisperCaptureMixin:
             Callable[..., Any] | None
         ) = None
         self._realtime_audio_bus_capture_window_observer_enabled = False
+        self._realtime_audio_bus_capture_window_shadow_tap_last_pcm = b""
 
     def set_realtime_audio_bus_capture_window_observer(
         self,
@@ -527,8 +528,14 @@ class FasterWhisperCaptureMixin:
             "int16_profile": int16_profile,
             "conversion_reason": conversion_reason,
         }
-        self._append_realtime_audio_bus_capture_window_shadow_tap_diagnostic(record)
-        self._notify_realtime_audio_bus_capture_window_observer(record)
+        pcm_bytes = int16_audio.tobytes(order="C")
+        self._realtime_audio_bus_capture_window_shadow_tap_last_pcm = pcm_bytes
+        try:
+            self._append_realtime_audio_bus_capture_window_shadow_tap_diagnostic(record)
+            self._notify_realtime_audio_bus_capture_window_observer(record)
+        finally:
+            self._realtime_audio_bus_capture_window_shadow_tap_last_pcm = b""
+
         return record
 
     def _notify_realtime_audio_bus_capture_window_observer(
