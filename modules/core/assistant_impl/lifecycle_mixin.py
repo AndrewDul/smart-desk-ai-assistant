@@ -7,6 +7,8 @@ from modules.core.session.voice_session import (
     VOICE_STATE_SHUTDOWN,
     VOICE_STATE_STANDBY,
 )
+from modules.core.session.visual_shell_state_feedback import notify_visual_shell_voice_event
+from modules.presentation.visual_shell.contracts import VisualEventName
 from modules.runtime.startup_gate import StartupGateService
 from modules.shared.logging.logger import append_log, log_exception
 
@@ -289,7 +291,27 @@ class CoreAssistantLifecycleMixin:
         self.display.clear_overlay()
 
         startup_text = self._startup_greeting(report_ok=self._boot_report_ok)
+        notify_visual_shell_voice_event(
+            self,
+            VisualEventName.SPEAKING_STARTED,
+            source="lifecycle.boot",
+            detail="system_boot_greeting",
+            payload={
+                "route_kind": "system_boot",
+                "response_source": "system_boot",
+            },
+        )
         self.voice_out.speak(startup_text, language="en")
+        notify_visual_shell_voice_event(
+            self,
+            VisualEventName.SPEAKING_FINISHED,
+            source="lifecycle.boot",
+            detail="system_boot_greeting_complete",
+            payload={
+                "route_kind": "system_boot",
+                "response_source": "system_boot",
+            },
+        )
         self._remember_assistant_turn(
             startup_text,
             language="en",
@@ -353,7 +375,27 @@ class CoreAssistantLifecycleMixin:
                 "route_kind": "system_shutdown",
             },
         )
+        notify_visual_shell_voice_event(
+            self,
+            VisualEventName.SPEAKING_STARTED,
+            source="lifecycle.shutdown",
+            detail="system_shutdown_greeting",
+            payload={
+                "route_kind": "system_shutdown",
+                "response_source": "system_shutdown",
+            },
+        )
         self.voice_out.speak(shutdown_text, language=self.last_language)
+        notify_visual_shell_voice_event(
+            self,
+            VisualEventName.SPEAKING_FINISHED,
+            source="lifecycle.shutdown",
+            detail="system_shutdown_greeting_complete",
+            payload={
+                "route_kind": "system_shutdown",
+                "response_source": "system_shutdown",
+            },
+        )
 
         try:
             self.voice_session.set_state(VOICE_STATE_SHUTDOWN, detail="assistant_shutdown")

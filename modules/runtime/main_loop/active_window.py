@@ -15,6 +15,11 @@ from modules.core.session.voice_session import (
     VOICE_PHASE_WAKE_GATE,
     VOICE_STATE_STANDBY,
 )
+from modules.core.session.visual_shell_state_feedback import (
+    notify_visual_shell_idle,
+    notify_visual_shell_voice_event,
+)
+from modules.presentation.visual_shell.contracts import VisualEventName
 from modules.runtime.contracts import InputSource, TranscriptRequest, TranscriptResult, WakeDetectionResult
 from modules.shared.logging.logger import append_log
 from modules.runtime.voice_engine_v2.realtime_audio_bus_probe import (
@@ -474,6 +479,11 @@ def _return_to_wake_gate(
         phase=VOICE_PHASE_WAKE_GATE,
         input_owner=VOICE_INPUT_OWNER_WAKE_GATE,
         close_active_window=True,
+    )
+    notify_visual_shell_idle(
+        assistant,
+        source="main_loop.return_to_wake_gate",
+        detail=reason,
     )
     state_flags.hide_standby_banner()
     state_flags.clear_prefetched_command()
@@ -1008,6 +1018,16 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
             detail="inline_command_after_wake",
             phase=VOICE_PHASE_TRANSCRIBE,
         )
+        notify_visual_shell_voice_event(
+            assistant,
+            VisualEventName.LISTENING_FINISHED,
+            source="main_loop.inline_command_after_wake",
+            detail="inline_command_after_wake",
+            payload={
+                "phase": "inline_command_after_wake",
+                "text_present": True,
+            },
+        )
         return prefetched
 
     active_phase = _active_phase(state_flags)
@@ -1027,6 +1047,16 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
         detail=f"active_window:{active_phase}",
         phase=_voice_phase_for_active_phase(active_phase),
         input_owner=VOICE_INPUT_OWNER_VOICE_INPUT,
+    )
+    notify_visual_shell_voice_event(
+        assistant,
+        VisualEventName.LISTENING_STARTED,
+        source="main_loop.active_capture",
+        detail=f"active_window:{active_phase}",
+        payload={
+            "phase": active_phase,
+            "capture_mode": capture_mode,
+        },
     )
     print("\nListening for your request...")
 
@@ -1080,6 +1110,17 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
             detail="speech_captured",
             phase=VOICE_PHASE_TRANSCRIBE,
         )
+        notify_visual_shell_voice_event(
+            assistant,
+            VisualEventName.LISTENING_FINISHED,
+            source="main_loop.active_capture",
+            detail="speech_captured",
+            payload={
+                "phase": active_phase,
+                "capture_mode": capture_mode,
+                "text_present": True,
+            },
+        )
     return cleaned or None
 
 
@@ -1127,6 +1168,16 @@ def _start_follow_up_window(assistant: CoreAssistant, state_flags: MainLoopRunti
         input_owner=VOICE_INPUT_OWNER_VOICE_INPUT,
         detail="awaiting_follow_up",
     )
+    notify_visual_shell_voice_event(
+        assistant,
+        VisualEventName.LISTENING_STARTED,
+        source="main_loop.follow_up_window",
+        detail="awaiting_follow_up",
+        payload={
+            "phase": PHASE_FOLLOW_UP,
+            "window_seconds": window_seconds,
+        },
+    )
     _set_active_phase(state_flags, PHASE_FOLLOW_UP)
     state_flags.hide_standby_banner()
     _store_session_continuity_snapshot(
@@ -1146,6 +1197,16 @@ def _start_grace_window(assistant: CoreAssistant, state_flags: MainLoopRuntimeSt
         phase=VOICE_PHASE_GRACE,
         input_owner=VOICE_INPUT_OWNER_VOICE_INPUT,
         detail="grace_after_response",
+    )
+    notify_visual_shell_voice_event(
+        assistant,
+        VisualEventName.LISTENING_STARTED,
+        source="main_loop.grace_window",
+        detail="grace_after_response",
+        payload={
+            "phase": PHASE_GRACE,
+            "window_seconds": window_seconds,
+        },
     )
     _set_active_phase(state_flags, PHASE_GRACE)
     state_flags.hide_standby_banner()
@@ -1232,6 +1293,17 @@ def _prime_command_window_after_wake(assistant: CoreAssistant, state_flags: Main
         phase=VOICE_PHASE_COMMAND,
         input_owner=VOICE_INPUT_OWNER_VOICE_INPUT,
         detail=detail,
+    )
+    notify_visual_shell_voice_event(
+        assistant,
+        VisualEventName.LISTENING_STARTED,
+        source="main_loop.command_window_after_wake",
+        detail=detail,
+        payload={
+            "phase": PHASE_COMMAND,
+            "window_seconds": window_seconds,
+            "reason": reason,
+        },
     )
     _set_active_phase(state_flags, PHASE_COMMAND)
     state_flags.hide_standby_banner()

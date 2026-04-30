@@ -3,6 +3,7 @@ from typing import Any
 
 from modules.core.session.fast_command_lane import FastCommandLane
 from modules.core.session.visual_shell_command_lane import VisualShellCommandLane
+from modules.presentation.visual_shell.contracts import VisualEventName
 from modules.presentation.visual_shell.controller import VisualShellController
 from modules.presentation.visual_shell.transport import InMemoryVisualShellTransport
 
@@ -277,3 +278,47 @@ def test_visual_shell_runtime_lane_records_trace_when_acknowledgements_are_disab
     assert trace["llm_prevented"] is True
     assert trace["response_emitted"] is False
     assert trace["reason"] == "handled"
+
+def test_visual_shell_runtime_lane_dispatches_voice_state_cues() -> None:
+    transport = InMemoryVisualShellTransport()
+    controller = VisualShellController(transport=transport)
+    lane = VisualShellCommandLane(controller=controller)
+
+    listening_result = lane.dispatch_event(
+        event_name=VisualEventName.LISTENING_STARTED,
+        source="test.voice_state",
+        payload={"detail": "active_window:command"},
+    )
+    speaking_result = lane.dispatch_event(
+        event_name=VisualEventName.SPEAKING_STARTED,
+        source="test.voice_state",
+        payload={"detail": "response:action"},
+    )
+    idle_result = lane.dispatch_return_to_idle(source="test.voice_state")
+
+    assert listening_result is True
+    assert speaking_result is True
+    assert idle_result is True
+    assert transport.sent_messages == [
+        {
+            "command": "SET_STATE",
+            "payload": {
+                "state": "LISTENING_CLOUD",
+                "detail": "active_window:command",
+            },
+            "source": "test.voice_state",
+        },
+        {
+            "command": "SET_STATE",
+            "payload": {
+                "state": "SPEAKING_PULSE",
+                "detail": "response:action",
+            },
+            "source": "test.voice_state",
+        },
+        {
+            "command": "RETURN_TO_IDLE",
+            "payload": {},
+            "source": "test.voice_state",
+        },
+    ]

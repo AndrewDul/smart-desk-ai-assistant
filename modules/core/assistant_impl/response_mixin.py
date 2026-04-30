@@ -3,6 +3,8 @@ from __future__ import annotations
 import time
 from typing import Any
 from modules.presentation.response_streamer import StreamExecutionReport
+from modules.core.session.visual_shell_state_feedback import notify_visual_shell_voice_event
+from modules.presentation.visual_shell.contracts import VisualEventName
 from modules.core.session.voice_session import (
     VOICE_STATE_SHUTDOWN,
     VOICE_STATE_SPEAKING,
@@ -86,6 +88,16 @@ class CoreAssistantResponseMixin:
         self._last_response_delivery_snapshot = None
         self.voice_session.transition_to_speaking(
             detail=f"response:{route_kind_value}",
+        )
+        notify_visual_shell_voice_event(
+            self,
+            VisualEventName.SPEAKING_STARTED,
+            source="response_delivery",
+            detail=f"response:{route_kind_value}",
+            payload={
+                "route_kind": route_kind_value,
+                "response_source": source,
+            },
         )
 
         stream_report = None
@@ -268,6 +280,16 @@ class CoreAssistantResponseMixin:
                 self.voice_session.transition_to_shutdown(detail="shutdown_requested")
             else:
                 self.voice_session.mark_response_finished(detail="response_complete")
+                notify_visual_shell_voice_event(
+                    self,
+                    VisualEventName.SPEAKING_FINISHED,
+                    source="response_delivery",
+                    detail="response_complete",
+                    payload={
+                        "route_kind": route_kind_value,
+                        "response_source": source,
+                    },
+                )
            
 
     def deliver_text_response(

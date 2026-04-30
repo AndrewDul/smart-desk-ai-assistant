@@ -99,6 +99,11 @@ var particle_base_colors := []
 
 var time := 0.0
 var visual_state: String = VisualStates.IDLE_PARTICLE_CLOUD
+var visual_state_age: float = 0.0
+var listening_motion_blend: float = 0.0
+var speaking_motion_blend: float = 0.0
+var listening_motion_age: float = 0.0
+var speaking_motion_age: float = 0.0
 var shell_compact_mode: bool = false
 
 var face_state: int = FACE_STATE_NONE
@@ -129,6 +134,14 @@ const ORGANIC_DRIFT_X_PRIMARY = 14.0
 const ORGANIC_DRIFT_X_SECONDARY = 8.0
 const ORGANIC_DRIFT_Y_PRIMARY = 12.0
 const ORGANIC_DRIFT_Y_SECONDARY = 7.0
+const LISTENING_READY_CUE_SECONDS = 0.58
+const LISTENING_PULSE_SPEED = 8.4
+const LISTENING_PULSE_RADIUS = 34.0
+const LISTENING_READY_RADIUS = 52.0
+const SPEAKING_WAVE_SPEED = 4.2
+const SPEAKING_WAVE_AMPLITUDE = 48.0
+const VOICE_MOTION_FADE_IN_SPEED = 9.5
+const VOICE_MOTION_FADE_OUT_SPEED = 2.25
 
 
 func _ready() -> void:
@@ -141,10 +154,47 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
     time += delta
+    visual_state_age += delta
+    _update_voice_motion_blends(delta)
     _update_face_state(delta)
     _update_glyph_state(delta)
     _update_shell_transform(delta)
     _update_particles()
+
+
+
+func _update_voice_motion_blends(delta: float) -> void:
+    var face_active_now: bool = face_blend > 0.001
+    var wants_listening: bool = visual_state == VisualStates.LISTENING_CLOUD and not face_active_now
+    var wants_speaking: bool = visual_state == VisualStates.SPEAKING_PULSE and not face_active_now
+
+    listening_motion_blend = _approach_float(
+        listening_motion_blend,
+        1.0 if wants_listening else 0.0,
+        delta * (VOICE_MOTION_FADE_IN_SPEED if wants_listening else VOICE_MOTION_FADE_OUT_SPEED)
+    )
+    speaking_motion_blend = _approach_float(
+        speaking_motion_blend,
+        1.0 if wants_speaking else 0.0,
+        delta * (VOICE_MOTION_FADE_IN_SPEED if wants_speaking else VOICE_MOTION_FADE_OUT_SPEED)
+    )
+
+    if listening_motion_blend > 0.001:
+        listening_motion_age += delta
+    else:
+        listening_motion_age = 0.0
+
+    if speaking_motion_blend > 0.001:
+        speaking_motion_age += delta
+    else:
+        speaking_motion_age = 0.0
+
+
+func _approach_float(current: float, target: float, step: float) -> float:
+    if current < target:
+        return min(current + step, target)
+
+    return max(current - step, target)
 
 
 func _draw() -> void:
@@ -166,6 +216,8 @@ func set_visual_state(new_state: String) -> void:
         return
 
     var previous: String = visual_state
+    if previous != coerced:
+        visual_state_age = 0.0
     visual_state = coerced
 
     # Trigger face emergence on FACE_CONTOUR / SHOW_SELF_EYES
@@ -872,17 +924,25 @@ func _update_particles() -> void:
     var t_drift_a: float = time * 0.55
     var t_drift_b: float = time * 0.45
     var t_breath: float = time * 0.85
-    var t_listen: float = time * 2.2
-    var t_speak: float = time * 1.8
+    var t_listen: float = listening_motion_age * LISTENING_PULSE_SPEED
+    var t_speak: float = speaking_motion_age * SPEAKING_WAVE_SPEED
     var t_jit_a: float = time * 1.4
     var t_jit_b: float = time * 1.7
     var t_shimmer: float = time * 2.2
 
     var face_active: bool = (face_blend > 0.001)
-    var listen_pulse: float = sin(t_listen) * 22.0
+    var listening_ready_factor: float = clamp(
+        1.0 - (listening_motion_age / LISTENING_READY_CUE_SECONDS),
+        0.0,
+        1.0
+    )
+    var listen_pulse: float = sin(t_listen) * LISTENING_PULSE_RADIUS
+    listen_pulse += listening_ready_factor * LISTENING_READY_RADIUS
 
-    var is_listening: bool = (visual_state == VisualStates.LISTENING_CLOUD) and not face_active
-    var is_speaking: bool = (visual_state == VisualStates.SPEAKING_PULSE) and not face_active
+    var listening_weight: float = listening_motion_blend if not face_active else 0.0
+    var speaking_weight: float = speaking_motion_blend if not face_active else 0.0
+    var is_listening: bool = listening_weight > 0.001
+    var is_speaking: bool = speaking_weight > 0.001
     var is_thinking: bool = (visual_state == VisualStates.THINKING_SWARM) and not face_active
     var is_degraded: bool = (visual_state == VisualStates.ERROR_DEGRADED)
 
@@ -913,18 +973,22 @@ func _update_particles() -> void:
             if s_len_sq > 0.01:
                 var s_len: float = sqrt(s_len_sq)
                 var dist_factor: float = clamp(s_len / NEBULA_RADIUS, 0.3, 1.4)
-                mode_offset_x = sw_x / s_len * listen_pulse * dist_factor
-                mode_offset_y = sw_y / s_len * listen_pulse * dist_factor
-            breath_strength = 0.55
-        elif is_speaking:
+                var weighted_pulse: float = listen_pulse * listening_weight
+                mode_offset_x += sw_x / s_len * weighted_pulse * dist_factor
+                mode_offset_y += sw_y / s_len * weighted_pulse * dist_factor
+            breath_strength = lerp(breath_strength, 0.70, listening_weight)
+
+        if is_speaking:
             var wave_phase: float = sw_x * 0.012 - t_speak
-            var wave_amp: float = 28.0
+            var wave_amp: float = SPEAKING_WAVE_AMPLITUDE
             var center_dist: float = sqrt(sw_x * sw_x + sw_y * sw_y) / NEBULA_RADIUS
             wave_amp *= clamp(0.4 + center_dist * 0.9, 0.4, 1.6)
-            mode_offset_y = sin(wave_phase) * wave_amp
-            mode_offset_x = sin(sw_y * 0.009 - t_speak * 0.7) * wave_amp * 0.35
-            breath_strength = 0.42
-        elif is_thinking:
+            wave_amp *= speaking_weight
+            mode_offset_y += sin(wave_phase) * wave_amp
+            mode_offset_x += sin(sw_y * 0.009 - t_speak * 0.7) * wave_amp * 0.38
+            breath_strength = lerp(breath_strength, 0.58, speaking_weight)
+
+        if is_thinking and not is_listening and not is_speaking:
             # Organic reorganization without turning the whole nebula into an orbit.
             var th_x: float = sin(t_drift_a * 1.3 + phase * 0.8) * 12.0
             var th_y: float = cos(t_drift_b * 1.1 + phase * 1.4) * 9.0

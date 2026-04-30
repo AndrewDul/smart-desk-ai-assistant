@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from modules.core.session.visual_shell_responses import choose_visual_shell_response
+from modules.presentation.visual_shell.contracts import VisualEvent, VisualEventName
 from modules.presentation.visual_shell.controller import VisualShellController
 from modules.presentation.visual_shell.controller.voice_command_router import (
     VisualShellVoiceCommandRouter,
@@ -401,6 +402,73 @@ class VisualShellCommandLane:
             language,
         )
         return handled
+
+    def dispatch_event(
+        self,
+        *,
+        event_name: VisualEventName,
+        payload: dict[str, Any] | None = None,
+        source: str = "nexa-runtime",
+    ) -> bool:
+        """Send a runtime voice-session event to the Visual Shell renderer."""
+
+        if not self.enabled:
+            LOGGER.info(
+                "Visual Shell voice cue skipped: lane disabled event=%s",
+                event_name.value,
+            )
+            return False
+
+        try:
+            handled = bool(
+                self._controller().handle_event(
+                    VisualEvent(
+                        name=event_name,
+                        payload=dict(payload or {}),
+                        source=source,
+                    )
+                )
+            )
+        except Exception as error:
+            LOGGER.warning(
+                "Visual Shell voice cue failed safely: event=%s error=%s",
+                event_name.value,
+                error,
+            )
+            return False
+
+        LOGGER.info(
+            "Visual Shell voice cue dispatched: event=%s result=%s source=%s",
+            event_name.value,
+            "ok" if handled else "failed",
+            source,
+        )
+        return handled
+
+    def dispatch_return_to_idle(
+        self,
+        *,
+        source: str = "nexa-runtime",
+    ) -> bool:
+        """Return the Visual Shell to the idle particle cloud."""
+
+        if not self.enabled:
+            LOGGER.info("Visual Shell idle cue skipped: lane disabled")
+            return False
+
+        try:
+            handled = bool(self._controller().return_to_idle(source=source))
+        except Exception as error:
+            LOGGER.warning("Visual Shell idle cue failed safely: %s", error)
+            return False
+
+        LOGGER.info(
+            "Visual Shell idle cue dispatched: result=%s source=%s",
+            "ok" if handled else "failed",
+            source,
+        )
+        return handled
+
 
     def _controller(self) -> VisualShellController:
         if self.controller is not None:
