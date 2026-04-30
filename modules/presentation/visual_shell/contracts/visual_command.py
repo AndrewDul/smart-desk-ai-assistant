@@ -21,6 +21,7 @@ class VisualCommandName(StrEnum):
     SHOW_BATTERY = "SHOW_BATTERY"
     SHOW_DATE = "SHOW_DATE"
     SHOW_TIME = "SHOW_TIME"
+    SHOW_HELP = "SHOW_HELP"
 
 
 @dataclass(slots=True)

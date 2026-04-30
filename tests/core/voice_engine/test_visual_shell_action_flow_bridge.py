@@ -146,11 +146,9 @@ def test_action_flow_delegates_polish_hide_desktop_to_visual_shell_lane() -> Non
 
 def test_action_flow_delegates_extended_visual_shell_actions_to_visual_shell_lane() -> None:
     cases = [
-        ("show yourself", "en", "show_self", "visual_shell.show_self", "visual_shell.show_self"),
-        ("pokaż oczy", "pl", "show_eyes", "visual_shell.show_eyes", "visual_shell.show_eyes"),
+        ("show yourself", "en", "show_face_contour", "visual_shell.show_face", "visual_shell.show_face"),
+        ("pokaż twarz", "pl", "show_face_contour", "visual_shell.show_face", "visual_shell.show_face"),
         ("show face", "en", "show_face_contour", "visual_shell.show_face", "visual_shell.show_face"),
-        ("spójrz na mnie", "pl", "look_at_user", "visual_shell.look_at_user", "visual_shell.look_at_user"),
-        ("scan room", "en", "start_scanning", "visual_shell.start_scanning", "visual_shell.start_scanning"),
         ("wróć do chmury", "pl", "return_to_idle", "visual_shell.return_to_idle", "visual_shell.return_to_idle"),
         ("show temperature", "en", "show_temperature", "visual_shell.show_temperature", "visual_shell.show_temperature"),
         ("pokaż baterię", "pl", "show_battery", "visual_shell.show_battery", "visual_shell.show_battery"),

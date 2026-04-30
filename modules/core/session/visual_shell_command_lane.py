@@ -355,11 +355,7 @@ class VisualShellCommandLane:
         mapping = {
             "show_desktop": VisualVoiceAction.SHOW_DESKTOP,
             "show_shell": VisualVoiceAction.HIDE_DESKTOP,
-            "show_self": VisualVoiceAction.SHOW_SELF,
-            "show_eyes": VisualVoiceAction.SHOW_EYES,
             "show_face_contour": VisualVoiceAction.SHOW_FACE_CONTOUR,
-            "look_at_user": VisualVoiceAction.LOOK_AT_USER,
-            "start_scanning": VisualVoiceAction.START_SCANNING,
             "return_to_idle": VisualVoiceAction.RETURN_TO_IDLE,
             "show_temperature": VisualVoiceAction.SHOW_TEMPERATURE,
             "show_battery": VisualVoiceAction.SHOW_BATTERY,
@@ -371,6 +367,40 @@ class VisualShellCommandLane:
             mapping["show_visual_date"] = show_date
 
         return mapping.get(normalized)
+
+    def show_help_overlay(
+        self,
+        *,
+        language: str = "en",
+        assistant: Any | None = None,
+    ) -> bool:
+        if not self.enabled:
+            return False
+
+        try:
+            handled = bool(
+                self._controller().show_help(
+                    language=language,
+                    source="nexa-help-overlay",
+                )
+            )
+        except Exception as error:
+            LOGGER.warning("Visual Shell help overlay failed safely: %s", error)
+            handled = False
+
+        if assistant is not None:
+            assistant._last_visual_shell_help_overlay = {
+                "handled": handled,
+                "language": language,
+                "source": "visual_shell_command_lane",
+            }
+
+        LOGGER.info(
+            "Visual Shell help overlay dispatched: handled=%s language=%s",
+            handled,
+            language,
+        )
+        return handled
 
     def _controller(self) -> VisualShellController:
         if self.controller is not None:
@@ -443,7 +473,6 @@ class VisualShellCommandLane:
             "patrz",
             "temperatura",
             "bateria",
-            "oczy",
             "twarz",
         )
         english_tokens = (
@@ -455,11 +484,8 @@ class VisualShellCommandLane:
             "switch",
             "return",
             "back",
-            "look",
-            "watch",
             "temperature",
             "battery",
-            "eyes",
             "face",
         )
 

@@ -364,48 +364,30 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
 
 
-        # Visual Shell / face, eyes and live shell behaviours.
+        # Visual Shell / visible face behaviour.
         CommandPhrase(
-            "visual_shell.show_self",
+            "visual_shell.show_face",
             "pokaż się",
             CommandLanguage.POLISH,
             tags=("visual_shell", "face"),
         ),
         CommandPhrase(
-            "visual_shell.show_self",
+            "visual_shell.show_face",
             "pokaz sie",
             CommandLanguage.POLISH,
             tags=("visual_shell", "face"),
         ),
         CommandPhrase(
-            "visual_shell.show_self",
+            "visual_shell.show_face",
             "pokaż siebie",
             CommandLanguage.POLISH,
             tags=("visual_shell", "face"),
         ),
         CommandPhrase(
-            "visual_shell.show_self",
+            "visual_shell.show_face",
             "show yourself",
             CommandLanguage.ENGLISH,
             tags=("visual_shell", "face"),
-        ),
-        CommandPhrase(
-            "visual_shell.show_eyes",
-            "pokaż oczy",
-            CommandLanguage.POLISH,
-            tags=("visual_shell", "eyes"),
-        ),
-        CommandPhrase(
-            "visual_shell.show_eyes",
-            "pokaz oczy",
-            CommandLanguage.POLISH,
-            tags=("visual_shell", "eyes"),
-        ),
-        CommandPhrase(
-            "visual_shell.show_eyes",
-            "show eyes",
-            CommandLanguage.ENGLISH,
-            tags=("visual_shell", "eyes"),
         ),
         CommandPhrase(
             "visual_shell.show_face",
@@ -425,78 +407,7 @@ def build_default_command_grammar() -> CommandGrammar:
             CommandLanguage.ENGLISH,
             tags=("visual_shell", "face"),
         ),
-        CommandPhrase(
-            "visual_shell.look_at_user",
-            "spójrz na mnie",
-            CommandLanguage.POLISH,
-            tags=("visual_shell", "eyes"),
-        ),
-        CommandPhrase(
-            "visual_shell.look_at_user",
-            "spojrz na mnie",
-            CommandLanguage.POLISH,
-            tags=("visual_shell", "eyes"),
-        ),
-        CommandPhrase(
-            "visual_shell.look_at_user",
-            "patrz na mnie",
-            CommandLanguage.POLISH,
-            tags=("visual_shell", "eyes"),
-        ),
-        CommandPhrase(
-            "visual_shell.look_at_user",
-            "look at me",
-            CommandLanguage.ENGLISH,
-            tags=("visual_shell", "eyes"),
-        ),
-        CommandPhrase(
-            "visual_shell.start_scanning",
-            "sprawdź pokój",
-            CommandLanguage.POLISH,
-            tags=("visual_shell", "scanning"),
-        ),
-        CommandPhrase(
-            "visual_shell.start_scanning",
-            "sprawdz pokoj",
-            CommandLanguage.POLISH,
-            tags=("visual_shell", "scanning"),
-        ),
-        CommandPhrase(
-            "visual_shell.start_scanning",
-            "rozejrzyj się",
-            CommandLanguage.POLISH,
-            tags=("visual_shell", "scanning"),
-        ),
-        CommandPhrase(
-            "visual_shell.start_scanning",
-            "rozejrzyj sie",
-            CommandLanguage.POLISH,
-            tags=("visual_shell", "scanning"),
-        ),
-        CommandPhrase(
-            "visual_shell.start_scanning",
-            "co widzisz",
-            CommandLanguage.POLISH,
-            tags=("visual_shell", "scanning"),
-        ),
-        CommandPhrase(
-            "visual_shell.start_scanning",
-            "scan room",
-            CommandLanguage.ENGLISH,
-            tags=("visual_shell", "scanning"),
-        ),
-        CommandPhrase(
-            "visual_shell.start_scanning",
-            "look around",
-            CommandLanguage.ENGLISH,
-            tags=("visual_shell", "scanning"),
-        ),
-        CommandPhrase(
-            "visual_shell.start_scanning",
-            "check room",
-            CommandLanguage.ENGLISH,
-            tags=("visual_shell", "scanning"),
-        ),
+
         CommandPhrase(
             "visual_shell.return_to_idle",
             "wróć do chmury",
@@ -779,6 +690,127 @@ def build_default_command_grammar() -> CommandGrammar:
             "assistant.help",
             "help me",
             CommandLanguage.ENGLISH,
+            tags=("assistant",),
+        ),
+
+
+    # Visual help overlay aliases and common short ASR recovery phrases.
+        CommandPhrase(
+            "assistant.help",
+            "show help",
+            CommandLanguage.ENGLISH,
+            tags=("assistant",),
+        ),
+
+        CommandPhrase(
+            "assistant.help",
+            "so help",
+            CommandLanguage.ENGLISH,
+            tags=("assistant",),
+        ),
+
+        CommandPhrase(
+            "assistant.help",
+            "show commands",
+            CommandLanguage.ENGLISH,
+            tags=("assistant",),
+        ),
+
+        CommandPhrase(
+            "assistant.help",
+            "show command list",
+            CommandLanguage.ENGLISH,
+            tags=("assistant",),
+        ),
+
+        CommandPhrase(
+            "assistant.help",
+            "command list",
+            CommandLanguage.ENGLISH,
+            tags=("assistant",),
+        ),
+
+        CommandPhrase(
+            "assistant.help",
+            "commands list",
+            CommandLanguage.ENGLISH,
+            tags=("assistant",),
+        ),
+
+        CommandPhrase(
+            "assistant.help",
+            "help screen",
+            CommandLanguage.ENGLISH,
+            tags=("assistant",),
+        ),
+
+        CommandPhrase(
+            "assistant.help",
+            "open help",
+            CommandLanguage.ENGLISH,
+            tags=("assistant",),
+        ),
+
+        CommandPhrase(
+            "assistant.help",
+            "open commands",
+            CommandLanguage.ENGLISH,
+            tags=("assistant",),
+        ),
+
+        CommandPhrase(
+            "assistant.help",
+            "pokaż pomoc",
+            CommandLanguage.POLISH,
+            tags=("assistant",),
+        ),
+
+        CommandPhrase(
+            "assistant.help",
+            "pokaz pomoc",
+            CommandLanguage.POLISH,
+            tags=("assistant",),
+        ),
+
+        CommandPhrase(
+            "assistant.help",
+            "pokaż komendy",
+            CommandLanguage.POLISH,
+            tags=("assistant",),
+        ),
+
+        CommandPhrase(
+            "assistant.help",
+            "pokaz komendy",
+            CommandLanguage.POLISH,
+            tags=("assistant",),
+        ),
+
+        CommandPhrase(
+            "assistant.help",
+            "lista komend",
+            CommandLanguage.POLISH,
+            tags=("assistant",),
+        ),
+
+        CommandPhrase(
+            "assistant.help",
+            "ekran pomocy",
+            CommandLanguage.POLISH,
+            tags=("assistant",),
+        ),
+
+        CommandPhrase(
+            "assistant.help",
+            "otwórz pomoc",
+            CommandLanguage.POLISH,
+            tags=("assistant",),
+        ),
+
+        CommandPhrase(
+            "assistant.help",
+            "otworz pomoc",
+            CommandLanguage.POLISH,
             tags=("assistant",),
         ),
         CommandPhrase(

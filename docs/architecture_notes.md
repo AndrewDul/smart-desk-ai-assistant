@@ -12625,3 +12625,37 @@ Working rules respected:
 - Added direct `try_handle_action()` dispatch so metric and date/time actions do not depend on re-matching text aliases.
 - Added `visual_shell.show_date` as a deterministic screen command.
 - Preserved the accepted V13 MultiMesh Visual Shell renderer unchanged.
+
+
+## Visual Shell help overlay command routing
+
+The deterministic help command now also drives the Visual Shell help overlay. The voice runtime treats `help`, `show help`, `show commands`, common English ASR recovery phrase `so help`, and Polish equivalents such as `pokaż pomoc`, `pokaż komendy`, and `lista komend` as `assistant.help`. The system help action dispatches `SHOW_HELP` to Visual Shell before speaking the cached help response, keeping the interaction local, fast, and outside the LLM path.
+
+The renderer presents help as a two-column command reference: English commands on the left and Polish commands on the right. The overlay is temporary and returns to the idle particle cloud after the configured hold time.
+
+
+## Visual Shell help overlay render layer
+
+The help overlay is rendered through a dedicated Godot CanvasLayer above the particle cloud. During the temporary help overlay, the particle cloud is hidden so the two-column English/Polish command reference remains readable and visually dominant. After the overlay timeout, Visual Shell restores the idle particle cloud.
+
+### Visual Shell help overlay direct draw fallback
+- Added `help_overlay_view.gd`, a dedicated CanvasLayer overlay view that draws the help panel and bilingual command columns directly with `_draw()`.
+- This bypasses Godot 3 Label layering issues while keeping the renderer passive: Python still sends only the `SHOW_HELP` command.
+- The overlay remains temporary and returns to idle after the existing hold timer.
+
+- Visual Shell help overlay now has a renderer-level fallback through the existing StatusLabel scene node.
+  The SHOW_HELP command still travels through the deterministic Visual Shell controller path, but the visible
+  command list is also projected onto an already-mounted scene label to avoid silent overlay invisibility when
+  dynamically-created CanvasLayer/Control content is not visible on Raspberry Pi/Godot 3.
+  The help content remains bilingual with English commands on the left and Polish commands on the right.
+- Visual Shell help overlay visibility is now enforced during the active help timer. The renderer keeps the overlay layer, direct draw view, and status label visible every frame while help is active, preventing layout or fullscreen transitions from hiding the command list.
+
+### Visual Shell window target fix
+
+Visual Shell help overlay transport was working, but the renderer window was being placed on the second display at `2560x1440+1280+0`, while the intended Visual Shell target is the 1280x800 screen at `0,0`. The Visual Shell launch path now exports deterministic window target defaults and `main_shell.gd` applies a borderless 1280x800 window at `0,0`. This keeps visual commands visible on the intended NEXA screen and avoids debugging false negatives where `SHOW_HELP` is accepted but rendered on another monitor.
+
+### Visual Shell deterministic Godot launch
+
+Visual Shell now launches Godot with an explicit GLES2 video driver, fixed 1280x800 resolution, and position 0,0 by default. This avoids Raspberry Pi / XWayland duplicate-window behaviour caused by GLXBadFBConfig probing and keeps the renderer window aligned with the NEXA display. Command handling remains in Python; the shell only renders received transport commands.
+
+- Visual Shell launch now uses a singleton guard in `modules/presentation/visual_shell/bin/run_visual_shell.sh`. The script uses a lock file plus a process-cwd check so repeated starts do not create duplicate Godot windows. This protects the Visual Shell transport port and keeps the help overlay attached to a single visible renderer window.

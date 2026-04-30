@@ -216,16 +216,13 @@ def test_voice_router_matches_hide_desktop_variants_before_generic_desktop() -> 
         assert match.action == VisualVoiceAction.HIDE_DESKTOP
 
 
-def test_voice_router_distinguishes_look_at_user_from_scanning() -> None:
+def test_voice_router_does_not_match_unfinished_eye_or_scanning_commands() -> None:
     router = VisualShellVoiceCommandRouter()
 
-    calm_eye_examples = [
+    disabled_examples = [
         "spójrz na mnie",
         "patrz na mnie",
         "look at me",
-    ]
-
-    scanning_examples = [
         "sprawdź pokój",
         "sprawdź biurko",
         "rozejrzyj się",
@@ -233,17 +230,13 @@ def test_voice_router_distinguishes_look_at_user_from_scanning() -> None:
         "look around",
         "check room",
         "find my phone",
+        "pokaż oczy",
+        "show eyes",
     ]
 
-    for text in calm_eye_examples:
+    for text in disabled_examples:
         match = router.match(text)
-        assert match is not None
-        assert match.action == VisualVoiceAction.LOOK_AT_USER
-
-    for text in scanning_examples:
-        match = router.match(text)
-        assert match is not None
-        assert match.action == VisualVoiceAction.START_SCANNING
+        assert match is None
 
 
 def test_controller_handles_voice_temperature_with_real_metric_action() -> None:
@@ -367,7 +360,7 @@ def test_controller_handles_hide_desktop_voice_command() -> None:
     ]
 
 
-def test_controller_show_self_hides_desktop_before_showing_self() -> None:
+def test_controller_show_face_hides_desktop_before_showing_face_contour() -> None:
     transport = InMemoryVisualShellTransport()
     controller = VisualShellController(transport=transport)
 
@@ -381,43 +374,31 @@ def test_controller_show_self_hides_desktop_before_showing_self() -> None:
             "source": "nexa-voice-builtins",
         },
         {
-            "command": "SHOW_SELF",
+            "command": "SHOW_FACE_CONTOUR",
             "payload": {},
             "source": "nexa-voice-builtins",
         },
     ]
 
 
-def test_controller_look_at_user_uses_calm_eyes_without_hiding_desktop() -> None:
+def test_controller_look_at_user_is_not_public_until_eye_view_is_ready() -> None:
     transport = InMemoryVisualShellTransport()
     controller = VisualShellController(transport=transport)
 
     result = controller.handle_voice_text("spójrz na mnie")
 
-    assert result is True
-    assert transport.sent_messages == [
-        {
-            "command": "SHOW_EYES",
-            "payload": {},
-            "source": "nexa-voice-builtins",
-        }
-    ]
+    assert result is False
+    assert transport.sent_messages == []
 
 
-def test_controller_scanning_command_uses_scanning_eyes() -> None:
+def test_controller_scanning_command_is_not_public_until_scanning_view_is_ready() -> None:
     transport = InMemoryVisualShellTransport()
     controller = VisualShellController(transport=transport)
 
     result = controller.handle_voice_text("sprawdź biurko")
 
-    assert result is True
-    assert transport.sent_messages == [
-        {
-            "command": "START_SCANNING",
-            "payload": {},
-            "source": "nexa-voice-builtins",
-        }
-    ]
+    assert result is False
+    assert transport.sent_messages == []
 
 
 def test_controller_returns_false_for_unknown_voice_command() -> None:

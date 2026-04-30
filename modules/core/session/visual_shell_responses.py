@@ -33,35 +33,11 @@ _RESPONSES: dict[str, dict[VisualVoiceAction, tuple[str, ...]]] = {
             "Zasłaniam pulpit.",
             "Pulpit jest schowany.",
         ),
-        VisualVoiceAction.SHOW_SELF: (
-            "Pokazuję się.",
-            "Jestem tutaj.",
-            "Pokazuję swoją twarz.",
-            "Już się pokazuję.",
-        ),
-        VisualVoiceAction.SHOW_EYES: (
-            "Pokazuję oczy.",
-            "Już pokazuję oczy.",
-            "Oczy są na ekranie.",
-            "Patrzę spokojnie.",
-        ),
-        VisualVoiceAction.LOOK_AT_USER: (
-            "Patrzę na Ciebie.",
-            "Już patrzę.",
-            "Jestem skupiona na Tobie.",
-            "Patrzę spokojnie.",
-        ),
         VisualVoiceAction.SHOW_FACE_CONTOUR: (
             "Pokazuję kontur twarzy.",
             "Formuję twarz.",
             "Już pokazuję kontur.",
             "Kontur twarzy jest na ekranie.",
-        ),
-        VisualVoiceAction.START_SCANNING: (
-            "Rozglądam się.",
-            "Skanuję otoczenie.",
-            "Sprawdzam otoczenie.",
-            "Uruchamiam tryb obserwacji.",
         ),
         VisualVoiceAction.RETURN_TO_IDLE: (
             "Wracam do trybu spoczynku.",
@@ -95,35 +71,11 @@ _RESPONSES: dict[str, dict[VisualVoiceAction, tuple[str, ...]]] = {
             "I am hiding the desktop.",
             "NEXA is back in full screen.",
         ),
-        VisualVoiceAction.SHOW_SELF: (
-            "Showing myself.",
-            "I am here.",
-            "Showing my face.",
-            "I am appearing now.",
-        ),
-        VisualVoiceAction.SHOW_EYES: (
-            "Showing eyes.",
-            "My eyes are on screen.",
-            "I am showing my eyes now.",
-            "Looking calmly.",
-        ),
-        VisualVoiceAction.LOOK_AT_USER: (
-            "I am looking at you.",
-            "Looking at you now.",
-            "I am focused on you.",
-            "I am watching calmly.",
-        ),
         VisualVoiceAction.SHOW_FACE_CONTOUR: (
             "Showing face contour.",
             "Forming the face contour.",
             "The face contour is on screen.",
             "I am showing the face outline.",
-        ),
-        VisualVoiceAction.START_SCANNING: (
-            "Looking around.",
-            "Scanning the room.",
-            "Checking the environment.",
-            "Observation mode is active.",
         ),
         VisualVoiceAction.RETURN_TO_IDLE: (
             "Returning to idle.",

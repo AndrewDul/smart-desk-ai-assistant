@@ -290,19 +290,10 @@ def test_default_grammar_recognizes_visual_shell_voice_control_aliases() -> None
     grammar = build_default_command_grammar()
 
     cases = [
-        ("pokaż się", "visual_shell.show_self", "pl"),
-        ("show yourself", "visual_shell.show_self", "en"),
-        ("pokaż oczy", "visual_shell.show_eyes", "pl"),
-        ("show eyes", "visual_shell.show_eyes", "en"),
+        ("pokaż się", "visual_shell.show_face", "pl"),
+        ("show yourself", "visual_shell.show_face", "en"),
         ("pokaż twarz", "visual_shell.show_face", "pl"),
         ("show face", "visual_shell.show_face", "en"),
-        ("spójrz na mnie", "visual_shell.look_at_user", "pl"),
-        ("look at me", "visual_shell.look_at_user", "en"),
-        ("sprawdź pokój", "visual_shell.start_scanning", "pl"),
-        ("rozejrzyj się", "visual_shell.start_scanning", "pl"),
-        ("co widzisz", "visual_shell.start_scanning", "pl"),
-        ("scan room", "visual_shell.start_scanning", "en"),
-        ("look around", "visual_shell.start_scanning", "en"),
         ("wróć do chmury", "visual_shell.return_to_idle", "pl"),
         ("return to idle", "visual_shell.return_to_idle", "en"),
         ("pokaż temperaturę", "visual_shell.show_temperature", "pl"),
@@ -317,6 +308,21 @@ def test_default_grammar_recognizes_visual_shell_voice_control_aliases() -> None
         assert result.status == CommandRecognitionStatus.MATCHED
         assert result.intent_key == intent_key
         assert result.language.value == language
+
+    disabled_cases = [
+        "pokaż oczy",
+        "show eyes",
+        "spójrz na mnie",
+        "look at me",
+        "sprawdź pokój",
+        "scan room",
+        "look around",
+    ]
+
+    for transcript in disabled_cases:
+        result = grammar.match(transcript)
+
+        assert result.status != CommandRecognitionStatus.MATCHED
 
 
 def test_default_grammar_routes_show_time_to_visual_shell_without_hijacking_time_question() -> None:
@@ -361,3 +367,29 @@ def test_default_grammar_routes_show_date_to_visual_shell() -> None:
         assert result.status == CommandRecognitionStatus.MATCHED
         assert result.intent_key == intent_key
         assert result.language.value == language
+
+
+def test_default_grammar_recognizes_visual_help_overlay_aliases() -> None:
+    grammar = build_default_command_grammar()
+
+    cases = [
+        ("show help", "assistant.help", CommandLanguage.ENGLISH),
+        ("so help", "assistant.help", CommandLanguage.ENGLISH),
+        ("show commands", "assistant.help", CommandLanguage.ENGLISH),
+        ("show command list", "assistant.help", CommandLanguage.ENGLISH),
+        ("command list", "assistant.help", CommandLanguage.ENGLISH),
+        ("help screen", "assistant.help", CommandLanguage.ENGLISH),
+        ("pokaż pomoc", "assistant.help", CommandLanguage.POLISH),
+        ("pokaz pomoc", "assistant.help", CommandLanguage.POLISH),
+        ("pokaż komendy", "assistant.help", CommandLanguage.POLISH),
+        ("pokaz komendy", "assistant.help", CommandLanguage.POLISH),
+        ("lista komend", "assistant.help", CommandLanguage.POLISH),
+        ("ekran pomocy", "assistant.help", CommandLanguage.POLISH),
+    ]
+
+    for phrase, intent_key, language in cases:
+        result = grammar.match(phrase)
+
+        assert result.status == CommandRecognitionStatus.MATCHED
+        assert result.intent_key == intent_key
+        assert result.language == language

@@ -39,7 +39,10 @@ def test_system_metrics_provider_returns_none_when_temperature_is_unavailable(
 
 def test_system_metrics_provider_reads_battery_from_power_supply(
     tmp_path: Path,
+    monkeypatch,
 ) -> None:
+    monkeypatch.delenv("NEXA_BATTERY_PERCENT", raising=False)
+
     battery_dir = tmp_path / "BAT0"
     battery_dir.mkdir()
     capacity_file = battery_dir / "capacity"
@@ -58,7 +61,12 @@ def test_system_metrics_provider_reads_battery_from_power_supply(
     )
 
 
-def test_system_metrics_provider_clamps_battery_percentage(tmp_path: Path) -> None:
+def test_system_metrics_provider_clamps_battery_percentage(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("NEXA_BATTERY_PERCENT", raising=False)
+
     battery_dir = tmp_path / "BAT0"
     battery_dir.mkdir()
     capacity_file = battery_dir / "capacity"
@@ -79,7 +87,10 @@ def test_system_metrics_provider_clamps_battery_percentage(tmp_path: Path) -> No
 
 def test_system_metrics_provider_returns_none_when_battery_is_unavailable(
     tmp_path: Path,
+    monkeypatch,
 ) -> None:
+    monkeypatch.delenv("NEXA_BATTERY_PERCENT", raising=False)
+
     provider = VisualShellSystemMetricsProvider(
         thermal_zone_path=tmp_path / "missing_temp",
         power_supply_root=tmp_path,

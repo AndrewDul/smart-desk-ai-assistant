@@ -723,6 +723,33 @@ class ActionSystemActionsMixin:
 
         return f"{runtime_sentence} {backend_sentence}".strip(), lines, metadata
 
+    def _show_visual_help_overlay(self, *, language: str) -> None:
+        assistant = getattr(self, "assistant", None)
+        if assistant is None:
+            return
+
+        fast_command_lane = getattr(assistant, "fast_command_lane", None)
+        visual_shell_lane = getattr(fast_command_lane, "visual_shell_lane", None)
+
+        if visual_shell_lane is None:
+            visual_shell_lane = getattr(assistant, "visual_shell_lane", None)
+
+        if visual_shell_lane is None:
+            return
+
+        show_help_overlay = getattr(visual_shell_lane, "show_help_overlay", None)
+        if not callable(show_help_overlay):
+            return
+
+        try:
+            show_help_overlay(language=language, assistant=assistant)
+        except Exception as error:
+            self.LOGGER.warning(
+                "Visual Shell help overlay dispatch failed safely: %s",
+                error,
+            )
+
+
     def _handle_help(
         self,
         *,
@@ -731,13 +758,14 @@ class ActionSystemActionsMixin:
         payload: dict[str, Any],
         resolved: ResolvedAction,
     ) -> bool:
+        self._show_visual_help_overlay(language=language)
         del route, payload
         spoken = self._localized(
             language,
             "Mogę z Tobą porozmawiać, pomóc Ci coś zapamiętać, podać czas, pokazać pulpit oraz przedstawić status runtime, testy i benchmarki.",
             "I can talk with you, help you remember something, tell you the time, show the desktop, and report runtime status, tests, and benchmarks.",
         )
-        return self._deliver_simple_action_response(
+        delivered = self._deliver_simple_action_response(
             language=language,
             action="help",
             spoken_text=spoken,
@@ -749,6 +777,8 @@ class ActionSystemActionsMixin:
             ),
             extra_metadata={"resolved_source": resolved.source},
         )
+        self._show_visual_help_overlay(language=language)
+        return delivered
 
     def _handle_status(
         self,

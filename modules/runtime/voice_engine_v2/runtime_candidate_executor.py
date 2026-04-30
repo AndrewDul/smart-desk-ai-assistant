@@ -79,30 +79,10 @@ class RuntimeCandidateExecutionPlanBuilder:
                 legacy_action="show_shell",
                 tool_name="visual_shell.show_shell",
             ),
-            "visual_shell.show_self": RuntimeCandidateActionSpec(
-                voice_engine_intent_key="visual_shell.show_self",
-                legacy_action="show_self",
-                tool_name="visual_shell.show_self",
-            ),
-            "visual_shell.show_eyes": RuntimeCandidateActionSpec(
-                voice_engine_intent_key="visual_shell.show_eyes",
-                legacy_action="show_eyes",
-                tool_name="visual_shell.show_eyes",
-            ),
             "visual_shell.show_face": RuntimeCandidateActionSpec(
                 voice_engine_intent_key="visual_shell.show_face",
                 legacy_action="show_face_contour",
                 tool_name="visual_shell.show_face",
-            ),
-            "visual_shell.look_at_user": RuntimeCandidateActionSpec(
-                voice_engine_intent_key="visual_shell.look_at_user",
-                legacy_action="look_at_user",
-                tool_name="visual_shell.look_at_user",
-            ),
-            "visual_shell.start_scanning": RuntimeCandidateActionSpec(
-                voice_engine_intent_key="visual_shell.start_scanning",
-                legacy_action="start_scanning",
-                tool_name="visual_shell.start_scanning",
             ),
             "visual_shell.return_to_idle": RuntimeCandidateActionSpec(
                 voice_engine_intent_key="visual_shell.return_to_idle",

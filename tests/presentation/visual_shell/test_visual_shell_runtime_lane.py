@@ -185,7 +185,7 @@ def test_visual_shell_runtime_lane_does_not_fall_through_when_renderer_is_unavai
     assistant = FakeAssistant()
 
     result = lane.try_handle(
-        prepared=_prepared("pokaż oczy"),
+        prepared=_prepared("pokaż twarz"),
         assistant=assistant,
     )
 
@@ -193,15 +193,15 @@ def test_visual_shell_runtime_lane_does_not_fall_through_when_renderer_is_unavai
     assert assistant.action_flow.calls == 0
     assert len(transport.sent_messages) == 2
     assert transport.sent_messages[0]["command"] == "HIDE_DESKTOP"
-    assert transport.sent_messages[1]["command"] == "SHOW_EYES"
+    assert transport.sent_messages[1]["command"] == "SHOW_FACE_CONTOUR"
     assert assistant.delivered_responses
     assert assistant.delivered_responses[0]["source"] == "visual_shell_command_lane"
-    assert assistant.delivered_responses[0]["metadata"]["action"] == "SHOW_EYES"
+    assert assistant.delivered_responses[0]["metadata"]["action"] == "SHOW_FACE_CONTOUR"
 
     trace = assistant._last_visual_shell_command_trace
     assert trace["router_match"] is True
-    assert trace["matched_rule"] == "show_eyes"
-    assert trace["visual_action"] == "SHOW_EYES"
+    assert trace["matched_rule"] == "show_face"
+    assert trace["visual_action"] == "SHOW_FACE_CONTOUR"
     assert trace["transport_result"] == "failed"
     assert trace["llm_prevented"] is True
     assert trace["response_emitted"] is True
@@ -220,27 +220,32 @@ def test_fast_command_lane_runs_visual_shell_lane_before_existing_action_flow() 
     assistant = FakeAssistant()
 
     result = fast_lane.try_handle(
-        prepared=_prepared("spójrz na mnie"),
+        prepared=_prepared("pokaż twarz"),
         assistant=assistant,
     )
 
     assert result is True
     assert assistant.action_flow.calls == 0
     assert assistant._last_fast_lane_route_snapshot["primary_intent"] == (
-        "visual_shell.look_at_user"
+        "visual_shell.show_face_contour"
     )
     assert transport.sent_messages == [
         {
-            "command": "SHOW_EYES",
+            "command": "HIDE_DESKTOP",
             "payload": {},
             "source": "nexa-voice-builtins",
-        }
+        },
+        {
+            "command": "SHOW_FACE_CONTOUR",
+            "payload": {},
+            "source": "nexa-voice-builtins",
+        },
     ]
 
     trace = assistant._last_visual_shell_command_trace
     assert trace["router_match"] is True
-    assert trace["matched_rule"] == "look_at_user"
-    assert trace["visual_action"] == "LOOK_AT_USER"
+    assert trace["matched_rule"] == "show_face"
+    assert trace["visual_action"] == "SHOW_FACE_CONTOUR"
     assert trace["transport_result"] == "ok"
     assert trace["llm_prevented"] is True
     assert trace["response_emitted"] is True

@@ -358,11 +358,7 @@ def test_visual_shell_voice_command_router_contains_current_pl_en_aliases() -> N
         'SHOW_BATTERY = "SHOW_BATTERY"',
         'SHOW_DESKTOP = "SHOW_DESKTOP"',
         'HIDE_DESKTOP = "HIDE_DESKTOP"',
-        'SHOW_SELF = "SHOW_SELF"',
-        'SHOW_EYES = "SHOW_EYES"',
-        'LOOK_AT_USER = "LOOK_AT_USER"',
         'SHOW_FACE_CONTOUR = "SHOW_FACE_CONTOUR"',
-        'START_SCANNING = "START_SCANNING"',
         'RETURN_TO_IDLE = "RETURN_TO_IDLE"',
     ]
 
@@ -373,23 +369,29 @@ def test_visual_shell_voice_command_router_contains_current_pl_en_aliases() -> N
         "pokaz pulpit",
         "schowaj pulpit",
         "pokaz sie",
-        "pokaz oczy",
         "pokaz twarz",
-        "spojrz na mnie",
-        "sprawdz pokoj",
-        "rozejrzyj sie",
-        "co widzisz",
         "show desktop",
         "hide desktop",
         "show yourself",
-        "show eyes",
         "show face",
-        "look at me",
-        "scan room",
     ]
 
     for phrase in required_phrases:
         assert phrase in router
+
+    disabled_phrases = [
+        "pokaz oczy",
+        "spojrz na mnie",
+        "sprawdz pokoj",
+        "rozejrzyj sie",
+        "co widzisz",
+        "show eyes",
+        "look at me",
+        "scan room",
+    ]
+
+    for phrase in disabled_phrases:
+        assert phrase not in router
 
 
 def test_fast_command_lane_still_has_visual_shell_hook() -> None:

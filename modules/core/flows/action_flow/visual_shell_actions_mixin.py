@@ -25,25 +25,9 @@ class ActionVisualShellActionsMixin:
             "en": "hide desktop",
             "pl": "schowaj pulpit",
         },
-        "show_self": {
-            "en": "show yourself",
-            "pl": "pokaż się",
-        },
-        "show_eyes": {
-            "en": "show eyes",
-            "pl": "pokaż oczy",
-        },
         "show_face_contour": {
             "en": "show face",
             "pl": "pokaż twarz",
-        },
-        "look_at_user": {
-            "en": "look at me",
-            "pl": "spójrz na mnie",
-        },
-        "start_scanning": {
-            "en": "scan room",
-            "pl": "sprawdź pokój",
         },
         "return_to_idle": {
             "en": "return to idle",
@@ -104,41 +88,7 @@ class ActionVisualShellActionsMixin:
         )
 
 
-    def _handle_show_self(
-        self,
-        *,
-        route: RouteDecision,
-        language: str,
-        payload: dict[str, Any],
-        resolved: ResolvedAction,
-        request: SkillRequest | None = None,
-    ) -> SkillResult:
-        return self._handle_visual_shell_action(
-            route=route,
-            language=language,
-            payload=payload,
-            resolved=resolved,
-            request=request,
-            action="show_self",
-        )
 
-    def _handle_show_eyes(
-        self,
-        *,
-        route: RouteDecision,
-        language: str,
-        payload: dict[str, Any],
-        resolved: ResolvedAction,
-        request: SkillRequest | None = None,
-    ) -> SkillResult:
-        return self._handle_visual_shell_action(
-            route=route,
-            language=language,
-            payload=payload,
-            resolved=resolved,
-            request=request,
-            action="show_eyes",
-        )
 
     def _handle_show_face_contour(
         self,
@@ -158,41 +108,7 @@ class ActionVisualShellActionsMixin:
             action="show_face_contour",
         )
 
-    def _handle_look_at_user(
-        self,
-        *,
-        route: RouteDecision,
-        language: str,
-        payload: dict[str, Any],
-        resolved: ResolvedAction,
-        request: SkillRequest | None = None,
-    ) -> SkillResult:
-        return self._handle_visual_shell_action(
-            route=route,
-            language=language,
-            payload=payload,
-            resolved=resolved,
-            request=request,
-            action="look_at_user",
-        )
 
-    def _handle_start_scanning(
-        self,
-        *,
-        route: RouteDecision,
-        language: str,
-        payload: dict[str, Any],
-        resolved: ResolvedAction,
-        request: SkillRequest | None = None,
-    ) -> SkillResult:
-        return self._handle_visual_shell_action(
-            route=route,
-            language=language,
-            payload=payload,
-            resolved=resolved,
-            request=request,
-            action="start_scanning",
-        )
 
     def _handle_return_to_idle(
         self,

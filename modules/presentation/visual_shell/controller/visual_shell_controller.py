@@ -283,6 +283,20 @@ class VisualShellController:
             )
         )
 
+    def show_help(
+        self,
+        *,
+        language: str = "en",
+        source: str = "nexa-runtime",
+    ) -> bool:
+        return self.send_command(
+            VisualCommand(
+                command=VisualCommandName.SHOW_HELP,
+                payload={"language": str(language or "en")},
+                source=source,
+            )
+        )
+
     def send_command(self, command: VisualCommand) -> bool:
         return self.transport.send(command.to_dict())
 
