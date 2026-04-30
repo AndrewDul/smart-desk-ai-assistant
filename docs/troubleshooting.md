@@ -3787,3 +3787,29 @@ The correct practical rule is:
   - audio or USB instability
 
 This issue clarified that the first problem was mainly Raspberry Pi 5 power-source policy and detection behaviour, not only raw battery quality.
+---
+
+## Observation — duplicate [audio] section in godot_app/project.godot
+
+Date: 2026-04-30
+Severity: low (not an active problem; Godot tolerates and uses the second occurrence)
+
+Symptom:
+modules/presentation/visual_shell/godot_app/project.godot contains two
+identical [audio] sections back-to-back:
+
+  [audio]
+  driver/driver="Dummy"
+  driver/enable_input=false
+
+  [audio]
+  driver/driver="Dummy"
+  driver/enable_input=false
+
+Risk:
+- Confusing for future edits.
+- A future merge/rebase that touches one of the two will be silently lossy.
+
+Resolution (when convenient, not urgent):
+Open the file and remove the duplicate block. No runtime impact expected
+since both sections are identical.

@@ -98,7 +98,17 @@
       "system.current_time",
       "visual_shell.show_desktop",
       "visual_shell.show_shell",
-      "assistant.help"
+      "assistant.help",
+      "visual_shell.show_self",
+      "visual_shell.show_eyes",
+      "visual_shell.show_face",
+      "visual_shell.look_at_user",
+      "visual_shell.start_scanning",
+      "visual_shell.return_to_idle",
+      "visual_shell.show_temperature",
+      "visual_shell.show_battery",
+      "visual_shell.show_time",
+      "visual_shell.show_date"
     ],
     "runtime_candidate_log_path": "var/data/voice_engine_v2_runtime_candidates.jsonl",
     "pre_stt_shadow_enabled": false,

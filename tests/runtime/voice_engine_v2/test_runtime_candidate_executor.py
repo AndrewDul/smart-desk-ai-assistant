@@ -12,6 +12,16 @@ _RUNTIME_CANDIDATE_ALLOWLIST = [
     "system.current_time",
     "visual_shell.show_desktop",
     "visual_shell.show_shell",
+    "visual_shell.show_self",
+    "visual_shell.show_eyes",
+    "visual_shell.show_face",
+    "visual_shell.look_at_user",
+    "visual_shell.start_scanning",
+    "visual_shell.return_to_idle",
+    "visual_shell.show_temperature",
+    "visual_shell.show_battery",
+    "visual_shell.show_time",
+    "visual_shell.show_date",
 ]
 
 
@@ -150,8 +160,18 @@ def test_runtime_candidate_executor_rejects_exit_even_if_recognized() -> None:
         "assistant.help",
         "assistant.identity",
         "system.current_time",
+        "visual_shell.look_at_user",
+        "visual_shell.return_to_idle",
+        "visual_shell.show_battery",
+        "visual_shell.show_date",
         "visual_shell.show_desktop",
+        "visual_shell.show_eyes",
+        "visual_shell.show_face",
+        "visual_shell.show_self",
         "visual_shell.show_shell",
+        "visual_shell.show_temperature",
+        "visual_shell.show_time",
+        "visual_shell.start_scanning",
     )
 
 
@@ -169,4 +189,73 @@ def test_runtime_candidate_plan_maps_assistant_help_to_system_help_action() -> N
     assert plan.route_decision.tool_invocations[0].tool_name == "system.help"
     assert plan.route_decision.metadata["voice_engine_intent_key"] == "assistant.help"
     assert plan.route_decision.metadata["legacy_action"] == "help"
+    assert plan.route_decision.metadata["llm_prevented"] is True
+
+
+def test_runtime_candidate_executor_builds_extended_visual_shell_action_routes() -> None:
+    builder = RuntimeCandidateExecutionPlanBuilder()
+    cases = [
+        ("show yourself", CommandLanguage.ENGLISH, "visual_shell.show_self", "show_self"),
+        ("pokaż oczy", CommandLanguage.POLISH, "visual_shell.show_eyes", "show_eyes"),
+        ("show face", CommandLanguage.ENGLISH, "visual_shell.show_face", "show_face_contour"),
+        ("spójrz na mnie", CommandLanguage.POLISH, "visual_shell.look_at_user", "look_at_user"),
+        ("scan room", CommandLanguage.ENGLISH, "visual_shell.start_scanning", "start_scanning"),
+        ("wróć do chmury", CommandLanguage.POLISH, "visual_shell.return_to_idle", "return_to_idle"),
+        ("show temperature", CommandLanguage.ENGLISH, "visual_shell.show_temperature", "show_temperature"),
+        ("pokaż baterię", CommandLanguage.POLISH, "visual_shell.show_battery", "show_battery"),
+    ]
+
+    for transcript, language, intent_key, legacy_action in cases:
+        turn = _turn_result(transcript, language=language)
+
+        plan = builder.build_plan(
+            turn_result=turn,
+            transcript=transcript,
+            metadata={"source": "unit_test"},
+        )
+
+        assert plan is not None
+        assert plan.route_decision.kind == RouteKind.ACTION
+        assert plan.route_decision.primary_intent == legacy_action
+        assert plan.route_decision.tool_invocations[0].tool_name == intent_key
+        assert plan.route_decision.metadata["voice_engine_intent_key"] == intent_key
+        assert plan.route_decision.metadata["legacy_action"] == legacy_action
+        assert plan.route_decision.metadata["llm_prevented"] is True
+
+
+def test_runtime_candidate_executor_builds_visual_shell_show_time_route() -> None:
+    builder = RuntimeCandidateExecutionPlanBuilder()
+    turn = _turn_result("show the time", language=CommandLanguage.ENGLISH)
+
+    plan = builder.build_plan(
+        turn_result=turn,
+        transcript="show the time",
+        metadata={"source": "unit_test"},
+    )
+
+    assert plan is not None
+    assert plan.route_decision.kind == RouteKind.ACTION
+    assert plan.route_decision.primary_intent == "show_visual_time"
+    assert plan.route_decision.tool_invocations[0].tool_name == "visual_shell.show_time"
+    assert plan.route_decision.metadata["voice_engine_intent_key"] == "visual_shell.show_time"
+    assert plan.route_decision.metadata["legacy_action"] == "show_visual_time"
+    assert plan.route_decision.metadata["llm_prevented"] is True
+
+
+def test_runtime_candidate_executor_builds_visual_shell_show_date_route() -> None:
+    builder = RuntimeCandidateExecutionPlanBuilder()
+    turn = _turn_result("show the date", language=CommandLanguage.ENGLISH)
+
+    plan = builder.build_plan(
+        turn_result=turn,
+        transcript="show the date",
+        metadata={"source": "unit_test"},
+    )
+
+    assert plan is not None
+    assert plan.route_decision.kind == RouteKind.ACTION
+    assert plan.route_decision.primary_intent == "show_visual_date"
+    assert plan.route_decision.tool_invocations[0].tool_name == "visual_shell.show_date"
+    assert plan.route_decision.metadata["voice_engine_intent_key"] == "visual_shell.show_date"
+    assert plan.route_decision.metadata["legacy_action"] == "show_visual_date"
     assert plan.route_decision.metadata["llm_prevented"] is True

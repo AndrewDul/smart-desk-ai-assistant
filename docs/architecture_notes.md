@@ -12505,3 +12505,123 @@ unnecessary first-audio delay.
 - The full natural help responses are warmed in the Piper cache at startup.
 - Display text remains compact, but spoken output remains sentence-based.
 - This preserves premium voice UX without moving command logic into the TTS layer.
+
+## Visual Shell premium nebula foundation
+
+The Visual Shell particle renderer now uses a dedicated `nebula_behaviour.gd`
+module for the premium black-background nebula style selected for the Face
+Emergence Hybrid direction.
+
+The idle particle layout is no longer generated as a circular orb. It is built
+from layered asymmetric nebula regions: core mist, upper veil, lower veil,
+filaments and sparse outer dust. The renderer keeps the same low-cost 2D
+particle approach for Raspberry Pi performance.
+
+This is a visual-only change. It does not change wake word, audio input, Vosk,
+FasterWhisper, TTS, ActionFlow, command execution or Visual Shell transport.
+Voice-state-to-visual-state wiring remains the next runtime integration step.
+
+---
+
+## Visual Shell — Stage VS-1 — Idle Nebula Preview (preview-only, isolated)
+
+Date: 2026-04-30
+Branch: main
+Sprint: Sprint 3 (Premium Nebula Base) — exploratory phase
+
+Added (preview only, not wired into production runtime):
+- modules/presentation/visual_shell/godot_app/preview/idle_nebula_preview.gd
+- modules/presentation/visual_shell/godot_app/preview/idle_nebula_preview.tscn
+
+Goal:
+Validate the rendering pipeline for the new IDLE_NEBULA direction
+(Face Emergence Hybrid) before touching production particle_cloud.gd.
+
+Pipeline under evaluation:
+- MultiMeshInstance2D, transform_format=TRANSFORM_2D, color_format=COLOR_FLOAT
+- 5000 GPU-batched instances, single QuadMesh source (size 2x2)
+- Procedural 32x32 soft particle texture (radial alpha falloff, pow 2.4)
+- CanvasItemMaterial with BLEND_MODE_ADD (additive accumulation -> bright cores)
+- OpenSimplexNoise rejection sampling for density distribution (filaments + voids)
+- Color gradient: deep indigo -> mid violet -> cool white, driven by local density
+- Per-particle subtle drift + global breathing (sin/cos with per-particle phase)
+
+Production code untouched at this stage:
+- modules/presentation/visual_shell/godot_app/scripts/particle_cloud.gd
+- modules/presentation/visual_shell/godot_app/scenes/main_shell.tscn
+- modules/presentation/visual_shell/godot_app/scripts/behaviours/nebula_behaviour.gd
+  (still untracked locally; not consumed by the preview)
+
+Decision gate:
+If the preview look matches the reference targets (premium nebula with
+filaments and additive cores), the rendering pipeline will be migrated into
+particle_cloud.gd in Stage VS-2 while preserving the existing state/behaviour
+layer (which operates on positions, not on the draw primitive).
+If the look does not match, the preview is discardable with no production
+impact.
+
+Run:
+Open the scene in the Godot editor and press F6 (Run Current Scene).
+
+Working rules respected:
+- No canvas, no zip, no production file changes at this stage.
+- Tests: not applicable (preview scene with no behavioural contracts yet).
+
+## 2026-04-30 — VS-1.1 accepted Visual Shell renderer test alignment
+
+- Updated the Visual Shell skeleton tests to protect the accepted V13 MultiMesh particle renderer instead of the older modular nebula renderer.
+- Preserved the current `particle_cloud.gd` visual design unchanged.
+- Removed the obsolete `nebula_behaviour.gd` dependency from the test contract.
+- Kept the Visual Shell direction focused on wiring the existing renderer to voice/runtime commands rather than redesigning the cloud.
+
+## 2026-04-30 — VS-1.1 Visual Shell date/time glyph state contract fix
+
+- Fixed a runtime Godot state-contract mismatch where `particle_cloud.gd` referenced `DATE_GLYPH` and `TIME_GLYPH` but `visual_states.gd` did not define them.
+- Added `DATE_GLYPH` and `TIME_GLYPH` to the Godot Visual Shell state list and metric-state helper.
+- Added `SHOW_DATE` and `SHOW_TIME` handling in `main_shell.gd` so the existing Python visual command contract can reach the accepted V13 MultiMesh renderer.
+- Kept the accepted Visual Shell appearance unchanged.
+
+## 2026-04-30 — VS-1.1 compact Visual Shell scaling refinement
+
+- Refined the accepted V13 MultiMesh Visual Shell renderer for docked/small-window mode only.
+- Replaced the fixed compact scale with viewport-aware render scaling so the nebula remains visible across the small window instead of being clipped or compressed into the center.
+- Increased particle screen size and glyph scale in compact mode so temperature, battery, date, and time remain readable on the small Visual Shell window.
+- Kept fullscreen rendering and the accepted cloud style unchanged.
+
+## 2026-04-30 — VS-1.1 organic field motion refinement
+
+- Refined the accepted V13 MultiMesh Visual Shell motion so the cloud no longer reads as one globally rotating orb.
+- Replaced global swirl rotation with organic field warping, lateral/vertical drift, and subtle shear.
+- Increased local X/Y particle motion while preserving the accepted particle style, density, color palette, glyph renderer, and MultiMesh implementation.
+- Adjusted thinking-state movement to reorganize organically instead of rotating around the center.
+- Kept this as a renderer-motion refinement only; no voice-runtime behaviour was changed.
+
+## 2026-04-30 — VS-1.1 compact square-field spread refinement
+
+- Refined compact/docked Visual Shell layout so the accepted V13 MultiMesh cloud spreads across the small square window instead of reading as a large sphere.
+- Added compact-only square-field position remapping with stronger corner fill.
+- Protected glyph rendering from square-field distortion so temperature, battery, date, and time remain readable.
+- Kept fullscreen rendering, particle style, density, colors, and cloud appearance unchanged.
+
+## 2026-04-30 — VS-1.2 Visual Shell voice control bridge
+
+- Extended Voice Engine v2 deterministic runtime candidates for the accepted Visual Shell renderer without changing the Godot cloud appearance.
+- Added Vosk grammar and runtime candidate specs for show self, show eyes, show face, look at user, start scanning, return to idle, show temperature, and show battery.
+- Routed the new Visual Shell tools through the existing ActionFlow and VisualShellCommandLane instead of creating a duplicate transport path.
+- Preserved the no-LLM fast command rule for simple Visual Shell commands.
+- Kept Polish and English phrases separate in the command grammar.
+
+## 2026-04-30 — VS-1.2 Visual Shell metrics and screen-time bridge
+
+- Added a dedicated `visual_shell.show_time` deterministic command path for screen-based time display.
+- Preserved the distinction between voice time questions (`what time is it`, `która godzina`) and visual time display requests (`show the time`, `pokaż czas`, `pokaż godzinę`).
+- Routed `show_visual_time` through the existing VisualShellCommandLane and controller instead of creating a duplicate screen-control system.
+- Kept temperature and battery commands in the Visual Shell deterministic runtime candidate path.
+- Did not change the accepted V13 MultiMesh particle renderer.
+
+## 2026-04-30 — VS-1.2 Visual Shell direct action dispatch repair
+
+- Repaired ActionFlow-to-VisualShellCommandLane execution for resolved deterministic visual actions.
+- Added direct `try_handle_action()` dispatch so metric and date/time actions do not depend on re-matching text aliases.
+- Added `visual_shell.show_date` as a deterministic screen command.
+- Preserved the accepted V13 MultiMesh Visual Shell renderer unchanged.

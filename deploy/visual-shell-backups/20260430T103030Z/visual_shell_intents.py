@@ -36,37 +36,7 @@ VISUAL_SHELL_INTENT_DEFINITIONS: dict[str, CommandIntentDefinition] = {
         key="visual_shell.show_time",
         domain=CommandIntentDomain.VISUAL_SHELL,
         action="show_time",
-    ),    "visual_shell.show_self": CommandIntentDefinition(
-        key="visual_shell.show_self",
-        domain=CommandIntentDomain.VISUAL_SHELL,
-        action="show_self",
     ),
-    "visual_shell.show_eyes": CommandIntentDefinition(
-        key="visual_shell.show_eyes",
-        domain=CommandIntentDomain.VISUAL_SHELL,
-        action="show_eyes",
-    ),
-    "visual_shell.show_face": CommandIntentDefinition(
-        key="visual_shell.show_face",
-        domain=CommandIntentDomain.VISUAL_SHELL,
-        action="show_face_contour",
-    ),
-    "visual_shell.look_at_user": CommandIntentDefinition(
-        key="visual_shell.look_at_user",
-        domain=CommandIntentDomain.VISUAL_SHELL,
-        action="look_at_user",
-    ),
-    "visual_shell.start_scanning": CommandIntentDefinition(
-        key="visual_shell.start_scanning",
-        domain=CommandIntentDomain.VISUAL_SHELL,
-        action="start_scanning",
-    ),
-    "visual_shell.return_to_idle": CommandIntentDefinition(
-        key="visual_shell.return_to_idle",
-        domain=CommandIntentDomain.VISUAL_SHELL,
-        action="return_to_idle",
-    ),
-
 }
 
 

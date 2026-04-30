@@ -363,6 +363,207 @@ def build_default_command_grammar() -> CommandGrammar:
             tags=("visual_shell",),
         ),
 
+
+        # Visual Shell / face, eyes and live shell behaviours.
+        CommandPhrase(
+            "visual_shell.show_self",
+            "pokaż się",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "face"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_self",
+            "pokaz sie",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "face"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_self",
+            "pokaż siebie",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "face"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_self",
+            "show yourself",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "face"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_eyes",
+            "pokaż oczy",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "eyes"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_eyes",
+            "pokaz oczy",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "eyes"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_eyes",
+            "show eyes",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "eyes"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_face",
+            "pokaż twarz",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "face"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_face",
+            "pokaz twarz",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "face"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_face",
+            "show face",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "face"),
+        ),
+        CommandPhrase(
+            "visual_shell.look_at_user",
+            "spójrz na mnie",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "eyes"),
+        ),
+        CommandPhrase(
+            "visual_shell.look_at_user",
+            "spojrz na mnie",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "eyes"),
+        ),
+        CommandPhrase(
+            "visual_shell.look_at_user",
+            "patrz na mnie",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "eyes"),
+        ),
+        CommandPhrase(
+            "visual_shell.look_at_user",
+            "look at me",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "eyes"),
+        ),
+        CommandPhrase(
+            "visual_shell.start_scanning",
+            "sprawdź pokój",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "scanning"),
+        ),
+        CommandPhrase(
+            "visual_shell.start_scanning",
+            "sprawdz pokoj",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "scanning"),
+        ),
+        CommandPhrase(
+            "visual_shell.start_scanning",
+            "rozejrzyj się",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "scanning"),
+        ),
+        CommandPhrase(
+            "visual_shell.start_scanning",
+            "rozejrzyj sie",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "scanning"),
+        ),
+        CommandPhrase(
+            "visual_shell.start_scanning",
+            "co widzisz",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "scanning"),
+        ),
+        CommandPhrase(
+            "visual_shell.start_scanning",
+            "scan room",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "scanning"),
+        ),
+        CommandPhrase(
+            "visual_shell.start_scanning",
+            "look around",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "scanning"),
+        ),
+        CommandPhrase(
+            "visual_shell.start_scanning",
+            "check room",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "scanning"),
+        ),
+        CommandPhrase(
+            "visual_shell.return_to_idle",
+            "wróć do chmury",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "idle"),
+        ),
+        CommandPhrase(
+            "visual_shell.return_to_idle",
+            "wroc do chmury",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "idle"),
+        ),
+        CommandPhrase(
+            "visual_shell.return_to_idle",
+            "return to idle",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "idle"),
+        ),
+        CommandPhrase(
+            "visual_shell.return_to_idle",
+            "go idle",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "idle"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "pokaż temperaturę",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "pokaz temperature",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "show temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_battery",
+            "pokaż baterię",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_battery",
+            "pokaz baterie",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_battery",
+            "show battery",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_battery",
+            "battery level",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric"),
+        ),
+
         # System state.
         CommandPhrase(
             "system.temperature",
@@ -480,6 +681,82 @@ def build_default_command_grammar() -> CommandGrammar:
             CommandLanguage.ENGLISH,
             tags=("system", "date"),
         ),
+
+
+        CommandPhrase(
+            "visual_shell.show_date",
+            "pokaż datę",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_date",
+            "pokaz date",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_date",
+            "show date",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_date",
+            "show the date",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_date",
+            "display date",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric"),
+        ),
+
+        CommandPhrase(
+            "visual_shell.show_time",
+            "pokaż czas",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_time",
+            "pokaz czas",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_time",
+            "pokaż godzinę",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_time",
+            "pokaz godzine",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_time",
+            "show time",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_time",
+            "show the time",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_time",
+            "display time",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric"),
+        ),
+
         CommandPhrase(
             "assistant.help",
             "pomoc",

@@ -142,3 +142,41 @@ def test_action_flow_delegates_polish_hide_desktop_to_visual_shell_lane() -> Non
     assert flow._last_skill_result is not None
     assert flow._last_skill_result.action == "show_shell"
     assert flow._last_skill_result.status == "accepted"
+
+
+def test_action_flow_delegates_extended_visual_shell_actions_to_visual_shell_lane() -> None:
+    cases = [
+        ("show yourself", "en", "show_self", "visual_shell.show_self", "visual_shell.show_self"),
+        ("pokaż oczy", "pl", "show_eyes", "visual_shell.show_eyes", "visual_shell.show_eyes"),
+        ("show face", "en", "show_face_contour", "visual_shell.show_face", "visual_shell.show_face"),
+        ("spójrz na mnie", "pl", "look_at_user", "visual_shell.look_at_user", "visual_shell.look_at_user"),
+        ("scan room", "en", "start_scanning", "visual_shell.start_scanning", "visual_shell.start_scanning"),
+        ("wróć do chmury", "pl", "return_to_idle", "visual_shell.return_to_idle", "visual_shell.return_to_idle"),
+        ("show temperature", "en", "show_temperature", "visual_shell.show_temperature", "visual_shell.show_temperature"),
+        ("pokaż baterię", "pl", "show_battery", "visual_shell.show_battery", "visual_shell.show_battery"),
+        ("show the time", "en", "show_visual_time", "visual_shell.show_time", "visual_shell.show_time"),
+        ("show the date", "en", "show_visual_date", "visual_shell.show_date", "visual_shell.show_date"),
+    ]
+
+    for raw_text, language, primary_intent, tool_name, intent_key in cases:
+        visual_shell_lane = _FakeVisualShellLane()
+        assistant = _FakeAssistant(visual_shell_lane)
+        flow = ActionFlowOrchestrator(assistant)
+
+        handled = flow.execute(
+            route=_route(
+                raw_text=raw_text,
+                language=language,
+                primary_intent=primary_intent,
+                tool_name=tool_name,
+                intent_key=intent_key,
+            ),
+            language=language,
+        )
+
+        assert handled is True
+        assert visual_shell_lane.calls[0]["routing_text"] == raw_text
+        assert visual_shell_lane.calls[0]["language"] == language
+        assert flow._last_skill_result is not None
+        assert flow._last_skill_result.action == primary_intent
+        assert flow._last_skill_result.status == "accepted"

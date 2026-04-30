@@ -19,8 +19,6 @@ class VisualCommandName(StrEnum):
     REPORT_DEGRADED = "REPORT_DEGRADED"
     SHOW_TEMPERATURE = "SHOW_TEMPERATURE"
     SHOW_BATTERY = "SHOW_BATTERY"
-    SHOW_DATE = "SHOW_DATE"
-    SHOW_TIME = "SHOW_TIME"
 
 
 @dataclass(slots=True)

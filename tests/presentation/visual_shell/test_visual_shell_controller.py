@@ -1,3 +1,4 @@
+from modules.presentation.visual_shell.controller.voice_command_router import VisualVoiceAction
 from dataclasses import dataclass
 
 from modules.presentation.visual_shell.contracts import (
@@ -225,3 +226,24 @@ def test_tcp_visual_shell_transport_fails_softly_when_renderer_is_unavailable() 
     )
 
     assert result is False
+
+def test_visual_shell_controller_handles_show_time_voice_action() -> None:
+    transport = InMemoryVisualShellTransport()
+    controller = VisualShellController(transport=transport)
+
+    result = controller.handle_voice_action(VisualVoiceAction.SHOW_TIME)
+
+    assert result is True
+    assert transport.sent_messages[-1]["command"] == "SHOW_TIME"
+    assert transport.sent_messages[-1]["payload"]["text"]
+
+
+def test_visual_shell_controller_handles_show_date_voice_action() -> None:
+    transport = InMemoryVisualShellTransport()
+    controller = VisualShellController(transport=transport)
+
+    result = controller.handle_voice_action(VisualVoiceAction.SHOW_DATE)
+
+    assert result is True
+    assert transport.sent_messages[-1]["command"] == "SHOW_DATE"
+    assert transport.sent_messages[-1]["payload"]["text"]

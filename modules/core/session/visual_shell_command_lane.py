@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -9,6 +10,7 @@ from modules.presentation.visual_shell.controller import VisualShellController
 from modules.presentation.visual_shell.controller.voice_command_router import (
     VisualShellVoiceCommandRouter,
     VisualVoiceCommandMatch,
+    VisualVoiceAction,
 )
 from modules.presentation.visual_shell.transport import TcpVisualShellTransport
 from modules.runtime.contracts import RouteKind
@@ -227,6 +229,148 @@ class VisualShellCommandLane:
             matched=True,
         )
         return True
+
+
+    def try_handle_action(
+        self,
+        *,
+        action: str,
+        language: str,
+        prepared: dict[str, Any],
+        assistant: Any,
+        source: str = "action_flow.visual_shell",
+    ) -> bool | None:
+        started_at = time.perf_counter()
+        trace = VisualShellCommandTrace()
+
+        if not self.enabled:
+            trace.reason = "lane_disabled"
+            self._finish_trace(assistant=assistant, trace=trace, started_at=started_at)
+            return None
+
+        if not self.voice_commands_enabled:
+            trace.reason = "voice_commands_disabled"
+            self._finish_trace(assistant=assistant, trace=trace, started_at=started_at)
+            return None
+
+        visual_action = self._visual_action_for_resolved_action(action)
+        if visual_action is None:
+            trace.reason = "unsupported_visual_action"
+            self._finish_trace(
+                assistant=assistant,
+                trace=trace,
+                started_at=started_at,
+                matched=False,
+            )
+            return None
+
+        text = self._routing_text(prepared) or action
+        normalized_text = self.router.normalize(text)
+
+        trace.heard_text = text
+        trace.normalized_text = normalized_text
+        trace.router_match = True
+        trace.matched_rule = action
+        trace.visual_action = visual_action.value
+        trace.language = language
+        trace.llm_prevented = True
+
+        match = SimpleNamespace(
+            action=visual_action,
+            matched_rule=action,
+            normalized_text=normalized_text,
+        )
+
+        self._clear_pending_context(assistant)
+        self._mark_routing(assistant, match)
+        self._commit_language(assistant, language)
+        self._store_route_snapshot(assistant, match)
+
+        handled = False
+        controller_started_at = time.perf_counter()
+        try:
+            handled = bool(
+                self._controller().handle_voice_action(
+                    visual_action,
+                    source=source,
+                )
+            )
+        except Exception as error:
+            trace.transport_result = "failed"
+            trace.reason = f"transport_exception:{type(error).__name__}"
+            LOGGER.warning(
+                "Visual Shell direct action transport failed safely: action=%s visual_action=%s error=%s",
+                action,
+                visual_action.value,
+                error,
+            )
+        finally:
+            trace.controller_ms = (time.perf_counter() - controller_started_at) * 1000.0
+
+        if handled:
+            trace.transport_result = "ok"
+            trace.reason = "handled"
+            response_started_at = time.perf_counter()
+            trace.response_emitted = self._deliver_success_response(
+                assistant=assistant,
+                language=language,
+                match=match,
+            )
+            trace.response_ms = (time.perf_counter() - response_started_at) * 1000.0
+            self._finish_trace(
+                assistant=assistant,
+                trace=trace,
+                started_at=started_at,
+                matched=True,
+            )
+            return True
+
+        if trace.transport_result == "not_attempted":
+            trace.transport_result = "failed"
+            trace.reason = "renderer_unavailable"
+
+        LOGGER.warning(
+            "Visual Shell direct action matched but renderer command failed: action=%s visual_action=%s",
+            action,
+            visual_action.value,
+        )
+        response_started_at = time.perf_counter()
+        trace.response_emitted = self._deliver_unavailable_response(
+            assistant=assistant,
+            language=language,
+            match=match,
+        )
+        trace.response_ms = (time.perf_counter() - response_started_at) * 1000.0
+        self._finish_trace(
+            assistant=assistant,
+            trace=trace,
+            started_at=started_at,
+            matched=True,
+        )
+        return True
+
+    @staticmethod
+    def _visual_action_for_resolved_action(action: str) -> VisualVoiceAction | None:
+        normalized = str(action or "").strip().lower()
+        mapping = {
+            "show_desktop": VisualVoiceAction.SHOW_DESKTOP,
+            "show_shell": VisualVoiceAction.HIDE_DESKTOP,
+            "show_self": VisualVoiceAction.SHOW_SELF,
+            "show_eyes": VisualVoiceAction.SHOW_EYES,
+            "show_face_contour": VisualVoiceAction.SHOW_FACE_CONTOUR,
+            "look_at_user": VisualVoiceAction.LOOK_AT_USER,
+            "start_scanning": VisualVoiceAction.START_SCANNING,
+            "return_to_idle": VisualVoiceAction.RETURN_TO_IDLE,
+            "show_temperature": VisualVoiceAction.SHOW_TEMPERATURE,
+            "show_battery": VisualVoiceAction.SHOW_BATTERY,
+            "show_visual_time": VisualVoiceAction.SHOW_TIME,
+        }
+
+        show_date = getattr(VisualVoiceAction, "SHOW_DATE", None)
+        if show_date is not None:
+            mapping["show_visual_date"] = show_date
+
+        return mapping.get(normalized)
 
     def _controller(self) -> VisualShellController:
         if self.controller is not None:

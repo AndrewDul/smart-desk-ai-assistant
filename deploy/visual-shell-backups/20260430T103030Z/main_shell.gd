@@ -147,18 +147,6 @@ func display_battery_percent(percent: int) -> void:
 	state_machine.set_state(VisualStates.BATTERY_GLYPH)
 
 
-func display_date_text(text: String) -> void:
-
-	particle_cloud.set_date_metric(text)
-	state_machine.set_state(VisualStates.DATE_GLYPH)
-
-
-func display_time_text(text: String) -> void:
-
-	particle_cloud.set_time_metric(text)
-	state_machine.set_state(VisualStates.TIME_GLYPH)
-
-
 func _apply_desktop_state(desktop_state: String) -> void:
 	if desktop_state == VisualStates.DESKTOP_DOCKED:
 		_apply_shell_layout(ShellLayout.DOCKED)
@@ -278,14 +266,6 @@ func _apply_visual_command(command: String, payload: Dictionary, raw_message: Di
 
 	if command == "SHOW_BATTERY":
 		display_battery_percent(int(payload.get("percent", BATTERY_DEMO_PERCENT)))
-		return
-
-	if command == "SHOW_DATE":
-		display_date_text(String(payload.get("text", "")))
-		return
-
-	if command == "SHOW_TIME":
-		display_time_text(String(payload.get("text", "")))
 		return
 
 	print("Visual Shell ignored unsupported transport command: ", command)

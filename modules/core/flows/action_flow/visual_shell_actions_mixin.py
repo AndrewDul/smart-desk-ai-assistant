@@ -25,6 +25,46 @@ class ActionVisualShellActionsMixin:
             "en": "hide desktop",
             "pl": "schowaj pulpit",
         },
+        "show_self": {
+            "en": "show yourself",
+            "pl": "pokaż się",
+        },
+        "show_eyes": {
+            "en": "show eyes",
+            "pl": "pokaż oczy",
+        },
+        "show_face_contour": {
+            "en": "show face",
+            "pl": "pokaż twarz",
+        },
+        "look_at_user": {
+            "en": "look at me",
+            "pl": "spójrz na mnie",
+        },
+        "start_scanning": {
+            "en": "scan room",
+            "pl": "sprawdź pokój",
+        },
+        "return_to_idle": {
+            "en": "return to idle",
+            "pl": "wróć do chmury",
+        },
+        "show_temperature": {
+            "en": "show temperature",
+            "pl": "pokaż temperaturę",
+        },
+        "show_battery": {
+            "en": "show battery",
+            "pl": "pokaż baterię",
+        },
+        "show_visual_time": {
+            "en": "show the time",
+            "pl": "pokaż czas",
+        },
+        "show_visual_date": {
+            "en": "show the date",
+            "pl": "pokaż datę",
+        },
     }
 
     def _handle_show_desktop(
@@ -63,6 +103,189 @@ class ActionVisualShellActionsMixin:
             action="show_shell",
         )
 
+
+    def _handle_show_self(
+        self,
+        *,
+        route: RouteDecision,
+        language: str,
+        payload: dict[str, Any],
+        resolved: ResolvedAction,
+        request: SkillRequest | None = None,
+    ) -> SkillResult:
+        return self._handle_visual_shell_action(
+            route=route,
+            language=language,
+            payload=payload,
+            resolved=resolved,
+            request=request,
+            action="show_self",
+        )
+
+    def _handle_show_eyes(
+        self,
+        *,
+        route: RouteDecision,
+        language: str,
+        payload: dict[str, Any],
+        resolved: ResolvedAction,
+        request: SkillRequest | None = None,
+    ) -> SkillResult:
+        return self._handle_visual_shell_action(
+            route=route,
+            language=language,
+            payload=payload,
+            resolved=resolved,
+            request=request,
+            action="show_eyes",
+        )
+
+    def _handle_show_face_contour(
+        self,
+        *,
+        route: RouteDecision,
+        language: str,
+        payload: dict[str, Any],
+        resolved: ResolvedAction,
+        request: SkillRequest | None = None,
+    ) -> SkillResult:
+        return self._handle_visual_shell_action(
+            route=route,
+            language=language,
+            payload=payload,
+            resolved=resolved,
+            request=request,
+            action="show_face_contour",
+        )
+
+    def _handle_look_at_user(
+        self,
+        *,
+        route: RouteDecision,
+        language: str,
+        payload: dict[str, Any],
+        resolved: ResolvedAction,
+        request: SkillRequest | None = None,
+    ) -> SkillResult:
+        return self._handle_visual_shell_action(
+            route=route,
+            language=language,
+            payload=payload,
+            resolved=resolved,
+            request=request,
+            action="look_at_user",
+        )
+
+    def _handle_start_scanning(
+        self,
+        *,
+        route: RouteDecision,
+        language: str,
+        payload: dict[str, Any],
+        resolved: ResolvedAction,
+        request: SkillRequest | None = None,
+    ) -> SkillResult:
+        return self._handle_visual_shell_action(
+            route=route,
+            language=language,
+            payload=payload,
+            resolved=resolved,
+            request=request,
+            action="start_scanning",
+        )
+
+    def _handle_return_to_idle(
+        self,
+        *,
+        route: RouteDecision,
+        language: str,
+        payload: dict[str, Any],
+        resolved: ResolvedAction,
+        request: SkillRequest | None = None,
+    ) -> SkillResult:
+        return self._handle_visual_shell_action(
+            route=route,
+            language=language,
+            payload=payload,
+            resolved=resolved,
+            request=request,
+            action="return_to_idle",
+        )
+
+
+
+    def _handle_show_visual_date(
+        self,
+        *,
+        route: RouteDecision,
+        language: str,
+        payload: dict[str, Any],
+        resolved: ResolvedAction,
+        request: SkillRequest | None = None,
+    ) -> SkillResult:
+        return self._handle_visual_shell_action(
+            route=route,
+            language=language,
+            payload=payload,
+            resolved=resolved,
+            request=request,
+            action="show_visual_date",
+        )
+
+    def _handle_show_visual_time(
+        self,
+        *,
+        route: RouteDecision,
+        language: str,
+        payload: dict[str, Any],
+        resolved: ResolvedAction,
+        request: SkillRequest | None = None,
+    ) -> SkillResult:
+        return self._handle_visual_shell_action(
+            route=route,
+            language=language,
+            payload=payload,
+            resolved=resolved,
+            request=request,
+            action="show_visual_time",
+        )
+
+    def _handle_show_temperature(
+        self,
+        *,
+        route: RouteDecision,
+        language: str,
+        payload: dict[str, Any],
+        resolved: ResolvedAction,
+        request: SkillRequest | None = None,
+    ) -> SkillResult:
+        return self._handle_visual_shell_action(
+            route=route,
+            language=language,
+            payload=payload,
+            resolved=resolved,
+            request=request,
+            action="show_temperature",
+        )
+
+    def _handle_show_battery(
+        self,
+        *,
+        route: RouteDecision,
+        language: str,
+        payload: dict[str, Any],
+        resolved: ResolvedAction,
+        request: SkillRequest | None = None,
+    ) -> SkillResult:
+        return self._handle_visual_shell_action(
+            route=route,
+            language=language,
+            payload=payload,
+            resolved=resolved,
+            request=request,
+            action="show_battery",
+        )
+
     def _handle_visual_shell_action(
         self,
         *,
@@ -88,7 +311,17 @@ class ActionVisualShellActionsMixin:
         )
 
         try:
-            handled = lane.try_handle(prepared=prepared, assistant=self.assistant)
+            direct_handler = getattr(lane, "try_handle_action", None)
+            if callable(direct_handler):
+                handled = direct_handler(
+                    action=action,
+                    language=language,
+                    prepared=prepared,
+                    assistant=self.assistant,
+                    source="action_flow.visual_shell",
+                )
+            else:
+                handled = lane.try_handle(prepared=prepared, assistant=self.assistant)
         except Exception as error:
             self.LOGGER.warning(
                 "Visual Shell action lane failed safely: action=%s error=%s",

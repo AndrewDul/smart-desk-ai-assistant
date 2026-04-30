@@ -11,6 +11,8 @@ class VisualVoiceAction(StrEnum):
 
     SHOW_TEMPERATURE = "SHOW_TEMPERATURE"
     SHOW_BATTERY = "SHOW_BATTERY"
+    SHOW_TIME = "SHOW_TIME"
+    SHOW_DATE = "SHOW_DATE"
     SHOW_DESKTOP = "SHOW_DESKTOP"
     HIDE_DESKTOP = "HIDE_DESKTOP"
     SHOW_SELF = "SHOW_SELF"
@@ -379,6 +381,41 @@ class VisualShellVoiceCommandRouter:
                     "find phone",
                     "scan room",
                     "scan the room",
+                ),
+            ),
+
+
+            (
+                VisualVoiceAction.SHOW_DATE,
+                "show_date",
+                (
+                    "pokaz date",
+                    "pokaż datę",
+                    "pokaz datę",
+                    "pokaż date",
+                    "wyswietl date",
+                    "wyświetl datę",
+                    "show date",
+                    "show the date",
+                    "display date",
+                ),
+            ),
+            (
+                VisualVoiceAction.SHOW_TIME,
+                "show_time",
+                (
+                    "pokaz czas",
+                    "pokaż czas",
+                    "pokaz godzine",
+                    "pokaż godzinę",
+                    "wyswietl czas",
+                    "wyświetl czas",
+                    "wyswietl godzine",
+                    "wyświetl godzinę",
+                    "show time",
+                    "show the time",
+                    "show clock",
+                    "display time",
                 ),
             ),
             (

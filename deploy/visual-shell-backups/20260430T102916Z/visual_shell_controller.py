@@ -58,12 +58,6 @@ class VisualShellController:
         if action == VisualVoiceAction.SHOW_BATTERY:
             return self.show_current_battery(source=source)
 
-        if action == VisualVoiceAction.SHOW_TIME:
-            return self.show_current_time(source=source)
-
-        if action == VisualVoiceAction.SHOW_DATE:
-            return self.show_current_date(source=source)
-
         if action == VisualVoiceAction.SHOW_DESKTOP:
             return self.show_desktop(source=source)
 
@@ -254,31 +248,6 @@ class VisualShellController:
             VisualCommand(
                 command=VisualCommandName.REPORT_DEGRADED,
                 payload={"reason": reason},
-                source=source,
-            )
-        )
-
-
-    def show_current_date(self, *, source: str = "nexa-runtime") -> bool:
-        from datetime import datetime
-        now = datetime.now()
-        date_text = f"{now.day:02d}.{now.month:02d}"
-        return self.send_command(
-            VisualCommand(
-                command=VisualCommandName.SHOW_DATE,
-                payload={"text": date_text},
-                source=source,
-            )
-        )
-
-    def show_current_time(self, *, source: str = "nexa-runtime") -> bool:
-        from datetime import datetime
-        now = datetime.now()
-        time_text = f"{now.hour:02d}:{now.minute:02d}"
-        return self.send_command(
-            VisualCommand(
-                command=VisualCommandName.SHOW_TIME,
-                payload={"text": time_text},
                 source=source,
             )
         )

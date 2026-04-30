@@ -284,3 +284,80 @@ def test_default_grammar_recognizes_assistant_help_aliases() -> None:
     assert polish_result.intent_key == "assistant.help"
     assert polish_result.language == CommandLanguage.POLISH
     assert polish_result.matched_phrase == "pomoc"
+
+
+def test_default_grammar_recognizes_visual_shell_voice_control_aliases() -> None:
+    grammar = build_default_command_grammar()
+
+    cases = [
+        ("pokaż się", "visual_shell.show_self", "pl"),
+        ("show yourself", "visual_shell.show_self", "en"),
+        ("pokaż oczy", "visual_shell.show_eyes", "pl"),
+        ("show eyes", "visual_shell.show_eyes", "en"),
+        ("pokaż twarz", "visual_shell.show_face", "pl"),
+        ("show face", "visual_shell.show_face", "en"),
+        ("spójrz na mnie", "visual_shell.look_at_user", "pl"),
+        ("look at me", "visual_shell.look_at_user", "en"),
+        ("sprawdź pokój", "visual_shell.start_scanning", "pl"),
+        ("rozejrzyj się", "visual_shell.start_scanning", "pl"),
+        ("co widzisz", "visual_shell.start_scanning", "pl"),
+        ("scan room", "visual_shell.start_scanning", "en"),
+        ("look around", "visual_shell.start_scanning", "en"),
+        ("wróć do chmury", "visual_shell.return_to_idle", "pl"),
+        ("return to idle", "visual_shell.return_to_idle", "en"),
+        ("pokaż temperaturę", "visual_shell.show_temperature", "pl"),
+        ("show temperature", "visual_shell.show_temperature", "en"),
+        ("pokaż baterię", "visual_shell.show_battery", "pl"),
+        ("show battery", "visual_shell.show_battery", "en"),
+    ]
+
+    for transcript, intent_key, language in cases:
+        result = grammar.match(transcript)
+
+        assert result.status == CommandRecognitionStatus.MATCHED
+        assert result.intent_key == intent_key
+        assert result.language.value == language
+
+
+def test_default_grammar_routes_show_time_to_visual_shell_without_hijacking_time_question() -> None:
+    grammar = build_default_command_grammar()
+
+    visual_cases = [
+        ("show time", "visual_shell.show_time", "en"),
+        ("show the time", "visual_shell.show_time", "en"),
+        ("pokaż czas", "visual_shell.show_time", "pl"),
+        ("pokaż godzinę", "visual_shell.show_time", "pl"),
+    ]
+
+    for transcript, intent_key, language in visual_cases:
+        result = grammar.match(transcript)
+
+        assert result.status == CommandRecognitionStatus.MATCHED
+        assert result.intent_key == intent_key
+        assert result.language.value == language
+
+    english_question = grammar.match("what time is it")
+    assert english_question.status == CommandRecognitionStatus.MATCHED
+    assert english_question.intent_key == "system.current_time"
+
+    polish_question = grammar.match("która godzina")
+    assert polish_question.status == CommandRecognitionStatus.MATCHED
+    assert polish_question.intent_key == "system.current_time"
+
+
+def test_default_grammar_routes_show_date_to_visual_shell() -> None:
+    grammar = build_default_command_grammar()
+
+    cases = [
+        ("show date", "visual_shell.show_date", "en"),
+        ("show the date", "visual_shell.show_date", "en"),
+        ("pokaż datę", "visual_shell.show_date", "pl"),
+        ("pokaz date", "visual_shell.show_date", "pl"),
+    ]
+
+    for transcript, intent_key, language in cases:
+        result = grammar.match(transcript)
+
+        assert result.status == CommandRecognitionStatus.MATCHED
+        assert result.intent_key == intent_key
+        assert result.language.value == language

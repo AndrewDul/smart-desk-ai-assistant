@@ -10,6 +10,8 @@ const FACE_CONTOUR = "FACE_CONTOUR"
 const BORED_MICRO_ANIMATION = "BORED_MICRO_ANIMATION"
 const TEMPERATURE_GLYPH = "TEMPERATURE_GLYPH"
 const BATTERY_GLYPH = "BATTERY_GLYPH"
+const DATE_GLYPH = "DATE_GLYPH"
+const TIME_GLYPH = "TIME_GLYPH"
 const DESKTOP_HIDDEN = "DESKTOP_HIDDEN"
 const DESKTOP_DOCKED = "DESKTOP_DOCKED"
 const DESKTOP_RETURNING = "DESKTOP_RETURNING"
@@ -55,4 +57,7 @@ static func is_face_formation_state(state_name: String) -> bool:
 static func is_metric_display_state(state_name: String) -> bool:
 	var normalized = coerce_state(state_name)
 
-	return normalized == TEMPERATURE_GLYPH or normalized == BATTERY_GLYPH
+	return normalized == TEMPERATURE_GLYPH \
+		or normalized == BATTERY_GLYPH \
+		or normalized == DATE_GLYPH \
+		or normalized == TIME_GLYPH

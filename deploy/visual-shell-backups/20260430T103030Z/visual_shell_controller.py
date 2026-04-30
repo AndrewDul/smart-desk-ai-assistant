@@ -58,12 +58,6 @@ class VisualShellController:
         if action == VisualVoiceAction.SHOW_BATTERY:
             return self.show_current_battery(source=source)
 
-        if action == VisualVoiceAction.SHOW_TIME:
-            return self.show_current_time(source=source)
-
-        if action == VisualVoiceAction.SHOW_DATE:
-            return self.show_current_date(source=source)
-
         if action == VisualVoiceAction.SHOW_DESKTOP:
             return self.show_desktop(source=source)
 
