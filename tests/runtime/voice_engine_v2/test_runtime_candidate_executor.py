@@ -161,6 +161,11 @@ def test_runtime_candidate_executor_rejects_exit_even_if_recognized() -> None:
     assert builder.supported_intents == (
         "assistant.help",
         "assistant.identity",
+        "break.start",
+        "break.stop",
+        "focus.offer",
+        "focus.start",
+        "focus.stop",
         "memory.guided_start",
         "memory.list",
         "memory.recall",

@@ -216,6 +216,9 @@ class CommandFlowLanguage(CommandFlowHelpers):
         return self._normalize_language(fallback_language)
 
     def _looks_like_cancel_request(self, text: str) -> bool:
+        if self._pending_duration_unknown_answer(text):
+            return False
+
         helper = getattr(self.assistant, "_looks_like_cancel_request", None)
         if callable(helper):
             try:
@@ -234,6 +237,39 @@ class CommandFlowLanguage(CommandFlowHelpers):
             return True
 
         return contains_any_phrase(normalized, CANCEL_PHRASES)
+
+    def _pending_duration_unknown_answer(self, text: str) -> bool:
+        pending = getattr(self.assistant, "pending_follow_up", None)
+        if not isinstance(pending, dict):
+            return False
+
+        follow_type = str(pending.get("type", "") or "").strip()
+        if follow_type not in {"timer_duration", "focus_duration", "break_duration"}:
+            return False
+
+        normalized = normalize_text(text)
+        compact = normalized.replace(" ", "")
+
+        unknown_answers = {
+            "i dont know",
+            "i don t know",
+            "i do not know",
+            "dont know",
+            "don t know",
+            "do not know",
+            "not sure",
+            "no idea",
+            "nie wiem",
+            "nie mam pojecia",
+            "nie mam pojęcia",
+            "trudno powiedziec",
+            "trudno powiedzieć",
+        }
+
+        normalized_answers = {normalize_text(item) for item in unknown_answers}
+        compact_answers = {item.replace(" ", "") for item in normalized_answers}
+
+        return normalized in normalized_answers or compact in compact_answers
 
 
 __all__ = ["CommandFlowLanguage"]

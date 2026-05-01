@@ -61,7 +61,7 @@ def test_default_grammar_recognizes_short_battery_command() -> None:
     result = grammar.match("bateria")
 
     assert result.status == CommandRecognitionStatus.MATCHED
-    assert result.intent_key == "system.battery"
+    assert result.intent_key == "visual_shell.show_battery"
     assert result.language == CommandLanguage.POLISH
 
 

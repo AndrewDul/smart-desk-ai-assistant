@@ -584,6 +584,13 @@ class CoreAssistantResponseMixin:
             )
             title = "TIMER"
 
+        self._send_timer_countdown_to_visual_shell(
+            mode=timer_type,
+            remaining_seconds=int(payload.get("remaining_seconds", 0) or 0),
+            total_seconds=int(payload.get("total_seconds", 0) or 0),
+            source="timer_started",
+        )
+
         self._deliver_async_notification(
             lang=lang,
             spoken_text=spoken,
@@ -595,6 +602,7 @@ class CoreAssistantResponseMixin:
             extra_metadata={
                 "minutes": minutes,
                 "timer_type": timer_type,
+                "total_seconds": int(payload.get("total_seconds", 0) or 0),
             },
         )
 
@@ -613,18 +621,32 @@ class CoreAssistantResponseMixin:
                 reason="focus_timer_finished",
             )
 
+        self._clear_timer_countdown_from_visual_shell(source="timer_finished")
+
         if timer_type == "focus":
+            self.pending_follow_up = {
+                "type": "focus_extend_offer",
+                "language": lang,
+                "default_minutes": float(getattr(self, "default_focus_minutes", 25.0)),
+                "source": "timer_focus_finished",
+            }
             spoken = self._localized(
                 lang,
-                f"Tryb skupienia zakończony po {self._minutes_text(minutes, 'pl')}.",
-                f"Focus mode finished after {self._minutes_text(minutes, 'en')}.",
+                "Czas skupienia dobiega końca. Możesz odpocząć albo przedłużyć. Chcesz przedłużyć?",
+                "Focus mode is ending. You can take a break or extend it. Do you want to extend it?",
             )
             title = "FOCUS DONE"
         elif timer_type == "break":
+            self.pending_follow_up = {
+                "type": "break_extend_offer",
+                "language": lang,
+                "default_minutes": float(getattr(self, "default_break_minutes", 5.0)),
+                "source": "timer_break_finished",
+            }
             spoken = self._localized(
                 lang,
-                f"Przerwa zakończona po {self._minutes_text(minutes, 'pl')}.",
-                f"Break finished after {self._minutes_text(minutes, 'en')}.",
+                "Odpoczynek dobiega końca. Możesz wrócić do skupienia albo go przedłużyć. Chcesz przedłużyć odpoczynek?",
+                "Break mode is ending. You can return to focus mode or extend it. Do you want to extend it?",
             )
             title = "BREAK DONE"
         else:
@@ -646,6 +668,8 @@ class CoreAssistantResponseMixin:
             extra_metadata={
                 "minutes": minutes,
                 "timer_type": timer_type,
+                "follow_up_type": (self.pending_follow_up or {}).get("type"),
+                "total_seconds": int(payload.get("total_seconds", 0) or 0),
             },
         )
 
@@ -679,3 +703,96 @@ class CoreAssistantResponseMixin:
             action=timer_type,
             extra_metadata={"timer_type": timer_type},
         )
+    def _on_timer_tick(self, **payload: Any) -> None:
+        timer_type = self._timer_type_from_payload(payload)
+        self._send_timer_countdown_to_visual_shell(
+            mode=timer_type,
+            remaining_seconds=int(payload.get("remaining_seconds", 0) or 0),
+            total_seconds=int(payload.get("total_seconds", 0) or 0),
+            source="timer_tick",
+        )
+
+    def _send_timer_countdown_to_visual_shell(
+        self,
+        *,
+        mode: str,
+        remaining_seconds: int,
+        total_seconds: int,
+        source: str,
+    ) -> None:
+        if mode not in {"focus", "break"}:
+            return
+
+        controller = self._visual_shell_controller_for_timer()
+        if controller is None:
+            append_log("Timer countdown Visual Shell update skipped: controller unavailable.")
+            return
+
+        label = "FOCUS" if mode == "focus" else "BREAK"
+        color_state = self._timer_countdown_color_state(
+            remaining_seconds=remaining_seconds,
+            total_seconds=total_seconds,
+        )
+        try:
+            show = getattr(controller, "show_timer_countdown", None)
+            if callable(show):
+                show(
+                    mode=mode,
+                    remaining_seconds=max(0, int(remaining_seconds)),
+                    total_seconds=max(0, int(total_seconds)),
+                    label=label,
+                    color_state=color_state,
+                    source=source,
+                )
+                append_log(
+                    "Timer countdown Visual Shell update sent: "
+                    f"mode={mode}, remaining_seconds={remaining_seconds}, "
+                    f"total_seconds={total_seconds}, color_state={color_state}, source={source}"
+                )
+        except Exception as error:
+            log_exception("Timer countdown Visual Shell update failed", error)
+
+    def _clear_timer_countdown_from_visual_shell(self, *, source: str) -> None:
+        controller = self._visual_shell_controller_for_timer()
+        if controller is None:
+            return
+        try:
+            clear = getattr(controller, "clear_timer_countdown", None)
+            if callable(clear):
+                clear(source=source)
+                append_log(f"Timer countdown Visual Shell clear sent: source={source}")
+        except Exception as error:
+            log_exception("Timer countdown Visual Shell clear failed", error)
+
+    def _visual_shell_controller_for_timer(self) -> Any | None:
+        fast_lane = getattr(self, "fast_command_lane", None)
+        visual_lane = getattr(fast_lane, "visual_shell_lane", None)
+        if visual_lane is None:
+            visual_lane = getattr(self, "visual_shell_lane", None)
+        if visual_lane is None:
+            return None
+        controller = getattr(visual_lane, "controller", None)
+        if controller is not None:
+            return controller
+        controller_factory = getattr(visual_lane, "_controller", None)
+        if callable(controller_factory):
+            try:
+                return controller_factory()
+            except Exception as error:
+                log_exception("Timer countdown Visual Shell controller lookup failed", error)
+        return None
+
+    @staticmethod
+    def _timer_countdown_color_state(*, remaining_seconds: int, total_seconds: int) -> str:
+        remaining = max(0, int(remaining_seconds))
+        total = max(0, int(total_seconds))
+        if total <= 0 or remaining <= 0:
+            return "red"
+        ratio = remaining / float(total)
+        if ratio <= 0.05:
+            return "red"
+        if remaining <= 20:
+            return "orange"
+        if ratio < 0.60:
+            return "yellow"
+        return "white"

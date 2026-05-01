@@ -28,6 +28,7 @@ class RuntimeBuilderFeaturesMixin:
         on_timer_started=None,
         on_timer_finished=None,
         on_timer_stopped=None,
+        on_timer_tick=None,
     ) -> Any:
         timer_class = self._import_symbol(
             "modules.features.timer.service",
@@ -37,6 +38,7 @@ class RuntimeBuilderFeaturesMixin:
             on_started=on_timer_started,
             on_finished=on_timer_finished,
             on_stopped=on_timer_stopped,
+            on_tick=on_timer_tick,
         )
 
 

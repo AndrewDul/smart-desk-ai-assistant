@@ -184,7 +184,12 @@
       "reminder.guided_start",
       "reminder.time_answer",
       "memory.guided_start",
-      "memory.list"
+      "memory.list",
+      "focus.start",
+      "focus.offer",
+      "focus.stop",
+      "break.start",
+      "break.stop"
     ],
     "vosk_command_model_paths": {
       "en": "var/models/vosk/vosk-model-small-en-us-0.15",

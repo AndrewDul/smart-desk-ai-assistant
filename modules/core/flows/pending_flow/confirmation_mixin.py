@@ -13,6 +13,12 @@ class PendingFlowConfirmationMixin:
         if not self.has_pending_state():
             return PendingFlowDecision(handled=False)
 
+        pending_type = self._current_pending_type()
+        if pending_type in {"focus_duration", "break_duration", "timer_duration"}:
+            is_unknown_duration = getattr(self, "_is_unknown_duration_answer", None)
+            if callable(is_unknown_duration) and is_unknown_duration(routing_text):
+                return PendingFlowDecision(handled=False)
+
         if not self._looks_like_cancel_request(routing_text):
             return PendingFlowDecision(handled=False)
 

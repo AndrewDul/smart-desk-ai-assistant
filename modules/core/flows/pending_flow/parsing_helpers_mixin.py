@@ -6,6 +6,7 @@ from typing import Any
 
 from modules.features.reminders.time_parser import ReminderTimeParser, ReminderTimeParseResult
 from modules.runtime.contracts import normalize_text
+from modules.understanding.parsing.normalization import extract_duration_minutes
 
 
 class PendingFlowParsingHelpersMixin:
@@ -132,40 +133,60 @@ class PendingFlowParsingHelpersMixin:
             if value is not None and value > 0:
                 return value
 
-        spoken_map = {
-            "one": 1,
-            "two": 2,
-            "three": 3,
-            "four": 4,
-            "five": 5,
-            "six": 6,
-            "seven": 7,
-            "eight": 8,
-            "nine": 9,
-            "ten": 10,
-            "jeden": 1,
-            "jedna": 1,
-            "dwa": 2,
-            "dwie": 2,
-            "trzy": 3,
-            "cztery": 4,
-            "piec": 5,
-            "pięć": 5,
-            "szesc": 6,
-            "sześć": 6,
-            "siedem": 7,
-            "osiem": 8,
-            "dziewiec": 9,
-            "dziewięć": 9,
-            "dziesiec": 10,
-            "dziesięć": 10,
-        }
-
-        for token in normalized_ascii.split():
-            if token in spoken_map:
-                return float(spoken_map[token])
+        parsed_duration = extract_duration_minutes(raw)
+        if parsed_duration is not None and parsed_duration > 0:
+            return float(parsed_duration)
 
         return None
+
+    def _is_unknown_duration_answer(self, text: str) -> bool:
+        normalized = normalize_text(text)
+        normalized_compact = normalized.replace(" ", "")
+
+        raw = str(text or "").lower()
+        raw = raw.replace("’", "'").replace("`", "'")
+        raw_words = "".join(ch if ch.isalnum() else " " for ch in raw)
+        raw_compact = "".join(raw_words.split())
+
+        phrase_answers = {
+            "i dont know",
+            "i don t know",
+            "i do not know",
+            "dont know",
+            "don t know",
+            "do not know",
+            "not sure",
+            "no idea",
+            "nie wiem",
+            "nie mam pojecia",
+            "nie mam pojęcia",
+            "trudno powiedziec",
+            "trudno powiedzieć",
+        }
+
+        compact_answers = {
+            "idontknow",
+            "idonknow",
+            "idonotknow",
+            "dontknow",
+            "donknow",
+            "donotknow",
+            "notsure",
+            "noidea",
+            "niewiem",
+            "niemampojecia",
+            "trudnopowiedziec",
+        }
+
+        normalized_answers = {normalize_text(item) for item in phrase_answers}
+        normalized_compact_answers = {item.replace(" ", "") for item in normalized_answers}
+
+        return (
+            normalized in normalized_answers
+            or normalized_compact in normalized_compact_answers
+            or normalized_compact in compact_answers
+            or raw_compact in compact_answers
+        )
 
     def _parse_reminder_time_answer(
         self,

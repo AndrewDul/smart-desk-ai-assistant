@@ -11,6 +11,7 @@ class TimerSnapshot:
     running: bool
     mode: str | None
     remaining_seconds: int
+    total_seconds: int
     started_at: float
     ends_at: float
 
@@ -39,10 +40,12 @@ class TimerService:
         on_started: Callable[..., None] | None = None,
         on_finished: Callable[..., None] | None = None,
         on_stopped: Callable[..., None] | None = None,
+        on_tick: Callable[..., None] | None = None,
     ) -> None:
         self.on_started = on_started
         self.on_finished = on_finished
         self.on_stopped = on_stopped
+        self.on_tick = on_tick
 
         self._lock = threading.RLock()
         self._thread: threading.Thread | None = None
@@ -51,6 +54,7 @@ class TimerService:
         self._running = False
         self._mode: str | None = None
         self._remaining_seconds = 0
+        self._total_seconds = 0
         self._started_at = 0.0
         self._ends_at = 0.0
 
@@ -78,6 +82,7 @@ class TimerService:
             self._running = True
             self._mode = safe_mode
             self._remaining_seconds = total_seconds
+            self._total_seconds = total_seconds
             self._started_at = time.time()
             self._ends_at = self._started_at + total_seconds
             self._stop_event = threading.Event()
@@ -106,6 +111,7 @@ class TimerService:
             self._running = False
             self._mode = None
             self._remaining_seconds = 0
+            self._total_seconds = 0
             self._started_at = 0.0
             self._ends_at = 0.0
             self._stop_event = None
@@ -123,6 +129,7 @@ class TimerService:
             "running": snapshot.running,
             "mode": snapshot.mode,
             "remaining_seconds": snapshot.remaining_seconds,
+            "total_seconds": snapshot.total_seconds,
             "started_at": snapshot.started_at,
             "ends_at": snapshot.ends_at,
         }
@@ -133,6 +140,7 @@ class TimerService:
                 running=self._running,
                 mode=self._mode,
                 remaining_seconds=self._remaining_seconds,
+                total_seconds=self._total_seconds,
                 started_at=self._started_at,
                 ends_at=self._ends_at,
             )
@@ -147,7 +155,8 @@ class TimerService:
         minutes: float,
         stop_event: threading.Event,
     ) -> None:
-        del minutes
+        total_seconds = max(1, int(round(float(minutes) * 60)))
+        last_tick_remaining: int | None = None
 
         while not stop_event.is_set():
             with self._lock:
@@ -161,6 +170,7 @@ class TimerService:
                     self._running = False
                     self._mode = None
                     self._remaining_seconds = 0
+                    self._total_seconds = 0
                     self._started_at = 0.0
                     self._ends_at = 0.0
                     self._stop_event = None
@@ -169,8 +179,17 @@ class TimerService:
                     finished = False
 
             if finished:
-                self._emit_finished(mode=mode)
+                self._emit_finished(mode=mode, minutes=minutes, total_seconds=total_seconds)
                 return
+
+            if remaining != last_tick_remaining:
+                last_tick_remaining = remaining
+                self._emit_tick(
+                    mode=mode,
+                    minutes=minutes,
+                    remaining_seconds=remaining,
+                    total_seconds=total_seconds,
+                )
 
             time.sleep(0.2)
 
@@ -182,10 +201,13 @@ class TimerService:
         if not callable(self.on_started):
             return
 
+        total_seconds = max(1, int(round(float(minutes) * 60)))
         payload = {
             "timer_type": mode,
             "mode": mode,
             "minutes": minutes,
+            "remaining_seconds": total_seconds,
+            "total_seconds": total_seconds,
         }
 
         try:
@@ -205,13 +227,16 @@ class TimerService:
         except TypeError:
             self.on_started()
 
-    def _emit_finished(self, *, mode: str) -> None:
+    def _emit_finished(self, *, mode: str, minutes: float, total_seconds: int) -> None:
         if not callable(self.on_finished):
             return
 
         payload = {
             "timer_type": mode,
             "mode": mode,
+            "minutes": minutes,
+            "remaining_seconds": 0,
+            "total_seconds": int(total_seconds),
         }
 
         try:
@@ -238,6 +263,8 @@ class TimerService:
         payload = {
             "timer_type": mode,
             "mode": mode,
+            "remaining_seconds": 0,
+            "total_seconds": 0,
         }
 
         try:
@@ -259,6 +286,42 @@ class TimerService:
 
     # ------------------------------------------------------------------
     # Helpers
+    def _emit_tick(
+        self,
+        *,
+        mode: str,
+        minutes: float,
+        remaining_seconds: int,
+        total_seconds: int,
+    ) -> None:
+        if not callable(self.on_tick):
+            return
+
+        payload = {
+            "timer_type": mode,
+            "mode": mode,
+            "minutes": minutes,
+            "remaining_seconds": int(remaining_seconds),
+            "total_seconds": int(total_seconds),
+        }
+
+        try:
+            self.on_tick(**payload)
+            return
+        except TypeError:
+            pass
+
+        try:
+            self.on_tick(mode, remaining_seconds, total_seconds)
+            return
+        except TypeError:
+            pass
+
+        try:
+            self.on_tick(mode=mode, remaining_seconds=remaining_seconds, total_seconds=total_seconds)
+        except TypeError:
+            self.on_tick()
+
     # ------------------------------------------------------------------
 
     @staticmethod

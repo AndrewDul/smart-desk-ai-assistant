@@ -12818,3 +12818,14 @@ Legacy dict-shaped memory files are still readable and can be migrated into reco
 
 The current guided memory foundation is still routed through existing parser/action/pending-flow infrastructure. The next architectural step is to add Vosk fast-path support for `memory.guided_start`, similar to guided reminders, so simple memory commands do not require LLM or Whisper-first routing.
 <!-- END guided-record-memory-runtime -->
+
+
+## Focus and break guided runtime flow
+
+Focus and break are timer-backed runtime modes, not separate timer systems. The runtime keeps `TimerService` as the single source of truth for active duration, remaining time and completion callbacks. Voice handling uses the deterministic command path first: Vosk command ASR resolves focus/break start and offer phrases into runtime candidates, then ActionFlow arms a guided follow-up when duration is missing. Whisper and LLM are not primary paths for these built-in commands.
+
+Polish focus/break wording is intentionally natural: NEXA asks about `skupienie` and `odpoczynek` instead of forcing technical phrases such as `tryb przerwy`. English responses keep `focus mode` and `break` phrasing. The active turn language controls the prompt and the follow-up language, so Polish and English are not mixed inside one flow.
+
+Unknown duration answers are explicit default-duration choices. When the user says `nie wiem` or `I don't know` during a focus duration prompt, NEXA starts focus for the default focus duration. During a break duration prompt, NEXA starts break/odpoczynek for the default break duration. This is logged as default duration selection instead of silently guessing.
+
+Visual Shell receives timer countdown updates through `SHOW_TIMER_COUNTDOWN` and `CLEAR_TIMER_COUNTDOWN`. The Python runtime sends the canonical countdown state from `TimerService`; Godot may locally decrement the label for smooth display, but it is not the source of truth. Countdown color priority is: red first when remaining time is at or below 5% of total duration, orange second for the last 20 seconds, yellow for remaining time below 60% when red/orange do not apply, and white for 60–100%. If the last 20 seconds overlaps with the last 5%, red wins.

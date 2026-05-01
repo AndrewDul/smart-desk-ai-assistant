@@ -147,6 +147,7 @@ class CoreAssistant(
             on_timer_started=self._on_timer_started,
             on_timer_finished=self._on_timer_finished,
             on_timer_stopped=self._on_timer_stopped,
+            on_timer_tick=self._on_timer_tick,
         )
 
         self.parser = self.runtime.parser

@@ -297,6 +297,42 @@ class VisualShellController:
             )
         )
 
+
+    def show_timer_countdown(
+        self,
+        *,
+        mode: str,
+        remaining_seconds: int,
+        total_seconds: int,
+        label: str = "",
+        color_state: str = "",
+        source: str = "nexa-runtime",
+    ) -> bool:
+        safe_remaining = max(0, int(remaining_seconds))
+        safe_total = max(0, int(total_seconds))
+        return self.send_command(
+            VisualCommand(
+                command=VisualCommandName.SHOW_TIMER_COUNTDOWN,
+                payload={
+                    "mode": str(mode or "timer"),
+                    "remaining_seconds": safe_remaining,
+                    "total_seconds": safe_total,
+                    "label": str(label or ""),
+                    "color_state": str(color_state or ""),
+                },
+                source=source,
+            )
+        )
+
+    def clear_timer_countdown(self, *, source: str = "nexa-runtime") -> bool:
+        return self.send_command(
+            VisualCommand(
+                command=VisualCommandName.CLEAR_TIMER_COUNTDOWN,
+                payload={},
+                source=source,
+            )
+        )
+
     def send_command(self, command: VisualCommand) -> bool:
         return self.transport.send(command.to_dict())
 

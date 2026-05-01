@@ -34,9 +34,9 @@ const BACKGROUND_COLOR  = Color(0.022, 0.020, 0.038)
 const GLYPH_NEUTRAL_COLOR = Color(0.95, 0.93, 0.88)
 
 const FACE_EMERGE_DURATION   = 1.6
-const FACE_HOLD_DURATION     = 6.0
+const FACE_HOLD_DURATION     = 8.0
 const FACE_DISSOLVE_DURATION = 1.6
-const GLYPH_HOLD_DURATION    = 5.0
+const GLYPH_HOLD_DURATION    = 8.0
 
 const FACE_W = 235.0
 const FACE_H = 305.0
@@ -229,10 +229,13 @@ func set_visual_state(new_state: String) -> void:
             and coerced != VisualStates.SHOW_SELF_EYES:
         _force_face_dissolve()
 
-    # Trigger glyph on TEMPERATURE_GLYPH / BATTERY_GLYPH / DATE_GLYPH / TIME_GLYPH
-    if coerced == VisualStates.TEMPERATURE_GLYPH and previous != coerced:
+    # Trigger glyph on TEMPERATURE_GLYPH / BATTERY_GLYPH / DATE_GLYPH / TIME_GLYPH.
+    # Re-trigger transient glyphs even when the state is already active, because
+    # Visual Shell voice commands can repeat the same state before the previous
+    # glyph fully dissolves.
+    if coerced == VisualStates.TEMPERATURE_GLYPH:
         _trigger_glyph(GLYPH_KIND_TEMPERATURE)
-    elif coerced == VisualStates.BATTERY_GLYPH and previous != coerced:
+    elif coerced == VisualStates.BATTERY_GLYPH:
         _trigger_glyph(GLYPH_KIND_BATTERY)
     elif _state_is_glyph(previous) and not _state_is_glyph(coerced):
         _force_glyph_dissolve()

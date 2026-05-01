@@ -247,3 +247,38 @@ def test_visual_shell_controller_handles_show_date_voice_action() -> None:
     assert result is True
     assert transport.sent_messages[-1]["command"] == "SHOW_DATE"
     assert transport.sent_messages[-1]["payload"]["text"]
+
+
+def test_visual_shell_controller_sends_timer_countdown_commands() -> None:
+    transport = InMemoryVisualShellTransport()
+    controller = VisualShellController(transport=transport)
+
+    show_result = controller.show_timer_countdown(
+        mode="focus",
+        remaining_seconds=120,
+        total_seconds=1500,
+        label="FOCUS",
+        color_state="yellow",
+    )
+    clear_result = controller.clear_timer_countdown()
+
+    assert show_result is True
+    assert clear_result is True
+    assert transport.sent_messages == [
+        {
+            "command": "SHOW_TIMER_COUNTDOWN",
+            "payload": {
+                "mode": "focus",
+                "remaining_seconds": 120,
+                "total_seconds": 1500,
+                "label": "FOCUS",
+                "color_state": "yellow",
+            },
+            "source": "nexa-runtime",
+        },
+        {
+            "command": "CLEAR_TIMER_COUNTDOWN",
+            "payload": {},
+            "source": "nexa-runtime",
+        },
+    ]

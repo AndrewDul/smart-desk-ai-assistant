@@ -132,7 +132,12 @@
       "reminder.guided_start",
       "reminder.time_answer",
       "memory.guided_start",
-      "memory.list"
+      "memory.list",
+      "focus.start",
+      "focus.offer",
+      "focus.stop",
+      "break.start",
+      "break.stop"
     ],
     "runtime_candidate_log_path": "var/data/voice_engine_v2_runtime_candidates.jsonl",
     "pre_stt_shadow_enabled": false,

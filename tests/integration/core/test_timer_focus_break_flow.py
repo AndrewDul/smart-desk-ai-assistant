@@ -155,6 +155,25 @@ class TestTimerFocusBreakFlow(unittest.TestCase):
         self.assertEqual(self._last_display_title(), "BREAK")
         self.assertIn("Rozpoczynam przerwę na 10 minut", self._last_voice_text())
 
+    def test_focus_without_duration_asks_for_duration(self) -> None:
+        result = self.assistant.handle_command("Focus mode")
+
+        self.assertTrue(result)
+        self.assertFalse(self.assistant.timer.status()["running"])
+        self.assertEqual((self.assistant.pending_follow_up or {}).get("type"), "focus_duration")
+        self.assertIn("How long do you want to focus", self._last_voice_text())
+
+    def test_focus_duration_follow_up_defaults_when_unknown(self) -> None:
+        self.assistant.handle_command("Focus mode")
+
+        result = self.assistant.handle_command("I don't know")
+
+        self.assertTrue(result)
+        self.assertTrue(self.assistant.timer.status()["running"])
+        self.assertEqual(self.assistant.timer.status()["mode"], "focus")
+        self.assertIsNone(self.assistant.pending_follow_up)
+        self.assertIn("Starting focus mode for 25 minutes", self._last_voice_text())
+
     def test_focus_finish_clears_state_and_reports_completion(self) -> None:
         self.assistant.handle_command("Focus mode 25 minutes")
 
@@ -165,8 +184,8 @@ class TestTimerFocusBreakFlow(unittest.TestCase):
         self.assertFalse(self.assistant.state["focus_mode"])
         self.assertFalse(self.assistant.state["break_mode"])
         self.assertEqual(self._last_display_title(), "FOCUS DONE")
-        self.assertIn("Focus mode finished after 25 minutes", self._last_voice_text())
-        self.assertIsNone(self.assistant.pending_follow_up)
+        self.assertIn("Focus mode is ending", self._last_voice_text())
+        self.assertEqual((self.assistant.pending_follow_up or {}).get("type"), "focus_extend_offer")
 
     def test_break_finish_clears_state_and_reports_completion(self) -> None:
         self.assistant.handle_command("Break mode 5 minutes")
@@ -178,7 +197,8 @@ class TestTimerFocusBreakFlow(unittest.TestCase):
         self.assertFalse(self.assistant.state["focus_mode"])
         self.assertFalse(self.assistant.state["break_mode"])
         self.assertEqual(self._last_display_title(), "BREAK DONE")
-        self.assertIn("Break finished after 5 minutes", self._last_voice_text())
+        self.assertIn("Break mode is ending", self._last_voice_text())
+        self.assertEqual((self.assistant.pending_follow_up or {}).get("type"), "break_extend_offer")
 
     def test_timer_finish_clears_state_and_reports_completion(self) -> None:
         self.assistant.handle_command("Set timer for 3 minutes")

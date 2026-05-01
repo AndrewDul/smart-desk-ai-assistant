@@ -67,6 +67,7 @@ class RuntimeBuilder(
         on_timer_started=None,
         on_timer_finished=None,
         on_timer_stopped=None,
+        on_timer_tick=None,
     ) -> RuntimeServices:
         parser = self._build_parser()
         router = self._build_router(parser)
@@ -78,6 +79,7 @@ class RuntimeBuilder(
             on_timer_started=on_timer_started,
             on_timer_finished=on_timer_finished,
             on_timer_stopped=on_timer_stopped,
+            on_timer_tick=on_timer_tick,
         )
 
         audio_coordinator = self._build_audio_coordinator()

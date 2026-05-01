@@ -126,6 +126,14 @@ var help_overlay_pl_header: Label = null
 var help_overlay_en_body: Label = null
 var help_overlay_pl_body: Label = null
 var help_overlay_timer := 0.0
+var timer_countdown_layer: CanvasLayer = null
+var timer_countdown_backdrop: ColorRect = null
+var timer_countdown_label: Label = null
+var timer_countdown_active := false
+var timer_countdown_mode := "timer"
+var timer_countdown_remaining_seconds := 0
+var timer_countdown_total_seconds := 0
+var timer_countdown_last_tick_msec := 0
 
 
 func _ready() -> void:
@@ -148,6 +156,7 @@ func _apply_performance_policy() -> void:
 
 
 func _process(delta: float) -> void:
+    _tick_timer_countdown(delta)
     _sync_scene_layout_if_needed()
     _tick_help_overlay(delta)
 
@@ -353,6 +362,150 @@ func _setup_visual_transport() -> void:
         "_on_visual_transport_error"
     )
     add_child(visual_transport_server)
+
+
+func _setup_timer_countdown() -> void:
+    if timer_countdown_layer != null:
+        return
+
+    timer_countdown_layer = CanvasLayer.new()
+    timer_countdown_layer.name = "TimerCountdownLayer"
+    timer_countdown_layer.layer = 160
+    add_child(timer_countdown_layer)
+
+    timer_countdown_backdrop = ColorRect.new()
+    timer_countdown_backdrop.name = "TimerCountdownBackdrop"
+    timer_countdown_backdrop.color = Color(0.02, 0.025, 0.04, 0.20)
+    timer_countdown_backdrop.visible = false
+    timer_countdown_layer.add_child(timer_countdown_backdrop)
+
+    timer_countdown_label = Label.new()
+    timer_countdown_label.name = "TimerCountdownLabel"
+    timer_countdown_label.visible = false
+    timer_countdown_label.align = Label.ALIGN_LEFT
+    timer_countdown_label.valign = Label.VALIGN_CENTER
+    timer_countdown_label.add_color_override("font_color", Color(0.94, 0.98, 1.0, 1.0))
+    timer_countdown_label.add_constant_override("line_spacing", 2)
+    timer_countdown_layer.add_child(timer_countdown_label)
+
+    _layout_timer_countdown()
+
+
+func display_timer_countdown(payload: Dictionary) -> void:
+    _setup_timer_countdown()
+
+    timer_countdown_active = true
+    timer_countdown_mode = String(payload.get("mode", "timer")).strip_edges().to_lower()
+    timer_countdown_remaining_seconds = int(max(0, int(payload.get("remaining_seconds", 0))))
+    timer_countdown_total_seconds = int(max(1, int(payload.get("total_seconds", max(1, timer_countdown_remaining_seconds)))))
+    timer_countdown_last_tick_msec = OS.get_ticks_msec()
+
+    _refresh_timer_countdown_label()
+
+    if timer_countdown_backdrop != null:
+        timer_countdown_backdrop.visible = true
+        timer_countdown_backdrop.show()
+
+    if timer_countdown_label != null:
+        timer_countdown_label.visible = true
+        timer_countdown_label.show()
+        timer_countdown_label.raise()
+
+    print("Visual Shell timer countdown shown: mode=", timer_countdown_mode, " remaining=", timer_countdown_remaining_seconds, " total=", timer_countdown_total_seconds)
+
+
+func clear_timer_countdown() -> void:
+    timer_countdown_active = false
+    timer_countdown_remaining_seconds = 0
+    timer_countdown_total_seconds = 0
+    timer_countdown_mode = "timer"
+
+    if timer_countdown_backdrop != null:
+        timer_countdown_backdrop.visible = false
+
+    if timer_countdown_label != null:
+        timer_countdown_label.visible = false
+        timer_countdown_label.text = ""
+
+    print("Visual Shell timer countdown cleared")
+
+
+func _layout_timer_countdown() -> void:
+    var margin := Vector2(28.0, 22.0)
+    var size := Vector2(178.0, 54.0)
+
+    if timer_countdown_backdrop != null:
+        timer_countdown_backdrop.rect_position = margin
+        timer_countdown_backdrop.rect_size = size
+
+    if timer_countdown_label != null:
+        timer_countdown_label.rect_position = margin + Vector2(14.0, 7.0)
+        timer_countdown_label.rect_size = size - Vector2(22.0, 10.0)
+
+
+func _refresh_timer_countdown_label() -> void:
+    if not timer_countdown_active:
+        return
+
+    if timer_countdown_label == null:
+        return
+
+    var label := "TIMER"
+    if timer_countdown_mode == "focus":
+        label = "FOCUS"
+    elif timer_countdown_mode == "break":
+        label = "BREAK"
+
+    timer_countdown_label.text = label + "  " + _format_timer_countdown(timer_countdown_remaining_seconds)
+    timer_countdown_label.add_color_override("font_color", _timer_countdown_color(timer_countdown_remaining_seconds, timer_countdown_total_seconds))
+    _layout_timer_countdown()
+
+
+func _format_timer_countdown(seconds: int) -> String:
+    var safe_seconds: int = int(max(0, seconds))
+    var minutes: int = int(safe_seconds / 60)
+    var remainder: int = int(safe_seconds % 60)
+    return "%02d:%02d" % [minutes, remainder]
+
+
+func _timer_countdown_color(remaining_seconds: int, total_seconds: int) -> Color:
+    var safe_total: float = float(max(1, total_seconds))
+    var ratio: float = float(max(0, remaining_seconds)) / safe_total
+
+    # Priority: red wins over orange when the final 5% overlaps with the final 20 seconds.
+    if ratio <= 0.05:
+        return Color(1.0, 0.20, 0.18, 1.0)
+
+    if remaining_seconds <= 20:
+        return Color(1.0, 0.58, 0.18, 1.0)
+
+    if ratio <= 0.59:
+        return Color(1.0, 0.86, 0.26, 1.0)
+
+    return Color(0.94, 0.98, 1.0, 1.0)
+
+
+func _tick_timer_countdown(delta: float) -> void:
+    if not timer_countdown_active:
+        return
+
+    if timer_countdown_remaining_seconds <= 0:
+        clear_timer_countdown()
+        return
+
+    var now := OS.get_ticks_msec()
+    if timer_countdown_last_tick_msec <= 0:
+        timer_countdown_last_tick_msec = now
+        return
+
+    var elapsed_ms: int = now - timer_countdown_last_tick_msec
+    if elapsed_ms < 1000:
+        return
+
+    var elapsed_seconds: int = int(elapsed_ms / 1000)
+    timer_countdown_last_tick_msec += elapsed_seconds * 1000
+    timer_countdown_remaining_seconds = int(max(0, timer_countdown_remaining_seconds - elapsed_seconds))
+    _refresh_timer_countdown_label()
 
 
 func _set_visual_state(new_state: String) -> void:
@@ -670,6 +823,14 @@ func _apply_visual_state_message(message: Dictionary, payload: Dictionary) -> vo
 
 
 func _apply_visual_command(command: String, payload: Dictionary, raw_message: Dictionary) -> void:
+    if command == "SHOW_TIMER_COUNTDOWN":
+        display_timer_countdown(payload)
+        return
+
+    if command == "CLEAR_TIMER_COUNTDOWN":
+        clear_timer_countdown()
+        return
+
     if command == "SHOW_HELP":
         print("Visual Shell applying help overlay: ", String(payload.get("language", "en")))
         display_help_overlay(String(payload.get("language", "en")))

@@ -52,6 +52,21 @@ SYSTEM_INTENT_DEFINITIONS: dict[str, CommandIntentDefinition] = {
         domain=CommandIntentDomain.FOCUS,
         action="stop_focus_mode",
     ),
+    "focus.offer": CommandIntentDefinition(
+        key="focus.offer",
+        domain=CommandIntentDomain.FOCUS,
+        action="offer_focus_mode",
+    ),
+    "break.start": CommandIntentDefinition(
+        key="break.start",
+        domain=CommandIntentDomain.BREAK,
+        action="start_break_mode",
+    ),
+    "break.stop": CommandIntentDefinition(
+        key="break.stop",
+        domain=CommandIntentDomain.BREAK,
+        action="stop_break_mode",
+    ),
 }
 
 

@@ -83,6 +83,15 @@ class TestIntentParser(unittest.TestCase):
         self.assertEqual(result.action, "break_start")
         self.assertEqual(result.data["minutes"], 10.0)
 
+    def test_focus_offer_from_study_phrase_polish(self) -> None:
+        result = self.parser.parse("Chcę się pouczyć")
+        self.assertEqual(result.action, "focus_offer")
+
+    def test_break_natural_rest_phrase_polish(self) -> None:
+        result = self.parser.parse("Czas na przerwę")
+        self.assertEqual(result.action, "break_start")
+        self.assertEqual(result.data, {})
+
     def test_reminder_english_message_then_time(self) -> None:
         result = self.parser.parse("Remind me to drink water in 5 minutes")
         self.assertEqual(result.action, "reminder_create")

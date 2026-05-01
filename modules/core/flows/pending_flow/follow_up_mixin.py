@@ -35,6 +35,38 @@ class PendingFlowFollowUpMixin:
                 consumed_by=f"follow_up:{follow_type}",
             )
 
+        if follow_type == "focus_start_offer":
+            result = self._handle_focus_start_offer(text=routing_text, language=lang)
+            return PendingFlowDecision(
+                handled=True,
+                response=result,
+                consumed_by="follow_up:focus_start_offer",
+            )
+
+        if follow_type == "focus_extend_offer":
+            result = self._handle_focus_extend_offer(text=routing_text, language=lang)
+            return PendingFlowDecision(
+                handled=True,
+                response=result,
+                consumed_by="follow_up:focus_extend_offer",
+            )
+
+        if follow_type == "break_extend_offer":
+            result = self._handle_break_extend_offer(text=routing_text, language=lang)
+            return PendingFlowDecision(
+                handled=True,
+                response=result,
+                consumed_by="follow_up:break_extend_offer",
+            )
+
+        if follow_type == "break_to_focus_offer":
+            result = self._handle_break_to_focus_offer(text=routing_text, language=lang)
+            return PendingFlowDecision(
+                handled=True,
+                response=result,
+                consumed_by="follow_up:break_to_focus_offer",
+            )
+
         if follow_type == "post_focus_break_offer":
             result = self._handle_post_focus_break_offer(text=routing_text, language=lang)
             return PendingFlowDecision(
@@ -136,17 +168,32 @@ class PendingFlowFollowUpMixin:
     ) -> bool:
         minutes = self._extract_minutes_from_text(text)
         if minutes is None or minutes <= 0:
-            return self.assistant.deliver_text_response(
-                self.assistant._localized(
+            if follow_type in {"focus_duration", "break_duration"} and self._is_unknown_duration_answer(text):
+                follow_up = self.assistant.pending_follow_up or {}
+                fallback = (
+                    getattr(self.assistant, "default_focus_minutes", 25.0)
+                    if follow_type == "focus_duration"
+                    else getattr(self.assistant, "default_break_minutes", 5.0)
+                )
+                minutes = float(follow_up.get("default_minutes", fallback) or fallback)
+                LOGGER.info(
+                    "Default duration selected from unknown answer: follow_up_type=%s minutes=%s language=%s",
+                    follow_type,
+                    minutes,
                     language,
-                    "Podaj proszę czas w minutach albo sekundach.",
-                    "Please tell me the duration in minutes or seconds.",
-                ),
-                language=language,
-                route_kind=RouteKind.CONVERSATION,
-                source="pending_duration_retry",
-                metadata={"follow_up_type": follow_type},
-            )
+                )
+            else:
+                return self.assistant.deliver_text_response(
+                    self.assistant._localized(
+                        language,
+                        "Powiedz czas, na przykład: dwadzieścia pięć minut. Możesz też powiedzieć: nie wiem.",
+                        "Tell me the duration, for example: twenty five minutes. You can also say: I don't know.",
+                    ),
+                    language=language,
+                    route_kind=RouteKind.CONVERSATION,
+                    source="pending_duration_retry",
+                    metadata={"follow_up_type": follow_type},
+                )
 
         self.assistant.pending_follow_up = None
 
@@ -164,6 +211,98 @@ class PendingFlowFollowUpMixin:
             source=f"pending_{follow_type}",
         )
 
+    def _handle_focus_start_offer(self, *, text: str, language: str) -> bool:
+        if self._is_yes(text):
+            default_focus = float(getattr(self.assistant, "default_focus_minutes", 25.0))
+            self.assistant.pending_follow_up = {
+                "type": "focus_duration",
+                "language": language,
+                "mode": "focus",
+                "default_minutes": default_focus,
+                "source": "pending_focus_start_offer_yes",
+            }
+            LOGGER.info(
+                "Focus start accepted; asking for duration: language=%s default_minutes=%s",
+                language,
+                default_focus,
+            )
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Ile czasu chcesz się skupić?",
+                    "How long do you want to focus?",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_focus_start_duration_prompt",
+                metadata={"follow_up_type": "focus_duration"},
+            )
+
+        if self._is_no(text):
+            self.assistant.pending_follow_up = None
+            return self._deliver_ready_after_decline(
+                language=language,
+                source="pending_focus_start_declined",
+                follow_up_type="focus_start_offer",
+            )
+
+        return self._deliver_yes_no_retry(
+            language=language,
+            source="pending_focus_start_retry",
+            follow_up_type="focus_start_offer",
+            polish_text="Powiedz tak albo nie. Chcesz uruchomić skupienie?",
+            english_text="Say yes or no. Do you want to start focus mode?",
+        )
+
+    def _handle_focus_extend_offer(self, *, text: str, language: str) -> bool:
+        if self._is_yes(text):
+            default_focus = float(getattr(self.assistant, "default_focus_minutes", 25.0))
+            self.assistant.pending_follow_up = {
+                "type": "focus_duration",
+                "language": language,
+                "mode": "focus",
+                "default_minutes": default_focus,
+                "source": "pending_focus_extend_yes",
+            }
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Na ile przedłużamy skupienie?",
+                    "How long do you want to extend focus mode?",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_focus_extend_duration_prompt",
+                metadata={"follow_up_type": "focus_duration"},
+            )
+
+        if self._is_no(text):
+            self.assistant.pending_follow_up = {
+                "type": "post_focus_break_offer",
+                "language": language,
+                "default_minutes": float(getattr(self.assistant, "default_break_minutes", 5.0)),
+                "source": "pending_focus_extend_declined",
+            }
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Chcesz teraz odpocząć?",
+                    "Do you want to take a break?",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_focus_break_offer_prompt",
+                metadata={"follow_up_type": "post_focus_break_offer"},
+            )
+
+        return self._deliver_yes_no_retry(
+            language=language,
+            source="pending_focus_extend_retry",
+            follow_up_type="focus_extend_offer",
+            polish_text="Powiedz tak albo nie. Chcesz przedłużyć skupienie?",
+            english_text="Say yes or no. Do you want to extend focus mode?",
+        )
+
     def _handle_post_focus_break_offer(self, *, text: str, language: str) -> bool:
         direct_minutes = self._extract_minutes_from_text(text)
 
@@ -177,39 +316,157 @@ class PendingFlowFollowUpMixin:
             )
 
         if self._is_yes(text):
-            self.assistant.pending_follow_up = None
             default_break = float(getattr(self.assistant, "default_break_minutes", 5.0))
-            return self._start_timer_mode(
-                minutes=default_break,
-                mode="break",
+            self.assistant.pending_follow_up = {
+                "type": "break_duration",
+                "language": language,
+                "mode": "break",
+                "default_minutes": default_break,
+                "source": "pending_post_focus_break_yes",
+            }
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Na ile ustawiam odpoczynek?",
+                    "How long do you want to take a break?",
+                ),
                 language=language,
-                source="pending_post_focus_break_default",
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_break_duration_prompt",
+                metadata={"follow_up_type": "break_duration"},
             )
 
         if self._is_no(text):
             self.assistant.pending_follow_up = None
+            return self._deliver_ready_after_decline(
+                language=language,
+                source="pending_post_focus_break_declined",
+                follow_up_type="post_focus_break_offer",
+            )
+
+        return self._deliver_yes_no_retry(
+            language=language,
+            source="pending_post_focus_break_retry",
+            follow_up_type="post_focus_break_offer",
+            polish_text="Powiedz tak, nie albo od razu podaj długość odpoczynku.",
+            english_text="Say yes, no, or tell me the break duration right away.",
+        )
+
+    def _handle_break_extend_offer(self, *, text: str, language: str) -> bool:
+        if self._is_yes(text):
+            default_break = float(getattr(self.assistant, "default_break_minutes", 5.0))
+            self.assistant.pending_follow_up = {
+                "type": "break_duration",
+                "language": language,
+                "mode": "break",
+                "default_minutes": default_break,
+                "source": "pending_break_extend_yes",
+            }
             return self.assistant.deliver_text_response(
                 self.assistant._localized(
                     language,
-                    "Dobrze. Nie uruchamiam przerwy.",
-                    "Okay. I will not start a break.",
+                    "Na ile przedłużamy odpoczynek?",
+                    "How long do you want to extend your break?",
                 ),
                 language=language,
                 route_kind=RouteKind.CONVERSATION,
-                source="pending_post_focus_break_declined",
-                metadata={"follow_up_type": "post_focus_break_offer"},
+                source="pending_break_extend_duration_prompt",
+                metadata={"follow_up_type": "break_duration"},
             )
 
+        if self._is_no(text):
+            self.assistant.pending_follow_up = {
+                "type": "break_to_focus_offer",
+                "language": language,
+                "default_minutes": float(getattr(self.assistant, "default_focus_minutes", 25.0)),
+                "source": "pending_break_extend_declined",
+            }
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Chcesz wrócić do skupienia?",
+                    "Do you want to return to focus mode?",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_break_to_focus_offer_prompt",
+                metadata={"follow_up_type": "break_to_focus_offer"},
+            )
+
+        return self._deliver_yes_no_retry(
+            language=language,
+            source="pending_break_extend_retry",
+            follow_up_type="break_extend_offer",
+            polish_text="Powiedz tak albo nie. Chcesz przedłużyć odpoczynek?",
+            english_text="Say yes or no. Do you want to extend your break?",
+        )
+
+    def _handle_break_to_focus_offer(self, *, text: str, language: str) -> bool:
+        if self._is_yes(text):
+            default_focus = float(getattr(self.assistant, "default_focus_minutes", 25.0))
+            self.assistant.pending_follow_up = {
+                "type": "focus_duration",
+                "language": language,
+                "mode": "focus",
+                "default_minutes": default_focus,
+                "source": "pending_break_to_focus_yes",
+            }
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Ile czasu chcesz się skupić?",
+                    "How long do you want to focus?",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_break_to_focus_duration_prompt",
+                metadata={"follow_up_type": "focus_duration"},
+            )
+
+        if self._is_no(text):
+            self.assistant.pending_follow_up = None
+            return self._deliver_ready_after_decline(
+                language=language,
+                source="pending_break_to_focus_declined",
+                follow_up_type="break_to_focus_offer",
+            )
+
+        return self._deliver_yes_no_retry(
+            language=language,
+            source="pending_break_to_focus_retry",
+            follow_up_type="break_to_focus_offer",
+            polish_text="Powiedz tak albo nie. Chcesz wrócić do skupienia?",
+            english_text="Say yes or no. Do you want to return to focus mode?",
+        )
+
+    def _deliver_ready_after_decline(self, *, language: str, source: str, follow_up_type: str) -> bool:
         return self.assistant.deliver_text_response(
             self.assistant._localized(
                 language,
-                "Powiedz tak, nie albo od razu podaj długość przerwy.",
-                "Say yes, no, or tell me the break duration right away.",
+                "Jasne. Zostaję w gotowości.",
+                "Okay. I will stay ready.",
             ),
             language=language,
             route_kind=RouteKind.CONVERSATION,
-            source="pending_post_focus_break_retry",
-            metadata={"follow_up_type": "post_focus_break_offer"},
+            source=source,
+            metadata={"follow_up_type": follow_up_type},
+        )
+
+    def _deliver_yes_no_retry(
+        self,
+        *,
+        language: str,
+        source: str,
+        follow_up_type: str,
+        polish_text: str,
+        english_text: str,
+    ) -> bool:
+        return self.assistant.deliver_text_response(
+            self.assistant._localized(language, polish_text, english_text),
+            language=language,
+            route_kind=RouteKind.CONVERSATION,
+            source=source,
+            metadata={"follow_up_type": follow_up_type},
         )
 
     def _handle_reminder_time_follow_up(self, *, text: str, language: str) -> bool:

@@ -477,7 +477,7 @@ def build_default_command_grammar() -> CommandGrammar:
 
         # System state.
         CommandPhrase(
-            "system.temperature",
+            "visual_shell.show_temperature",
             "temperatura",
             CommandLanguage.POLISH,
             tags=("system",),
@@ -507,7 +507,7 @@ def build_default_command_grammar() -> CommandGrammar:
             tags=("system",),
         ),
         CommandPhrase(
-            "system.battery",
+            "visual_shell.show_battery",
             "bateria",
             CommandLanguage.POLISH,
             tags=("system",),
@@ -626,43 +626,43 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
 
         CommandPhrase(
-            "clock.time",
+            "visual_shell.show_time",
             "pokaż czas",
             CommandLanguage.POLISH,
             tags=("visual_shell", "metric"),
         ),
         CommandPhrase(
-            "clock.time",
+            "visual_shell.show_time",
             "pokaz czas",
             CommandLanguage.POLISH,
             tags=("visual_shell", "metric"),
         ),
         CommandPhrase(
-            "clock.time",
+            "visual_shell.show_time",
             "pokaż godzinę",
             CommandLanguage.POLISH,
             tags=("visual_shell", "metric"),
         ),
         CommandPhrase(
-            "clock.time",
+            "visual_shell.show_time",
             "pokaz godzine",
             CommandLanguage.POLISH,
             tags=("visual_shell", "metric"),
         ),
         CommandPhrase(
-            "clock.time",
+            "visual_shell.show_time",
             "show time",
             CommandLanguage.ENGLISH,
             tags=("visual_shell", "metric"),
         ),
         CommandPhrase(
-            "clock.time",
+            "visual_shell.show_time",
             "show the time",
             CommandLanguage.ENGLISH,
             tags=("visual_shell", "metric"),
         ),
         CommandPhrase(
-            "clock.time",
+            "visual_shell.show_time",
             "display time",
             CommandLanguage.ENGLISH,
             tags=("visual_shell", "metric"),
@@ -921,6 +921,24 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             "focus.start",
+            "focus mode",
+            CommandLanguage.ENGLISH,
+            tags=("focus",),
+        ),
+        CommandPhrase(
+            "focus.offer",
+            "i want to study",
+            CommandLanguage.ENGLISH,
+            tags=("focus", "offer"),
+        ),
+        CommandPhrase(
+            "focus.offer",
+            "study time",
+            CommandLanguage.ENGLISH,
+            tags=("focus", "offer"),
+        ),
+        CommandPhrase(
+            "focus.start",
             "start focus mode for five minutes",
             CommandLanguage.ENGLISH,
             tags=("focus",),
@@ -936,6 +954,24 @@ def build_default_command_grammar() -> CommandGrammar:
             "włącz tryb skupienia",
             CommandLanguage.POLISH,
             tags=("focus",),
+        ),
+        CommandPhrase(
+            "focus.start",
+            "tryb skupienia",
+            CommandLanguage.POLISH,
+            tags=("focus",),
+        ),
+        CommandPhrase(
+            "focus.offer",
+            "chcę się pouczyć",
+            CommandLanguage.POLISH,
+            tags=("focus", "offer"),
+        ),
+        CommandPhrase(
+            "focus.offer",
+            "chce sie pouczyc",
+            CommandLanguage.POLISH,
+            tags=("focus", "offer", "stt_recovery"),
         ),
         CommandPhrase(
             "focus.stop",
@@ -954,6 +990,123 @@ def build_default_command_grammar() -> CommandGrammar:
             "wyłącz tryb skupienia",
             CommandLanguage.POLISH,
             tags=("focus",),
+        ),
+
+        # Break mode.
+        CommandPhrase(
+            "break.start",
+            "break mode",
+            CommandLanguage.ENGLISH,
+            tags=("break",),
+        ),
+        CommandPhrase(
+            "break.start",
+            "start break mode",
+            CommandLanguage.ENGLISH,
+            tags=("break",),
+        ),
+        CommandPhrase(
+            "break.start",
+            "take a break",
+            CommandLanguage.ENGLISH,
+            tags=("break",),
+        ),
+        CommandPhrase(
+            "break.stop",
+            "stop break mode",
+            CommandLanguage.ENGLISH,
+            tags=("break",),
+        ),
+        CommandPhrase(
+            "break.start",
+            "przerwa",
+            CommandLanguage.POLISH,
+            tags=("break",),
+        ),
+        CommandPhrase(
+            "break.start",
+            "odpoczynek",
+            CommandLanguage.POLISH,
+            tags=("break",),
+        ),
+        CommandPhrase(
+            "break.start",
+            "czas na przerwę",
+            CommandLanguage.POLISH,
+            tags=("break",),
+        ),
+        CommandPhrase(
+            "break.start",
+            "czas na przerwe",
+            CommandLanguage.POLISH,
+            tags=("break", "stt_recovery"),
+        ),
+        CommandPhrase(
+            "break.stop",
+            "zatrzymaj przerwę",
+            CommandLanguage.POLISH,
+            tags=("break",),
+        ),
+        CommandPhrase(
+            "break.stop",
+            "zatrzymaj przerwe",
+            CommandLanguage.POLISH,
+            tags=("break", "stt_recovery"),
+        ),
+
+        CommandPhrase(
+            "visual_shell.show_face",
+            "face",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "face", "short"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_face",
+            "your face",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "face", "short"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_face",
+            "twarz",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "face", "short"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "display temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "temperature"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "show current temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "temperature"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "pokaż temperaturę",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "temperature"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_battery",
+            "display battery",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "battery"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_battery",
+            "show battery status",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "battery"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_battery",
+            "pokaż baterię",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "battery"),
         ),
 
         # Fast guided reminder phrases for Vosk command ASR.
