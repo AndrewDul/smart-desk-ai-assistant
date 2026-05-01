@@ -12659,3 +12659,118 @@ Visual Shell help overlay transport was working, but the renderer window was bei
 Visual Shell now launches Godot with an explicit GLES2 video driver, fixed 1280x800 resolution, and position 0,0 by default. This avoids Raspberry Pi / XWayland duplicate-window behaviour caused by GLXBadFBConfig probing and keeps the renderer window aligned with the NEXA display. Command handling remains in Python; the shell only renders received transport commands.
 
 - Visual Shell launch now uses a singleton guard in `modules/presentation/visual_shell/bin/run_visual_shell.sh`. The script uses a lock file plus a process-cwd check so repeated starts do not create duplicate Godot windows. This protects the Visual Shell transport port and keeps the help overlay attached to a single visible renderer window.
+
+<!-- BEGIN NEXA_GUIDED_REMINDERS_AND_MEMORY_RUNTIME -->
+
+## Guided reminders and guided memory runtime
+
+NEXA uses deterministic guided flows for simple product-grade commands. Simple reminder and memory commands must not use the LLM.
+
+Target fast command path:
+
+openWakeWord
+-> RealtimeAudioBus
+-> Silero VAD ONNX
+-> Vosk PL/EN command recognition
+-> Command Normalizer
+-> Alias Store
+-> Exact/Fuzzy Matcher
+-> Confidence Policy
+-> Intent Resolver
+-> Executor
+-> Response Templates
+-> Piper TTS
+-> Speaker
+
+### Guided reminder flow
+
+Reminder creation is handled as a deterministic guided flow:
+
+1. User wakes NEXA.
+2. User says `set reminder`, `set a reminder`, `przypomnij mi coś`, or another supported reminder start phrase.
+3. Vosk recognizes `reminder.guided_start`.
+4. NEXA asks for the time in the same language as the current turn.
+5. User answers with a short time phrase, for example `10 seconds`, `ten seconds`, `dziesięć sekund`, or `za minutę`.
+6. Vosk recognizes `reminder.time_answer` when confidence is high.
+7. NEXA asks what the reminder should say.
+8. Reminder message is open dictation and may use FasterWhisper fallback because arbitrary free text should not be forced into Vosk grammar.
+9. NEXA saves the reminder, confirms via Piper TTS, logs the operation, and optionally updates Visual Shell.
+
+Reminder runtime rules:
+
+- English reminder flow must stay English.
+- Polish reminder flow must stay Polish.
+- Reminder start and reminder time are safe Vosk fast-path candidates.
+- Reminder message can use FasterWhisper fallback because it is open content.
+- LLM must not be used for simple reminder creation.
+- No reminder operation may fail silently.
+- Runtime must log transcript, language, intent, confidence, fallback usage, executor action and TTS backend.
+
+Known follow-up:
+
+`reminder_time` must receive a language lock from the active guided flow. A Polish reminder flow should use Polish time recognition only. An English reminder flow should use English time recognition only. Mixed recognition such as `eight seconds | pięć sekund` must be prevented or rejected.
+
+### Guided memory flow
+
+Memory should follow the same product pattern as reminders.
+
+Memory save flow:
+
+1. User wakes NEXA.
+2. User says `remember something`, `remember this`, `zapamiętaj coś`, or another supported memory start phrase.
+3. Vosk recognizes a canonical memory guided-start intent.
+4. NEXA asks what should be remembered in the same language as the current turn.
+5. User dictates the full memory phrase, for example `the keys are in the kitchen` or `klucze są w kuchni`.
+6. NEXA stores the full original phrase locally.
+7. NEXA also stores normalized searchable tokens, language, source, timestamp and confidence metadata.
+8. NEXA confirms using same-language response templates and Piper TTS.
+
+Memory recall flow:
+
+1. User wakes NEXA.
+2. User asks a recall query, for example `where are the keys`, `what is on my desk`, `przypomnij mi gdzie są klucze`, or `co mam na biurku`.
+3. Vosk recognizes a memory recall intent.
+4. NEXA normalizes the query in the detected turn language.
+5. NEXA searches the local memory store using deterministic token/phrase matching first.
+6. NEXA returns the most relevant saved facts in the same language as the user.
+7. If there are multiple matches, NEXA may list them or ask a clarification question.
+8. LLM may only be used later for optional natural summarization or reasoning, not for the basic memory save/recall operation.
+
+Examples:
+
+- Polish save:
+  - User: `zapamiętaj coś`
+  - NEXA: `Co mam zapamiętać?`
+  - User: `klucze są w kuchni`
+  - Stored memory: `klucze są w kuchni`
+  - Language: `pl`
+
+- Polish recall:
+  - User: `przypomnij mi gdzie są klucze`
+  - Search token: `klucze`
+  - NEXA: `Zapamiętałam, że klucze są w kuchni.`
+
+- English save:
+  - User: `remember something`
+  - NEXA: `What should I remember?`
+  - User: `my phone is on the desk`
+  - Stored memory: `my phone is on the desk`
+  - Language: `en`
+
+- English recall:
+  - User: `where is my phone`
+  - Search token: `phone`
+  - NEXA: `I remember that your phone is on the desk.`
+
+Memory runtime rules:
+
+- Vosk handles deterministic memory commands.
+- Free-form memory content may use FasterWhisper fallback.
+- Polish and English memory records must stay separated per turn.
+- Responses must use the same language as the triggering turn.
+- Store original text and normalized search text.
+- Search locally by token/phrase matching before any LLM summarization.
+- Confirmation is required for risky actions such as clear all memory or bulk deletion.
+- No memory operation may fail silently.
+- Runtime must log memory save, recall, delete, language, confidence, fallback usage and executor result.
+<!-- END NEXA_GUIDED_REMINDERS_AND_MEMORY_RUNTIME -->

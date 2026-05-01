@@ -159,6 +159,8 @@ def test_runtime_candidate_executor_rejects_exit_even_if_recognized() -> None:
     assert builder.supported_intents == (
         "assistant.help",
         "assistant.identity",
+        "reminder.guided_start",
+        "reminder.time_answer",
         "system.current_time",
         "visual_shell.look_at_user",
         "visual_shell.return_to_idle",

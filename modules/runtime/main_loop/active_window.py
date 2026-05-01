@@ -199,6 +199,17 @@ def _capture_mode_for_active_phase(
     capture_handoff: dict[str, object] | None = None,
 ) -> str:
     normalized_phase = str(active_phase or PHASE_COMMAND).strip() or PHASE_COMMAND
+
+    if normalized_phase == "follow_up":
+        pending_follow_up = getattr(assistant, "pending_follow_up", None)
+        if isinstance(pending_follow_up, dict):
+            pending_type = str(pending_follow_up.get("type", "") or "").strip().lower()
+            if pending_type == "reminder_time":
+                return "reminder_time"
+            if pending_type == "reminder_message":
+                return "reminder_message"
+        return normalized_phase
+
     if normalized_phase != PHASE_COMMAND:
         return normalized_phase
 
@@ -236,6 +247,16 @@ def _remember_input_capture(
         "confidence": max(0.0, float(confidence or 0.0)),
         "metadata": dict(metadata or {}),
     }
+
+    append_log(
+        "Input capture remembered: "
+        f"phase={phase}, "
+        f"mode={mode}, "
+        f"language={language}, "
+        f"latency_ms={max(0.0, float(latency_ms or 0.0)):.1f}, "
+        f"audio_duration_ms={max(0.0, float(audio_duration_ms or 0.0)):.1f}, "
+        f"backend={backend_label}"
+    )
 
 
 def _remember_capture_from_transcript(

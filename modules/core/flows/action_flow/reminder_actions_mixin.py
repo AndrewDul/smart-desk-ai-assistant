@@ -69,6 +69,29 @@ class ActionReminderActionsMixin:
         del route
         seconds = self._resolve_reminder_seconds(payload)
         message = self._first_present(payload, "message", "content", "text", "value")
+        guided = bool(payload.get("guided", False))
+
+        if guided or seconds is None or not str(message or "").strip():
+            self.assistant.pending_follow_up = {
+                "type": "reminder_time",
+                "language": language,
+                "message": str(message or "").strip(),
+            }
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Jasne. Kiedy?",
+                    "Sure. When?",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="action_reminder_guided_time_prompt",
+                metadata={
+                    "follow_up_type": "reminder_time",
+                    "action": "reminder_create",
+                },
+            )
+
         outcome = self._get_reminder_skill_executor().create(
             seconds=seconds,
             message=message,

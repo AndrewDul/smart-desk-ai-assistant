@@ -43,6 +43,22 @@ class PendingFlowFollowUpMixin:
                 consumed_by="follow_up:post_focus_break_offer",
             )
 
+        if follow_type == "reminder_time":
+            result = self._handle_reminder_time_follow_up(text=routing_text, language=lang)
+            return PendingFlowDecision(
+                handled=True,
+                response=result,
+                consumed_by="follow_up:reminder_time",
+            )
+
+        if follow_type == "reminder_message":
+            result = self._handle_reminder_message_follow_up(text=routing_text, language=lang)
+            return PendingFlowDecision(
+                handled=True,
+                response=result,
+                consumed_by="follow_up:reminder_message",
+            )
+
         if follow_type == "capture_name":
             result = self._handle_capture_name(text=routing_text, language=lang)
             return PendingFlowDecision(
@@ -186,6 +202,175 @@ class PendingFlowFollowUpMixin:
             route_kind=RouteKind.CONVERSATION,
             source="pending_post_focus_break_retry",
             metadata={"follow_up_type": "post_focus_break_offer"},
+        )
+
+    def _handle_reminder_time_follow_up(self, *, text: str, language: str) -> bool:
+        parsed = self._parse_reminder_time_answer(text, language=language)
+        if parsed is None:
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Nie złapałam czasu. Powiedz na przykład: za 15 minut albo o 18:30.",
+                    "I did not catch the time. Say for example: in 15 minutes or at 6:30 PM.",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_reminder_time_retry",
+                metadata={"follow_up_type": "reminder_time"},
+            )
+
+        follow_up = self.assistant.pending_follow_up or {}
+        existing_message = str(follow_up.get("message", "") or "").strip()
+        if existing_message:
+            return self._save_guided_reminder(
+                seconds=parsed.seconds,
+                message=existing_message,
+                language=language,
+                time_label=parsed.display_phrase,
+                source="pending_reminder_time_with_existing_message",
+            )
+
+        self.assistant.pending_follow_up = {
+            "type": "reminder_message",
+            "language": language,
+            "seconds": parsed.seconds,
+            "time_label": parsed.display_phrase,
+            "due_at": parsed.due_at.isoformat(),
+        }
+        return self.assistant.deliver_text_response(
+            self.assistant._localized(
+                language,
+                "Dobrze. Co przypomnieć?",
+                "Okay. What should I remind you?",
+            ),
+            language=language,
+            route_kind=RouteKind.CONVERSATION,
+            source="pending_reminder_message_prompt",
+            metadata={
+                "follow_up_type": "reminder_message",
+                "seconds": parsed.seconds,
+                "time_label": parsed.display_phrase,
+            },
+        )
+
+    def _handle_reminder_message_follow_up(self, *, text: str, language: str) -> bool:
+        follow_up = self.assistant.pending_follow_up or {}
+        seconds = int(follow_up.get("seconds", 0) or 0)
+        time_label = str(follow_up.get("time_label", "") or "").strip()
+        message = self._clean_reminder_message_answer(text)
+
+        if seconds <= 0:
+            self.assistant.pending_follow_up = None
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Zgubiłam czas przypomnienia. Zacznijmy jeszcze raz.",
+                    "I lost the reminder time. Let us start again.",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_reminder_message_missing_time",
+                metadata={"follow_up_type": "reminder_message"},
+            )
+
+        if not message:
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Powiedz proszę, co mam Ci przypomnieć.",
+                    "Please tell me what I should remind you about.",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_reminder_message_retry",
+                metadata={"follow_up_type": "reminder_message", "seconds": seconds},
+            )
+
+        return self._save_guided_reminder(
+            seconds=seconds,
+            message=message,
+            language=language,
+            time_label=time_label,
+            source="pending_reminder_message_saved",
+        )
+
+    def _save_guided_reminder(
+        self,
+        *,
+        seconds: int,
+        message: str,
+        language: str,
+        time_label: str,
+        source: str,
+    ) -> bool:
+        reminders = getattr(self.assistant, "reminders", None)
+        add_method = self._first_callable(
+            reminders,
+            "add_after_seconds",
+            "add_in_seconds",
+            "create_after_seconds",
+        )
+        if add_method is None:
+            self.assistant.pending_follow_up = None
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Moduł przypomnień nie jest jeszcze gotowy.",
+                    "The reminders module is not ready yet.",
+                ),
+                language=language,
+                route_kind=RouteKind.UNCLEAR,
+                source=f"{source}_missing_reminder_service",
+                metadata={"follow_up_type": "reminder_message"},
+            )
+
+        clean_message = self._clean_reminder_message_answer(message)
+        try:
+            reminder = add_method(
+                seconds=int(seconds),
+                message=clean_message,
+                language=language,
+            )
+        except Exception as error:
+            self.assistant.pending_follow_up = None
+            LOGGER.warning("Guided reminder save failed: %s", error)
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Nie udało mi się zapisać przypomnienia.",
+                    "I could not save the reminder.",
+                ),
+                language=language,
+                route_kind=RouteKind.UNCLEAR,
+                source=f"{source}_save_failed",
+                metadata={"follow_up_type": "reminder_message"},
+            )
+
+        self.assistant.pending_follow_up = None
+        reminder_id = ""
+        if isinstance(reminder, dict):
+            reminder_id = str(reminder.get("id", "") or "").strip()
+
+        spoken_time = time_label or self.assistant._localized(
+            language,
+            "w podanym czasie",
+            "at the requested time",
+        )
+        return self.assistant.deliver_text_response(
+            self.assistant._localized(
+                language,
+                f"Gotowe. Przypomnę {spoken_time}.",
+                f"Done. Reminder set {spoken_time}.",
+            ),
+            language=language,
+            route_kind=RouteKind.ACTION,
+            source=source,
+            metadata={
+                "follow_up_type": "reminder_message",
+                "seconds": int(seconds),
+                "message": clean_message,
+                "reminder_id": reminder_id,
+            },
         )
 
     def _handle_capture_name(self, *, text: str, language: str) -> bool:

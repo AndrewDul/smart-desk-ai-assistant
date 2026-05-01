@@ -207,6 +207,53 @@ class VoiceEngineV2RuntimeCandidateAdapter:
             transcript=transcript,
             language_hint=language_hint,
         )
+        reminder_intent_key = self._vosk_shadow_result_allowed_reminder_intent_key(
+            result_metadata,
+            transcript=transcript,
+        )
+        if reminder_intent_key:
+            rejection_reason = None
+            language_value = str(result_metadata.get("language", "") or "").strip()
+            if language_value not in {"pl", "en"}:
+                language_value = language_hint
+
+            if reminder_intent_key in self._settings.runtime_candidate_intent_allowlist:
+                matched_phrase = str(result_metadata.get("matched_phrase", "") or "").strip()
+                execution_plan = self._execution_plan_builder.build_plan_from_intent(
+                    turn_id=request.turn_id,
+                    intent_key=reminder_intent_key,
+                    transcript=transcript,
+                    language=language_value,
+                    metadata=request_metadata,
+                    confidence=float(result_metadata.get("confidence", 1.0) or 1.0),
+                    matched_phrase=matched_phrase,
+                )
+                if execution_plan is not None:
+                    return self._finalize(
+                        VoiceEngineV2RuntimeCandidateResult(
+                            accepted=True,
+                            reason="accepted",
+                            legacy_runtime_primary=True,
+                            request=request,
+                            execution_plan=execution_plan,
+                            metadata={
+                                **request_metadata,
+                                "runtime_candidate": True,
+                                "runtime_candidate_source_safe": True,
+                                "runtime_candidates_can_run": True,
+                                "intent_key": reminder_intent_key,
+                                "legacy_action": execution_plan.spec.legacy_action,
+                                "tool_name": execution_plan.spec.tool_name,
+                                "route": "guided_reminder",
+                                "language": language_value,
+                                "llm_prevented": True,
+                                "faster_whisper_prevented": True,
+                                "command_execution_enabled": False,
+                                "action_executed": False,
+                            },
+                        )
+                    )
+
         if rejection_reason is not None:
             return self._finalize(
                 self._rejected(
@@ -220,7 +267,107 @@ class VoiceEngineV2RuntimeCandidateAdapter:
                 )
             )
 
+        # Dead reminder candidate branch removed: accepted results must include an execution_plan.
+
         return self.process_request(request)
+
+    @staticmethod
+    def _vosk_shadow_result_allowed_reminder_intent_key(
+        result_metadata,
+        *,
+        transcript: str,
+    ) -> str:
+        """Return a safe guided reminder intent key from a trusted Vosk result."""
+
+        allowed_intents = {"reminder.guided_start", "reminder.time_answer"}
+
+        def safe_text(value: object) -> str:
+            return str(value or "").strip()
+
+        def payload_get(payload: object, key: str) -> object:
+            getter = getattr(payload, "get", None)
+            if callable(getter):
+                try:
+                    return getter(key)
+                except Exception:
+                    return None
+            return None
+
+        unsafe_boolean_keys = (
+            "action_executed",
+            "full_stt_prevented",
+            "runtime_takeover",
+            "runtime_integration",
+            "command_execution_enabled",
+            "faster_whisper_bypass_enabled",
+            "independent_microphone_stream_started",
+            "live_command_recognition_enabled",
+        )
+        for key in unsafe_boolean_keys:
+            if bool(payload_get(result_metadata, key)):
+                return ""
+
+        if not (
+            bool(payload_get(result_metadata, "recognized"))
+            or bool(payload_get(result_metadata, "command_matched"))
+        ):
+            return ""
+
+        payloads = [result_metadata]
+        for nested_key in (
+            "metadata",
+            "result",
+            "payload",
+            "vosk_shadow_result",
+            "vosk_shadow_asr_result",
+        ):
+            nested = payload_get(result_metadata, nested_key)
+            if hasattr(nested, "get"):
+                payloads.append(nested)
+
+        for payload in payloads:
+            for key in (
+                "intent_key",
+                "intent",
+                "intent_id",
+                "canonical_intent",
+                "command_intent",
+            ):
+                intent_key = safe_text(payload_get(payload, key))
+                if intent_key in allowed_intents:
+                    return intent_key
+
+        try:
+            from modules.devices.audio.command_asr.command_grammar import (
+                build_default_command_grammar,
+            )
+
+            result = build_default_command_grammar().match(transcript)
+            if bool(getattr(result, "is_match", False)):
+                intent_key = safe_text(getattr(result, "intent_key", ""))
+                if intent_key in allowed_intents:
+                    return intent_key
+        except Exception:
+            return ""
+
+        return ""
+
+    @classmethod
+    def _vosk_shadow_result_has_allowed_reminder_intent(
+        cls,
+        result_metadata,
+        *,
+        transcript: str,
+    ) -> bool:
+        """Keep backward-compatible boolean reminder policy checks."""
+
+        return bool(
+            cls._vosk_shadow_result_allowed_reminder_intent_key(
+                result_metadata,
+                transcript=transcript,
+            )
+        )
+
 
     def process_request(
         self,

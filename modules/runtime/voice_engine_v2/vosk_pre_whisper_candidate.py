@@ -331,6 +331,8 @@ class VoiceEngineV2VoskPreWhisperCandidateAdapter:
             "recognition_attempted": recognition_attempted,
             "recognized": recognized,
             "command_matched": recognized,
+            "intent_key": str(getattr(asr_result, "intent_key", "") or ""),
+            "matched_phrase": str(getattr(asr_result, "matched_phrase", "") or ""),
             "transcript": str(getattr(asr_result, "transcript", "") or ""),
             "normalized_text": str(
                 getattr(asr_result, "normalized_text", "") or ""

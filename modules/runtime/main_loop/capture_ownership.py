@@ -304,6 +304,14 @@ class CaptureOwnershipService:
         return "unknown"
 
     def _capture_handoff_force_close_enabled(self, assistant: CoreAssistant) -> bool:
+        if bool(getattr(assistant, "_force_next_capture_handoff_close", False)):
+            setattr(assistant, "_force_next_capture_handoff_close", False)
+            append_log(
+                "Capture handoff force-close consumed: "
+                "reason=async_notification_recovery"
+            )
+            return True
+
         voice_input_cfg = assistant.settings.get("voice_input", {})
         configured = voice_input_cfg.get("capture_handoff_force_close")
         if configured is None:
@@ -318,6 +326,15 @@ class CaptureOwnershipService:
     ) -> tuple[bool, str]:
         if component is None:
             return False, "none"
+
+        if bool(getattr(assistant, "_force_next_capture_handoff_close", False)):
+            setattr(assistant, "_force_next_capture_handoff_close", False)
+            append_log(
+                "Capture handoff force-close consumed before soft release: "
+                f"label={label}, reason=async_notification_recovery"
+            )
+            closed = self._safe_close_runtime_component(component, label)
+            return closed, "close" if closed else "none"
 
         release_method = getattr(component, "release_capture_ownership", None)
         if callable(release_method):

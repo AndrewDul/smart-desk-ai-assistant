@@ -79,10 +79,30 @@ class RuntimeCandidateExecutionPlanBuilder:
                 legacy_action="show_shell",
                 tool_name="visual_shell.show_shell",
             ),
+            "visual_shell.show_self": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="visual_shell.show_self",
+                legacy_action="show_self",
+                tool_name="visual_shell.show_self",
+            ),
+            "visual_shell.show_eyes": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="visual_shell.show_eyes",
+                legacy_action="show_eyes",
+                tool_name="visual_shell.show_eyes",
+            ),
             "visual_shell.show_face": RuntimeCandidateActionSpec(
                 voice_engine_intent_key="visual_shell.show_face",
                 legacy_action="show_face_contour",
                 tool_name="visual_shell.show_face",
+            ),
+            "visual_shell.look_at_user": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="visual_shell.look_at_user",
+                legacy_action="look_at_user",
+                tool_name="visual_shell.look_at_user",
+            ),
+            "visual_shell.start_scanning": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="visual_shell.start_scanning",
+                legacy_action="start_scanning",
+                tool_name="visual_shell.start_scanning",
             ),
             "visual_shell.return_to_idle": RuntimeCandidateActionSpec(
                 voice_engine_intent_key="visual_shell.return_to_idle",
@@ -109,6 +129,16 @@ class RuntimeCandidateExecutionPlanBuilder:
                 legacy_action="show_visual_time",
                 tool_name="visual_shell.show_time",
             ),
+            "reminder.guided_start": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="reminder.guided_start",
+                legacy_action="reminder_create",
+                tool_name="reminder.guided_start",
+            ),
+            "reminder.time_answer": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="reminder.time_answer",
+                legacy_action="reminder_time_answer",
+                tool_name="reminder.time_answer",
+            ),
             "assistant.help": RuntimeCandidateActionSpec(
                 voice_engine_intent_key="assistant.help",
                 legacy_action="help",
@@ -121,36 +151,177 @@ class RuntimeCandidateExecutionPlanBuilder:
     def supported_intents(self) -> tuple[str, ...]:
         return tuple(sorted(self._SPECS))
 
-    def build_plan(
+    def build_plan_from_intent(
         self,
         *,
-        turn_result: VoiceTurnResult,
+        turn_id: str,
+        intent_key: str,
         transcript: str,
+        language: str,
         metadata: Mapping[str, Any] | None = None,
+        confidence: float = 1.0,
+        matched_phrase: str = "",
     ) -> RuntimeCandidateExecutionPlan | None:
-        if turn_result.route is not VoiceTurnRoute.COMMAND:
-            return None
-        if turn_result.intent is None:
-            return None
+        """Build a guarded runtime candidate plan from a trusted Vosk intent."""
 
-        spec = self._SPECS.get(turn_result.intent.key)
+        spec = self._SPECS.get(intent_key)
         if spec is None:
             return None
 
         request_metadata = dict(metadata or {})
-        confidence = max(float(turn_result.intent.confidence or 0.0), 0.90)
-        normalized_text = str(
-            turn_result.intent.normalized_source_text or transcript
-        ).strip()
-        matched_phrase = ""
-        if turn_result.recognition is not None:
-            matched_phrase = str(turn_result.recognition.matched_phrase or "")
+        normalized_text = str(transcript or "").strip()
+        safe_language = language if language in {"pl", "en"} else "unknown"
+        safe_confidence = max(float(confidence or 0.0), 0.90)
 
         route = RouteDecision(
-            turn_id=turn_result.turn_id,
+            turn_id=str(turn_id or ""),
             raw_text=str(transcript or "").strip(),
             normalized_text=normalized_text,
-            language=turn_result.language.value,
+            language=safe_language,
+            kind=RouteKind.ACTION,
+            confidence=safe_confidence,
+            primary_intent=spec.legacy_action,
+            intents=[
+                IntentMatch(
+                    name=spec.legacy_action,
+                    confidence=safe_confidence,
+                    entities=[],
+                    requires_clarification=False,
+                    metadata={
+                        "lane": "voice_engine_v2_runtime_candidate",
+                        "voice_engine_intent_key": intent_key,
+                        "matched_phrase": matched_phrase,
+                    },
+                )
+            ],
+            conversation_topics=[],
+            tool_invocations=[
+                ToolInvocation(
+                    tool_name=spec.tool_name,
+                    payload={},
+                    reason="voice_engine_v2_runtime_candidate",
+                    confidence=safe_confidence,
+                    execute_immediately=True,
+                )
+            ],
+            notes=["voice_engine_v2_runtime_candidate"],
+            metadata={
+                **request_metadata,
+                "lane": "voice_engine_v2_runtime_candidate",
+                "voice_engine_intent_key": intent_key,
+                "legacy_action": spec.legacy_action,
+                "tool_name": spec.tool_name,
+                "matched_phrase": matched_phrase,
+                "llm_prevented": True,
+                "fallback_to_legacy_enabled": True,
+            },
+        )
+
+        return RuntimeCandidateExecutionPlan(
+            route_decision=route,
+            spec=spec,
+            metadata={
+                **request_metadata,
+                "intent_key": intent_key,
+                "legacy_action": spec.legacy_action,
+                "tool_name": spec.tool_name,
+                "language": safe_language,
+            },
+        )
+
+    _TRANSCRIPT_INTENT_OVERRIDES = {
+        "show yourself": "visual_shell.show_self",
+        "show your self": "visual_shell.show_self",
+        "show the time": "visual_shell.show_time",
+        "show time": "visual_shell.show_time",
+            "pokaż oczy": "visual_shell.show_eyes",
+        "pokaz oczy": "visual_shell.show_eyes",
+        "show eyes": "visual_shell.show_eyes",
+        "spójrz na mnie": "visual_shell.look_at_user",
+        "spojrz na mnie": "visual_shell.look_at_user",
+        "patrz na mnie": "visual_shell.look_at_user",
+        "look at me": "visual_shell.look_at_user",
+        "scan room": "visual_shell.start_scanning",
+        "scan the room": "visual_shell.start_scanning",
+        "look around": "visual_shell.start_scanning",
+        "sprawdź pokój": "visual_shell.start_scanning",
+        "sprawdz pokoj": "visual_shell.start_scanning",
+        "rozejrzyj się": "visual_shell.start_scanning",
+        "rozejrzyj sie": "visual_shell.start_scanning",
+}
+
+    @classmethod
+    def _resolve_runtime_intent_key(
+        cls,
+        *,
+        intent_key: str,
+        transcript: str,
+    ) -> str:
+        """Resolve short runtime candidate phrases that can collide in grammar."""
+
+        normalized = " ".join(
+            str(transcript or "")
+            .strip()
+            .lower()
+            .replace(".", " ")
+            .replace(",", " ")
+            .replace("?", " ")
+            .replace("!", " ")
+            .split()
+        )
+        override = cls._TRANSCRIPT_INTENT_OVERRIDES.get(normalized)
+        if override:
+            return str(override)
+        return str(intent_key or "").strip()
+
+    def build_plan(
+        self,
+        *,
+        turn_result,
+        transcript: str,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> RuntimeCandidateExecutionPlan | None:
+        """Build a guarded runtime candidate plan from a Vosk command result."""
+
+        request_metadata = dict(metadata or {})
+        raw_intent = getattr(turn_result, "intent", None)
+        raw_intent_key = str(getattr(raw_intent, "key", "") or "").strip()
+
+        resolved_intent_key = self._resolve_runtime_intent_key(
+            intent_key=raw_intent_key,
+            transcript=transcript,
+        )
+        transcript_override_used = bool(
+            resolved_intent_key and resolved_intent_key != raw_intent_key
+        )
+
+        if getattr(turn_result, "intent", None) is None and not transcript_override_used:
+            return None
+
+        spec = self._SPECS.get(resolved_intent_key)
+        if spec is None:
+            return None
+
+        raw_language = getattr(turn_result, "language", "")
+        language = str(getattr(raw_language, "value", raw_language) or "").strip()
+        if language not in {"pl", "en"}:
+            language = "unknown"
+
+        try:
+            confidence = float(getattr(turn_result, "confidence", 1.0) or 1.0)
+        except (TypeError, ValueError):
+            confidence = 1.0
+        confidence = max(confidence, 0.90)
+
+        matched_phrase = str(getattr(turn_result, "matched_phrase", "") or "").strip()
+        normalized_text = str(transcript or "").strip()
+        voice_engine_action = str(getattr(raw_intent, "action", "") or "").strip()
+
+        route = RouteDecision(
+            turn_id=str(getattr(turn_result, "turn_id", "") or ""),
+            raw_text=str(transcript or "").strip(),
+            normalized_text=normalized_text,
+            language=language,
             kind=RouteKind.ACTION,
             confidence=confidence,
             primary_intent=spec.legacy_action,
@@ -162,7 +333,7 @@ class RuntimeCandidateExecutionPlanBuilder:
                     requires_clarification=False,
                     metadata={
                         "lane": "voice_engine_v2_runtime_candidate",
-                        "voice_engine_intent_key": turn_result.intent.key,
+                        "voice_engine_intent_key": resolved_intent_key,
                         "matched_phrase": matched_phrase,
                     },
                 )
@@ -181,8 +352,8 @@ class RuntimeCandidateExecutionPlanBuilder:
             metadata={
                 **request_metadata,
                 "lane": "voice_engine_v2_runtime_candidate",
-                "voice_engine_intent_key": turn_result.intent.key,
-                "voice_engine_action": turn_result.intent.action,
+                "voice_engine_intent_key": resolved_intent_key,
+                "voice_engine_action": voice_engine_action,
                 "legacy_action": spec.legacy_action,
                 "tool_name": spec.tool_name,
                 "matched_phrase": matched_phrase,
@@ -196,9 +367,9 @@ class RuntimeCandidateExecutionPlanBuilder:
             spec=spec,
             metadata={
                 **request_metadata,
-                "intent_key": turn_result.intent.key,
+                "intent_key": resolved_intent_key,
                 "legacy_action": spec.legacy_action,
                 "tool_name": spec.tool_name,
-                "language": turn_result.language.value,
+                "language": language,
             },
         )

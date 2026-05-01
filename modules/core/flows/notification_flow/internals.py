@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import inspect
+import time
 from typing import Any
 
+from modules.core.session.visual_shell_state_feedback import notify_visual_shell_idle, notify_visual_shell_voice_event
+from modules.presentation.visual_shell.contracts import VisualEventName
+
 from modules.core.session.voice_session import (
+    VOICE_PHASE_NOTIFICATION,
     VOICE_STATE_SPEAKING,
     VOICE_STATE_STANDBY,
 )
-from modules.shared.logging.logger import log_exception
+from modules.shared.logging.logger import append_log, log_exception
 
 
 class NotificationFlowInternals:
@@ -103,11 +109,37 @@ class NotificationFlowInternals:
         detail: str,
     ) -> None:
         assistant = self.assistant
+        notification_settings = dict(
+            getattr(assistant, "settings", {}).get("notifications", {})
+        )
+        pre_speech_settle_seconds = max(
+            float(notification_settings.get("pre_speech_settle_seconds", 0.15)),
+            0.0,
+        )
+        post_speech_settle_seconds = max(
+            float(notification_settings.get("post_speech_settle_seconds", 0.85)),
+            0.0,
+        )
+        notification_output_hold_seconds = max(
+            float(notification_settings.get("output_hold_seconds", 0.04)),
+            0.0,
+        )
 
-        transition_to_speaking = getattr(assistant.voice_session, "transition_to_speaking", None)
+        append_log(
+            "Async notification speech starting: "
+            f"detail={detail}, language={language}, "
+            f"pre_settle={pre_speech_settle_seconds}, "
+            f"post_settle={post_speech_settle_seconds}"
+        )
+
+        transition_to_speaking = getattr(
+            assistant.voice_session,
+            "transition_to_speaking",
+            None,
+        )
         if callable(transition_to_speaking):
             try:
-                transition_to_speaking(detail=detail, phase="notification")
+                transition_to_speaking(detail=detail, phase=VOICE_PHASE_NOTIFICATION)
             except Exception as error:
                 log_exception("Failed to set speaking state for notification", error)
         else:
@@ -116,12 +148,66 @@ class NotificationFlowInternals:
             except Exception as error:
                 log_exception("Failed to set speaking state for notification", error)
 
+        notify_visual_shell_voice_event(
+            assistant,
+            VisualEventName.SPEAKING_STARTED,
+            source="notification_flow",
+            detail=detail,
+            payload={
+                "route_kind": "notification",
+                "response_source": detail,
+            },
+        )
+
+        if pre_speech_settle_seconds > 0:
+            time.sleep(pre_speech_settle_seconds)
+
         try:
-            assistant.voice_out.speak(text, language=language)
+            speak_method = assistant.voice_out.speak
+            try:
+                speak_signature = inspect.signature(speak_method)
+            except (TypeError, ValueError):
+                speak_signature = None
+
+            if (
+                speak_signature is not None
+                and "output_hold_seconds" in speak_signature.parameters
+            ):
+                speak_method(
+                    text,
+                    language=language,
+                    output_hold_seconds=notification_output_hold_seconds,
+                )
+            else:
+                speak_method(text, language=language)
         except Exception as error:
             log_exception("Failed to speak async notification", error)
         finally:
-            transition_to_standby = getattr(assistant.voice_session, "transition_to_standby", None)
+            notify_visual_shell_voice_event(
+                assistant,
+                VisualEventName.SPEAKING_FINISHED,
+                source="notification_flow",
+                detail=f"{detail}:complete",
+                payload={
+                    "route_kind": "notification",
+                    "response_source": detail,
+                },
+            )
+
+            if post_speech_settle_seconds > 0:
+                time.sleep(post_speech_settle_seconds)
+
+            setattr(assistant, "_force_next_capture_handoff_close", True)
+            append_log(
+                "Async notification requested force-close on next standby capture handoff: "
+                f"detail={detail}, language={language}"
+            )
+
+            transition_to_standby = getattr(
+                assistant.voice_session,
+                "transition_to_standby",
+                None,
+            )
             if callable(transition_to_standby):
                 try:
                     transition_to_standby(
@@ -143,6 +229,17 @@ class NotificationFlowInternals:
                     )
                 except Exception as error:
                     log_exception("Failed to return to standby after notification", error)
+
+            notify_visual_shell_idle(
+                assistant,
+                source="notification_flow",
+                detail=f"{detail}:complete",
+            )
+
+            append_log(
+                "Async notification speech finished and standby recovery requested: "
+                f"detail={detail}, language={language}"
+            )
 
 
 __all__ = ["NotificationFlowInternals"]

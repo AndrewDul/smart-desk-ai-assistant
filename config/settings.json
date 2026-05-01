@@ -109,6 +109,18 @@
         "end_silence_seconds": 0.18,
         "min_speech_seconds": 0.07,
         "pre_roll_seconds": 0.1
+      },
+      "reminder_time": {
+        "timeout_seconds": 1.8,
+        "end_silence_seconds": 0.14,
+        "min_speech_seconds": 0.06,
+        "pre_roll_seconds": 0.08
+      },
+      "reminder_message": {
+        "timeout_seconds": 2.6,
+        "end_silence_seconds": 0.18,
+        "min_speech_seconds": 0.08,
+        "pre_roll_seconds": 0.1
       }
     }
   },
@@ -162,7 +174,9 @@
       "visual_shell.show_temperature",
       "visual_shell.show_battery",
       "visual_shell.show_time",
-      "visual_shell.show_date"
+      "visual_shell.show_date",
+      "reminder.guided_start",
+      "reminder.time_answer"
     ],
     "vosk_command_model_paths": {
       "en": "var/models/vosk/vosk-model-small-en-us-0.15",

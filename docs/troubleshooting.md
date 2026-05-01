@@ -3813,3 +3813,147 @@ Risk:
 Resolution (when convenient, not urgent):
 Open the file and remove the duplicate block. No runtime impact expected
 since both sections are identical.
+
+<!-- BEGIN NEXA_GUIDED_REMINDER_AND_MEMORY_TROUBLESHOOTING -->
+
+## Guided reminder and memory troubleshooting
+
+### Problem: runtime candidate executor returned no plan for valid commands
+
+Symptoms:
+
+- `what is your name` was recognized as `assistant.identity`, but no execution plan was built.
+- `what time is it` was recognized as `system.current_time`, but no execution plan was built.
+- `show desktop` and `hide desktop` were recognized but rejected at plan-building level.
+- Multiple runtime candidate executor tests failed from the same root cause.
+
+Root cause:
+
+`RuntimeCandidateExecutionPlanBuilder.build_plan()` checked `turn_result.is_match`, but `VoiceTurnResult` does not expose `is_match`. That property exists on `CommandRecognitionResult`.
+
+Broken gate:
+
+`getattr(turn_result, "is_match", False)`
+
+Because `VoiceTurnResult` did not have this attribute, the check returned `False` and valid commands were rejected unless a transcript override bypassed the gate.
+
+Fix:
+
+Use intent presence on `VoiceTurnResult`:
+
+`getattr(turn_result, "intent", None) is None`
+
+Validation:
+
+- `pytest -q tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py`
+- `pytest -q tests/runtime/voice_engine_v2/test_runtime_candidates.py`
+
+### Problem: unfinished Visual Shell runtime-only intents failed tests
+
+Symptoms:
+
+- `show yourself` routed to face contour instead of `show_self`.
+- `pokaż oczy`, `spójrz na mnie`, and `scan room` did not build runtime candidate plans.
+- Public Visual Shell intent tests still required these commands to stay unpublished.
+
+Root cause:
+
+Some Visual Shell actions are intentionally not public yet. They must not be exposed in public command intent definitions or public grammar, but they can exist as runtime-candidate-only executor specs.
+
+Fix:
+
+- Add specs only in `RuntimeCandidateExecutionPlanBuilder._SPECS`.
+- Add selected transcript overrides in the runtime candidate executor.
+- Do not add these unfinished intents to public Visual Shell intent definitions.
+- Do not add these unfinished intents to public command grammar.
+
+Validation:
+
+- `pytest -q tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py`
+- `pytest -q tests/core/command_intents/test_visual_shell_intents.py::test_unfinished_visual_shell_intents_are_not_public -vv`
+
+### Problem: reminder candidate could be accepted without execution plan
+
+Symptoms:
+
+A duplicate `if reminder_intent_key:` branch in `runtime_candidates.py` could create `VoiceEngineV2RuntimeCandidateResult(accepted=True)` without an `execution_plan`.
+
+Root cause:
+
+`VoiceEngineV2RuntimeCandidateResult` requires an execution plan whenever `accepted=True`. The duplicate branch was fragile and could become a runtime crash if the builder did not return a plan.
+
+Fix:
+
+Remove the dead duplicate branch and keep reminder candidates on the safe builder path.
+
+Validation:
+
+- `pytest -q tests/runtime/voice_engine_v2/test_runtime_candidates.py`
+- `pytest -q tests/features/test_reminder_vosk_runtime_candidate_policy.py`
+- `pytest -q tests/features/test_reminder_vosk_fast_path_policy.py`
+
+### Problem: reminder start recognized by Vosk but legacy telemetry still showed fallback
+
+Symptoms:
+
+`vosk_pre_whisper_candidate` showed:
+
+- `accepted=true`
+- `intent_key=reminder.guided_start`
+- `route=guided_reminder`
+- `llm_prevented=true`
+- `faster_whisper_prevented=true`
+
+But separate telemetry also showed:
+
+`fallback_required:unknown_intent:reminder.guided_start`
+
+Explanation:
+
+The pre-whisper Vosk fast path accepted the guided reminder start correctly. Older legacy candidate telemetry may still report fallback because it does not fully own the reminder guided flow yet.
+
+Important signal:
+
+Use `vosk_pre_whisper_candidate accepted=true` with `faster_whisper_prevented=true` as the fast-path success signal.
+
+### Problem: reminder time mixes Polish and English
+
+Symptoms:
+
+Runtime candidate telemetry may show mixed alternatives such as:
+
+`eight seconds | pięć sekund`
+
+or normalized mixed text:
+
+`eight seconds piec sekund`
+
+Root cause:
+
+The `reminder_time` capture can evaluate time answers without locking recognition to the active guided flow language. This can create ambiguous mixed-language results.
+
+Required follow-up:
+
+- Carry active guided flow language into `reminder_time` capture metadata.
+- Pass the language hint into Vosk pre-whisper candidate recognition.
+- Use language-specific command grammar/model for time answers.
+- Reject mixed-language time candidates.
+- Keep response templates in the same language as the active flow.
+
+Expected behavior:
+
+- English flow accepts English time answers only.
+- Polish flow accepts Polish time answers only.
+- Mixed PL/EN reminder time candidate must not be accepted.
+
+### Planned memory troubleshooting rules
+
+Memory should be debugged with the same principles as reminders:
+
+- If memory start command is not recognized, check Vosk grammar aliases for `memory.guided_start`.
+- If memory content is empty, check the guided memory capture profile.
+- If recall returns nothing, inspect normalized tokens stored with each memory entry.
+- If Polish recall finds English memories or English recall finds Polish memories, check language filtering.
+- If memory delete or clear runs without confirmation, treat it as a safety bug.
+- If LLM is used for simple memory save or recall, treat it as a runtime architecture regression.
+<!-- END NEXA_GUIDED_REMINDER_AND_MEMORY_TROUBLESHOOTING -->

@@ -96,7 +96,7 @@ class TestVoiceCommandScenarios(unittest.TestCase):
 
         self.assertTrue(result)
         self.assertEqual(self._last_voice_language(), "pl")
-        self.assertIn("Mogę rozmawiać z Tobą", self._last_voice_text())
+        self.assertIn("Mogę z Tobą porozmawiać", self._last_voice_text())
         self.assertEqual(self._last_display_title(), "JAK MOGĘ POMÓC")
         self.assertIsNone(self.assistant.pending_follow_up)
 

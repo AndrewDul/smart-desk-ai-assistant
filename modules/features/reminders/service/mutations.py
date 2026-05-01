@@ -46,11 +46,12 @@ class ReminderServiceMutations:
         )
         return copy.deepcopy(reminder)
 
-    def check_due_reminders(self) -> list[dict[str, Any]]:
+    def check_due_reminders(self, *, limit: int | None = None) -> list[dict[str, Any]]:
         reminders = self._load_reminders()
         due_reminders: list[dict[str, Any]] = []
         changed = False
         now = datetime.now()
+        safe_limit = max(1, int(limit)) if limit is not None else None
 
         for reminder in reminders:
             if reminder.get("status") != "pending":
@@ -73,6 +74,9 @@ class ReminderServiceMutations:
                 reminder["delivered_count"] = int(reminder.get("delivered_count", 0)) + 1
                 due_reminders.append(copy.deepcopy(reminder))
                 changed = True
+
+                if safe_limit is not None and len(due_reminders) >= safe_limit:
+                    break
 
         if changed:
             self._save_reminders(reminders)

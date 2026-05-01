@@ -4,6 +4,7 @@ import re
 import unicodedata
 from typing import Any
 
+from modules.features.reminders.time_parser import ReminderTimeParser, ReminderTimeParseResult
 from modules.runtime.contracts import normalize_text
 
 
@@ -165,6 +166,26 @@ class PendingFlowParsingHelpersMixin:
                 return float(spoken_map[token])
 
         return None
+
+    def _parse_reminder_time_answer(
+        self,
+        text: str,
+        *,
+        language: str,
+    ) -> ReminderTimeParseResult | None:
+        parser = ReminderTimeParser()
+        return parser.parse(text, language=language)
+
+    def _clean_reminder_message_answer(self, text: str) -> str:
+        cleaned = str(text or "").strip()
+        cleaned = re.sub(
+            r"^(?:przypomnij mi(?: zeby| żeby)?|remind me(?: to| about)?)\s+",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        cleaned = re.sub(r"\s+", " ", cleaned).strip(" .")
+        return cleaned
 
     def _extract_name(self, text: str) -> str | None:
         raw = str(text or "").strip()

@@ -8,9 +8,59 @@ from modules.understanding.parsing.normalization import normalize_text, parse_sp
 
 class IntentParserRemindersMixin:
     def _parse_reminder(self, normalized: str) -> IntentResult | None:
-        reminder_triggers = {"remind", "przypomnij", "reminder", "przypomnienie"}
+        normalized = self._normalize_guided_reminder_start(normalized)
+
+        reminder_triggers = {
+            "remind",
+            "przypomnij",
+            "przypomnisz",
+            "przypomnienie",
+            "reminder",
+        }
         if not any(trigger in normalized for trigger in reminder_triggers):
             return None
+
+        guided_phrases_pl = {
+            "przypomnisz mi o czyms",
+            "przypomnij mi o czyms",
+            "przypomnij mi cos",
+            "przypomnij cos",
+            "przypomnisz mi cos",
+            "przypomnisz cos",
+            "przypomniesz mi cos",
+            "przypomniesz cos",
+            "ustaw przypomnienie",
+            "dodaj przypomnienie",
+            "chce dodac przypomnienie",
+            "chce ustawic przypomnienie",
+        }
+        guided_phrases_en = {
+            "set the reminder",
+            "set the reminders",
+            "set a reminder",
+            "set reminder",
+            "add a reminder",
+            "add reminder",
+            "create a reminder",
+            "create reminder",
+            "make a reminder",
+            "make reminder",
+            "remind me about something",
+            "remind me something",
+            "reminder",
+        }
+
+        if normalized in guided_phrases_pl:
+            return IntentResult.from_action(
+                action="reminder_create",
+                data={"guided": True, "guided_language": "pl"},
+            )
+
+        if normalized in guided_phrases_en:
+            return IntentResult.from_action(
+                action="reminder_create",
+                data={"guided": True, "guided_language": "en"},
+            )
 
         for pattern in (
             r"^(?:set )?(?:a )?reminder(?: to)?\s+(?:in|after)\s+(.+?)\s*(second|seconds|sec|minute|minutes|min)\s+(?:to|about)?\s+(.+)$",
@@ -69,6 +119,47 @@ class IntentParserRemindersMixin:
                 return IntentResult.from_action(action="reminder_create", data=data)
 
         return None
+
+    def _normalize_guided_reminder_start(self, normalized: str) -> str:
+        """Correct common ASR mistakes for guided reminder start phrases."""
+
+        clean = normalize_text(normalized)
+        if not clean:
+            return clean
+
+        exact_replacements = {
+            "set the reminder": "set a reminder",
+            "set the reminders": "set a reminder",
+            "syl pomnimi cos": "przypomnij mi cos",
+            "sił pomnimi coś": "przypomnij mi cos",
+            "się pomni mi coś": "przypomnij mi cos",
+            "sil pomnimi cos": "przypomnij mi cos",
+            "sie pomni mi cos": "przypomnij mi cos",
+            "pomnij mi cos": "przypomnij mi cos",
+            "szypowi imicowac": "przypomnij mi cos",
+            "szypowi imicować": "przypomnij mi cos",
+            "sie pomnimi cos": "przypomnij mi cos",
+            "się pomnimi coś": "przypomnij mi cos",
+            "pomnimi cos": "przypomnij mi cos",
+            "pomni mi cos": "przypomnij mi cos",
+            "przypomni mi cos": "przypomnij mi cos",
+            "przypomnij mi co": "przypomnij mi cos",
+            "przypomnij cos": "przypomnij mi cos",
+            "przypomnisz mi cos": "przypomnij mi cos",
+            "przypomniesz mi cos": "przypomnij mi cos",
+        }
+
+        if clean in exact_replacements:
+            return exact_replacements[clean]
+
+        if "pomnimi" in clean and "cos" in clean:
+            return "przypomnij mi cos"
+
+        if "przypom" in clean and "cos" in clean:
+            return "przypomnij mi cos"
+
+        return clean
+
 
     def _parse_reminder_delete(self, normalized: str) -> IntentResult | None:
         if normalized in {normalize_text(item) for item in self.direct_action_phrases["reminders_clear"]}:

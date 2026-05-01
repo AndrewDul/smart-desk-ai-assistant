@@ -224,16 +224,55 @@ class CoreAssistantMemoryBackgroundMixin:
         return safe_payload
 
     def _reminder_loop(self) -> None:
+        reminder_settings = dict(getattr(self, "settings", {}).get("reminders", {}))
+        startup_grace_seconds = float(
+            reminder_settings.get("startup_grace_seconds", 10.0)
+        )
+        notification_cooldown_seconds = float(
+            reminder_settings.get("notification_cooldown_seconds", 6.0)
+        )
+        poll_interval_seconds = float(
+            reminder_settings.get("poll_interval_seconds", 0.5)
+        )
+
+        if startup_grace_seconds > 0:
+            self._stop_background.wait(startup_grace_seconds)
+
+        next_notification_at = 0.0
+
         while not self._stop_background.is_set():
             try:
-                checker = getattr(self.reminders, "check_due_reminders", None)
-                due_reminders = checker() if callable(checker) else []
+                now_monotonic = time.monotonic()
+                if now_monotonic < next_notification_at:
+                    wait_seconds = min(
+                        poll_interval_seconds,
+                        max(0.05, next_notification_at - now_monotonic),
+                    )
+                    self._stop_background.wait(wait_seconds)
+                    continue
 
-                for reminder in due_reminders or []:
-                    deliver_method = getattr(self.notification_flow, "deliver_due_reminder", None)
-                    if callable(deliver_method):
+                checker = getattr(self.reminders, "check_due_reminders", None)
+                if not callable(checker):
+                    due_reminders = []
+                else:
+                    try:
+                        due_reminders = checker(limit=1)
+                    except TypeError:
+                        due_reminders = checker()
+
+                deliver_method = getattr(
+                    self.notification_flow,
+                    "deliver_due_reminder",
+                    None,
+                )
+                if callable(deliver_method):
+                    for reminder in list(due_reminders or [])[:1]:
                         deliver_method(reminder)
+                        next_notification_at = (
+                            time.monotonic() + notification_cooldown_seconds
+                        )
+                        break
             except Exception as error:
                 log_exception("Reminder loop iteration failed", error)
 
-            time.sleep(1.0)
+            self._stop_background.wait(poll_interval_seconds)

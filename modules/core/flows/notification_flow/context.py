@@ -19,14 +19,16 @@ class NotificationFlowContext:
         reason: str,
         close_active_window: bool = True,
         interrupt_output: bool = True,
+        preserve_pending: bool = False,
     ) -> None:
         assistant = self.assistant
 
         had_pending_confirmation = assistant.pending_confirmation is not None
         had_pending_follow_up = assistant.pending_follow_up is not None
 
-        assistant.pending_confirmation = None
-        assistant.pending_follow_up = None
+        if not preserve_pending:
+            assistant.pending_confirmation = None
+            assistant.pending_follow_up = None
 
         if interrupt_output:
             self._request_interrupt(reason=reason)
@@ -57,10 +59,14 @@ class NotificationFlowContext:
 
         if had_pending_confirmation or had_pending_follow_up:
             append_log(
-                "Interaction context cleared for notification: "
-                f"reason={reason}, "
-                f"had_pending_confirmation={had_pending_confirmation}, "
-                f"had_pending_follow_up={had_pending_follow_up}"
+                (
+                    "Interaction context preserved for notification: "
+                    if preserve_pending
+                    else "Interaction context cleared for notification: "
+                )
+                + f"reason={reason}, "
+                + f"had_pending_confirmation={had_pending_confirmation}, "
+                + f"had_pending_follow_up={had_pending_follow_up}"
             )
 
 

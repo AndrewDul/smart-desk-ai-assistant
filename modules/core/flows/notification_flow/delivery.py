@@ -49,10 +49,20 @@ class NotificationFlowDelivery:
         if extra_metadata:
             metadata.update(extra_metadata)
 
+        # Async notifications are delivered from the background reminder loop.
+        # They must not request a global audio/input interrupt because that can
+        # disturb the wake/capture handoff and leave the runtime feeling frozen
+        # after the reminder finishes. They must also preserve an active
+        # confirmation/follow-up conversation if a reminder fires in the background.
+        has_pending_interaction = (
+            assistant.pending_confirmation is not None
+            or assistant.pending_follow_up is not None
+        )
         self.clear_interaction_context(
             reason=f"async_notification:{source}",
-            close_active_window=True,
-            interrupt_output=True,
+            close_active_window=not has_pending_interaction,
+            interrupt_output=False,
+            preserve_pending=has_pending_interaction,
         )
 
         self._remember_notification_turn(
