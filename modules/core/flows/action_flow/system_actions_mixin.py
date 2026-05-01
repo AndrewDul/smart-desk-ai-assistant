@@ -1156,3 +1156,119 @@ class ActionSystemActionsMixin:
             ),
             extra_metadata={"resolved_source": resolved.source, "phase": "unsupported_action"},
         )
+
+    # ----- feedback mode -----------------------------------------------
+    def _resolve_feedback_lane(self):
+        assistant = getattr(self, "assistant", None)
+        if assistant is None:
+            return None, None
+
+        existing = getattr(assistant, "_feedback_lane", None)
+        if existing is not None:
+            return existing, assistant
+
+        try:
+            from modules.presentation.visual_shell.feedback.feedback_lane import (
+                FeedbackLane,
+            )
+        except Exception as error:
+            self.LOGGER.warning("Feedback lane import failed safely: %s", error)
+            return None, assistant
+
+        fast_command_lane = getattr(assistant, "fast_command_lane", None)
+        visual_shell_lane = getattr(fast_command_lane, "visual_shell_lane", None) \
+            or getattr(assistant, "visual_shell_lane", None)
+
+        if visual_shell_lane is None:
+            self.LOGGER.warning("Feedback lane unavailable: visual shell lane missing.")
+            return None, assistant
+
+        lane = FeedbackLane(visual_shell_lane=visual_shell_lane, assistant=assistant)
+        try:
+            assistant._feedback_lane = lane
+        except Exception:
+            pass
+
+        return lane, assistant
+
+    def _handle_feedback_on(
+        self,
+        *,
+        route,
+        language,
+        payload,
+        resolved,
+    ) -> bool:
+        del route, payload
+
+        lane, _assistant = self._resolve_feedback_lane()
+        ok = False
+
+        if lane is not None:
+            try:
+                ok = bool(lane.turn_on(language=language))
+            except Exception as error:
+                self.LOGGER.warning("Feedback turn_on failed safely: %s", error)
+
+        spoken = self._localized(
+            language,
+            "Włączam tryb feedback.",
+            "Feedback mode on.",
+        )
+
+        return self._deliver_simple_action_response(
+            language=language,
+            action="feedback_on",
+            spoken_text=spoken,
+            display_title=self._localized(language, "FEEDBACK", "FEEDBACK"),
+            display_lines=self._localized_lines(
+                language,
+                ["uruchomiono", "logi i statusy live"],
+                ["enabled", "live logs and status"],
+            ),
+            extra_metadata={
+                "resolved_source": getattr(resolved, "source", ""),
+                "feedback_started": ok,
+            },
+        )
+
+    def _handle_feedback_off(
+        self,
+        *,
+        route,
+        language,
+        payload,
+        resolved,
+    ) -> bool:
+        del route, payload
+
+        lane, _assistant = self._resolve_feedback_lane()
+        ok = False
+
+        if lane is not None:
+            try:
+                ok = bool(lane.turn_off())
+            except Exception as error:
+                self.LOGGER.warning("Feedback turn_off failed safely: %s", error)
+
+        spoken = self._localized(
+            language,
+            "Wyłączam tryb feedback.",
+            "Feedback mode off.",
+        )
+
+        return self._deliver_simple_action_response(
+            language=language,
+            action="feedback_off",
+            spoken_text=spoken,
+            display_title=self._localized(language, "FEEDBACK", "FEEDBACK"),
+            display_lines=self._localized_lines(
+                language,
+                ["zamknięto"],
+                ["closed"],
+            ),
+            extra_metadata={
+                "resolved_source": getattr(resolved, "source", ""),
+                "feedback_stopped": ok,
+            },
+        )

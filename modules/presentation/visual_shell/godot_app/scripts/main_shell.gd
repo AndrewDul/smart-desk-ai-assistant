@@ -6,6 +6,7 @@ const DesktopWindowController = preload("res://scripts/desktop/desktop_window_co
 const ShellLayout = preload("res://scripts/desktop/shell_layout.gd")
 const VisualShellTcpServerScript = preload("res://scripts/transport/visual_shell_tcp_server.gd")
 const HelpOverlayViewScript = preload("res://scripts/help_overlay_view.gd")
+const FeedbackDashboardViewScript = preload("res://scripts/feedback_dashboard_view.gd")
 
 const BOOT_STATE = VisualStates.IDLE_PARTICLE_CLOUD
 const BOOT_LAYOUT = ShellLayout.FULLSCREEN
@@ -126,6 +127,8 @@ var help_overlay_pl_header: Label = null
 var help_overlay_en_body: Label = null
 var help_overlay_pl_body: Label = null
 var help_overlay_timer := 0.0
+var feedback_dashboard_layer: CanvasLayer = null
+var feedback_dashboard_view: Control = null
 var timer_countdown_layer: CanvasLayer = null
 var timer_countdown_backdrop: ColorRect = null
 var timer_countdown_label: Label = null
@@ -136,13 +139,22 @@ var timer_countdown_total_seconds := 0
 var timer_countdown_last_tick_msec := 0
 
 
+var _escape_quit_armed := true
+
+var _full_window_lock_until_msec := 0
+
 func _ready() -> void:
+    set_process(true)
+    set_process_input(true)
+    set_process_unhandled_input(true)
+    set_process_unhandled_key_input(true)
     _apply_performance_policy()
     _apply_visual_shell_window_policy()
     _setup_scene_visibility()
     _setup_state_machine()
     _setup_visual_transport()
     _setup_help_overlay()
+    _setup_feedback_dashboard()
     _apply_shell_layout(BOOT_LAYOUT)
     _apply_visual_shell_window_policy()
     state_machine.set_state(BOOT_STATE, true)
@@ -155,33 +167,90 @@ func _apply_performance_policy() -> void:
     OS.vsync_enabled = true
 
 
-func _process(delta: float) -> void:
-    _tick_timer_countdown(delta)
-    _sync_scene_layout_if_needed()
-    _tick_help_overlay(delta)
+func _process(_delta: float) -> void:
+    if has_method("_poll_escape_quit"):
+        _poll_escape_quit()
+    _enforce_full_window_top_left_if_needed()
+func _arm_full_window_top_left_lock(duration_msec: int = 3500) -> void:
+    _full_window_lock_until_msec = OS.get_ticks_msec() + duration_msec
 
 
-func _apply_visual_shell_window_policy() -> void:
-    if not _env_bool("NEXA_VISUAL_SHELL_FORCE_WINDOW", true):
+func _enforce_full_window_top_left_if_needed() -> void:
+    if _full_window_lock_until_msec <= 0:
         return
 
-    var target_x = _env_int("NEXA_VISUAL_SHELL_WINDOW_X", DEFAULT_VISUAL_SHELL_WINDOW_X)
-    var target_y = _env_int("NEXA_VISUAL_SHELL_WINDOW_Y", DEFAULT_VISUAL_SHELL_WINDOW_Y)
+    if OS.get_ticks_msec() > _full_window_lock_until_msec:
+        _full_window_lock_until_msec = 0
+        return
+
+    if ShellLayout.is_docked(shell_layout):
+        return
+
+    _apply_full_visual_shell_window(false)
+
+
+func _apply_full_visual_shell_window(verbose: bool = true) -> void:
+    var screen_size = OS.get_screen_size()
+
     var target_width = _env_int("NEXA_VISUAL_SHELL_WINDOW_WIDTH", DEFAULT_VISUAL_SHELL_WINDOW_WIDTH)
     var target_height = _env_int("NEXA_VISUAL_SHELL_WINDOW_HEIGHT", DEFAULT_VISUAL_SHELL_WINDOW_HEIGHT)
 
+    if target_width <= 0:
+        target_width = int(screen_size.x)
+    if target_height <= 0:
+        target_height = int(screen_size.y)
+
+    target_width = int(min(float(target_width), float(screen_size.x)))
+    target_height = int(min(float(target_height), float(screen_size.y)))
+
     OS.window_fullscreen = false
     OS.window_borderless = true
-    OS.set_window_position(Vector2(target_x, target_y))
-    OS.set_window_size(Vector2(target_width, target_height))
 
+    # Apply position before and after resize. On Pi/X11/Godot 3 the window
+    # manager can restore a stale Y position after resizing.
+    OS.set_window_position(Vector2(0, 0))
+    OS.set_window_size(Vector2(target_width, target_height))
+    OS.set_window_position(Vector2(0, 0))
+    OS.set_window_position(Vector2(0, 0))
+
+    if verbose:
+        print(
+            "Visual Shell full top-left window applied: position=",
+            OS.get_window_position(),
+            " size=",
+            OS.get_window_size()
+        )
+
+
+func _log_visual_shell_geometry(source: String) -> void:
     print(
-        "Visual Shell window target applied: position=",
+        "Visual Shell geometry [",
+        source,
+        "]: window_position=",
         OS.get_window_position(),
-        " size=",
-        OS.get_window_size()
+        " window_size=",
+        OS.get_window_size(),
+        " screen_size=",
+        OS.get_screen_size(),
+        " viewport_rect=",
+        get_viewport_rect(),
+        " root_rect_position=",
+        rect_position,
+        " root_rect_size=",
+        rect_size
     )
 
+func _apply_visual_shell_window_policy() -> void:
+    if ShellLayout.is_docked(shell_layout):
+        DesktopWindowController.enter_docked_window()
+        return
+
+    if not _env_bool("NEXA_VISUAL_SHELL_FORCE_WINDOW", true):
+        return
+
+    _apply_full_visual_shell_window(true)
+    _arm_full_window_top_left_lock(3500)
+    call_deferred("_apply_full_visual_shell_window", true)
 
 func _env_bool(name: String, default_value: bool) -> bool:
     if not OS.has_environment(name):
@@ -301,11 +370,43 @@ func _setup_help_overlay() -> void:
     help_overlay_layer.add_child(help_overlay_draw_view)
 
 
+
+func _poll_escape_quit() -> void:
+    var escape_pressed := Input.is_key_pressed(KEY_ESCAPE)
+
+    if escape_pressed and _escape_quit_armed:
+        _escape_quit_armed = false
+        print("Visual Shell quit requested by ESC.")
+        get_tree().quit()
+        return
+
+    if not escape_pressed:
+        _escape_quit_armed = true
+
 func _input(event: InputEvent) -> void:
+    _handle_visual_shell_key_event(event)
+
+func _unhandled_input(event: InputEvent) -> void:
+    _handle_visual_shell_key_event(event)
+
+
+func _unhandled_key_input(event: InputEventKey) -> void:
+    _handle_visual_shell_key_event(event)
+
+
+func _handle_visual_shell_key_event(event: InputEvent) -> void:
     if not event is InputEventKey:
         return
 
     if not event.pressed:
+        return
+
+    if event.echo:
+        return
+
+    if event.scancode == KEY_ESCAPE:
+        print("Visual Shell quit requested by ESC event.")
+        get_tree().quit()
         return
 
     if event.scancode == KEY_1:
@@ -336,8 +437,7 @@ func _input(event: InputEvent) -> void:
         display_battery_percent(BATTERY_DEMO_PERCENT)
     elif event.scancode == KEY_H:
         display_help_overlay("en")
-    elif event.scancode == KEY_ESCAPE:
-        get_tree().quit()
+
 
 
 func _setup_state_machine() -> void:
@@ -761,15 +861,17 @@ func _apply_shell_layout(next_layout: String) -> void:
     shell_layout = ShellLayout.coerce(next_layout)
 
     if ShellLayout.is_docked(shell_layout):
+        _full_window_lock_until_msec = 0
         DesktopWindowController.enter_docked_window()
         particle_cloud.set_shell_compact_mode(true)
-    else:
-        DesktopWindowController.enter_fullscreen()
-        particle_cloud.set_shell_compact_mode(false)
+        _sync_scene_layout()
+        return
 
+    DesktopWindowController.enter_fullscreen()
+    particle_cloud.set_shell_compact_mode(false)
     _sync_scene_layout()
     _apply_visual_shell_window_policy()
-
+    _arm_full_window_top_left_lock(3500)
 
 func _is_desktop_layout_state(state_name: String) -> bool:
     return state_name == VisualStates.DESKTOP_DOCKED \
@@ -893,6 +995,29 @@ func _apply_visual_command(command: String, payload: Dictionary, raw_message: Di
         display_time_text(String(payload.get("text", "")))
         return
 
+    if command == "SHOW_FEEDBACK":
+        display_feedback_dashboard(String(payload.get("language", "en")))
+        return
+
+    if command == "HIDE_FEEDBACK":
+        hide_feedback_dashboard()
+        return
+
+    if command == "FEEDBACK_LOG_APPEND":
+        if feedback_dashboard_view != null and feedback_dashboard_view.has_method("append_log"):
+            feedback_dashboard_view.append_log(payload)
+        return
+
+    if command == "FEEDBACK_STATUS_UPDATE":
+        if feedback_dashboard_view != null and feedback_dashboard_view.has_method("update_statuses"):
+            feedback_dashboard_view.update_statuses(payload.get("statuses", {}))
+        return
+
+    if command == "FEEDBACK_VISION_FRAME":
+        if feedback_dashboard_view != null and feedback_dashboard_view.has_method("update_vision_frame"):
+            feedback_dashboard_view.update_vision_frame(payload)
+        return
+
     print("Visual Shell ignored unsupported transport command: ", command)
 
 
@@ -969,3 +1094,47 @@ func _build_status_text(current_state: String) -> String:
         + current_state \
         + "\nlayout: " \
         + shell_layout
+
+func _setup_feedback_dashboard() -> void:
+    if feedback_dashboard_layer != null:
+        return
+    feedback_dashboard_layer = CanvasLayer.new()
+    feedback_dashboard_layer.name = "FeedbackDashboardLayer"
+    feedback_dashboard_layer.layer = 105
+    add_child(feedback_dashboard_layer)
+
+    feedback_dashboard_view = FeedbackDashboardViewScript.new()
+    feedback_dashboard_view.name = "FeedbackDashboard"
+    feedback_dashboard_view.visible = false
+    feedback_dashboard_layer.add_child(feedback_dashboard_view)
+
+
+func display_feedback_dashboard(language: String) -> void:
+    if feedback_dashboard_view == null:
+        _setup_feedback_dashboard()
+
+    if feedback_dashboard_layer != null:
+        feedback_dashboard_layer.visible = true
+
+    _hide_help_overlay(false)
+
+    if feedback_dashboard_view != null:
+        feedback_dashboard_view.visible = true
+        feedback_dashboard_view.show()
+        if feedback_dashboard_view.has_method("set_language"):
+            feedback_dashboard_view.set_language(language)
+        if feedback_dashboard_view.has_method("layout_for_viewport"):
+            feedback_dashboard_view.layout_for_viewport(get_viewport_rect().size)
+        feedback_dashboard_view.raise()
+
+    update()
+
+func hide_feedback_dashboard() -> void:
+    if feedback_dashboard_view != null:
+        feedback_dashboard_view.hide()
+        feedback_dashboard_view.visible = false
+
+    if feedback_dashboard_layer != null:
+        feedback_dashboard_layer.visible = false
+
+    update()

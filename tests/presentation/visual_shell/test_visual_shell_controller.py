@@ -282,3 +282,41 @@ def test_visual_shell_controller_sends_timer_countdown_commands() -> None:
             "source": "nexa-runtime",
         },
     ]
+
+def test_visual_shell_controller_sends_feedback_commands() -> None:
+    transport = InMemoryVisualShellTransport()
+    controller = VisualShellController(transport=transport)
+
+    assert controller.show_feedback(language="pl", source="unit-test") is True
+    assert controller.hide_feedback(source="unit-test") is True
+    assert controller.feedback_log_append(level="info", message="hello", ts_ms=123, source="unit-test") is True
+    assert controller.feedback_status_update(statuses={"camera": {"state": "ok"}}, source="unit-test") is True
+    assert controller.feedback_vision_frame(jpeg_b64="abc", width=10, height=20, source="unit-test") is True
+
+    assert transport.sent_messages == [
+        {
+            "command": "SHOW_FEEDBACK",
+            "payload": {"language": "pl"},
+            "source": "unit-test",
+        },
+        {
+            "command": "HIDE_FEEDBACK",
+            "payload": {},
+            "source": "unit-test",
+        },
+        {
+            "command": "FEEDBACK_LOG_APPEND",
+            "payload": {"level": "info", "message": "hello", "ts_ms": 123},
+            "source": "unit-test",
+        },
+        {
+            "command": "FEEDBACK_STATUS_UPDATE",
+            "payload": {"statuses": {"camera": {"state": "ok"}}},
+            "source": "unit-test",
+        },
+        {
+            "command": "FEEDBACK_VISION_FRAME",
+            "payload": {"jpeg_b64": "abc", "width": 10, "height": 20},
+            "source": "unit-test",
+        },
+    ]

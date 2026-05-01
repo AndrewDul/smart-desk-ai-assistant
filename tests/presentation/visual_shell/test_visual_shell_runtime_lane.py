@@ -322,3 +322,63 @@ def test_visual_shell_runtime_lane_dispatches_voice_state_cues() -> None:
             "source": "test.voice_state",
         },
     ]
+
+
+def test_fast_command_lane_executes_feedback_commands_without_confirmation() -> None:
+    fast_lane = FastCommandLane()
+
+    cases = [
+        ("feedback on.", "en", "feedback_on", "en"),
+        ("feedback off.", "en", "feedback_off", "en"),
+        ("urucham feedback.", "en", "feedback_on", "pl"),
+    ]
+
+    for text, prepared_language, expected_action, expected_language in cases:
+        assistant = FakeAssistant(
+            pending_confirmation=None,
+            pending_follow_up=None,
+        )
+
+        result = fast_lane.try_handle(
+            prepared=_prepared(text, language=prepared_language),
+            assistant=assistant,
+        )
+
+        assert result is True
+        assert assistant.action_flow.calls == 1
+        assert assistant._last_fast_lane_route_snapshot["primary_intent"] == expected_action
+        assert assistant._last_fast_lane_route_snapshot["route_metadata"]["llm_prevented"] is True
+        assert assistant.committed_languages[-1] == expected_language
+
+
+def test_fast_command_lane_handles_feedback_asr_variants_without_confirmation() -> None:
+    fast_lane = FastCommandLane()
+
+    cases = [
+        ("feed back on.", "feedback_on", "en"),
+        ("feedback own.", "feedback_on", "en"),
+        ("oruham feedback.", "feedback_on", "pl"),
+        ("oruham fitbit.", "feedback_on", "pl"),
+        ("feedback of.", "feedback_off", "en"),
+        ("feed back off.", "feedback_off", "en"),
+        ("feed the back of.", "feedback_off", "en"),
+        ("sheet back off.", "feedback_off", "en"),
+        ("sheets back off.", "feedback_off", "en"),
+    ]
+
+    for text, expected_action, expected_language in cases:
+        assistant = FakeAssistant(
+            pending_confirmation=None,
+            pending_follow_up=None,
+        )
+
+        result = fast_lane.try_handle(
+            prepared=_prepared(text, language="en"),
+            assistant=assistant,
+        )
+
+        assert result is True
+        assert assistant.action_flow.calls == 1
+        assert assistant._last_fast_lane_route_snapshot["primary_intent"] == expected_action
+        assert assistant._last_fast_lane_route_snapshot["route_metadata"]["llm_prevented"] is True
+        assert assistant.committed_languages[-1] == expected_language

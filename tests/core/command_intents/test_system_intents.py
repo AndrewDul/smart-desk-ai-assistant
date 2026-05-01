@@ -30,3 +30,12 @@ def test_focus_start_intent_definition_exists() -> None:
 
 def test_unknown_system_intent_returns_none() -> None:
     assert get_system_intent_definition("system.unknown") is None
+
+def test_feedback_intent_definitions_exist() -> None:
+    on_definition = get_system_intent_definition("feedback.on")
+    off_definition = get_system_intent_definition("feedback.off")
+
+    assert on_definition is not None
+    assert on_definition.action == "feedback_on"
+    assert off_definition is not None
+    assert off_definition.action == "feedback_off"

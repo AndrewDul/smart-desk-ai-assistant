@@ -2958,9 +2958,7 @@ The Visual Shell belongs in the presentation layer.
 
 Its correct location is:
 
-```text
 modules/presentation/visual_shell/
-```
 
 It should not be treated as a low-level display driver.
 
@@ -3509,14 +3507,12 @@ This means the current wake word, audio input, FasterWhisper STT, TTS and Visual
 
 NEXA currently needs a major voice pipeline migration because the slow perceived response is mostly before routing:
 
-```text
 wake
 → capture
 → endpointing / waiting for speech end
 → STT
 → routing
 
-```
 
 ## 40. NEXA Voice Engine v2 — RealtimeAudioBus foundation
 
@@ -3530,9 +3526,7 @@ The project now has the first foundation layer for NEXA Voice Engine v2: a realt
 
 New modules were added under:
 
-```text
 modules/devices/audio/realtime/
-```
 
 ### The foundation includes:
 
@@ -3601,9 +3595,7 @@ The project now has a first-class VAD endpointing foundation for NEXA Voice Engi
 
 New modules were added under:
 
-```text
 modules/devices/audio/vad/
-```
 
 The foundation includes:
 
@@ -3673,9 +3665,7 @@ The project now has the first command-first recognition foundation for NEXA Voic
 
 New modules were added under:
 
-```text
 modules/devices/audio/command_asr/
-```
 
 The foundation includes:
 
@@ -3755,9 +3745,7 @@ The project now has a deterministic command intent resolution layer for NEXA Voi
 
 New modules were added under:
 
-```text
 modules/core/command_intents/
-```
 
 The foundation includes:
 
@@ -3829,9 +3817,7 @@ The project now has the first top-level Voice Engine v2 command-first pipeline c
 
 New modules were added under:
 
-```text
 modules/core/voice_engine/
-```
 
 The foundation includes:
 
@@ -3914,9 +3900,7 @@ The project now has a safe runtime integration adapter for NEXA Voice Engine v2.
 
 New modules were added under:
 
-```text
 modules/runtime/voice_engine_v2/
-```
 
 The adapter can build an isolated Voice Engine v2 runtime bundle from existing project settings:
 
@@ -4002,9 +3986,7 @@ The project now has a visual-action-first execution adapter for NEXA Voice Engin
 
 New modules were added under:
 
-```text
 modules/core/voice_engine/execution/
-```
 
 The execution layer includes:
 
@@ -4076,9 +4058,7 @@ The project now has benchmark gates for NEXA Voice Engine v2 command-first respo
 
 New benchmark modules were added under:
 
-```text
 benchmarks/voice/
-```
 
 The benchmark layer includes:
 
@@ -4163,9 +4143,7 @@ The project now has a guarded runtime acceptance adapter for NEXA Voice Engine v
 
 New runtime acceptance code was added under:
 
-```text
 modules/runtime/voice_engine_v2/
-```
 
 The acceptance layer includes:
 
@@ -4245,9 +4223,7 @@ Shadow mode lets the runtime observe transcripts and compare Voice Engine v2 dec
 
 New runtime module:
 
-```text
 modules/runtime/voice_engine_v2/shadow_mode.py
-```
 The shadow mode layer includes:
 
 VoiceEngineV2ShadowRequest — transcript observation request,
@@ -4320,9 +4296,7 @@ The project now persists Voice Engine v2 shadow-mode observations to JSONL.
 
 New module:
 
-```text
 modules/runtime/voice_engine_v2/shadow_telemetry.py
-```
 The telemetry layer includes:
 
 VoiceEngineV2ShadowTelemetryRecord — serializable shadow-mode observation record,
@@ -4407,9 +4381,7 @@ The project now has a hardware-safe runtime hook for feeding legacy runtime tran
 
 New module:
 
-```text
 modules/runtime/voice_engine_v2/shadow_runtime_hook.py
-```
 The hook layer includes:
 
 VoiceEngineV2ShadowRuntimeObservation — passive observation object for a legacy voice turn,
@@ -4487,9 +4459,7 @@ Stage 13 adds a guarded transcript observation tap from the legacy runtime into 
 
 The tap is placed in:
 
-```text
 modules/core/assistant_impl/interaction_mixin.py
-```
 
 The hook is called only after the legacy live path has already executed.
 
@@ -4606,10 +4576,8 @@ Stage 14 adds an offline validator for Voice Engine v2 shadow-mode telemetry.
 
 New files:
 
-```text
 scripts/validate_voice_engine_v2_shadow_log.py
 tests/scripts/test_validate_voice_engine_v2_shadow_log.py
-```
 
 The validator reads:
 
@@ -4678,10 +4646,8 @@ Stage 15 adds an offline inspection/report script for Voice Engine v2 shadow-mod
 
 New files:
 
-```text
 scripts/inspect_voice_engine_v2_shadow_log.py
 tests/scripts/test_inspect_voice_engine_v2_shadow_log.py
-```
 
 The script reads:
 
@@ -4756,7 +4722,6 @@ The goal is to collect real legacy transcripts and compare them with Voice Engin
 
 Correct runtime rule:
 
-```text
 legacy transcript
 → legacy route decision
 → legacy live execution
@@ -4896,7 +4861,6 @@ Stage 16 adds a safe development tool and runbook for controlled hardware shadow
 
 New files:
 
-```text
 scripts/set_voice_engine_v2_shadow_mode.py
 tests/scripts/test_set_voice_engine_v2_shadow_mode.py
 docs/validation/voice-engine-v2-shadow-runbook.md
@@ -4976,10 +4940,8 @@ Stage 17C updates the offline Voice Engine v2 shadow telemetry validator and ins
 
 The tooling now treats this pair as semantically equivalent when the intent key matches:
 
-```text
 legacy_route=action
 voice_engine_route=command
-```
 
 This prevents false route mismatch noise for deterministic built-in commands.
 
@@ -5051,12 +5013,10 @@ Stage 18 collected the first real Voice Engine v2 shadow telemetry from `python 
 
 The runtime was started with:
 
-```text
 voice_engine.enabled=false
 voice_engine.mode=legacy
 voice_engine.command_first_enabled=false
 voice_engine.shadow_mode_enabled=true
-```
 
 The shadow log was created successfully:
 
@@ -5138,14 +5098,12 @@ This is not a full Voice Engine v2 production takeover and it is not the final l
 
 The new path validates the live execution contract for selected deterministic commands:
 
-```text
 legacy STT transcript
 → Voice Engine v2 command-first comparison
 → allowlist gate
 → runtime candidate execution plan
 → legacy ActionFlow RouteDecision
 → existing ActionFlow execution
-```
 
 The first supported runtime candidates are:
 
@@ -5219,7 +5177,6 @@ NEXA now has a controlled safety switch for the guarded Voice Engine v2 runtime-
 
 New script:
 
-```text
 scripts/set_voice_engine_v2_runtime_candidates.py
 
 The script supports:
@@ -5281,7 +5238,6 @@ NEXA now has a validator for guarded Voice Engine v2 runtime-candidate telemetry
 
 New script:
 
-```text
 scripts/validate_voice_engine_v2_runtime_candidate_log.py
 
 The validator reads:
@@ -5339,7 +5295,6 @@ NEXA now has an observation-only Voice Engine v2 hook immediately before the leg
 
 The hook is called before:
 
-```text
 _capture_transcript_for_assistant()
 
 inside:
@@ -5400,7 +5355,6 @@ NEXA now has a controlled safety switch for the Stage 21A pre-STT shadow hook.
 
 New script:
 
-```text
 scripts/set_voice_engine_v2_pre_stt_shadow.py
 
 The script supports:
@@ -5463,9 +5417,7 @@ Stage 22B validated the Stage 22A realtime audio bus probe in the live NEXA runt
 
 The validation temporarily enabled only:
 
-```text
 voice_engine.pre_stt_shadow_enabled=true
-```
 
 All other Voice Engine v2 takeover flags remained disabled:
 
@@ -5612,9 +5564,7 @@ Stage 23A added an observe-only realtime audio bus tap to the existing FasterWhi
 
 New file:
 
-```text
 modules/runtime/voice_engine_v2/faster_whisper_audio_bus_tap.py
-```
 
 The existing FasterWhisper callback can now copy mono PCM chunks into a runtime-owned AudioBus when this flag is enabled:
 
@@ -5739,9 +5689,7 @@ Stage 24A added an observe-only VAD shadow observer over the hardware-validated 
 
 New file:
 
-```text
 modules/runtime/voice_engine_v2/vad_shadow.py
-```
 
 The observer can read copied PCM frames from the runtime-owned realtime audio bus and run VAD endpointing telemetry without changing the production runtime path.
 
@@ -5878,10 +5826,8 @@ Stage 24B added a guarded safety switch and validator for Voice Engine v2 VAD sh
 
 New scripts:
 
-```text
 scripts/set_voice_engine_v2_vad_shadow.py
 scripts/validate_voice_engine_v2_vad_shadow_log.py
-```
 The safety switch controls:
 
 voice_engine.vad_shadow_enabled
@@ -6093,7 +6039,6 @@ Stage 24C extended VAD shadow telemetry with score diagnostics.
 
 The VAD shadow metadata now records:
 
-```text
 speech_score_min
 speech_score_max
 speech_score_avg
@@ -6101,7 +6046,6 @@ speech_score_over_threshold_count
 speech_frame_count
 silence_frame_count
 event_emission_reason
-```
 
 The validator now supports:
 
@@ -6330,7 +6274,6 @@ Silero examples document direct probability scoring with:
 
 Run:
 
-```bash
 pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
 pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
 pytest -q tests/scripts/test_set_voice_engine_v2_vad_shadow.py
@@ -6351,7 +6294,6 @@ unsafe_full_stt_records=0
 unsafe_takeover_records=0
 issues=[]
 Follow-up
-```
 
 If hardware validation confirms non-zero Silero probabilities, the next stage should decide whether frame-level max scoring is sufficient or whether VAD shadow should emit window-level decisions for more precise endpoint timing.
 
@@ -6436,7 +6378,6 @@ The legacy voice path remains the primary production path until later Voice Engi
 
 Evidence from Stage 24C hardware telemetry showed:
 
-```text
 diagnostics_records=5
 speech_score_records=4
 speech_frame_records=0
@@ -6449,7 +6390,6 @@ unsafe_action_records=0
 unsafe_full_stt_records=0
 unsafe_takeover_records=0
 issues=[]
-```
 
 Evidence from Stage 24D hardware validation showed:
 
@@ -6553,9 +6493,7 @@ The observer now records timing fields in `VoiceEngineV2VadShadowSnapshot`, incl
 
 The VAD shadow validator now supports:
 
-```bash
 --require-timing-diagnostics
-```
 and reports:
 
 timing_diagnostics_records
@@ -6606,7 +6544,6 @@ No pre-STT action execution was enabled.
 Source / evidence
 
 Repository tests passed:
-```bash
 pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
 pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
 pytest -q tests/scripts/test_set_voice_engine_v2_vad_shadow.py
@@ -6615,7 +6552,6 @@ pytest -q tests/devices/audio/vad
 pytest -q tests/devices/audio/realtime
 pytest -q tests/core/voice_engine
 pytest -q tests/core/command_intents
-```
 Hardware validation passed with:
 
 accepted=true
@@ -6750,7 +6686,6 @@ No pre-STT action execution was enabled.
 
 Repository tests passed:
 
-```bash
 pytest -q tests/runtime/voice_engine_v2/test_vad_shadow.py
 pytest -q tests/scripts/test_validate_voice_engine_v2_vad_shadow_log.py
 pytest -q tests/scripts/test_set_voice_engine_v2_vad_shadow.py
@@ -6759,7 +6694,6 @@ pytest -q tests/devices/audio/vad
 pytest -q tests/devices/audio/realtime
 pytest -q tests/core/voice_engine
 pytest -q tests/core/command_intents
-```
 Hardware validation passed with:
 
 accepted=true
@@ -6873,7 +6807,6 @@ Stage 24G added an observe-only VAD timing bridge around the legacy capture path
 
 The bridge arms a dedicated VAD shadow subscription before legacy capture starts and observes it after legacy capture completes:
 
-```text
 pre-STT shadow hook
 → arm VAD timing bridge at latest AudioBus sequence
 → legacy FasterWhisper capture runs normally
@@ -7116,7 +7049,6 @@ The VAD shadow snapshot now records:
 
 The VAD shadow validator now supports:
 
-```bash
 --require-score-profile-diagnostics
 
 and reports:
@@ -7329,7 +7261,6 @@ The VAD shadow snapshot now records:
 
 The VAD shadow validator now supports:
 
-```bash
 --require-pcm-profile-diagnostics
 
 and reports:
@@ -7566,7 +7497,6 @@ Nothing was removed in Stage 24J.
 
 The existing FasterWhisper callback tap remains observe-only and guarded by:
 
-```text
 voice_engine.enabled=false
 voice_engine.mode=legacy
 voice_engine.command_first_enabled=false
@@ -7624,7 +7554,6 @@ Stage 24K added an observe-only capture-window shadow tap for FasterWhisper.
 
 A new diagnostic source was introduced:
 
-```text
 faster_whisper_capture_window_shadow_tap
 
 This source replays the actual audio buffer that FasterWhisper already captured and used for transcription into RealtimeAudioBus as diagnostic PCM frames.
@@ -7769,7 +7698,6 @@ Stage 24L moved the FasterWhisper capture-window shadow tap earlier in the legac
 
 The diagnostic source:
 
-```text
 faster_whisper_capture_window_shadow_tap
 
 is now published before _transcribe_audio_candidate(...) runs.
@@ -7913,7 +7841,6 @@ Stage 24M added an observe-only pre-transcription VAD observer for FasterWhisper
 
 The FasterWhisper backend can now notify a neutral capture-window observer immediately after publishing:
 
-```text
 faster_whisper_capture_window_shadow_tap
 
 The runtime attaches VoiceEngineV2VadTimingBridgeAdapter.observe_after_capture_window_publish(...) as that observer when diagnostic flags are enabled.
@@ -8101,7 +8028,6 @@ Stage 24N added a structured endpointing candidate model for Voice Engine v2 VAD
 
 New module:
 
-```text
 modules/runtime/voice_engine_v2/vad_endpointing_candidate.py
 
 The new VoiceEngineV2VadEndpointingCandidate converts pre-transcription VAD evidence into structured metadata:
@@ -8289,7 +8215,6 @@ Stage 24O added a dedicated validation tool for Voice Engine v2 pre-transcriptio
 
 New script:
 
-```text
 scripts/validate_voice_engine_v2_endpointing_candidates.py
 
 New tests:
@@ -8480,7 +8405,6 @@ Stage 24P added a command recognition readiness gate for Voice Engine v2.
 
 New module:
 
-```text
 modules/runtime/voice_engine_v2/command_recognition_readiness.py
 
 New validator:
@@ -8654,7 +8578,6 @@ Stage 24Q added a Voice Engine v2 command audio segment contract.
 
 New module:
 
-```text
 modules/runtime/voice_engine_v2/command_audio_segment.py
 
 New validator:
@@ -8839,7 +8762,6 @@ Stage 24R added a disabled command ASR adapter contract for Voice Engine v2.
 
 New module:
 
-```text
 modules/runtime/voice_engine_v2/command_asr.py
 
 New validator:
@@ -8985,7 +8907,6 @@ Stage 24S added a runtime bridge between the Voice Engine v2 command ASR contrac
 
 New file:
 
-```text
 modules/runtime/voice_engine_v2/vosk_command_asr_adapter.py
 
 New tests:
@@ -9107,7 +9028,6 @@ Stage 24T added a command ASR shadow bridge that can enrich an existing Voice En
 
 New module:
 
-```text
 modules/runtime/voice_engine_v2/command_asr_shadow_bridge.py
 
 New validator:
@@ -9217,7 +9137,6 @@ Stage 24U connected the Stage 24T command ASR shadow bridge to the existing VAD 
 
 Modified files:
 
-```text
 modules/runtime/voice_engine_v2/vad_timing_bridge.py
 tests/runtime/voice_engine_v2/test_vad_timing_bridge.py
 config/settings.json
@@ -9333,7 +9252,6 @@ Stage 24V added a validator for command ASR shadow bridge records embedded insid
 
 New validator:
 
-```text
 scripts/validate_voice_engine_v2_vad_timing_command_asr_shadow.py
 
 New tests:
@@ -9469,7 +9387,6 @@ Stage 24W added a script that safely manages a temporary command ASR shadow obse
 
 New script:
 
-```text
 scripts/run_voice_engine_v2_stage24w_observation.py
 
 New tests:
@@ -9627,7 +9544,6 @@ Stage 24X did not add code. It executed the Stage 24W controlled observation pro
 
 The observation temporarily enabled only observe-only telemetry flags:
 
-```text
 voice_engine.pre_stt_shadow_enabled=true
 voice_engine.faster_whisper_audio_bus_tap_enabled=true
 voice_engine.vad_shadow_enabled=true
@@ -9822,7 +9738,6 @@ Stage 24Y added a safe Vosk model probe.
 
 New module:
 
-```text
 modules/runtime/voice_engine_v2/vosk_model_probe.py
 
 New script:
@@ -9954,7 +9869,6 @@ Stage 24AA installed and verified the local Vosk dependency and small EN/PL Vosk
 
 Installed Python package inside the project virtual environment:
 
-```text
 vosk==0.3.45
 
 Installed local models:
@@ -10115,7 +10029,6 @@ Stage 24AB added an offline Vosk recognition probe for WAV fixtures.
 
 New module:
 
-```text
 modules/runtime/voice_engine_v2/vosk_fixture_recognition_probe.py
 
 New script:
@@ -10238,7 +10151,6 @@ Stage 24AC added a safe procedure for importing and validating offline WAV comma
 
 New module:
 
-```text
 modules/runtime/voice_engine_v2/command_fixture_inventory.py
 
 New script:
@@ -10378,7 +10290,6 @@ Implemented as an offline fixture validation stage. Not connected to live runtim
 
 Stage 24AD imported a small real EN/PL command fixture set under:
 
-```text
 var/data/fixtures/voice_commands/
 
 The fixture set covers:
@@ -10527,7 +10438,6 @@ Implemented as an offline fixture validation stage. Not connected to live runtim
 
 Stage 24AD imported a small real EN/PL command fixture set under:
 
-```text
 var/data/fixtures/voice_commands/
 
 The fixture set covers:
@@ -10700,10 +10610,8 @@ Stage 24AE added language-scoped Vosk grammar vocabulary support for offline fix
 
 The offline Vosk fixture probe can now be called with:
 
-```bash
 --language en
 --language pl
-```
 
 When --language en is used, the probe builds Vosk grammar vocabulary only from English command phrases.
 
@@ -10810,9 +10718,7 @@ Stage 24AF added a small aggregate report tool for offline Vosk fixture recognit
 
 New module:
 
-```text
 modules/runtime/voice_engine_v2/vosk_fixture_report_summary.py
-```
 
 New CLI:
 
@@ -10966,7 +10872,6 @@ Stage 24AG added a single offline matrix runner for the current EN/PL Vosk comma
 
 New module:
 
-```text
 modules/runtime/voice_engine_v2/vosk_fixture_matrix_runner.py
 
 New CLI:
@@ -11129,7 +11034,6 @@ Stage 24AH added a strict offline quality gate for the Vosk fixture matrix summa
 
 New module:
 
-```text
 modules/runtime/voice_engine_v2/vosk_fixture_quality_gate.py
 
 New CLI:
@@ -11288,7 +11192,6 @@ Stage 24AJ added a safe telemetry contract for future observe-only live Vosk com
 
 New module:
 
-```text
 modules/runtime/voice_engine_v2/vosk_live_shadow_contract.py
 
 New validator CLI:
@@ -11454,7 +11357,6 @@ Stage 24AK attaches the existing Vosk live shadow contract to Voice Engine v2 VA
 
 The attachment is guarded by:
 
-```text
 voice_engine.vosk_live_shadow_contract_enabled=false
 
 The contract is attached only when all safety preconditions are true:
@@ -11683,7 +11585,6 @@ Evidence used:
 
 Tests to validate Stage 24AY:
 
-```bash
 pytest -q tests/runtime/voice_engine_v2/test_vad_timing_vosk_shadow_recognition_preflight.py
 pytest -q tests/runtime/voice_engine_v2/test_vosk_shadow_recognition_preflight.py
 pytest -q tests/runtime/voice_engine_v2/test_vad_timing_vosk_shadow_asr_result.py
@@ -11803,7 +11704,6 @@ Evidence used:
 
 Tests to validate Stage 24AZ:
 
-```bash
 pytest -q tests/scripts/test_validate_voice_engine_v2_vosk_shadow_recognition_preflight.py
 pytest -q tests/runtime/voice_engine_v2/test_vad_timing_vosk_shadow_recognition_preflight.py
 pytest -q tests/runtime/voice_engine_v2/test_vosk_shadow_recognition_preflight.py
@@ -11947,7 +11847,6 @@ Evidence used:
 
 Tests to validate Stage 24BA:
 
-```bash
 pytest -q tests/scripts/test_validate_voice_engine_v2_vosk_shadow_observation.py
 pytest -q tests/scripts/test_run_voice_engine_v2_vosk_shadow_observation.py
 pytest -q tests/scripts/test_validate_voice_engine_v2_vosk_shadow_recognition_preflight.py
@@ -12095,7 +11994,6 @@ Observed runtime notes:
 
 Full-chain runtime validation command:
 
-```bash
 python scripts/validate_voice_engine_v2_vosk_shadow_observation.py \
   --settings config/settings.json \
   --log-path var/data/voice_engine_v2_vad_timing_bridge.jsonl \
@@ -12829,3 +12727,54 @@ Polish focus/break wording is intentionally natural: NEXA asks about `skupienie`
 Unknown duration answers are explicit default-duration choices. When the user says `nie wiem` or `I don't know` during a focus duration prompt, NEXA starts focus for the default focus duration. During a break duration prompt, NEXA starts break/odpoczynek for the default break duration. This is logged as default duration selection instead of silently guessing.
 
 Visual Shell receives timer countdown updates through `SHOW_TIMER_COUNTDOWN` and `CLEAR_TIMER_COUNTDOWN`. The Python runtime sends the canonical countdown state from `TimerService`; Godot may locally decrement the label for smooth display, but it is not the source of truth. Countdown color priority is: red first when remaining time is at or below 5% of total duration, orange second for the last 20 seconds, yellow for remaining time below 60% when red/orange do not apply, and white for 60–100%. If the last 20 seconds overlaps with the last 5%, red wins.
+
+<!-- BEGIN feedback-dashboard-and-visual-shell-display-runtime -->
+## Feedback dashboard and Visual Shell display runtime
+
+NEXA now includes a voice-driven Feedback Mode dashboard in the Visual Shell.
+
+Feedback Mode follows the fast deterministic command architecture used by other built-in runtime commands. It is intentionally handled before LLM routing.
+
+Runtime flow:
+
+1. Wake phrase opens the command window.
+2. STT captures the command through the command path.
+3. Normalization and aliases resolve feedback on or feedback off, including known ASR variants.
+4. FastCommandLane maps the phrase to the canonical feedback action.
+5. Action Flow executes feedback_on or feedback_off.
+6. FeedbackLane starts or stops the dashboard workers.
+7. VisualShellController sends SHOW_FEEDBACK, HIDE_FEEDBACK, FEEDBACK_LOG_APPEND, FEEDBACK_STATUS_UPDATE and FEEDBACK_VISION_FRAME to Godot.
+8. Godot renders the dashboard overlay over the Visual Shell particle cloud.
+
+Feedback dashboard responsibilities:
+
+- show system logs and component health status,
+- show separated vision logs,
+- show vision-specific status rows,
+- show live camera preview from the existing camera runtime source,
+- keep bounded log retention,
+- preserve scroll position while reviewing older logs,
+- use clear OK and NOT OK health labels.
+
+Feedback Mode product rules:
+
+- Do not route simple feedback commands to the LLM.
+- Do not require confirmation for known feedback aliases.
+- Do not create an independent camera capture stack.
+- Do not allow unbounded dashboard log growth.
+- Do not fail silently if the dashboard cannot be shown or hidden.
+
+The live vision preview must use the existing vision or camera service source. This avoids hardware contention and keeps one runtime source of truth for camera access.
+
+Feedback command hardening includes common ASR variants such as feedback on, feed back on, feedback own, oruham feedback, oruham fitbit, feedback off, feedback of, feed back off, feed the back of, sheet back off and sheets back off.
+
+Visual Shell display layout now targets the real Raspberry Pi DSI output geometry instead of assuming global desktop coordinate 0,0. In the current development setup, xrandr reports DSI-2 at 1280x800+0+360 and HDMI-A-1 at 2560x1440+1280+360. The launcher detects the configured output and exports the full window and docked window geometry to Godot through environment variables.
+
+Current layout behavior:
+
+- full shell uses the detected DSI display geometry,
+- docked shell is a compact top-right window inside the DSI display,
+- show desktop moves the assistant into docked mode,
+- hide desktop restores the full assistant view,
+- ESC closes the Godot Visual Shell through event handling and process polling.
+<!-- END feedback-dashboard-and-visual-shell-display-runtime -->

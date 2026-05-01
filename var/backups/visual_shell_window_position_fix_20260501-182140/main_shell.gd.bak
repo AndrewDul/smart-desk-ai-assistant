@@ -1,0 +1,1061 @@
+extends Control
+
+const VisualStates = preload("res://scripts/state/visual_states.gd")
+const VisualStateMachineScript = preload("res://scripts/visual_state_machine.gd")
+const DesktopWindowController = preload("res://scripts/desktop/desktop_window_controller.gd")
+const ShellLayout = preload("res://scripts/desktop/shell_layout.gd")
+const VisualShellTcpServerScript = preload("res://scripts/transport/visual_shell_tcp_server.gd")
+const HelpOverlayViewScript = preload("res://scripts/help_overlay_view.gd")
+const FeedbackDashboardViewScript = preload("res://scripts/feedback_dashboard_view.gd")
+
+const BOOT_STATE = VisualStates.IDLE_PARTICLE_CLOUD
+const BOOT_LAYOUT = ShellLayout.FULLSCREEN
+const TEMPERATURE_DEMO_VALUE_C = 58
+const BATTERY_DEMO_PERCENT = 82
+const TARGET_RENDER_FPS = 24
+const SHOW_DEBUG_STATUS_LABEL = false
+
+const DEFAULT_VISUAL_SHELL_WINDOW_X = 0
+const DEFAULT_VISUAL_SHELL_WINDOW_Y = 0
+const DEFAULT_VISUAL_SHELL_WINDOW_WIDTH = 1280
+const DEFAULT_VISUAL_SHELL_WINDOW_HEIGHT = 800
+
+const HELP_OVERLAY_HOLD_SECONDS = 30.0
+const HELP_OVERLAY_PANEL_ALPHA = 0.72
+
+const HELP_LINES_EN = [
+    "show help",
+    "show commands",
+    "show desktop",
+    "hide desktop",
+    "show yourself",
+    "show face",
+    "show the time",
+    "show the date",
+    "show temperature",
+    "show battery",
+    "remember that I parked outside",
+    "what do you remember?",
+    "remind me to drink water at 6",
+    "start focus mode",
+    "start break mode",
+    "system status",
+    "test status",
+    "benchmark status"
+]
+
+const HELP_LINES_PL = [
+    "pokaż pomoc",
+    "pokaż komendy",
+    "pokaż pulpit",
+    "schowaj pulpit",
+    "pokaż się",
+    "pokaż twarz",
+    "pokaż czas",
+    "pokaż datę",
+    "pokaż temperaturę",
+    "pokaż baterię",
+    "zapamiętaj, że zaparkowałem pod domem",
+    "co pamiętasz?",
+    "przypomnij mi wypić wodę o 18",
+    "włącz tryb skupienia",
+    "włącz przerwę",
+    "status systemu",
+    "status testów",
+    "status benchmarków"
+]
+
+const HELP_ITEMS_EN = [
+    {"command": "show help", "description": "Open this command guide."},
+    {"command": "show commands", "description": "Show available voice commands."},
+    {"command": "show desktop", "description": "Open the desktop dock."},
+    {"command": "hide desktop", "description": "Return to the assistant view."},
+    {"command": "show yourself", "description": "Show NEXA's calm face."},
+    {"command": "show face", "description": "Show the face contour view."},
+    {"command": "show the time", "description": "Display the current time."},
+    {"command": "show the date", "description": "Display today's date."},
+    {"command": "show temperature", "description": "Show Raspberry Pi temperature."},
+    {"command": "show battery", "description": "Show current battery level."},
+    {"command": "remember that I parked outside", "description": "Save a memory."},
+    {"command": "what do you remember?", "description": "Recall saved memories."},
+    {"command": "remind me to drink water at 6", "description": "Create a reminder."},
+    {"command": "start focus mode", "description": "Start a focused work session."},
+    {"command": "start break mode", "description": "Start a break routine."},
+    {"command": "system status", "description": "Check runtime health."},
+    {"command": "test status", "description": "Summarise test readiness."},
+    {"command": "benchmark status", "description": "Summarise performance checks."}
+]
+
+const HELP_ITEMS_PL = [
+    {"command": "pokaż pomoc", "description": "Otwiera przewodnik komend."},
+    {"command": "pokaż komendy", "description": "Pokazuje dostępne komendy głosowe."},
+    {"command": "pokaż pulpit", "description": "Otwiera widok pulpitu."},
+    {"command": "schowaj pulpit", "description": "Wraca do widoku asystenta."},
+    {"command": "pokaż się", "description": "Pokazuje spokojną twarz NEXA."},
+    {"command": "pokaż twarz", "description": "Pokazuje kontur twarzy."},
+    {"command": "pokaż czas", "description": "Wyświetla aktualną godzinę."},
+    {"command": "pokaż datę", "description": "Wyświetla dzisiejszą datę."},
+    {"command": "pokaż temperaturę", "description": "Pokazuje temperaturę Raspberry Pi."},
+    {"command": "pokaż baterię", "description": "Pokazuje aktualny poziom baterii."},
+    {"command": "zapamiętaj, że zaparkowałem pod domem", "description": "Zapisuje informację w pamięci."},
+    {"command": "co pamiętasz?", "description": "Przywołuje zapisane wspomnienia."},
+    {"command": "przypomnij mi wypić wodę o 18", "description": "Tworzy przypomnienie."},
+    {"command": "włącz tryb skupienia", "description": "Uruchamia sesję skupienia."},
+    {"command": "włącz przerwę", "description": "Uruchamia tryb przerwy."},
+    {"command": "status systemu", "description": "Sprawdza zdrowie runtime."},
+    {"command": "status testów", "description": "Podsumowuje gotowość testów."},
+    {"command": "status benchmarków", "description": "Podsumowuje pomiary wydajności."}
+]
+
+onready var background: ColorRect = $Background
+onready var status_label: Label = $StatusLabel
+onready var particle_cloud: Node2D = $ParticleCloud
+
+var state_machine = null
+var visual_transport_server = null
+var shell_layout = BOOT_LAYOUT
+var last_viewport_size = Vector2.ZERO
+
+var help_overlay_layer: CanvasLayer = null
+var help_overlay_draw_view: Control = null
+var help_overlay: Control = null
+var help_overlay_panel: ColorRect = null
+var help_overlay_title: Label = null
+var help_overlay_subtitle: Label = null
+var help_overlay_en_header: Label = null
+var help_overlay_pl_header: Label = null
+var help_overlay_en_body: Label = null
+var help_overlay_pl_body: Label = null
+var help_overlay_timer := 0.0
+var feedback_dashboard_layer: CanvasLayer = null
+var feedback_dashboard_view: Control = null
+var timer_countdown_layer: CanvasLayer = null
+var timer_countdown_backdrop: ColorRect = null
+var timer_countdown_label: Label = null
+var timer_countdown_active := false
+var timer_countdown_mode := "timer"
+var timer_countdown_remaining_seconds := 0
+var timer_countdown_total_seconds := 0
+var timer_countdown_last_tick_msec := 0
+
+
+func _ready() -> void:
+    set_process_unhandled_key_input(true)
+    _apply_performance_policy()
+    _apply_visual_shell_window_policy()
+    _setup_scene_visibility()
+    _setup_state_machine()
+    _setup_visual_transport()
+    _setup_help_overlay()
+    _setup_feedback_dashboard()
+    _apply_shell_layout(BOOT_LAYOUT)
+    _apply_visual_shell_window_policy()
+    state_machine.set_state(BOOT_STATE, true)
+    _sync_scene_layout()
+
+
+func _apply_performance_policy() -> void:
+    Engine.target_fps = TARGET_RENDER_FPS
+    OS.low_processor_usage_mode = false
+    OS.vsync_enabled = true
+
+
+func _process(delta: float) -> void:
+    _tick_timer_countdown(delta)
+    _sync_scene_layout_if_needed()
+    _tick_help_overlay(delta)
+
+
+func _apply_visual_shell_window_policy() -> void:
+    if ShellLayout.is_docked(shell_layout):
+        DesktopWindowController.enter_docked_window()
+        return
+
+    if not _env_bool("NEXA_VISUAL_SHELL_FORCE_WINDOW", true):
+        return
+
+    var target_x = _env_int("NEXA_VISUAL_SHELL_WINDOW_X", DEFAULT_VISUAL_SHELL_WINDOW_X)
+    var target_y = _env_int("NEXA_VISUAL_SHELL_WINDOW_Y", DEFAULT_VISUAL_SHELL_WINDOW_Y)
+    var target_width = _env_int("NEXA_VISUAL_SHELL_WINDOW_WIDTH", DEFAULT_VISUAL_SHELL_WINDOW_WIDTH)
+    var target_height = _env_int("NEXA_VISUAL_SHELL_WINDOW_HEIGHT", DEFAULT_VISUAL_SHELL_WINDOW_HEIGHT)
+
+    OS.window_fullscreen = false
+    OS.window_borderless = true
+    OS.set_window_position(Vector2(target_x, target_y))
+    OS.set_window_size(Vector2(target_width, target_height))
+
+    print(
+        "Visual Shell window target applied: position=",
+        OS.get_window_position(),
+        " size=",
+        OS.get_window_size()
+    )
+
+func _env_bool(name: String, default_value: bool) -> bool:
+    if not OS.has_environment(name):
+        return default_value
+
+    var raw_value = OS.get_environment(name).strip_edges().to_lower()
+
+    if raw_value == "":
+        return default_value
+
+    return not (raw_value == "0" or raw_value == "false" or raw_value == "no" or raw_value == "off")
+
+
+func _env_int(name: String, default_value: int) -> int:
+    if not OS.has_environment(name):
+        return default_value
+
+    var raw_value = OS.get_environment(name).strip_edges()
+
+    if not raw_value.is_valid_integer():
+        return default_value
+
+    return int(raw_value)
+
+
+func _setup_scene_visibility() -> void:
+    if background != null:
+        background.visible = true
+        if background is ColorRect:
+            background.color = Color(0.002, 0.003, 0.007, 1.0)
+        background.show()
+
+    if particle_cloud != null:
+        particle_cloud.visible = true
+        particle_cloud.show()
+        particle_cloud.modulate = Color(1, 1, 1, 1)
+        particle_cloud.set_process(true)
+        particle_cloud.update()
+
+    if status_label != null:
+        status_label.visible = false
+
+
+func _setup_help_overlay() -> void:
+    help_overlay_layer = CanvasLayer.new()
+    help_overlay_layer.name = "HelpOverlayLayer"
+    help_overlay_layer.layer = 100
+    add_child(help_overlay_layer)
+
+    help_overlay = Control.new()
+    help_overlay.name = "HelpOverlay"
+    help_overlay.visible = false
+    help_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    help_overlay_layer.add_child(help_overlay)
+
+    help_overlay_panel = ColorRect.new()
+    help_overlay_panel.name = "HelpOverlayPanel"
+    help_overlay_panel.color = Color(0.004, 0.006, 0.012, HELP_OVERLAY_PANEL_ALPHA)
+    help_overlay.add_child(help_overlay_panel)
+
+    help_overlay_title = Label.new()
+    help_overlay_title.name = "HelpOverlayTitle"
+    help_overlay_title.text = "NEXA COMMANDS"
+    help_overlay_title.align = Label.ALIGN_CENTER
+    help_overlay_title.valign = Label.VALIGN_CENTER
+    help_overlay_title.add_color_override("font_color", Color(0.88, 0.94, 1.0, 1.0))
+    help_overlay.add_child(help_overlay_title)
+
+    help_overlay_subtitle = Label.new()
+    help_overlay_subtitle.name = "HelpOverlaySubtitle"
+    help_overlay_subtitle.text = "Voice examples available in English and Polish"
+    help_overlay_subtitle.align = Label.ALIGN_CENTER
+    help_overlay_subtitle.valign = Label.VALIGN_CENTER
+    help_overlay_subtitle.add_color_override("font_color", Color(0.52, 0.62, 0.76, 1.0))
+    help_overlay.add_child(help_overlay_subtitle)
+
+    help_overlay_en_header = Label.new()
+    help_overlay_en_header.name = "HelpOverlayEnglishHeader"
+    help_overlay_en_header.text = "EN"
+    help_overlay_en_header.align = Label.ALIGN_CENTER
+    help_overlay_en_header.valign = Label.VALIGN_CENTER
+    help_overlay_en_header.add_color_override("font_color", Color(0.68, 0.86, 1.0, 1.0))
+    help_overlay.add_child(help_overlay_en_header)
+
+    help_overlay_pl_header = Label.new()
+    help_overlay_pl_header.name = "HelpOverlayPolishHeader"
+    help_overlay_pl_header.text = "PL"
+    help_overlay_pl_header.align = Label.ALIGN_CENTER
+    help_overlay_pl_header.valign = Label.VALIGN_CENTER
+    help_overlay_pl_header.add_color_override("font_color", Color(0.98, 0.88, 0.62, 1.0))
+    help_overlay.add_child(help_overlay_pl_header)
+
+    help_overlay_en_body = Label.new()
+    help_overlay_en_body.name = "HelpOverlayEnglishBody"
+    help_overlay_en_body.text = _join_lines(HELP_LINES_EN)
+    help_overlay_en_body.align = Label.ALIGN_LEFT
+    help_overlay_en_body.valign = Label.VALIGN_TOP
+    help_overlay_en_body.autowrap = true
+    help_overlay_en_body.add_color_override("font_color", Color(0.86, 0.91, 0.98, 1.0))
+    help_overlay_en_body.add_constant_override("line_spacing", 4)
+    help_overlay.add_child(help_overlay_en_body)
+
+    help_overlay_pl_body = Label.new()
+    help_overlay_pl_body.name = "HelpOverlayPolishBody"
+    help_overlay_pl_body.text = _join_lines(HELP_LINES_PL)
+    help_overlay_pl_body.align = Label.ALIGN_LEFT
+    help_overlay_pl_body.valign = Label.VALIGN_TOP
+    help_overlay_pl_body.autowrap = true
+    help_overlay_pl_body.add_color_override("font_color", Color(0.94, 0.90, 0.82, 1.0))
+    help_overlay_pl_body.add_constant_override("line_spacing", 4)
+    help_overlay.add_child(help_overlay_pl_body)
+
+    help_overlay_draw_view = HelpOverlayViewScript.new()
+    help_overlay_draw_view.name = "HelpOverlayDrawView"
+    help_overlay_draw_view.visible = false
+    help_overlay_draw_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    help_overlay_layer.add_child(help_overlay_draw_view)
+
+
+func _input(event: InputEvent) -> void:
+    _handle_visual_shell_key_event(event)
+
+func _unhandled_input(event: InputEvent) -> void:
+    _handle_visual_shell_key_event(event)
+
+
+func _unhandled_key_input(event: InputEventKey) -> void:
+    _handle_visual_shell_key_event(event)
+
+
+func _handle_visual_shell_key_event(event: InputEvent) -> void:
+    if not event is InputEventKey:
+        return
+
+    if not event.pressed:
+        return
+
+    if event.echo:
+        return
+
+    if event.scancode == KEY_ESCAPE:
+        get_tree().quit()
+        return
+
+    if event.scancode == KEY_1:
+        _set_visual_state(VisualStates.IDLE_PARTICLE_CLOUD)
+    elif event.scancode == KEY_2:
+        _set_visual_state(VisualStates.LISTENING_CLOUD)
+    elif event.scancode == KEY_3:
+        _set_visual_state(VisualStates.THINKING_SWARM)
+    elif event.scancode == KEY_4:
+        _set_visual_state(VisualStates.SPEAKING_PULSE)
+    elif event.scancode == KEY_5:
+        _set_visual_state(VisualStates.SCANNING_EYES)
+    elif event.scancode == KEY_6:
+        _set_visual_state(VisualStates.SHOW_SELF_EYES)
+    elif event.scancode == KEY_7:
+        _set_visual_state(VisualStates.ERROR_DEGRADED)
+    elif event.scancode == KEY_8:
+        _set_visual_state(VisualStates.FACE_CONTOUR)
+    elif event.scancode == KEY_9:
+        _set_visual_state(VisualStates.BORED_MICRO_ANIMATION)
+    elif event.scancode == KEY_0:
+        _apply_desktop_state(VisualStates.DESKTOP_DOCKED)
+    elif event.scancode == KEY_MINUS:
+        _apply_desktop_state(VisualStates.DESKTOP_HIDDEN)
+    elif event.scancode == KEY_T:
+        display_temperature_value(TEMPERATURE_DEMO_VALUE_C)
+    elif event.scancode == KEY_B:
+        display_battery_percent(BATTERY_DEMO_PERCENT)
+    elif event.scancode == KEY_H:
+        display_help_overlay("en")
+
+func _setup_state_machine() -> void:
+    state_machine = VisualStateMachineScript.new()
+    state_machine.name = "VisualStateMachine"
+    add_child(state_machine)
+    state_machine.connect("visual_state_changed", self, "_on_visual_state_changed")
+    state_machine.connect("visual_state_rejected", self, "_on_visual_state_rejected")
+
+
+func _setup_visual_transport() -> void:
+    visual_transport_server = VisualShellTcpServerScript.new()
+    visual_transport_server.name = "VisualShellTcpServer"
+    visual_transport_server.connect(
+        "visual_message_received",
+        self,
+        "_on_visual_transport_message"
+    )
+    visual_transport_server.connect(
+        "visual_transport_error",
+        self,
+        "_on_visual_transport_error"
+    )
+    add_child(visual_transport_server)
+
+
+func _setup_timer_countdown() -> void:
+    if timer_countdown_layer != null:
+        return
+
+    timer_countdown_layer = CanvasLayer.new()
+    timer_countdown_layer.name = "TimerCountdownLayer"
+    timer_countdown_layer.layer = 160
+    add_child(timer_countdown_layer)
+
+    timer_countdown_backdrop = ColorRect.new()
+    timer_countdown_backdrop.name = "TimerCountdownBackdrop"
+    timer_countdown_backdrop.color = Color(0.02, 0.025, 0.04, 0.20)
+    timer_countdown_backdrop.visible = false
+    timer_countdown_layer.add_child(timer_countdown_backdrop)
+
+    timer_countdown_label = Label.new()
+    timer_countdown_label.name = "TimerCountdownLabel"
+    timer_countdown_label.visible = false
+    timer_countdown_label.align = Label.ALIGN_LEFT
+    timer_countdown_label.valign = Label.VALIGN_CENTER
+    timer_countdown_label.add_color_override("font_color", Color(0.94, 0.98, 1.0, 1.0))
+    timer_countdown_label.add_constant_override("line_spacing", 2)
+    timer_countdown_layer.add_child(timer_countdown_label)
+
+    _layout_timer_countdown()
+
+
+func display_timer_countdown(payload: Dictionary) -> void:
+    _setup_timer_countdown()
+
+    timer_countdown_active = true
+    timer_countdown_mode = String(payload.get("mode", "timer")).strip_edges().to_lower()
+    timer_countdown_remaining_seconds = int(max(0, int(payload.get("remaining_seconds", 0))))
+    timer_countdown_total_seconds = int(max(1, int(payload.get("total_seconds", max(1, timer_countdown_remaining_seconds)))))
+    timer_countdown_last_tick_msec = OS.get_ticks_msec()
+
+    _refresh_timer_countdown_label()
+
+    if timer_countdown_backdrop != null:
+        timer_countdown_backdrop.visible = true
+        timer_countdown_backdrop.show()
+
+    if timer_countdown_label != null:
+        timer_countdown_label.visible = true
+        timer_countdown_label.show()
+        timer_countdown_label.raise()
+
+    print("Visual Shell timer countdown shown: mode=", timer_countdown_mode, " remaining=", timer_countdown_remaining_seconds, " total=", timer_countdown_total_seconds)
+
+
+func clear_timer_countdown() -> void:
+    timer_countdown_active = false
+    timer_countdown_remaining_seconds = 0
+    timer_countdown_total_seconds = 0
+    timer_countdown_mode = "timer"
+
+    if timer_countdown_backdrop != null:
+        timer_countdown_backdrop.visible = false
+
+    if timer_countdown_label != null:
+        timer_countdown_label.visible = false
+        timer_countdown_label.text = ""
+
+    print("Visual Shell timer countdown cleared")
+
+
+func _layout_timer_countdown() -> void:
+    var margin := Vector2(28.0, 22.0)
+    var size := Vector2(178.0, 54.0)
+
+    if timer_countdown_backdrop != null:
+        timer_countdown_backdrop.rect_position = margin
+        timer_countdown_backdrop.rect_size = size
+
+    if timer_countdown_label != null:
+        timer_countdown_label.rect_position = margin + Vector2(14.0, 7.0)
+        timer_countdown_label.rect_size = size - Vector2(22.0, 10.0)
+
+
+func _refresh_timer_countdown_label() -> void:
+    if not timer_countdown_active:
+        return
+
+    if timer_countdown_label == null:
+        return
+
+    var label := "TIMER"
+    if timer_countdown_mode == "focus":
+        label = "FOCUS"
+    elif timer_countdown_mode == "break":
+        label = "BREAK"
+
+    timer_countdown_label.text = label + "  " + _format_timer_countdown(timer_countdown_remaining_seconds)
+    timer_countdown_label.add_color_override("font_color", _timer_countdown_color(timer_countdown_remaining_seconds, timer_countdown_total_seconds))
+    _layout_timer_countdown()
+
+
+func _format_timer_countdown(seconds: int) -> String:
+    var safe_seconds: int = int(max(0, seconds))
+    var minutes: int = int(safe_seconds / 60)
+    var remainder: int = int(safe_seconds % 60)
+    return "%02d:%02d" % [minutes, remainder]
+
+
+func _timer_countdown_color(remaining_seconds: int, total_seconds: int) -> Color:
+    var safe_total: float = float(max(1, total_seconds))
+    var ratio: float = float(max(0, remaining_seconds)) / safe_total
+
+    # Priority: red wins over orange when the final 5% overlaps with the final 20 seconds.
+    if ratio <= 0.05:
+        return Color(1.0, 0.20, 0.18, 1.0)
+
+    if remaining_seconds <= 20:
+        return Color(1.0, 0.58, 0.18, 1.0)
+
+    if ratio <= 0.59:
+        return Color(1.0, 0.86, 0.26, 1.0)
+
+    return Color(0.94, 0.98, 1.0, 1.0)
+
+
+func _tick_timer_countdown(delta: float) -> void:
+    if not timer_countdown_active:
+        return
+
+    if timer_countdown_remaining_seconds <= 0:
+        clear_timer_countdown()
+        return
+
+    var now := OS.get_ticks_msec()
+    if timer_countdown_last_tick_msec <= 0:
+        timer_countdown_last_tick_msec = now
+        return
+
+    var elapsed_ms: int = now - timer_countdown_last_tick_msec
+    if elapsed_ms < 1000:
+        return
+
+    var elapsed_seconds: int = int(elapsed_ms / 1000)
+    timer_countdown_last_tick_msec += elapsed_seconds * 1000
+    timer_countdown_remaining_seconds = int(max(0, timer_countdown_remaining_seconds - elapsed_seconds))
+    _refresh_timer_countdown_label()
+
+
+func _set_visual_state(new_state: String) -> void:
+    if _is_desktop_layout_state(new_state):
+        _apply_desktop_state(new_state)
+        return
+
+    state_machine.set_state(new_state)
+
+
+func display_temperature_value(value_c: int) -> void:
+    _hide_help_overlay(false)
+    particle_cloud.set_temperature_metric(value_c)
+    state_machine.set_state(VisualStates.TEMPERATURE_GLYPH)
+
+
+func display_battery_percent(percent: int) -> void:
+    _hide_help_overlay(false)
+    particle_cloud.set_battery_metric(percent)
+    state_machine.set_state(VisualStates.BATTERY_GLYPH)
+
+
+func display_date_text(text: String) -> void:
+    _hide_help_overlay(false)
+    particle_cloud.set_date_metric(text)
+    state_machine.set_state(VisualStates.DATE_GLYPH)
+
+
+func display_time_text(text: String) -> void:
+    _hide_help_overlay(false)
+    particle_cloud.set_time_metric(text)
+    state_machine.set_state(VisualStates.TIME_GLYPH)
+
+
+func display_help_overlay(language: String) -> void:
+    print("Visual Shell displaying help overlay: ", String(language))
+
+    help_overlay_timer = HELP_OVERLAY_HOLD_SECONDS
+
+    if background != null:
+        background.visible = true
+        background.color = Color(0.002, 0.003, 0.007, 1.0)
+
+    if particle_cloud != null:
+        particle_cloud.visible = true
+        particle_cloud.show()
+        particle_cloud.modulate = Color(0.72, 0.80, 0.96, 0.86)
+        particle_cloud.set_process(true)
+        particle_cloud.update()
+
+    if help_overlay != null:
+        help_overlay.visible = false
+
+    if help_overlay_draw_view != null and help_overlay_draw_view.has_method("set_help_content"):
+        if status_label != null:
+            status_label.set_as_toplevel(false)
+            status_label.visible = false
+            status_label.text = ""
+
+        help_overlay_draw_view.visible = true
+        help_overlay_draw_view.show()
+        help_overlay_draw_view.set_help_content(language, HELP_ITEMS_EN, HELP_ITEMS_PL)
+        help_overlay_draw_view.raise()
+        _layout_help_overlay()
+        return
+
+    _show_status_help_overlay(language)
+    _sync_scene_layout()
+
+
+func _show_status_help_overlay(language: String) -> void:
+    if status_label == null:
+        print("Visual Shell help overlay failed: status_label is null")
+        return
+
+    status_label.text = _build_help_status_text(language)
+    status_label.visible = true
+    status_label.show()
+    status_label.set_as_toplevel(true)
+    status_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
+    status_label.align = Label.ALIGN_LEFT
+    status_label.valign = Label.VALIGN_TOP
+    status_label.autowrap = false
+    status_label.clip_text = false
+    status_label.add_color_override("font_color", Color(0.94, 0.98, 1.0, 1.0))
+    status_label.add_constant_override("line_spacing", 6)
+    _layout_help_status_label()
+    status_label.raise()
+
+    print(
+        "Visual Shell help status label visible: ",
+        status_label.visible,
+        " chars=",
+        status_label.text.length()
+    )
+
+
+func _build_help_status_text(language: String) -> String:
+    var normalized_language = String(language).strip_edges().to_lower()
+    var title = "NEXA COMMANDS"
+    var subtitle = "Core voice commands. English on the left, Polish on the right."
+
+    if normalized_language.begins_with("pl"):
+        title = "KOMENDY NEXA"
+        subtitle = "Podstawowe komendy głosowe. Angielski po lewej, polski po prawej."
+
+    var left_column_width = 58
+    var output = ""
+    output += title + "\n"
+    output += subtitle + "\n\n"
+    output += _pad_right("EN", left_column_width) + "PL\n"
+    output += _pad_right("--", left_column_width) + "--\n"
+
+    var count = max(HELP_LINES_EN.size(), HELP_LINES_PL.size())
+
+    for index in range(count):
+        var english_text = ""
+        var polish_text = ""
+
+        if index < HELP_LINES_EN.size():
+            english_text = String(HELP_LINES_EN[index])
+
+        if index < HELP_LINES_PL.size():
+            polish_text = String(HELP_LINES_PL[index])
+
+        output += _pad_right(english_text, left_column_width) + polish_text + "\n"
+
+    return output
+
+
+func _pad_right(value: String, target_length: int) -> String:
+    var result = String(value)
+
+    while result.length() < target_length:
+        result += " "
+
+    return result
+
+
+func _layout_help_status_label() -> void:
+    if status_label == null:
+        return
+
+    var viewport_size = get_viewport_rect().size
+    var margin_x = max(28.0, viewport_size.x * 0.035)
+    var margin_y = max(24.0, viewport_size.y * 0.040)
+
+    status_label.rect_position = Vector2(margin_x, margin_y)
+    status_label.rect_size = Vector2(
+        max(320.0, viewport_size.x - (margin_x * 2.0)),
+        max(240.0, viewport_size.y - (margin_y * 2.0))
+    )
+
+
+func _is_help_overlay_visible() -> bool:
+    return help_overlay_timer > 0.0
+
+
+func _refresh_help_overlay_text(language: String) -> void:
+    if help_overlay_draw_view != null and help_overlay_draw_view.visible and help_overlay_draw_view.has_method("set_help_content"):
+        help_overlay_draw_view.set_help_content(language, HELP_ITEMS_EN, HELP_ITEMS_PL)
+        _layout_help_overlay()
+        return
+
+    if status_label == null:
+        return
+
+    status_label.text = _build_help_status_text(language)
+
+
+func _tick_help_overlay(delta: float) -> void:
+    if help_overlay_timer <= 0.0:
+        return
+
+    help_overlay_timer -= delta
+
+    if help_overlay_timer <= 0.0:
+        _hide_help_overlay(true)
+
+
+func _ensure_help_overlay_visible() -> void:
+    if help_overlay_timer <= 0.0:
+        return
+
+    if help_overlay_draw_view != null and help_overlay_draw_view.has_method("layout_for_viewport"):
+        help_overlay_draw_view.visible = true
+        help_overlay_draw_view.show()
+        help_overlay_draw_view.layout_for_viewport(get_viewport_rect().size)
+        help_overlay_draw_view.raise()
+        return
+
+    if status_label != null:
+        status_label.visible = true
+        status_label.show()
+        _layout_help_status_label()
+        status_label.raise()
+
+
+func _hide_help_overlay(return_to_idle: bool) -> void:
+    help_overlay_timer = 0.0
+
+    if help_overlay != null:
+        help_overlay.visible = false
+
+    if help_overlay_draw_view != null:
+        help_overlay_draw_view.visible = false
+
+    if status_label != null:
+        status_label.set_as_toplevel(false)
+        status_label.visible = SHOW_DEBUG_STATUS_LABEL and ShellLayout.is_fullscreen(shell_layout)
+
+        if not SHOW_DEBUG_STATUS_LABEL:
+            status_label.text = ""
+
+    if background != null:
+        background.visible = true
+        background.color = Color(0.002, 0.003, 0.007, 1.0)
+
+    if particle_cloud != null:
+        particle_cloud.visible = true
+        particle_cloud.show()
+        particle_cloud.modulate = Color(1.0, 1.0, 1.0, 1.0)
+
+    if return_to_idle and state_machine != null:
+        state_machine.set_state(VisualStates.IDLE_PARTICLE_CLOUD)
+
+
+func _join_lines(lines: Array) -> String:
+    var result = ""
+
+    for line in lines:
+        if result != "":
+            result += "\n"
+        result += String(line)
+
+    return result
+
+
+func _apply_desktop_state(desktop_state: String) -> void:
+    _hide_help_overlay(false)
+
+    if desktop_state == VisualStates.DESKTOP_DOCKED:
+        _apply_shell_layout(ShellLayout.DOCKED)
+        return
+
+    if desktop_state == VisualStates.DESKTOP_RETURNING \
+            or desktop_state == VisualStates.DESKTOP_HIDDEN:
+        _apply_shell_layout(ShellLayout.FULLSCREEN)
+        return
+
+
+func _apply_shell_layout(next_layout: String) -> void:
+    shell_layout = ShellLayout.coerce(next_layout)
+
+    if ShellLayout.is_docked(shell_layout):
+        DesktopWindowController.enter_docked_window()
+        particle_cloud.set_shell_compact_mode(true)
+        _sync_scene_layout()
+        return
+
+    DesktopWindowController.enter_fullscreen()
+    particle_cloud.set_shell_compact_mode(false)
+    _sync_scene_layout()
+    _apply_visual_shell_window_policy()
+
+func _is_desktop_layout_state(state_name: String) -> bool:
+    return state_name == VisualStates.DESKTOP_DOCKED \
+        or state_name == VisualStates.DESKTOP_RETURNING \
+        or state_name == VisualStates.DESKTOP_HIDDEN
+
+
+func _on_visual_state_changed(new_state: String) -> void:
+    if _is_desktop_layout_state(new_state):
+        _apply_desktop_state(new_state)
+        return
+
+    status_label.text = _build_status_text(new_state)
+    particle_cloud.set_visual_state(new_state)
+
+
+func _on_visual_state_rejected(requested_state: String, fallback_state: String) -> void:
+    print("Visual Shell rejected unsupported state: ", requested_state, " -> ", fallback_state)
+
+
+func _on_visual_transport_message(message: Dictionary) -> void:
+    var command = String(message.get("command", "")).strip_edges().to_upper()
+    var message_type = String(message.get("type", "")).strip_edges().to_lower()
+    var payload = _payload_from_message(message)
+
+    if command == "" and message_type == "visual_state":
+        _apply_visual_state_message(message, payload)
+        return
+
+    if command == "" and message_type == "visual_command":
+        command = String(message.get("command", "")).strip_edges().to_upper()
+
+    _apply_visual_command(command, payload, message)
+
+
+func _payload_from_message(message: Dictionary) -> Dictionary:
+    var raw_payload = message.get("payload", {})
+
+    if typeof(raw_payload) == TYPE_DICTIONARY:
+        return raw_payload
+
+    return {}
+
+
+func _apply_visual_state_message(message: Dictionary, payload: Dictionary) -> void:
+    var state_name = String(message.get("state", ""))
+    if state_name == "":
+        state_name = String(payload.get("state", ""))
+
+    _set_visual_state(state_name)
+
+
+func _apply_visual_command(command: String, payload: Dictionary, raw_message: Dictionary) -> void:
+    if command == "SHOW_TIMER_COUNTDOWN":
+        display_timer_countdown(payload)
+        return
+
+    if command == "CLEAR_TIMER_COUNTDOWN":
+        clear_timer_countdown()
+        return
+
+    if command == "SHOW_HELP":
+        print("Visual Shell applying help overlay: ", String(payload.get("language", "en")))
+        display_help_overlay(String(payload.get("language", "en")))
+        return
+
+    if command == "SET_STATE":
+        var state_name = String(payload.get("state", ""))
+        if state_name == "":
+            state_name = String(raw_message.get("state", ""))
+
+        _set_visual_state(state_name)
+        return
+
+    if command == "SHOW_DESKTOP":
+        _apply_desktop_state(VisualStates.DESKTOP_DOCKED)
+        return
+
+    if command == "HIDE_DESKTOP":
+        _apply_desktop_state(VisualStates.DESKTOP_HIDDEN)
+        return
+
+    if command == "SHOW_SELF" or command == "SHOW_EYES":
+        _hide_help_overlay(false)
+        _set_visual_state(VisualStates.SHOW_SELF_EYES)
+        return
+
+    if command == "SHOW_FACE_CONTOUR":
+        _hide_help_overlay(false)
+        _set_visual_state(VisualStates.FACE_CONTOUR)
+        return
+
+    if command == "START_SCANNING":
+        _hide_help_overlay(false)
+        _set_visual_state(VisualStates.SCANNING_EYES)
+        return
+
+    if command == "RETURN_TO_IDLE":
+        _hide_help_overlay(false)
+        _set_visual_state(VisualStates.IDLE_PARTICLE_CLOUD)
+        return
+
+    if command == "REPORT_DEGRADED":
+        _hide_help_overlay(false)
+        _set_visual_state(VisualStates.ERROR_DEGRADED)
+        return
+
+    if command == "SHOW_TEMPERATURE":
+        display_temperature_value(int(payload.get("value_c", TEMPERATURE_DEMO_VALUE_C)))
+        return
+
+    if command == "SHOW_BATTERY":
+        display_battery_percent(int(payload.get("percent", BATTERY_DEMO_PERCENT)))
+        return
+
+    if command == "SHOW_DATE":
+        display_date_text(String(payload.get("text", "")))
+        return
+
+    if command == "SHOW_TIME":
+        display_time_text(String(payload.get("text", "")))
+        return
+
+    if command == "SHOW_FEEDBACK":
+        display_feedback_dashboard(String(payload.get("language", "en")))
+        return
+
+    if command == "HIDE_FEEDBACK":
+        hide_feedback_dashboard()
+        return
+
+    if command == "FEEDBACK_LOG_APPEND":
+        if feedback_dashboard_view != null and feedback_dashboard_view.has_method("append_log"):
+            feedback_dashboard_view.append_log(payload)
+        return
+
+    if command == "FEEDBACK_STATUS_UPDATE":
+        if feedback_dashboard_view != null and feedback_dashboard_view.has_method("update_statuses"):
+            feedback_dashboard_view.update_statuses(payload.get("statuses", {}))
+        return
+
+    if command == "FEEDBACK_VISION_FRAME":
+        if feedback_dashboard_view != null and feedback_dashboard_view.has_method("update_vision_frame"):
+            feedback_dashboard_view.update_vision_frame(payload)
+        return
+
+    print("Visual Shell ignored unsupported transport command: ", command)
+
+
+func _on_visual_transport_error(error_message: String) -> void:
+    print("Visual Shell transport warning: ", error_message)
+
+
+func _sync_scene_layout_if_needed() -> void:
+    var viewport_size = get_viewport_rect().size
+
+    if viewport_size == last_viewport_size:
+        return
+
+    _sync_scene_layout()
+
+
+func _sync_scene_layout() -> void:
+    var viewport_size = get_viewport_rect().size
+    last_viewport_size = viewport_size
+
+    if particle_cloud != null:
+        particle_cloud.position = viewport_size * 0.5
+
+    if background != null:
+        background.visible = true
+
+    if _is_help_overlay_visible():
+        if help_overlay_draw_view != null and help_overlay_draw_view.visible:
+            _layout_help_overlay()
+            return
+
+        _layout_help_status_label()
+
+        if status_label != null:
+            status_label.visible = true
+            status_label.show()
+            status_label.raise()
+
+        return
+
+    _layout_help_overlay()
+
+    if status_label != null:
+        status_label.visible = SHOW_DEBUG_STATUS_LABEL and ShellLayout.is_fullscreen(shell_layout)
+
+
+func _layout_help_overlay() -> void:
+    if help_overlay != null:
+        help_overlay.visible = false
+
+    if help_overlay_draw_view == null:
+        if _is_help_overlay_visible():
+            _layout_help_status_label()
+        return
+
+    if not _is_help_overlay_visible():
+        help_overlay_draw_view.visible = false
+        return
+
+    help_overlay_draw_view.visible = true
+    help_overlay_draw_view.show()
+
+    if help_overlay_draw_view.has_method("layout_for_viewport"):
+        help_overlay_draw_view.layout_for_viewport(get_viewport_rect().size)
+
+    help_overlay_draw_view.raise()
+
+
+func _build_status_text(current_state: String) -> String:
+    if not SHOW_DEBUG_STATUS_LABEL:
+        return ""
+
+    return "NEXA VISUAL SHELL\n" \
+        + current_state \
+        + "\nlayout: " \
+        + shell_layout
+
+func _setup_feedback_dashboard() -> void:
+    if feedback_dashboard_layer != null:
+        return
+    feedback_dashboard_layer = CanvasLayer.new()
+    feedback_dashboard_layer.name = "FeedbackDashboardLayer"
+    feedback_dashboard_layer.layer = 105
+    add_child(feedback_dashboard_layer)
+
+    feedback_dashboard_view = FeedbackDashboardViewScript.new()
+    feedback_dashboard_view.name = "FeedbackDashboard"
+    feedback_dashboard_view.visible = false
+    feedback_dashboard_layer.add_child(feedback_dashboard_view)
+
+
+func display_feedback_dashboard(language: String) -> void:
+    if feedback_dashboard_view == null:
+        _setup_feedback_dashboard()
+
+    if feedback_dashboard_layer != null:
+        feedback_dashboard_layer.visible = true
+
+    _hide_help_overlay(false)
+
+    if feedback_dashboard_view != null:
+        feedback_dashboard_view.visible = true
+        feedback_dashboard_view.show()
+        if feedback_dashboard_view.has_method("set_language"):
+            feedback_dashboard_view.set_language(language)
+        if feedback_dashboard_view.has_method("layout_for_viewport"):
+            feedback_dashboard_view.layout_for_viewport(get_viewport_rect().size)
+        feedback_dashboard_view.raise()
+
+    update()
+
+func hide_feedback_dashboard() -> void:
+    if feedback_dashboard_view != null:
+        feedback_dashboard_view.hide()
+        feedback_dashboard_view.visible = false
+
+    if feedback_dashboard_layer != null:
+        feedback_dashboard_layer.visible = false
+
+    update()

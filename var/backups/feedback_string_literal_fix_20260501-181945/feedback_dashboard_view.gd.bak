@@ -1,0 +1,690 @@
+extends Control
+
+const SCRIM_COLOR = Color(0.0, 0.0, 0.0, 0.18)
+const PANEL_COLOR = Color(0.006, 0.010, 0.024, 0.74)
+const PANEL_EDGE_COLOR = Color(0.60, 0.78, 1.0, 0.26)
+const PANEL_INNER_EDGE_COLOR = Color(1.0, 1.0, 1.0, 0.055)
+const COLUMN_DIVIDER_COLOR = Color(0.62, 0.78, 1.0, 0.18)
+const HEADER_LINE_COLOR = Color(0.72, 0.84, 1.0, 0.10)
+
+const TAB_INACTIVE_BG = Color(0.04, 0.06, 0.10, 0.55)
+const TAB_ACTIVE_BG = Color(0.10, 0.16, 0.26, 0.85)
+const TAB_INACTIVE_TEXT = Color(0.62, 0.72, 0.86, 1.0)
+const TAB_ACTIVE_TEXT = Color(0.95, 0.98, 1.0, 1.0)
+const TAB_ACTIVE_UNDERLINE = Color(0.45, 0.78, 1.0, 0.95)
+
+const TITLE_COLOR = Color(0.92, 0.97, 1.0, 1.0)
+const SUBTITLE_COLOR = Color(0.58, 0.68, 0.82, 1.0)
+const LOG_PANEL_BG = Color(0.01, 0.02, 0.04, 0.50)
+const VISION_PANEL_BG = Color(0.005, 0.012, 0.022, 0.62)
+
+const STATUS_HEADER_COLOR = Color(0.75, 0.86, 1.0, 1.0)
+const STATUS_NAME_COLOR = Color(0.86, 0.90, 0.96, 1.0)
+const STATUS_OK_COLOR = Color(0.45, 0.92, 0.65, 1.0)
+const STATUS_NOT_OK_COLOR = Color(1.0, 0.42, 0.46, 1.0)
+
+const TAB_LOGS_STATUS = 0
+const TAB_VISION = 1
+const MAX_LOG_ENTRIES = 500
+const LOG_RETENTION_MS = 300000
+
+const CORE_COMPONENT_KEYS = [
+    "llm", "camera", "lcd", "microphone", "speaker", "tts", "stt", "wake"
+]
+
+const VISION_COMPONENT_KEYS = [
+    "vision_camera", "vision_capture", "vision_pipeline", "vision_detection"
+]
+
+const COMPONENT_LABELS_EN = {
+    "llm": "LLM",
+    "camera": "Camera",
+    "lcd": "LCD / Display",
+    "microphone": "Microphone",
+    "speaker": "Speaker",
+    "tts": "TTS",
+    "stt": "STT",
+    "wake": "Wake word",
+    "vision_camera": "Camera backend",
+    "vision_capture": "Capture worker",
+    "vision_pipeline": "Vision pipeline",
+    "vision_detection": "Object detection",
+}
+
+var _language = "en"
+var _active_tab = TAB_LOGS_STATUS
+
+var _panel_rect = Rect2()
+var _tab_logs_rect = Rect2()
+var _tab_vision_rect = Rect2()
+
+var _log_panel_rect = Rect2()
+var _status_panel_rect = Rect2()
+var _vision_panel_rect = Rect2()
+var _vision_logs_panel_rect = Rect2()
+var _vision_status_panel_rect = Rect2()
+var _content_top = 0.0
+
+var _title_label = null
+var _subtitle_label = null
+var _tab_logs_label = null
+var _tab_vision_label = null
+
+var _logs_header_label = null
+var _logs_view = null
+var _status_header_label = null
+var _status_rows = {}
+var _statuses = {}
+
+var _vision_header_label = null
+var _vision_texture_rect = null
+var _vision_placeholder_label = null
+var _vision_logs_header_label = null
+var _vision_logs_view = null
+var _vision_status_header_label = null
+var _vision_status_rows = {}
+var _vision_statuses = {}
+
+var _main_log_entries = []
+var _vision_log_entries = []
+var _controls_ready = false
+
+
+func _ready() -> void:
+    _ensure_controls()
+    set_process_input(true)
+    mouse_filter = Control.MOUSE_FILTER_STOP
+
+
+func set_language(language: String) -> void:
+    _language = String(language).strip_edges().to_lower()
+    _ensure_controls()
+    _refresh_static_text()
+    _redraw_status_grid()
+    _redraw_vision_status_grid()
+    _refresh_vision_placeholder_text()
+    update()
+
+
+func layout_for_viewport(viewport_size: Vector2) -> void:
+    _ensure_controls()
+
+    rect_position = Vector2.ZERO
+    rect_size = viewport_size
+
+    var margin_x = max(28.0, viewport_size.x * 0.040)
+    var margin_y = max(24.0, viewport_size.y * 0.045)
+    _panel_rect = Rect2(
+        Vector2(margin_x, margin_y),
+        Vector2(viewport_size.x - margin_x * 2.0, viewport_size.y - margin_y * 2.0)
+    )
+
+    var padding_x = max(22.0, _panel_rect.size.x * 0.030)
+    var padding_y = max(16.0, _panel_rect.size.y * 0.026)
+    var title_height = 24.0
+    var subtitle_height = 20.0
+    var tab_height = max(36.0, _panel_rect.size.y * 0.060)
+    var section_header_height = 22.0
+    var inner_gap = 12.0
+
+    var title_y = _panel_rect.position.y + padding_y
+    var subtitle_y = title_y + title_height + 2.0
+    var tab_y = subtitle_y + subtitle_height + inner_gap
+
+    _title_label.rect_position = Vector2(_panel_rect.position.x + padding_x, title_y)
+    _title_label.rect_size = Vector2(_panel_rect.size.x - padding_x * 2.0, title_height)
+
+    _subtitle_label.rect_position = Vector2(_panel_rect.position.x + padding_x, subtitle_y)
+    _subtitle_label.rect_size = Vector2(_panel_rect.size.x - padding_x * 2.0, subtitle_height)
+
+    var tab_strip_x = _panel_rect.position.x + padding_x
+    var tab_strip_w = _panel_rect.size.x - padding_x * 2.0
+    var tab_w = tab_strip_w * 0.5
+
+    _tab_logs_rect = Rect2(Vector2(tab_strip_x, tab_y), Vector2(tab_w, tab_height))
+    _tab_vision_rect = Rect2(Vector2(tab_strip_x + tab_w, tab_y), Vector2(tab_w, tab_height))
+
+    _tab_logs_label.rect_position = _tab_logs_rect.position
+    _tab_logs_label.rect_size = _tab_logs_rect.size
+    _tab_vision_label.rect_position = _tab_vision_rect.position
+    _tab_vision_label.rect_size = _tab_vision_rect.size
+
+    _content_top = tab_y + tab_height + inner_gap
+
+    var content_x = _panel_rect.position.x + padding_x
+    var content_w = _panel_rect.size.x - padding_x * 2.0
+    var content_h = _panel_rect.position.y + _panel_rect.size.y - padding_y - _content_top
+    var col_gap = max(20.0, content_w * 0.025)
+    var col_w = (content_w - col_gap) * 0.5
+
+    _log_panel_rect = Rect2(Vector2(content_x, _content_top), Vector2(col_w, content_h))
+    _status_panel_rect = Rect2(Vector2(content_x + col_w + col_gap, _content_top), Vector2(col_w, content_h))
+
+    _logs_header_label.rect_position = Vector2(_log_panel_rect.position.x + 14.0, _log_panel_rect.position.y + 8.0)
+    _logs_header_label.rect_size = Vector2(_log_panel_rect.size.x - 28.0, section_header_height)
+
+    var log_view_top = _log_panel_rect.position.y + 8.0 + section_header_height + 6.0
+    _logs_view.rect_position = Vector2(_log_panel_rect.position.x + 12.0, log_view_top)
+    _logs_view.rect_size = Vector2(_log_panel_rect.size.x - 24.0, _log_panel_rect.position.y + _log_panel_rect.size.y - log_view_top - 10.0)
+
+    _status_header_label.rect_position = Vector2(_status_panel_rect.position.x + 14.0, _status_panel_rect.position.y + 8.0)
+    _status_header_label.rect_size = Vector2(_status_panel_rect.size.x - 28.0, section_header_height)
+    _layout_status_rows()
+
+    _vision_panel_rect = Rect2(Vector2(content_x, _content_top), Vector2(col_w, content_h))
+
+    var side_x = content_x + col_w + col_gap
+    var side_y = _content_top
+    var side_w = col_w
+    var side_h = content_h
+    var split_gap = 12.0
+    var logs_h = side_h * 0.56
+    var status_h = side_h - logs_h - split_gap
+
+    _vision_logs_panel_rect = Rect2(Vector2(side_x, side_y), Vector2(side_w, logs_h))
+    _vision_status_panel_rect = Rect2(Vector2(side_x, side_y + logs_h + split_gap), Vector2(side_w, status_h))
+
+    _vision_header_label.rect_position = Vector2(_vision_panel_rect.position.x + 14.0, _vision_panel_rect.position.y + 8.0)
+    _vision_header_label.rect_size = Vector2(_vision_panel_rect.size.x - 28.0, section_header_height)
+
+    var vision_tex_top = _vision_panel_rect.position.y + 8.0 + section_header_height + 6.0
+    _vision_texture_rect.rect_position = Vector2(_vision_panel_rect.position.x + 12.0, vision_tex_top)
+    _vision_texture_rect.rect_size = Vector2(_vision_panel_rect.size.x - 24.0, _vision_panel_rect.position.y + _vision_panel_rect.size.y - vision_tex_top - 10.0)
+
+    _vision_placeholder_label.rect_position = _vision_texture_rect.rect_position
+    _vision_placeholder_label.rect_size = _vision_texture_rect.rect_size
+
+    _vision_logs_header_label.rect_position = Vector2(_vision_logs_panel_rect.position.x + 14.0, _vision_logs_panel_rect.position.y + 8.0)
+    _vision_logs_header_label.rect_size = Vector2(_vision_logs_panel_rect.size.x - 28.0, section_header_height)
+
+    var vision_logs_top = _vision_logs_panel_rect.position.y + 8.0 + section_header_height + 6.0
+    _vision_logs_view.rect_position = Vector2(_vision_logs_panel_rect.position.x + 12.0, vision_logs_top)
+    _vision_logs_view.rect_size = Vector2(_vision_logs_panel_rect.size.x - 24.0, _vision_logs_panel_rect.position.y + _vision_logs_panel_rect.size.y - vision_logs_top - 10.0)
+
+    _vision_status_header_label.rect_position = Vector2(_vision_status_panel_rect.position.x + 14.0, _vision_status_panel_rect.position.y + 8.0)
+    _vision_status_header_label.rect_size = Vector2(_vision_status_panel_rect.size.x - 28.0, section_header_height)
+    _layout_vision_status_rows()
+
+    _apply_tab_visibility()
+    update()
+
+
+func append_log(payload) -> void:
+    if payload == null or typeof(payload) != TYPE_DICTIONARY:
+        return
+
+    _ensure_controls()
+
+    var level = String(payload.get("level", "info")).strip_edges().to_lower()
+    var message = String(payload.get("message", "")).strip_edges()
+    if message == "":
+        return
+
+    var ts_ms = int(payload.get("ts_ms", 0))
+    if ts_ms <= 0:
+        ts_ms = _current_time_ms()
+
+    var line = _format_log_entry(level, message, ts_ms)
+    var entry = {"ts_ms": ts_ms, "line": line}
+
+    if _is_vision_log(message):
+        _append_entry(_vision_log_entries, entry)
+        _rebuild_log_view(_vision_logs_view, _vision_log_entries)
+        return
+
+    _append_entry(_main_log_entries, entry)
+    _rebuild_log_view(_logs_view, _main_log_entries)
+
+func update_statuses(statuses) -> void:
+    if statuses == null or typeof(statuses) != TYPE_DICTIONARY:
+        return
+
+    _ensure_controls()
+
+    for key in statuses.keys():
+        var normalized_key = String(key)
+        var entry = statuses[key]
+        if typeof(entry) != TYPE_DICTIONARY:
+            continue
+
+        var row = {
+            "state": String(entry.get("state", "not_ok")).strip_edges().to_lower(),
+            "detail": String(entry.get("detail", "")).strip_edges(),
+        }
+
+        if CORE_COMPONENT_KEYS.has(normalized_key):
+            _statuses[normalized_key] = row
+        elif VISION_COMPONENT_KEYS.has(normalized_key):
+            _vision_statuses[normalized_key] = row
+
+    if _statuses.has("camera") and not _vision_statuses.has("vision_camera"):
+        _vision_statuses["vision_camera"] = _statuses["camera"]
+
+    _redraw_status_grid()
+    _redraw_vision_status_grid()
+
+
+func update_vision_frame(payload) -> void:
+    if payload == null or typeof(payload) != TYPE_DICTIONARY:
+        return
+
+    var jpeg_b64 = String(payload.get("jpeg_b64", "")).strip_edges()
+    if jpeg_b64 == "":
+        return
+
+    var raw = Marshalls.base64_to_raw(jpeg_b64)
+    if raw.empty():
+        return
+
+    var image = Image.new()
+    var err = image.load_jpg_from_buffer(raw)
+    if err != OK:
+        return
+
+    var texture = ImageTexture.new()
+    texture.create_from_image(image, 0)
+    _vision_texture_rect.texture = texture
+    _vision_placeholder_label.visible = false
+
+
+func _input(event) -> void:
+    if event is InputEventMouseButton and event.pressed and event.button_index == BUTTON_LEFT:
+        var mouse_pos = get_local_mouse_position()
+        if _tab_logs_rect.has_point(mouse_pos):
+            _set_active_tab(TAB_LOGS_STATUS)
+            accept_event()
+            return
+        if _tab_vision_rect.has_point(mouse_pos):
+            _set_active_tab(TAB_VISION)
+            accept_event()
+            return
+
+
+func _draw() -> void:
+    if _panel_rect.size == Vector2.ZERO:
+        return
+
+    draw_rect(Rect2(Vector2.ZERO, rect_size), SCRIM_COLOR, true)
+    draw_rect(_panel_rect, PANEL_COLOR, true)
+    draw_rect(_panel_rect, PANEL_EDGE_COLOR, false, 1.0)
+    draw_rect(Rect2(_panel_rect.position + Vector2(1, 1), _panel_rect.size - Vector2(2, 2)), PANEL_INNER_EDGE_COLOR, false, 1.0)
+
+    draw_line(
+        Vector2(_panel_rect.position.x + 18.0, _content_top - 6.0),
+        Vector2(_panel_rect.position.x + _panel_rect.size.x - 18.0, _content_top - 6.0),
+        HEADER_LINE_COLOR,
+        1.0
+    )
+
+    _draw_tab(_tab_logs_rect, _active_tab == TAB_LOGS_STATUS)
+    _draw_tab(_tab_vision_rect, _active_tab == TAB_VISION)
+
+    if _active_tab == TAB_LOGS_STATUS:
+        draw_rect(_log_panel_rect, LOG_PANEL_BG, true)
+        draw_rect(_log_panel_rect, COLUMN_DIVIDER_COLOR, false, 1.0)
+        draw_rect(_status_panel_rect, LOG_PANEL_BG, true)
+        draw_rect(_status_panel_rect, COLUMN_DIVIDER_COLOR, false, 1.0)
+    else:
+        draw_rect(_vision_panel_rect, VISION_PANEL_BG, true)
+        draw_rect(_vision_panel_rect, COLUMN_DIVIDER_COLOR, false, 1.0)
+        draw_rect(_vision_logs_panel_rect, LOG_PANEL_BG, true)
+        draw_rect(_vision_logs_panel_rect, COLUMN_DIVIDER_COLOR, false, 1.0)
+        draw_rect(_vision_status_panel_rect, LOG_PANEL_BG, true)
+        draw_rect(_vision_status_panel_rect, COLUMN_DIVIDER_COLOR, false, 1.0)
+
+
+func _draw_tab(tab_rect, active) -> void:
+    draw_rect(tab_rect, TAB_ACTIVE_BG if active else TAB_INACTIVE_BG, true)
+    draw_rect(tab_rect, COLUMN_DIVIDER_COLOR, false, 1.0)
+    if active:
+        draw_rect(Rect2(tab_rect.position.x, tab_rect.position.y + tab_rect.size.y - 3.0, tab_rect.size.x, 3.0), TAB_ACTIVE_UNDERLINE, true)
+
+
+func _ensure_controls() -> void:
+    if _controls_ready:
+        return
+
+    _title_label = _make_label("FeedbackTitle", Label.ALIGN_CENTER, TITLE_COLOR)
+    _subtitle_label = _make_label("FeedbackSubtitle", Label.ALIGN_CENTER, SUBTITLE_COLOR)
+    _tab_logs_label = _make_label("FeedbackTabLogs", Label.ALIGN_CENTER, TAB_INACTIVE_TEXT)
+    _tab_vision_label = _make_label("FeedbackTabVision", Label.ALIGN_CENTER, TAB_INACTIVE_TEXT)
+
+    _logs_header_label = _make_label("FeedbackLogsHeader", Label.ALIGN_LEFT, STATUS_HEADER_COLOR)
+    _logs_view = _make_log_view("FeedbackLogsView")
+    _status_header_label = _make_label("FeedbackStatusHeader", Label.ALIGN_LEFT, STATUS_HEADER_COLOR)
+
+    _vision_header_label = _make_label("FeedbackVisionHeader", Label.ALIGN_LEFT, STATUS_HEADER_COLOR)
+    _vision_texture_rect = TextureRect.new()
+    _vision_texture_rect.name = "FeedbackVisionTexture"
+    _vision_texture_rect.expand = true
+    _vision_texture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+    _vision_texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+    _vision_placeholder_label = _make_label("FeedbackVisionPlaceholder", Label.ALIGN_CENTER, SUBTITLE_COLOR)
+    _vision_placeholder_label.valign = Label.VALIGN_CENTER
+
+    _vision_logs_header_label = _make_label("FeedbackVisionLogsHeader", Label.ALIGN_LEFT, STATUS_HEADER_COLOR)
+    _vision_logs_view = _make_log_view("FeedbackVisionLogsView")
+    _vision_status_header_label = _make_label("FeedbackVisionStatusHeader", Label.ALIGN_LEFT, STATUS_HEADER_COLOR)
+
+    add_child(_title_label)
+    add_child(_subtitle_label)
+    add_child(_tab_logs_label)
+    add_child(_tab_vision_label)
+    add_child(_logs_header_label)
+    add_child(_logs_view)
+    add_child(_status_header_label)
+    add_child(_vision_header_label)
+    add_child(_vision_texture_rect)
+    add_child(_vision_placeholder_label)
+    add_child(_vision_logs_header_label)
+    add_child(_vision_logs_view)
+    add_child(_vision_status_header_label)
+
+    _build_status_rows()
+    _build_vision_status_rows()
+    _seed_statuses()
+    _refresh_static_text()
+    _refresh_vision_placeholder_text()
+    _redraw_status_grid()
+    _redraw_vision_status_grid()
+
+    _controls_ready = true
+
+
+func _make_log_view(name):
+    var view = RichTextLabel.new()
+    view.name = name
+    view.bbcode_enabled = true
+    view.scroll_active = true
+    view.scroll_following = true
+    view.selection_enabled = false
+    view.mouse_filter = Control.MOUSE_FILTER_PASS
+    view.add_color_override("default_color", Color(0.84, 0.90, 0.98, 1.0))
+    view.add_constant_override("line_separation", 2)
+    return view
+
+
+func _build_status_rows() -> void:
+    for key in CORE_COMPONENT_KEYS:
+        var name_label = _make_label("FeedbackStatusName_" + str(key), Label.ALIGN_LEFT, STATUS_NAME_COLOR)
+        var value_label = _make_label("FeedbackStatusValue_" + str(key), Label.ALIGN_RIGHT, STATUS_NOT_OK_COLOR)
+        add_child(name_label)
+        add_child(value_label)
+        _status_rows[key] = {"name": name_label, "value": value_label}
+
+
+func _build_vision_status_rows() -> void:
+    for key in VISION_COMPONENT_KEYS:
+        var name_label = _make_label("FeedbackVisionStatusName_" + str(key), Label.ALIGN_LEFT, STATUS_NAME_COLOR)
+        var value_label = _make_label("FeedbackVisionStatusValue_" + str(key), Label.ALIGN_RIGHT, STATUS_NOT_OK_COLOR)
+        add_child(name_label)
+        add_child(value_label)
+        _vision_status_rows[key] = {"name": name_label, "value": value_label}
+
+
+func _seed_statuses() -> void:
+    for key in CORE_COMPONENT_KEYS:
+        _statuses[key] = {"state": "not_ok", "detail": "waiting"}
+    for key2 in VISION_COMPONENT_KEYS:
+        _vision_statuses[key2] = {"state": "not_ok", "detail": "waiting"}
+
+
+func _layout_status_rows() -> void:
+    var rows_top = _status_panel_rect.position.y + 40.0
+    var row_h = 38.0
+    var x = _status_panel_rect.position.x + 18.0
+    var w = _status_panel_rect.size.x - 36.0
+
+    for i in range(CORE_COMPONENT_KEYS.size()):
+        var key = CORE_COMPONENT_KEYS[i]
+        var entry = _status_rows[key]
+        var y = rows_top + float(i) * row_h
+        entry["name"].rect_position = Vector2(x, y)
+        entry["name"].rect_size = Vector2(w * 0.45, row_h - 4.0)
+        entry["value"].rect_position = Vector2(x + w * 0.45, y)
+        entry["value"].rect_size = Vector2(w * 0.55, row_h - 4.0)
+
+
+func _layout_vision_status_rows() -> void:
+    var rows_top = _vision_status_panel_rect.position.y + 40.0
+    var row_h = 38.0
+    var x = _vision_status_panel_rect.position.x + 18.0
+    var w = _vision_status_panel_rect.size.x - 36.0
+
+    for i in range(VISION_COMPONENT_KEYS.size()):
+        var key = VISION_COMPONENT_KEYS[i]
+        var entry = _vision_status_rows[key]
+        var y = rows_top + float(i) * row_h
+        entry["name"].rect_position = Vector2(x, y)
+        entry["name"].rect_size = Vector2(w * 0.45, row_h - 4.0)
+        entry["value"].rect_position = Vector2(x + w * 0.45, y)
+        entry["value"].rect_size = Vector2(w * 0.55, row_h - 4.0)
+
+
+func _redraw_status_grid() -> void:
+    for key in CORE_COMPONENT_KEYS:
+        var entry = _status_rows[key]
+        entry["name"].text = String(COMPONENT_LABELS_EN.get(key, str(key)))
+        var st = _statuses.get(key, {"state": "not_ok", "detail": ""})
+        var state = String(st.get("state", "not_ok")).strip_edges().to_lower()
+        var detail = String(st.get("detail", "")).strip_edges()
+        entry["value"].text = _status_text(state, detail)
+        entry["value"].add_color_override("font_color", _status_color(state))
+
+
+func _redraw_vision_status_grid() -> void:
+    for key in VISION_COMPONENT_KEYS:
+        var entry = _vision_status_rows[key]
+        entry["name"].text = String(COMPONENT_LABELS_EN.get(key, str(key)))
+        var st = _vision_statuses.get(key, {"state": "not_ok", "detail": ""})
+        var state = String(st.get("state", "not_ok")).strip_edges().to_lower()
+        var detail = String(st.get("detail", "")).strip_edges()
+        entry["value"].text = _status_text(state, detail)
+        entry["value"].add_color_override("font_color", _status_color(state))
+
+
+func _status_text(state, detail) -> String:
+    var text = "● OK" if _state_is_ok(state) else "● NOT OK"
+    if detail != "":
+        text += "  " + detail
+    return text
+
+
+func _state_is_ok(state) -> bool:
+    return state == "ok" or state == "ready" or state == "online"
+
+
+func _status_color(state) -> Color:
+    return STATUS_OK_COLOR if _state_is_ok(state) else STATUS_NOT_OK_COLOR
+
+
+func _refresh_static_text() -> void:
+    _title_label.text = "FEEDBACK MODE"
+    _subtitle_label.text = "Live session logs, component statuses, vision preview."
+    _tab_logs_label.text = "SYSTEM LOGS & STATUS"
+    _tab_vision_label.text = "VISION"
+
+    _logs_header_label.text = "LIVE SESSION LOG"
+    _status_header_label.text = "COMPONENT STATUS"
+    _vision_header_label.text = "CAMERA  LIVE"
+    _vision_logs_header_label.text = "VISION LOG"
+    _vision_status_header_label.text = "VISION STATUS"
+
+    _tab_logs_label.add_color_override("font_color", TAB_ACTIVE_TEXT if _active_tab == TAB_LOGS_STATUS else TAB_INACTIVE_TEXT)
+    _tab_vision_label.add_color_override("font_color", TAB_ACTIVE_TEXT if _active_tab == TAB_VISION else TAB_INACTIVE_TEXT)
+
+
+func _refresh_vision_placeholder_text() -> void:
+    _vision_placeholder_label.text = "Waiting for camera frame..."
+
+
+func _set_active_tab(tab_id) -> void:
+    if tab_id != TAB_LOGS_STATUS and tab_id != TAB_VISION:
+        return
+    _active_tab = tab_id
+    _refresh_static_text()
+    _apply_tab_visibility()
+    update()
+
+
+func _apply_tab_visibility() -> void:
+    var logs_visible = _active_tab == TAB_LOGS_STATUS
+    var vision_visible = _active_tab == TAB_VISION
+
+    _logs_header_label.visible = logs_visible
+    _logs_view.visible = logs_visible
+    _status_header_label.visible = logs_visible
+
+    for key in CORE_COMPONENT_KEYS:
+        _status_rows[key]["name"].visible = logs_visible
+        _status_rows[key]["value"].visible = logs_visible
+
+    _vision_header_label.visible = vision_visible
+    _vision_texture_rect.visible = vision_visible
+    _vision_placeholder_label.visible = vision_visible and _vision_texture_rect.texture == null
+    _vision_logs_header_label.visible = vision_visible
+    _vision_logs_view.visible = vision_visible
+    _vision_status_header_label.visible = vision_visible
+
+    for key2 in VISION_COMPONENT_KEYS:
+        _vision_status_rows[key2]["name"].visible = vision_visible
+        _vision_status_rows[key2]["value"].visible = vision_visible
+
+
+func _append_entry(target_entries, entry) -> void:
+    target_entries.append(entry)
+    _prune_log_entries(target_entries)
+
+    while target_entries.size() > MAX_LOG_ENTRIES:
+        target_entries.pop_front()
+
+func _prune_log_entries(target_entries) -> void:
+    var cutoff_ms = _current_time_ms() - LOG_RETENTION_MS
+
+    while target_entries.size() > 0:
+        var first = target_entries[0]
+        if typeof(first) != TYPE_DICTIONARY:
+            target_entries.pop_front()
+            continue
+
+        var entry_ts = int(first.get("ts_ms", 0))
+        if entry_ts <= 0:
+            target_entries.pop_front()
+            continue
+
+        if entry_ts >= cutoff_ms:
+            break
+
+        target_entries.pop_front()
+
+func _rebuild_log_view(target_view, entries) -> void:
+    if target_view == null:
+        return
+
+    var should_follow = _log_view_is_at_bottom(target_view)
+    var previous_scroll = 0.0
+    var scrollbar = _log_scrollbar(target_view)
+
+    if scrollbar != null:
+        previous_scroll = scrollbar.value
+
+    target_view.scroll_following = should_follow
+
+    var combined = ""
+    for item in entries:
+        combined += _log_entry_line(item)
+
+    target_view.bbcode_text = combined
+
+    if should_follow:
+        target_view.scroll_to_line(target_view.get_line_count())
+    elif scrollbar != null:
+        scrollbar.value = previous_scroll
+
+func _log_entry_line(entry) -> String:
+    if typeof(entry) == TYPE_DICTIONARY:
+        return String(entry.get("line", ""))
+    return String(entry)
+
+func _log_scrollbar(target_view):
+    if target_view == null:
+        return null
+    if not target_view.has_method("get_v_scroll"):
+        return null
+    return target_view.call("get_v_scroll")
+
+func _log_view_is_at_bottom(target_view) -> bool:
+    var scrollbar = _log_scrollbar(target_view)
+    if scrollbar == null:
+        return true
+
+    var bottom_value = float(scrollbar.max_value) - float(scrollbar.page)
+    return float(scrollbar.value) >= bottom_value - 2.0
+
+func _current_time_ms() -> int:
+    return int(OS.get_unix_time()) * 1000
+
+func _format_log_entry(level, message, ts_ms) -> String:
+    var stamp = _format_timestamp(ts_ms)
+    var level_color = "#a8d4ff"
+
+    if level == "warning" or level == "warn":
+        level_color = "#ffc870"
+    elif level == "error" or level == "critical":
+        level_color = "#ff6c70"
+    elif level == "debug":
+        level_color = "#6a7c92"
+
+    var component = "SYSTEM"
+    var responsibility = "runtime / orchestration"
+    var detail = message
+
+    var parts = message.split(" | ")
+    if parts.size() >= 3:
+        component = String(parts[0]).strip_edges()
+        responsibility = String(parts[1]).strip_edges()
+        detail = ""
+        for i in range(2, parts.size()):
+            if i > 2:
+                detail += " | "
+            detail += String(parts[i])
+
+    var line = ""
+    line += "[color=#586478]" + stamp + "[/color] "
+    line += "[b][color=" + level_color + "]" + level.to_upper() + "[/color][/b] "
+    line += "[b][color=#dde6f2]" + _escape_bbcode(component) + "[/color][/b] "
+    line += "[color=#8ea4bf]" + _escape_bbcode(responsibility) + "[/color]
+"
+    line += "[color=#dde6f2]  " + _escape_bbcode(detail) + "[/color]
+
+"
+    return line
+
+func _is_vision_log(message) -> bool:
+    var lower = String(message).to_lower()
+    return lower.find("vision") != -1 or lower.find("camera") != -1 or lower.find("detector") != -1 or lower.find("capture") != -1
+
+
+func _make_label(name, alignment, color):
+    var label = Label.new()
+    label.name = name
+    label.align = alignment
+    label.valign = Label.VALIGN_CENTER
+    label.clip_text = true
+    label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    label.add_color_override("font_color", color)
+    return label
+
+
+func _format_timestamp(ts_ms) -> String:
+    if ts_ms <= 0:
+        var d = OS.get_datetime()
+        return "%02d:%02d:%02d" % [d["hour"], d["minute"], d["second"]]
+    var seconds = int(ts_ms / 1000)
+    var d2 = OS.get_datetime_from_unix_time(seconds)
+    return "%02d:%02d:%02d" % [d2["hour"], d2["minute"], d2["second"]]
+
+
+func _escape_bbcode(value) -> String:
+    return String(value).replace("[", "[lb]").replace("]", "[rb]")

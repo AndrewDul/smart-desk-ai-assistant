@@ -1,0 +1,37 @@
+extends Reference
+
+const DOCKED_WINDOW_WIDTH = 300
+const DOCKED_WINDOW_HEIGHT = 300
+const DOCKED_WINDOW_SIZE = Vector2(DOCKED_WINDOW_WIDTH, DOCKED_WINDOW_HEIGHT)
+const DOCK_MARGIN = 20
+
+
+static func enter_fullscreen() -> void:
+    OS.window_fullscreen = true
+    OS.window_borderless = true
+    print(
+        "Visual Shell fullscreen window applied: position=",
+        OS.get_window_position(),
+        " size=",
+        OS.get_window_size()
+    )
+
+static func enter_docked_window() -> void:
+    OS.window_fullscreen = false
+    OS.window_borderless = true
+    OS.set_window_size(DOCKED_WINDOW_SIZE)
+    OS.set_window_position(_top_right_position(DOCKED_WINDOW_SIZE))
+    print(
+        "Visual Shell docked window applied: position=",
+        OS.get_window_position(),
+        " size=",
+        OS.get_window_size()
+    )
+
+static func _top_right_position(window_size: Vector2) -> Vector2:
+	var screen_size = OS.get_screen_size()
+
+	return Vector2(
+		max(0.0, screen_size.x - window_size.x - DOCK_MARGIN),
+		DOCK_MARGIN
+	)

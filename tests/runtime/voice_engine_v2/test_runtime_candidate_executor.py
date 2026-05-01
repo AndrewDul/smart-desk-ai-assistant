@@ -163,6 +163,8 @@ def test_runtime_candidate_executor_rejects_exit_even_if_recognized() -> None:
         "assistant.identity",
         "break.start",
         "break.stop",
+        "feedback.off",
+        "feedback.on",
         "focus.offer",
         "focus.start",
         "focus.stop",
@@ -311,3 +313,28 @@ def test_runtime_candidate_executor_builds_memory_list_route() -> None:
     assert plan.route_decision.metadata["voice_engine_intent_key"] == "memory.list"
     assert plan.route_decision.metadata["legacy_action"] == "memory_list"
     assert plan.route_decision.metadata["llm_prevented"] is True
+
+def test_runtime_candidate_executor_builds_feedback_mode_routes() -> None:
+    builder = RuntimeCandidateExecutionPlanBuilder()
+    cases = [
+        ("feedback on", CommandLanguage.ENGLISH, "feedback.on", "feedback_on"),
+        ("feedback off", CommandLanguage.ENGLISH, "feedback.off", "feedback_off"),
+        ("uruchom feedback", CommandLanguage.POLISH, "feedback.on", "feedback_on"),
+        ("zamknij feedback", CommandLanguage.POLISH, "feedback.off", "feedback_off"),
+    ]
+
+    for transcript, language, intent_key, legacy_action in cases:
+        turn = _turn_result(transcript, language=language)
+
+        plan = builder.build_plan(
+            turn_result=turn,
+            transcript=transcript,
+            metadata={"source": "unit_test"},
+        )
+
+        assert plan is not None
+        assert plan.route_decision.primary_intent == legacy_action
+        assert plan.route_decision.tool_invocations[0].tool_name == intent_key
+        assert plan.route_decision.metadata["voice_engine_intent_key"] == intent_key
+        assert plan.route_decision.metadata["legacy_action"] == legacy_action
+        assert plan.route_decision.metadata["llm_prevented"] is True

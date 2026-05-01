@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+if [[ "$SCRIPT_PATH" != /* ]]; then
+  SCRIPT_PATH="$(pwd)/$SCRIPT_PATH"
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 GODOT_APP_DIR="$REPO_ROOT/modules/presentation/visual_shell/godot_app"
 
 VISUAL_SHELL_LOCK_FILE="${NEXA_VISUAL_SHELL_LOCK_FILE:-/tmp/nexa_visual_shell.lock}"
 VISUAL_SHELL_AUDIO_DRIVER="${NEXA_VISUAL_SHELL_AUDIO_DRIVER:-Dummy}"
 VISUAL_SHELL_VIDEO_DRIVER="${NEXA_VISUAL_SHELL_VIDEO_DRIVER:-GLES2}"
 VISUAL_SHELL_RESOLUTION="${NEXA_VISUAL_SHELL_RESOLUTION:-1280x800}"
-VISUAL_SHELL_POSITION="${NEXA_VISUAL_SHELL_POSITION:-0,0}"
 
 if ! command -v godot3 >/dev/null 2>&1; then
   echo "ERROR: godot3 command not found. Install it with: sudo apt install godot3" >&2
@@ -26,50 +31,43 @@ if [ ! -f "$GODOT_APP_DIR/project.godot" ]; then
 fi
 
 mkdir -p "$(dirname "$VISUAL_SHELL_LOCK_FILE")"
-
 exec 9>"$VISUAL_SHELL_LOCK_FILE"
 
 if ! flock -n 9; then
-  echo "Visual Shell singleton guard: an instance is already starting or running."
+  echo "Visual Shell singleton guard: another launcher holds the lock."
   exit 0
 fi
 
 existing_pid="$(
-python3 - "$GODOT_APP_DIR" <<'PY_INNER'
+python3 - "$GODOT_APP_DIR" <<'PY'
 from __future__ import annotations
 
 import os
 import sys
 from pathlib import Path
 
-target_cwd = Path(sys.argv[1]).resolve()
+target = Path(sys.argv[1]).resolve()
 
 for proc in Path("/proc").iterdir():
     if not proc.name.isdigit():
         continue
 
-    pid = int(proc.name)
-
     try:
         cwd = Path(os.readlink(proc / "cwd")).resolve()
-    except OSError:
-        continue
-
-    if cwd != target_cwd:
-        continue
-
-    try:
         raw_cmdline = (proc / "cmdline").read_bytes()
     except OSError:
+        continue
+
+    if cwd != target:
         continue
 
     cmdline = raw_cmdline.replace(b"\x00", b" ").decode("utf-8", "ignore")
     if "godot3" not in cmdline and "godot" not in cmdline:
         continue
 
-    print(pid)
+    print(proc.name)
     break
-PY_INNER
+PY
 )"
 
 if [ -n "$existing_pid" ]; then
@@ -79,4 +77,18 @@ fi
 
 cd "$GODOT_APP_DIR"
 
-exec godot3   --audio-driver "$VISUAL_SHELL_AUDIO_DRIVER"   --video-driver "$VISUAL_SHELL_VIDEO_DRIVER"   --resolution "$VISUAL_SHELL_RESOLUTION"   --position "$VISUAL_SHELL_POSITION"   --path .   "$@"
+godot3 \
+  --audio-driver "$VISUAL_SHELL_AUDIO_DRIVER" \
+  --video-driver "$VISUAL_SHELL_VIDEO_DRIVER" \
+  --resolution "$VISUAL_SHELL_RESOLUTION" \
+  --position "0,0" \
+  --path . \
+  "$@" &
+
+GODOT_PID="$!"
+
+if [ -x "$SCRIPT_DIR/enforce_visual_shell_window.sh" ]; then
+  "$SCRIPT_DIR/enforce_visual_shell_window.sh" "$GODOT_PID" 1280 800 0 0 10 &
+fi
+
+wait "$GODOT_PID"

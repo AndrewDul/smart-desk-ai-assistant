@@ -153,6 +153,23 @@ class IntentParser(
         ]
 
         self.direct_action_phrases: dict[str, list[str]] = {
+            "feedback_on": [
+                "feedback on", "feed back on", "feed the back on",
+                "feedback own", "feed back own",
+                "feedback start", "feedback mode on", "feedback mode",
+                "feedback uruchom", "feedback wlacz", "feedback włącz",
+                "uruchom feedback", "urucham feedback", "uruchamiam feedback",
+                "oruham feedback", "oruham feed back", "oruham fitbit",
+                "wlacz feedback", "włącz feedback", "tryb feedback",
+            ],
+            "feedback_off": [
+                "feedback off", "feedback of", "feed back off", "feed back of",
+                "feed the back off", "feed the back of",
+                "sheet back off", "sheets back off", "fit back off", "fit back of",
+                "feedback stop", "feedback mode off",
+                "feedback zamknij", "feedback wylacz", "feedback wyłącz",
+                "zamknij feedback", "wylacz feedback", "wyłącz feedback",
+            ],
             "help": [
                 "help",
                 "show help",

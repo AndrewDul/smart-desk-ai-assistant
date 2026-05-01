@@ -1,0 +1,561 @@
+from __future__ import annotations
+
+from modules.understanding.parsing.models import IntentResult
+from modules.understanding.parsing.normalization import (
+    NO_PHRASES,
+    YES_PHRASES,
+    normalize_text,
+)
+
+from .direct_actions_mixin import IntentParserDirectActionsMixin
+from .fuzzy_helpers_mixin import IntentParserFuzzyHelpersMixin
+from .memory_mixin import IntentParserMemoryMixin
+from .pan_tilt_mixin import IntentParserPanTiltMixin
+from .reminders_mixin import IntentParserRemindersMixin
+from .temporal_mixin import IntentParserTemporalMixin
+from .timer_mixin import IntentParserTimerMixin
+
+
+class IntentParser(
+    IntentParserFuzzyHelpersMixin,
+    IntentParserMemoryMixin,
+    IntentParserRemindersMixin,
+    IntentParserTimerMixin,
+    IntentParserTemporalMixin,
+    IntentParserPanTiltMixin,
+    IntentParserDirectActionsMixin,
+):
+    """
+    Premium rule-based intent parser for NeXa.
+
+    Design goals:
+    - stay fast and deterministic on Raspberry Pi
+    - cover the highest-value natural command shapes
+    - emit payloads that match the new action flow directly
+    - provide conservative fuzzy suggestions when confidence is not enough
+    """
+
+    def __init__(
+        self,
+        default_focus_minutes: float = 25,
+        default_break_minutes: float = 5,
+    ) -> None:
+        self.default_focus_minutes = float(default_focus_minutes)
+        self.default_break_minutes = float(default_break_minutes)
+
+        self.normalized_confirm_yes = {normalize_text(item) for item in YES_PHRASES}
+        self.normalized_confirm_no = {normalize_text(item) for item in NO_PHRASES}
+
+        self.time_query_patterns = [
+            r"\bwhat(?: s| is)? the time\b",
+            r"\bwhat time is it\b",
+            r"\bwhat time it is\b",
+            r"\bwhat(?: s| is)? time is it\b",
+            r"\btell me the time\b",
+            r"\bcurrent time\b",
+            r"\btime now\b",
+            r"\btime is it\b",
+            r"\btime please\b",
+            r"\bktora jest godzina\b",
+            r"\bktora godzina\b",
+            r"\bjaka jest godzina\b",
+            r"\bpodaj godzine\b",
+            r"\bjaki jest czas\b",
+            r"\bpowiedz godzine\b",
+        ]
+        self.time_show_patterns = [
+            r"\bshow(?: me)? the time\b",
+            r"\bdisplay(?: me)? the time\b",
+            r"\bshow time\b",
+            r"\bdisplay time\b",
+            r"\bpokaz(?: mi)? godzine\b",
+            r"\bwyswietl(?: mi)? godzine\b",
+            r"\bpokaz(?: mi)? czas\b",
+            r"\bwyswietl(?: mi)? czas\b",
+        ]
+
+        self.date_query_patterns = [
+            r"\bwhat(?: s| is)? the date\b",
+            r"\bwhat date is it\b",
+            r"\btell me the date\b",
+            r"\bdate today\b",
+            r"\bjaka jest data\b",
+            r"\bpodaj date\b",
+            r"\bpowiedz date\b",
+        ]
+        self.date_show_patterns = [
+            r"\bshow(?: me)? the date\b",
+            r"\bdisplay(?: me)? the date\b",
+            r"\bshow date\b",
+            r"\bdisplay date\b",
+            r"\bpokaz(?: mi)? date\b",
+            r"\bwyswietl(?: mi)? date\b",
+            r"\bpokaz(?: mi)? data\b",
+            r"\bwyswietl(?: mi)? data\b",
+        ]
+
+        self.day_query_patterns = [
+            r"\bwhat day is it\b",
+            r"\bwhat day is today\b",
+            r"\btell me the day\b",
+            r"\bwhich day is it\b",
+            r"\bjaki jest dzisiaj dzien\b",
+            r"\bjaki mamy dzisiaj dzien\b",
+            r"\bktory dzien mamy dzisiaj\b",
+            r"\bpodaj dzien\b",
+            r"\bpowiedz dzien\b",
+        ]
+        self.day_show_patterns = [
+            r"\bshow(?: me)? the day\b",
+            r"\bdisplay(?: me)? the day\b",
+            r"\bshow day\b",
+            r"\bdisplay day\b",
+            r"\bpokaz(?: mi)? dzien\b",
+            r"\bwyswietl(?: mi)? dzien\b",
+        ]
+
+        self.month_query_patterns = [
+            r"\bwhat month is it\b",
+            r"\bwhat month is today\b",
+            r"\btell me the month\b",
+            r"\bwhich month is it\b",
+            r"\bjaki jest miesiac\b",
+            r"\bjaki mamy miesiac\b",
+            r"\bktory mamy miesiac\b",
+            r"\bpodaj miesiac\b",
+            r"\bpowiedz miesiac\b",
+        ]
+        self.month_show_patterns = [
+            r"\bshow(?: me)? the month\b",
+            r"\bdisplay(?: me)? the month\b",
+            r"\bshow month\b",
+            r"\bdisplay month\b",
+            r"\bpokaz(?: mi)? miesiac\b",
+            r"\bwyswietl(?: mi)? miesiac\b",
+        ]
+
+        self.year_query_patterns = [
+            r"\bwhat year is it\b",
+            r"\btell me the year\b",
+            r"\bwhich year is it\b",
+            r"\bjaki jest rok\b",
+            r"\bktory mamy rok\b",
+            r"\bpodaj rok\b",
+            r"\bpowiedz rok\b",
+        ]
+        self.year_show_patterns = [
+            r"\bshow(?: me)? the year\b",
+            r"\bdisplay(?: me)? the year\b",
+            r"\bshow year\b",
+            r"\bdisplay year\b",
+            r"\bpokaz(?: mi)? rok\b",
+            r"\bwyswietl(?: mi)? rok\b",
+        ]
+
+        self.direct_action_phrases: dict[str, list[str]] = {
+            "feedback_on": [
+                "feedback on", "feedback start", "feedback mode on", "feedback mode",
+                "feedback uruchom", "feedback wlacz", "feedback włącz",
+                "uruchom feedback", "wlacz feedback", "włącz feedback", "tryb feedback",
+            ],
+            "feedback_off": [
+                "feedback off", "feedback stop", "feedback mode off",
+                "feedback zamknij", "feedback wylacz", "feedback wyłącz",
+                "zamknij feedback", "wylacz feedback", "wyłącz feedback",
+            ],
+            "help": [
+                "help",
+                "show help",
+                "open help",
+                "show menu",
+                "open menu",
+                "assistant menu",
+                "what can you do",
+                "what do you do",
+                "how can you help me",
+                "what can you help me with",
+                "tell me how you can help",
+                "what can i ask you",
+                "how do you help me",
+                "list your features",
+                "list your functions",
+                "show capabilities",
+                "assistant capabilities",
+                "i need help",
+                "i need assistance",
+                "pomoc",
+                "pokaz pomoc",
+                "pokaz mi pomoc",
+                "pokaz menu",
+                "pokaz mi menu",
+                "menu asystenta",
+                "co potrafisz",
+                "co umiesz",
+                "jak mozesz mi pomoc",
+                "w czym mozesz mi pomoc",
+                "powiedz co potrafisz",
+                "pokaz mozliwosci",
+                "komendy",
+            ],
+            "status": [
+                "status",
+                "show status",
+                "assistant status",
+                "system status",
+                "device status",
+                "show assistant status",
+                "stan",
+                "pokaz stan",
+                "status systemu",
+                "stan systemu",
+            ],
+            "debug_status": [
+                "debug status",
+                "developer status",
+                "technical status",
+                "diagnostic status",
+                "show debug status",
+                "show developer status",
+                "status debug",
+                "status deweloperski",
+                "status techniczny",
+                "stan debug",
+                "stan techniczny",
+                "stan deweloperski",
+           ],
+            "memory_list": [
+                "memory",
+                "show memory",
+                "list memory",
+                "what do you remember",
+                "show what you remember",
+                "pamiec",
+                "pokaz pamiec",
+                "co pamietasz",
+                "co zapamietales",
+                "co zapamietalas",
+                "co masz zapamietane",
+                "lista pamieci",
+            ],
+            "memory_clear": [
+                "clear memory",
+                "wipe memory",
+                "delete all memory",
+                "remove all memory",
+                "forget everything",
+                "wyczysc pamiec",
+                "usun cala pamiec",
+                "zapomnij wszystko",
+                "skasuj pamiec",
+            ],
+            "reminders_list": [
+                "reminders",
+                "show reminders",
+                "list reminders",
+                "show my reminders",
+                "przypomnienia",
+                "pokaz przypomnienia",
+                "pokaz moje przypomnienia",
+            ],
+            "reminders_clear": [
+                "clear reminders",
+                "delete all reminders",
+                "remove all reminders",
+                "wyczysc przypomnienia",
+                "usun wszystkie przypomnienia",
+            ],
+            "focus_offer": [
+                "i want to study",
+                "i need to study",
+                "i want to learn",
+                "study time",
+                "chce sie pouczyc",
+                "chcę się pouczyć",
+                "chce sie uczyc",
+                "chcę się uczyć",
+                "czas na nauke",
+                "czas na naukę",
+            ],
+            "break_start": [
+                "break mode",
+                "take a break",
+                "break time",
+                "przerwa",
+                "odpoczynek",
+                "czas na przerwe",
+                "czas na przerwę",
+                "chce odpoczac",
+                "chcę odpocząć",
+            ],
+            "timer_stop": [
+                "stop timer",
+                "stop the timer",
+                "cancel timer",
+                "end timer",
+                "turn off timer",
+                "stop focus",
+                "stop focus mode",
+                "end focus",
+                "end focus session",
+                "turn off focus",
+                "stop break",
+                "stop break mode",
+                "end break",
+                "end break mode",
+                "zatrzymaj timer",
+                "stop timera",
+                "anuluj timer",
+                "wylacz timer",
+                "zatrzymaj focus",
+                "wylacz focus",
+                "zakoncz focus",
+                "zatrzymaj przerwe",
+                "wylacz przerwe",
+                "zakoncz przerwe",
+            ],
+            "introduce_self": [
+                "who are you",
+                "what are you",
+                "what is your name",
+                "what s your name",
+                "tell me your name",
+                "say your name",
+                "introduce yourself",
+                "tell me about yourself",
+                "przedstaw sie",
+                "kim jestes",
+                "czym jestes",
+                "jak sie nazywasz",
+                "powiedz jak sie nazywasz",
+                "powiedz o sobie",
+            ],
+            "exit": [
+                "exit",
+                "quit",
+                "close assistant",
+                "exit assistant",
+                "turn off assistant",
+                "switch off assistant",
+                "stop assistant",
+                "stop listening",
+                "go to sleep",
+                "sleep now",
+                "rest now",
+                "take a rest",
+                "goodbye",
+                "bye",
+                "bye bye",
+                "turn off nexa",
+                "switch off nexa",
+                "close nexa",
+                "stop nexa",
+                "wylacz asystenta",
+                "zamknij asystenta",
+                "wylacz nexa",
+                "zamknij nexa",
+                "idz spac",
+                "spij",
+                "odpocznij",
+                "przestan sluchac",
+            ],
+            "shutdown": [
+                "shutdown",
+                "shut down",
+                "power off",
+                "power off system",
+                "turn off system",
+                "turn off raspberry pi",
+                "power off raspberry pi",
+                "shutdown system",
+                "shut down system",
+                "wylacz system",
+                "zamknij system",
+                "wylacz raspberry pi",
+                "wylacz komputer",
+            ],
+        }
+
+        self.action_labels = {
+            "help": "help / pomoc",
+            "status": "status / stan",
+            "debug_status": "debug status / status debug",
+            "memory_list": "memory / pamięć",
+            "memory_clear": "clear memory / wyczyść pamięć",
+            "memory_store": "remember / zapamiętaj",
+            "memory_recall": "recall / przypomnij sobie",
+            "memory_forget": "forget / zapomnij",
+            "reminders_list": "reminders / przypomnienia",
+            "reminders_clear": "clear reminders / wyczyść przypomnienia",
+            "reminder_create": "create reminder / utwórz przypomnienie",
+            "reminder_delete": "delete reminder / usuń przypomnienie",
+            "timer_start": "start timer / ustaw timer",
+            "timer_stop": "stop timer / wyłącz timer",
+            "focus_start": "focus mode / tryb skupienia",
+            "focus_offer": "I want to study / chcę się pouczyć",
+            "break_start": "break mode / odpoczynek",
+            "introduce_self": "introduce yourself / przedstaw się",
+            "ask_time": "time / godzina",
+            "show_time": "show time / pokaż godzinę",
+            "ask_date": "date / data",
+            "show_date": "show date / pokaż datę",
+            "ask_day": "day / dzień",
+            "show_day": "show day / pokaż dzień",
+            "ask_month": "month / miesiąc",
+            "show_month": "show month / pokaż miesiąc",
+            "ask_year": "year / rok",
+            "show_year": "show year / pokaż rok",
+            "look_direction": "look / spójrz",
+            "exit": "exit / wyjście",
+            "shutdown": "shutdown / wyłącz system",
+        }
+
+        self.timer_trigger_phrases = [
+            "timer",
+            "set timer",
+            "start timer",
+            "countdown",
+            "ustaw timer",
+            "wlacz timer",
+            "uruchom timer",
+            "minutnik",
+        ]
+        self.focus_trigger_phrases = [
+            "focus",
+            "focus mode",
+            "focus session",
+            "start focus",
+            "start focus mode",
+            "study session",
+            "skupienie",
+            "tryb nauki",
+            "czas na skupienie",
+            "tryb skupienia",
+            "sesja focus",
+            "sesja nauki",
+            "zacznij focus",
+            "wlacz focus",
+        ]
+        self.break_trigger_phrases = [
+            "break",
+            "break mode",
+            "start break",
+            "start break mode",
+            "take a break",
+            "rest break",
+            "break time",
+            "przerwa",
+            "odpoczynek",
+            "czas na przerwe",
+            "czas na przerwę",
+            "chce odpoczac",
+            "chcę odpocząć",
+            "tryb przerwy",
+            "zacznij przerwe",
+            "wlacz przerwe",
+        ]
+
+        self.direct_action_map: dict[str, str] = {}
+        self.fuzzy_candidates: list[tuple[str, str, set[str]]] = []
+
+        for action, phrases in self.direct_action_phrases.items():
+            for phrase in phrases:
+                normalized_phrase = normalize_text(phrase)
+                self.direct_action_map[normalized_phrase] = action
+                if action not in {"exit", "shutdown", "memory_clear", "reminders_clear"}:
+                    self.fuzzy_candidates.append(
+                        (normalized_phrase, action, set(normalized_phrase.split()))
+                    )
+
+        temporal_groups = {
+            "ask_time": self.time_query_patterns,
+            "show_time": self.time_show_patterns,
+            "ask_date": self.date_query_patterns,
+            "show_date": self.date_show_patterns,
+            "ask_day": self.day_query_patterns,
+            "show_day": self.day_show_patterns,
+            "ask_month": self.month_query_patterns,
+            "show_month": self.month_show_patterns,
+            "ask_year": self.year_query_patterns,
+            "show_year": self.year_show_patterns,
+        }
+        for action, patterns in temporal_groups.items():
+            for pattern in patterns:
+                plain = (
+                    pattern
+                    .replace(r"\b", "")
+                    .replace("(?: s| is)?", "")
+                    .replace("(?: me)?", "")
+                    .strip()
+                )
+                normalized_phrase = normalize_text(plain)
+                if normalized_phrase:
+                    self.fuzzy_candidates.append(
+                        (normalized_phrase, action, set(normalized_phrase.split()))
+                    )
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def parse(self, text: str) -> IntentResult:
+        normalized = normalize_text(text)
+        if not normalized:
+            return IntentResult.unknown(normalized_text=normalized)
+
+        if normalized in self.normalized_confirm_yes:
+            return IntentResult.confirmation(
+                action="confirm_yes",
+                normalized_text=normalized,
+            )
+
+        if normalized in self.normalized_confirm_no:
+            return IntentResult.confirmation(
+                action="confirm_no",
+                normalized_text=normalized,
+            )
+
+        for parser in (
+            self._parse_direct_action,
+            self._parse_temporal_query,
+            self._parse_pan_tilt,
+            self._parse_timer,
+            self._parse_focus_or_break,
+            self._parse_reminder_delete,
+            self._parse_reminder,
+            self._parse_memory_forget,
+            self._parse_memory_recall,
+            self._parse_memory_store,
+        ):
+            result = parser(normalized)
+            if result is not None:
+                result.normalized_text = normalized
+                return result
+
+        suggestions = self._get_fuzzy_suggestions(normalized)
+        if suggestions:
+            return IntentResult.unclear(
+                suggestions=suggestions,
+                normalized_text=normalized,
+                confidence=suggestions[0]["score"],
+            )
+
+        return IntentResult.unknown(normalized_text=normalized)
+
+    def find_action_in_text(
+        self,
+        text: str,
+        allowed_actions: list[str] | None = None,
+    ) -> str | None:
+        result = self.parse(text)
+
+        if result.action in {"unknown", "unclear", "confirm_yes", "confirm_no"}:
+            if result.action == "unclear" and result.suggestions:
+                candidate = result.suggestions[0]["action"]
+                if allowed_actions is None or candidate in allowed_actions:
+                    return candidate
+            return None
+
+        if allowed_actions is not None and result.action not in allowed_actions:
+            return None
+
+        return result.action

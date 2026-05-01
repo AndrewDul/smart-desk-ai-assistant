@@ -1,0 +1,327 @@
+"""Feedback lane — orchestrates the feedback dashboard lifecycle."""
+from __future__ import annotations
+
+import threading
+from typing import Any
+
+from modules.shared.logging.logger import get_logger
+
+from .feedback_log_bridge import attach_feedback_log_handler, detach_feedback_log_handler, refresh_feedback_log_targets
+from .feedback_vision_streamer import FeedbackVisionStreamer
+
+LOGGER = get_logger(__name__)
+
+
+class FeedbackLane:
+    """Coordinator for feedback mode (dashboard + log bridge + vision stream)."""
+
+    def __init__(self, *, visual_shell_lane: Any, assistant: Any) -> None:
+        self._visual_shell_lane = visual_shell_lane
+        self._assistant = assistant
+        self._lock = threading.Lock()
+        self._streamer: FeedbackVisionStreamer | None = None
+        self._status_thread: threading.Thread | None = None
+        self._status_stop = threading.Event()
+        self._active = False
+        self._language = "en"
+
+    @property
+    def is_active(self) -> bool:
+        return self._active
+
+    def turn_on(self, *, language: str = "en") -> bool:
+        with self._lock:
+            self._language = str(language or "en")
+            controller = self._controller()
+            if controller is None:
+                LOGGER.warning("Feedback lane: visual shell controller missing.")
+                return False
+
+            try:
+                controller.show_feedback(language=self._language, source="nexa-feedback")
+            except Exception as error:
+                LOGGER.warning("Feedback lane: show_feedback failed safely: %s", error)
+                return False
+
+            attach_feedback_log_handler(controller)
+
+            cam = self._camera_service()
+            if cam is not None:
+                start_method = getattr(cam, "start", None)
+                if callable(start_method):
+                    try:
+                        start_method()
+                    except Exception as error:
+                        LOGGER.warning("Feedback lane: camera start failed safely: %s", error)
+
+                self._streamer = FeedbackVisionStreamer(controller, cam)
+                self._streamer.start()
+                LOGGER.info("Feedback mode: camera source attached to live vision preview.")
+            else:
+                LOGGER.warning("Feedback mode: no camera backend found, vision preview will stay empty.")
+
+            self._status_stop.clear()
+            self._status_thread = threading.Thread(
+                target=self._status_loop,
+                name="nexa-feedback-status",
+                daemon=True,
+            )
+            self._status_thread.start()
+            self._active = True
+
+        LOGGER.info("Feedback mode: dashboard started.")
+        self._publish_status_snapshot()
+        return True
+
+    def turn_off(self) -> bool:
+        with self._lock:
+            if not self._active:
+                controller = self._controller()
+                if controller is not None:
+                    try:
+                        controller.hide_feedback(source="nexa-feedback")
+                    except Exception:
+                        pass
+                return False
+
+            self._status_stop.set()
+            status_thread = self._status_thread
+            self._status_thread = None
+            streamer = self._streamer
+            self._streamer = None
+            self._active = False
+
+        if streamer is not None:
+            try:
+                streamer.stop()
+            except Exception:
+                pass
+
+        if status_thread is not None and status_thread.is_alive():
+            status_thread.join(timeout=1.5)
+
+        detach_feedback_log_handler()
+
+        controller = self._controller()
+        if controller is not None:
+            try:
+                controller.hide_feedback(source="nexa-feedback")
+            except Exception as error:
+                LOGGER.warning("Feedback lane: hide_feedback failed safely: %s", error)
+
+        LOGGER.info("Feedback mode: dashboard stopped.")
+        return True
+
+    def _controller(self) -> Any:
+        lane = self._visual_shell_lane
+        if lane is None:
+            return None
+
+        ctrl_factory = getattr(lane, "_controller", None)
+        if callable(ctrl_factory):
+            try:
+                return ctrl_factory()
+            except Exception:
+                return None
+
+        return getattr(lane, "controller", None)
+
+    def _camera_service(self) -> Any:
+        assistant = self._assistant
+        if assistant is None:
+            return None
+
+        for attr in (
+            "vision",
+            "camera_service",
+            "vision_service",
+            "_camera_service",
+        ):
+            value = getattr(assistant, attr, None)
+            if value is not None:
+                return value
+
+        runtime = getattr(assistant, "runtime", None)
+        if runtime is not None:
+            for attr in ("vision", "camera_service", "vision_service"):
+                value = getattr(runtime, attr, None)
+                if value is not None:
+                    return value
+
+            metadata = getattr(runtime, "metadata", None)
+            if isinstance(metadata, dict):
+                for key in ("vision_backend", "camera_service", "vision_service"):
+                    value = metadata.get(key)
+                    if value is not None:
+                        return value
+
+        return None
+
+    def _status_loop(self) -> None:
+        while not self._status_stop.is_set():
+            try:
+                self._publish_status_snapshot()
+            except Exception as error:
+                LOGGER.debug("Feedback status snapshot failed safely: %s", error)
+            if self._status_stop.wait(timeout=2.5):
+                break
+
+    def _publish_status_snapshot(self) -> None:
+        controller = self._controller()
+        if controller is None:
+            return
+
+        refresh_feedback_log_targets()
+        statuses = self._collect_statuses()
+        try:
+            controller.feedback_status_update(statuses=statuses, source="nexa-feedback")
+        except Exception as error:
+            LOGGER.debug("Feedback status update failed safely: %s", error)
+
+    def _collect_statuses(self) -> dict:
+        assistant = self._assistant
+        statuses: dict[str, dict[str, str]] = {}
+
+        def set_status(key: str, ok: bool, detail: str = "") -> None:
+            statuses[key] = {
+                "state": "ok" if ok else "not_ok",
+                "detail": str(detail or "").strip(),
+            }
+
+        def backend_snapshot(component_name: str):
+            backend_statuses = getattr(assistant, "backend_statuses", {}) if assistant is not None else {}
+            status = backend_statuses.get(component_name)
+            if status is None:
+                return None
+
+            detail = str(getattr(status, "detail", "") or "").strip()
+            backend_label = str(getattr(status, "selected_backend", "") or "").strip()
+            if backend_label and detail == "":
+                detail = backend_label
+
+            return {
+                "ok": bool(getattr(status, "ok", False)),
+                "detail": detail,
+                "backend": backend_label,
+            }
+
+        # Core statuses
+        core_map = {
+            "llm": "llm",
+            "camera": "vision",
+            "lcd": "display",
+            "microphone": "voice_input",
+            "speaker": "voice_output",
+            "stt": "voice_input",
+            "tts": "voice_output",
+            "wake": "wake",
+        }
+
+        for public_key, backend_key in core_map.items():
+            snap = backend_snapshot(backend_key)
+            if snap is not None:
+                set_status(public_key, bool(snap["ok"]), snap["detail"])
+            else:
+                set_status(public_key, False, "status unavailable")
+
+        # Refine STT / TTS from assistant surfaces when possible
+        stt_service = getattr(assistant, "speech_recognition", None)
+        if stt_service is not None:
+            set_status("stt", True, "service ready")
+
+        voice_out = getattr(assistant, "voice_out", None)
+        if voice_out is not None:
+            backend_name = getattr(voice_out, "backend_name", None) or getattr(voice_out, "engine", None)
+            detail = str(backend_name or "output ready").strip()
+            set_status("tts", True, detail if detail else "output ready")
+            set_status("speaker", True, detail if detail else "output ready")
+
+        wake_gate = getattr(assistant, "wake_gate", None)
+        if wake_gate is not None:
+            set_status("wake", True, "detector ready")
+
+        # Vision-specific statuses
+        cam = self._camera_service()
+        if cam is None:
+            set_status("vision_camera", False, "camera backend missing")
+            set_status("vision_capture", False, "capture worker missing")
+            set_status("vision_pipeline", False, "pipeline unavailable")
+            set_status("vision_detection", False, "detector unavailable")
+            return statuses
+
+        cam_status_method = getattr(cam, "status", None)
+        cam_status = {}
+        if callable(cam_status_method):
+            try:
+                cam_status = cam_status_method() or {}
+            except Exception as error:
+                cam_status = {"ok": False, "last_error": str(error)}
+
+        vision_ok = bool(cam_status.get("ok", True)) and not bool(cam_status.get("closed", False))
+        if not bool(cam_status.get("enabled", True)):
+            vision_ok = False
+
+        camera_detail = str(cam_status.get("last_error") or cam_status.get("backend") or "").strip()
+        if camera_detail == "" and bool(cam_status.get("enabled", True)):
+            camera_detail = "camera backend ready"
+        elif camera_detail == "":
+            camera_detail = "disabled in config"
+
+        set_status("vision_camera", vision_ok, camera_detail)
+
+        worker = getattr(cam, "_worker", None)
+        worker_running = False
+        worker_detail = "capture worker missing"
+        if worker is not None:
+            worker_running = bool(getattr(worker, "is_running", False))
+            worker_detail = "worker running" if worker_running else "worker stopped"
+
+            stats_method = getattr(worker, "stats", None)
+            if callable(stats_method):
+                try:
+                    worker_stats = stats_method() or {}
+                    if not worker_running:
+                        worker_running = bool(worker_stats.get("is_running", False))
+                        worker_detail = "worker running" if worker_running else worker_detail
+                except Exception:
+                    pass
+
+        set_status("vision_capture", worker_running, worker_detail)
+
+        pipeline_ready = bool(cam_status.get("perception_pipeline_ready", False)) \
+            and bool(cam_status.get("behavior_pipeline_ready", False)) \
+            and bool(cam_status.get("stabilization_pipeline_ready", False)) \
+            and bool(cam_status.get("session_tracker_ready", False))
+        pipeline_detail = "pipelines ready" if pipeline_ready else "pipeline not ready"
+        set_status("vision_pipeline", pipeline_ready, pipeline_detail)
+
+        detector_ok = False
+        detector_detail = "detector unavailable"
+        detector_status_method = getattr(cam, "object_detector_status", None)
+        if callable(detector_status_method):
+            try:
+                detector_status = detector_status_method()
+            except Exception as error:
+                detector_status = {"ok": False, "detail": str(error)}
+
+            if isinstance(detector_status, dict):
+                detector_ok = bool(
+                    detector_status.get("ok", False)
+                    or detector_status.get("ready", False)
+                    or detector_status.get("enabled", False)
+                )
+                detector_detail = str(
+                    detector_status.get("detail")
+                    or detector_status.get("backend")
+                    or detector_status.get("model_name")
+                    or detector_status.get("name")
+                    or ""
+                ).strip()
+                if detector_detail == "":
+                    detector_detail = "detector ready" if detector_ok else "detector not ready"
+
+        set_status("vision_detection", detector_ok, detector_detail)
+        return statuses
+
+
+__all__ = ["FeedbackLane"]

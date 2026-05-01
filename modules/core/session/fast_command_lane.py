@@ -82,6 +82,8 @@ class FastCommandLane:
         "reminders_list",
         "reminder_delete",
         "reminders_clear",
+        "feedback_on",
+        "feedback_off",
         "help",
         "status",
         "exit",
@@ -208,11 +210,14 @@ class FastCommandLane:
             return None
 
         raw_text = str(prepared.get("routing_text") or prepared.get("raw_text") or "").strip()
-        normalized_text = str(prepared.get("normalized_text") or normalize_text(raw_text)).strip()
+        prepared_normalized = str(prepared.get("normalized_text") or "").strip()
+        normalized_text = normalize_text(prepared_normalized or raw_text)
         if not normalized_text:
             return None
 
         language = assistant._normalize_lang(prepared.get("language") or "en")
+        if self._looks_like_polish_feedback_command(normalized_text):
+            language = "pl"
         interrupts_pending = bool(assistant.pending_confirmation or assistant.pending_follow_up)
 
         parser_result = prepared.get("parser_result")
@@ -360,12 +365,74 @@ class FastCommandLane:
         }
 
     @staticmethod
+    def _looks_like_polish_feedback_command(normalized_text: str) -> bool:
+        normalized = normalize_text(normalized_text)
+        tokens = set(normalized.split())
+
+        polish_start_tokens = {
+            "uruchom",
+            "urucham",
+            "uruchamiam",
+            "oruham",
+            "orucham",
+            "wlacz",
+            "włącz",
+            "tryb",
+            "zamknij",
+            "wylacz",
+            "wyłącz",
+        }
+
+        feedback_like_tokens = {
+            "feedback",
+            "feed",
+            "back",
+            "fitbit",
+        }
+
+        if tokens & polish_start_tokens and tokens & feedback_like_tokens:
+            return True
+
+        if normalized in {
+            "oruham feedback",
+            "oruham feed back",
+            "oruham fitbit",
+            "orucham feedback",
+            "orucham fitbit",
+        }:
+            return True
+
+        return False
+
+
+    @staticmethod
     def _match_simple_action(normalized_text: str) -> str:
         normalized = str(normalized_text or "").strip()
         if not normalized:
             return ""
 
         direct_map = {
+            "feedback on": "feedback_on", "feedback start": "feedback_on",
+            "feedback uruchom": "feedback_on", "feedback wlacz": "feedback_on",
+            "feedback włącz": "feedback_on", "uruchom feedback": "feedback_on",
+            "urucham feedback": "feedback_on", "uruchamiam feedback": "feedback_on",
+            "wlacz feedback": "feedback_on", "włącz feedback": "feedback_on",
+            "tryb feedback": "feedback_on", "feedback mode on": "feedback_on",
+            "feedback mode": "feedback_on",
+            "feed back on": "feedback_on", "feed the back on": "feedback_on",
+            "feedback own": "feedback_on", "feed back own": "feedback_on",
+            "oruham feedback": "feedback_on", "oruham feed back": "feedback_on",
+            "oruham fitbit": "feedback_on", "urucham feedback": "feedback_on",
+            "feedback off": "feedback_off", "feedback stop": "feedback_off",
+            "feedback zamknij": "feedback_off", "feedback zamknik": "feedback_off",
+            "feedback wylacz": "feedback_off", "feedback wyłącz": "feedback_off",
+            "zamknij feedback": "feedback_off", "wylacz feedback": "feedback_off",
+            "wyłącz feedback": "feedback_off", "feedback mode off": "feedback_off",
+            "feedback of": "feedback_off", "feed back off": "feedback_off",
+            "feed back of": "feedback_off", "feed the back off": "feedback_off",
+            "feed the back of": "feedback_off", "sheet back off": "feedback_off",
+            "sheets back off": "feedback_off", "fit back off": "feedback_off",
+            "fit back of": "feedback_off", "feet back off": "feedback_off",
             "help": "help",
             "show help": "help",
             "so help": "help",
@@ -489,6 +556,7 @@ class FastCommandLane:
                 "action": decision.action,
                 "payload": dict(decision.payload),
                 "source": decision.source,
+                "llm_prevented": True,
             },
         )
 
@@ -604,6 +672,8 @@ class FastCommandLane:
     def _tool_name_for_action(action: str) -> str:
         mapping = {
             "help": "system.help",
+            "feedback_on": "feedback.on",
+            "feedback_off": "feedback.off",
             "show help": "system.help",
             "so help": "system.help",
             "show commands": "system.help",

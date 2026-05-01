@@ -1,0 +1,686 @@
+from __future__ import annotations
+
+import re
+
+from dataclasses import dataclass, field
+from typing import Any
+
+from modules.core.session.visual_shell_command_lane import VisualShellCommandLane
+
+from modules.runtime.contracts import (
+    EntityValue,
+    IntentMatch,
+    RouteDecision,
+    RouteKind,
+    ToolInvocation,
+    create_turn_id,
+)
+from modules.shared.logging.logger import get_logger
+from modules.core.session.fast_calculator import (
+    looks_like_arithmetic,
+    try_handle_arithmetic,
+)
+from modules.understanding.parsing.normalization import (
+    is_exit_request,
+    is_micro_reply,
+    is_no,
+    is_yes,
+    normalize_text,
+)
+
+LOGGER = get_logger(__name__)
+
+
+@dataclass(slots=True)
+class FastCommandDecision:
+    action: str
+    language: str
+    source: str
+    confidence: float
+    payload: dict[str, Any] = field(default_factory=dict)
+    raw_text: str = ""
+    normalized_text: str = ""
+    interrupts_pending: bool = False
+
+
+class FastCommandLane:
+    """
+    Deterministic low-latency command lane.
+
+    Purpose:
+    - bypass the heavier semantic router for obvious commands
+    - keep short command interactions feeling instant
+    - allow a new clear command to override stale follow-up state
+    - hand off execution to ActionFlow in a stable route format
+    """
+
+    TEMPORAL_ACTIONS = {
+        "ask_time",
+        "show_time",
+        "ask_date",
+        "show_date",
+        "ask_day",
+        "show_day",
+        "ask_month",
+        "show_month",
+        "ask_year",
+        "show_year",
+    }
+
+    DIRECT_ACTIONS = {
+        "timer_start",
+        "timer_stop",
+        "focus_start",
+        "break_start",
+        "introduce_self",
+        "memory_store",
+        "memory_recall",
+        "memory_forget",
+        "memory_list",
+        "memory_clear",
+        "reminder_create",
+        "reminders_list",
+        "reminder_delete",
+        "reminders_clear",
+        "help",
+        "status",
+        "exit",
+        "shutdown",
+        "confirm_yes",
+        "confirm_no",
+        "look_direction",
+        
+    }
+
+    ALL_ACTIONS = TEMPORAL_ACTIONS | DIRECT_ACTIONS
+
+    def __init__(
+        self,
+        *,
+        enabled: bool = True,
+        visual_shell_lane: VisualShellCommandLane | None = None,
+    ) -> None:
+        self.enabled = bool(enabled)
+        self.visual_shell_lane = visual_shell_lane
+
+    def try_handle(self, *, prepared: dict[str, Any], assistant: Any) -> bool | None:
+        if not self.enabled:
+            return None
+
+        visual_shell_result = self._try_handle_visual_shell(
+            prepared=prepared,
+            assistant=assistant,
+        )
+        if visual_shell_result is not None:
+            return visual_shell_result
+
+        raw_text = str(
+            prepared.get("raw_text") or prepared.get("routing_text") or ""
+        ).strip()
+        if raw_text and looks_like_arithmetic(raw_text):
+            language = assistant._normalize_lang(prepared.get("language") or "en")
+            if self._handle_arithmetic(
+                assistant=assistant,
+                raw_text=raw_text,
+                language=language,
+            ):
+                return True
+
+        decision = self.classify(prepared=prepared, assistant=assistant)
+        if decision is None:
+            return None
+        return self.execute(assistant=assistant, decision=decision)
+
+
+    def _try_handle_visual_shell(
+        self,
+        *,
+        prepared: dict[str, Any],
+        assistant: Any,
+    ) -> bool | None:
+        if self.visual_shell_lane is None:
+            return None
+
+        try:
+            return self.visual_shell_lane.try_handle(
+                prepared=prepared,
+                assistant=assistant,
+            )
+        except Exception as error:
+            LOGGER.warning("Visual Shell command lane failed safely: %s", error)
+            return None
+
+
+    def _handle_arithmetic(
+        self,
+        *,
+        assistant: Any,
+        raw_text: str,
+        language: str,
+    ) -> bool:
+        clear_context = getattr(assistant, "_clear_interaction_context", None)
+        if callable(clear_context):
+            try:
+                clear_context(close_active_window=False)
+            except TypeError:
+                try:
+                    clear_context()
+                except Exception:
+                    pass
+            except Exception:
+                pass
+        else:
+            assistant.pending_confirmation = None
+            assistant.pending_follow_up = None
+
+        assistant.voice_session.set_state("routing", detail="fast_lane:calculate")
+        assistant._commit_language(language)
+
+        LOGGER.info(
+            "Fast command lane arithmetic: text=%s, language=%s",
+            raw_text,
+            language,
+        )
+
+        assistant._last_fast_lane_route_snapshot = {
+            "route_kind": "action",
+            "route_confidence": 0.95,
+            "primary_intent": "calculate",
+            "topics": [],
+            "route_notes": ["deterministic_fast_calculator"],
+            "route_metadata": {
+                "lane": "fast_command",
+                "action": "calculate",
+                "source": "fast_calculator",
+            },
+        }
+
+        return bool(
+            try_handle_arithmetic(
+                assistant=assistant,
+                raw_text=raw_text,
+                language=language,
+            )
+        )
+
+    def classify(self, *, prepared: dict[str, Any], assistant: Any) -> FastCommandDecision | None:
+        if not self.enabled:
+            return None
+
+        raw_text = str(prepared.get("routing_text") or prepared.get("raw_text") or "").strip()
+        normalized_text = str(prepared.get("normalized_text") or normalize_text(raw_text)).strip()
+        if not normalized_text:
+            return None
+
+        language = assistant._normalize_lang(prepared.get("language") or "en")
+        interrupts_pending = bool(assistant.pending_confirmation or assistant.pending_follow_up)
+
+        parser_result = prepared.get("parser_result")
+        if parser_result is None:
+            parser_result = self._parse_fast(assistant=assistant, text=raw_text)
+            if parser_result is not None:
+                prepared["parser_result"] = parser_result
+
+        action = self._extract_action(parser_result)
+        payload = self._extract_payload(parser_result)
+        confidence = self._extract_confidence(parser_result)
+
+        if action in {"", "unknown", "unclear"}:
+            heuristic = self._heuristic_decision(
+                raw_text=raw_text,
+                normalized_text=normalized_text,
+                language=language,
+                interrupts_pending=interrupts_pending,
+            )
+            if heuristic is None:
+                return None
+            return heuristic
+
+        if action in {"confirm_yes", "confirm_no"} and not interrupts_pending:
+            return None
+
+        if action not in self.ALL_ACTIONS:
+            return None
+
+        if confidence <= 0.0:
+            confidence = 0.96 if is_micro_reply(raw_text) else 0.90
+
+        return FastCommandDecision(
+            action=action,
+            language=language,
+            source="fast_command_lane",
+            confidence=confidence,
+            payload=payload,
+            raw_text=raw_text,
+            normalized_text=normalized_text,
+            interrupts_pending=interrupts_pending,
+        )
+
+    def execute(self, *, assistant: Any, decision: FastCommandDecision) -> bool:
+        self._interrupt_pending_context(assistant=assistant, action=decision.action)
+
+        assistant.voice_session.set_state("routing", detail=f"fast_lane:{decision.action}")
+        assistant._commit_language(decision.language)
+
+        LOGGER.info(
+            "Fast command lane executing: action=%s, language=%s, interrupts_pending=%s, source=%s",
+            decision.action,
+            decision.language,
+            decision.interrupts_pending,
+            decision.source,
+        )
+
+        route = self._build_route_decision(decision)
+        self._store_last_route_snapshot(assistant=assistant, route=route)
+        return bool(assistant.action_flow.execute(route=route, language=decision.language))
+
+    # ------------------------------------------------------------------
+    # Internals
+    # ------------------------------------------------------------------
+
+    def _parse_fast(self, *, assistant: Any, text: str) -> Any | None:
+        parser = getattr(assistant, "parser", None)
+        if parser is None:
+            return None
+
+        for method_name in ("parse", "parse_intent", "match", "classify"):
+            method = getattr(parser, method_name, None)
+            if not callable(method):
+                continue
+            try:
+                return method(text)
+            except TypeError:
+                try:
+                    return method(text=text)
+                except TypeError:
+                    continue
+            except Exception as error:
+                LOGGER.warning("Fast command parser call failed on %s: %s", method_name, error)
+                return None
+
+        return None
+
+    def _heuristic_decision(
+        self,
+        *,
+        raw_text: str,
+        normalized_text: str,
+        language: str,
+        interrupts_pending: bool,
+    ) -> FastCommandDecision | None:
+        action = ""
+        confidence = 0.0
+        source = "fast_command_lane_heuristic"
+
+        if interrupts_pending:
+            if is_yes(normalized_text):
+                action = "confirm_yes"
+                confidence = 0.99
+            elif is_no(normalized_text):
+                action = "confirm_no"
+                confidence = 0.99
+
+        if not action and is_exit_request(normalized_text):
+            action = "exit"
+            confidence = 0.98 if is_micro_reply(normalized_text) else 0.94
+
+        if not action:
+            action = self._match_simple_action(normalized_text)
+            if action:
+                confidence = 0.94 if is_micro_reply(normalized_text) else 0.90
+
+        
+
+        if not action:
+            return None
+
+        if action not in self.ALL_ACTIONS:
+            return None
+
+        return FastCommandDecision(
+            action=action,
+            language=language,
+            source=source,
+            confidence=confidence,
+            payload={},
+            raw_text=raw_text,
+            normalized_text=normalized_text,
+            interrupts_pending=interrupts_pending,
+        )
+
+    @staticmethod
+    def _store_last_route_snapshot(*, assistant: Any, route: RouteDecision) -> None:
+        assistant._last_fast_lane_route_snapshot = {
+            "route_kind": getattr(route.kind, "value", str(route.kind)),
+            "route_confidence": float(getattr(route, "confidence", 0.0) or 0.0),
+            "primary_intent": str(getattr(route, "primary_intent", "") or ""),
+            "topics": list(getattr(route, "conversation_topics", []) or []),
+            "route_notes": list(getattr(route, "notes", []) or []),
+            "route_metadata": dict(getattr(route, "metadata", {}) or {}),
+        }
+
+    @staticmethod
+    def _match_simple_action(normalized_text: str) -> str:
+        normalized = str(normalized_text or "").strip()
+        if not normalized:
+            return ""
+
+        direct_map = {
+            "feedback on": "feedback_on", "feedback start": "feedback_on",
+            "feedback uruchom": "feedback_on", "feedback wlacz": "feedback_on",
+            "feedback włącz": "feedback_on", "uruchom feedback": "feedback_on",
+            "wlacz feedback": "feedback_on", "włącz feedback": "feedback_on",
+            "tryb feedback": "feedback_on", "feedback mode on": "feedback_on",
+            "feedback mode": "feedback_on",
+            "feedback off": "feedback_off", "feedback stop": "feedback_off",
+            "feedback zamknij": "feedback_off", "feedback zamknik": "feedback_off",
+            "feedback wylacz": "feedback_off", "feedback wyłącz": "feedback_off",
+            "zamknij feedback": "feedback_off", "wylacz feedback": "feedback_off",
+            "wyłącz feedback": "feedback_off", "feedback mode off": "feedback_off",
+            "help": "help",
+            "show help": "help",
+            "so help": "help",
+            "show commands": "help",
+            "show command list": "help",
+            "command list": "help",
+            "commands list": "help",
+            "help screen": "help",
+            "open help": "help",
+            "open commands": "help",
+            "pokaż pomoc": "help",
+            "pokaz pomoc": "help",
+            "pokaż komendy": "help",
+            "pokaz komendy": "help",
+            "lista komend": "help",
+            "ekran pomocy": "help",
+            "otwórz pomoc": "help",
+            "otworz pomoc": "help",
+            "pomoc": "help",
+            "status": "status",
+            "stan": "status",
+            "time": "ask_time",
+            "what time": "ask_time",
+            "current time": "ask_time",
+            "godzina": "ask_time",
+            "ktora godzina": "ask_time",
+            "która godzina": "ask_time",
+            "czas": "ask_time",
+            "date": "ask_date",
+            "today date": "ask_date",
+            "data": "ask_date",
+            "jaka data": "ask_date",
+            "day": "ask_day",
+            "what day": "ask_day",
+            "jaki dzis dzien": "ask_day",
+            "jaki dziś dzień": "ask_day",
+            "dzien": "ask_day",
+            "dzień": "ask_day",
+            "month": "ask_month",
+            "jaki miesiac": "ask_month",
+            "jaki miesiąc": "ask_month",
+            "miesiac": "ask_month",
+            "miesiąc": "ask_month",
+            "year": "ask_year",
+            "jaki rok": "ask_year",
+            "rok": "ask_year",
+            "who are you": "introduce_self",
+            "what is your name": "introduce_self",
+            "tell me your name": "introduce_self",
+            "kim jestes": "introduce_self",
+            "kim jesteś": "introduce_self",
+            "jak sie nazywasz": "introduce_self",
+            "jak się nazywasz": "introduce_self",
+            "przedstaw sie": "introduce_self",
+            "przedstaw się": "introduce_self",
+        }
+
+        return direct_map.get(normalized, "")
+
+    def _interrupt_pending_context(self, *, assistant: Any, action: str) -> None:
+        if action in {"confirm_yes", "confirm_no"}:
+            return
+
+        clear_context = getattr(assistant, "_clear_interaction_context", None)
+        if callable(clear_context):
+            try:
+                clear_context(close_active_window=False)
+                return
+            except TypeError:
+                clear_context()
+                return
+            except Exception as error:
+                LOGGER.warning("Failed to clear interaction context in fast lane: %s", error)
+
+        assistant.pending_confirmation = None
+        assistant.pending_follow_up = None
+
+    def _build_route_decision(self, decision: FastCommandDecision) -> RouteDecision:
+        tool_name = self._tool_name_for_action(decision.action)
+
+        intents: list[IntentMatch] = [
+            IntentMatch(
+                name=decision.action,
+                confidence=decision.confidence or 1.0,
+                entities=[
+                    EntityValue(name=str(key), value=value)
+                    for key, value in decision.payload.items()
+                ],
+                requires_clarification=False,
+                metadata={"lane": "fast_command"},
+            )
+        ]
+
+        tools: list[ToolInvocation] = []
+        if tool_name:
+            tools.append(
+                ToolInvocation(
+                    tool_name=tool_name,
+                    payload=dict(decision.payload),
+                    reason="deterministic_fast_path",
+                    confidence=max(decision.confidence, 0.90),
+                    execute_immediately=True,
+                )
+            )
+
+        return RouteDecision(
+            turn_id=create_turn_id("fast"),
+            raw_text=decision.raw_text,
+            normalized_text=decision.normalized_text,
+            language=decision.language,
+            kind=RouteKind.ACTION,
+            confidence=max(decision.confidence, 0.90),
+            primary_intent=decision.action,
+            intents=intents,
+            conversation_topics=[],
+            tool_invocations=tools,
+            notes=["deterministic_fast_path"],
+            metadata={
+                "lane": "fast_command",
+                "interrupts_pending": decision.interrupts_pending,
+                "action": decision.action,
+                "payload": dict(decision.payload),
+                "source": decision.source,
+            },
+        )
+
+    @staticmethod
+    def _extract_action(parser_result: Any) -> str:
+        if parser_result is None:
+            return ""
+
+        if isinstance(parser_result, dict):
+            for key in ("action", "primary_intent", "intent", "name"):
+                value = parser_result.get(key)
+                if value:
+                    return str(value).strip().lower()
+            return ""
+
+        for attr in ("action", "primary_intent", "intent", "name"):
+            value = getattr(parser_result, attr, None)
+            if value:
+                return str(value).strip().lower()
+
+        return ""
+
+    @staticmethod
+    def _extract_confidence(parser_result: Any) -> float:
+        if parser_result is None:
+            return 0.0
+
+        if isinstance(parser_result, dict):
+            for key in ("confidence", "score"):
+                value = parser_result.get(key)
+                if value is not None:
+                    try:
+                        return float(value)
+                    except Exception:
+                        return 0.0
+            return 0.0
+
+        for attr in ("confidence", "score"):
+            value = getattr(parser_result, attr, None)
+            if value is not None:
+                try:
+                    return float(value)
+                except Exception:
+                    return 0.0
+
+        return 0.0
+
+    def _extract_payload(self, parser_result: Any) -> dict[str, Any]:
+        if parser_result is None:
+            return {}
+
+        if isinstance(parser_result, dict):
+            if isinstance(parser_result.get("payload"), dict):
+                return dict(parser_result["payload"])
+            if isinstance(parser_result.get("data"), dict):
+                return dict(parser_result["data"])
+            if isinstance(parser_result.get("entities"), dict):
+                return dict(parser_result["entities"])
+            if isinstance(parser_result.get("slots"), dict):
+                return dict(parser_result["slots"])
+            return self._dict_payload_from_known_keys(parser_result)
+
+        for attr in ("payload", "data", "entities", "slots"):
+            value = getattr(parser_result, attr, None)
+            if isinstance(value, dict):
+                return dict(value)
+
+        extracted: dict[str, Any] = {}
+        for key in (
+            "key",
+            "value",
+            "message",
+            "minutes",
+            "seconds",
+            "hours",
+            "query",
+            "item",
+            "subject",
+            "name",
+            "id",
+            "reminder_id",
+            "direction",
+        ):
+            value = getattr(parser_result, key, None)
+            if value not in (None, ""):
+                extracted[key] = value
+        return extracted
+
+    @staticmethod
+    def _dict_payload_from_known_keys(data: dict[str, Any]) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        for key in (
+            "key",
+            "value",
+            "message",
+            "minutes",
+            "seconds",
+            "hours",
+            "query",
+            "item",
+            "subject",
+            "name",
+            "id",
+            "reminder_id",
+            "direction",
+        ):
+            value = data.get(key)
+            if value not in (None, ""):
+                payload[key] = value
+        return payload
+
+    @staticmethod
+    def _tool_name_for_action(action: str) -> str:
+        mapping = {
+            "help": "system.help",
+            "feedback_on": "feedback.on",
+            "feedback_off": "feedback.off",
+            "show help": "system.help",
+            "so help": "system.help",
+            "show commands": "system.help",
+            "show command list": "system.help",
+            "command list": "system.help",
+            "commands list": "system.help",
+            "help screen": "system.help",
+            "open help": "system.help",
+            "open commands": "system.help",
+            "pokaż pomoc": "system.help",
+            "pokaz pomoc": "system.help",
+            "pokaż komendy": "system.help",
+            "pokaz komendy": "system.help",
+            "lista komend": "system.help",
+            "ekran pomocy": "system.help",
+            "otwórz pomoc": "system.help",
+            "otworz pomoc": "system.help",
+            "status": "system.status",
+            "introduce_self": "assistant.introduce",
+            "ask_time": "clock.time",
+            "show_time": "clock.time",
+            "ask_date": "clock.date",
+            "show_date": "clock.date",
+            "ask_day": "clock.day",
+            "show_day": "clock.day",
+            "ask_month": "clock.month",
+            "show_month": "clock.month",
+            "ask_year": "clock.year",
+            "show_year": "clock.year",
+            "memory_list": "memory.list",
+            "memory_clear": "memory.clear",
+            "memory_store": "memory.store",
+            "memory_recall": "memory.recall",
+            "memory_forget": "memory.forget",
+            "reminders_list": "reminders.list",
+            "reminders_clear": "reminders.clear",
+            "reminder_create": "reminders.create",
+            "reminder_delete": "reminders.delete",
+            "timer_start": "timer.start",
+            "timer_stop": "timer.stop",
+            "focus_start": "focus.start",
+            "break_start": "break.start",
+            "exit": "system.exit",
+            "shutdown": "system.shutdown",
+            "confirm_yes": "",
+            "confirm_no": "",
+            "look_direction": "pan_tilt.look",
+        }
+        return mapping.get(str(action).strip().lower(), "")
+
+
+    _ARITHMETIC_RE = re.compile(
+        r"\d+(?:[.,]\d+)?\s*"
+        r"(?:[+\-*/xX×·÷:]|plus|minus|razy|dodać|dodac|odjąć|odjac|"
+        r"pomnożyć|pomnozyc|podzielić|podzielic|przez|times|divided|over)"
+        r"\s*\d+(?:[.,]\d+)?",
+        flags=re.IGNORECASE,
+    )
+
+    @classmethod
+    def _looks_like_arithmetic(cls, text: str) -> bool:
+        cleaned = str(text or "").strip()
+        if not cleaned:
+            return False
+        return bool(cls._ARITHMETIC_RE.search(cleaned))
+
+__all__ = ["FastCommandDecision", "FastCommandLane"]

@@ -155,9 +155,7 @@ The test was executed as a standalone file from the `tests` directory, so the pr
 **Fix**  
 The test file was updated to insert the project root into `sys.path`, and tests were also run using:
 
-```bash
 python -m tests.test_voice_commands
-```
 ## 2. `whisper-cli not found at: whisper.cpp/build/bin/whisper-cli`
 
 ### Symptom
@@ -353,7 +351,6 @@ The method indentation was corrected so that:
 **Problem**  
 When running `python main.py`, the program raised:
 
-```python
 AttributeError: 'CoreAssistant' object has no attribute 'boot'
 
 
@@ -363,9 +360,7 @@ The startup logic was accidentally pasted inside `__init__()` instead of being d
 ### Fix
 The boot logic was moved out of `__init__()` and restored as a separate method:
 
-```python
 def boot(self) -> None:
-```
 ## 014 Assistant responded to silence or blank audio
 
 ### Problem
@@ -3532,10 +3527,8 @@ This file lists the main problems we had while building the camera and vision fo
 Tests failed before the vision code even started.
 
 ### Error
-```text
 PermissionError: [Errno 13] Permission denied: '/home/devdul/Projects/smart-desk-ai-assistant/var/logs/system.log'
 Cause
-```
 
 The logger tried to open the log file during import.
 If the normal user did not have permission to write to that file, the import failed and the tests stopped.
@@ -4030,3 +4023,188 @@ If memory recall fails unexpectedly:
 4. Confirm the recall language matches the stored record language.
 5. Run `pytest -q tests/unit/services/test_memory.py`.
 <!-- END guided-reminder-memory-troubleshooting -->
+
+<!-- BEGIN feedback-dashboard-and-visual-shell-troubleshooting -->
+## Feedback Mode and Visual Shell display troubleshooting
+
+### Feedback commands go through confirmation
+
+Observed symptoms:
+
+- The user says feedback on or feedback off.
+- The transcript may be heard as Feed back on, Oruham feedback, Oruham Fitbit, Feedback of, Feed the back of, Sheet back off or Sheets back off.
+- The assistant asks for confirmation instead of executing immediately.
+- The action feels slow because the flow waits for yes or no.
+
+Root cause:
+
+- Common ASR variants were missing from the deterministic command alias layer.
+- The command fell into parser suggestion or confirmation flow instead of FastCommandLane.
+
+Fix:
+
+- Add feedback aliases to FastCommandLane.
+- Add parser phrases for feedback ASR variants.
+- Add safe Vosk grammar variants only when the model vocabulary supports them.
+- Keep unsupported Polish-like ASR variants in the post-STT fast alias layer.
+
+Expected behavior:
+
+- feedback on, feed back on, feedback own, oruham feedback and oruham fitbit start Feedback Mode without LLM and without confirmation.
+- feedback off, feedback of, feed back off, feed the back of, sheet back off and sheets back off close Feedback Mode without LLM and without confirmation.
+- Fast command telemetry should show deterministic action handling.
+
+### Feedback dashboard logs are difficult to read
+
+Observed symptoms:
+
+- Live logs keep appending while the user scrolls up.
+- The log view jumps back to the bottom whenever a new log arrives.
+- The user cannot inspect earlier log entries.
+- Camera logs mix into general system logs.
+
+Root cause:
+
+- The log view always followed new entries.
+- There was no scroll lock while reviewing old entries.
+- Vision, camera, detector and capture logs were not separated clearly.
+- Log entries were too dense for the DSI display.
+
+Fix:
+
+- Add bounded log retention.
+- Keep only recent dashboard logs, currently around five minutes, with an additional maximum entry limit.
+- Preserve scroll position when the user has scrolled up.
+- Route vision, camera, detector and capture logs to the Vision tab.
+- Add spacing between log entries.
+
+Expected behavior:
+
+- Live logs continue to update.
+- The log view does not jump to the bottom while the user reviews older entries.
+- Vision logs appear under VISION LOG.
+- General runtime logs appear under SYSTEM LOGS AND STATUS.
+
+### Feedback dashboard freezes after feedback off
+
+Observed symptoms:
+
+- The user says feedback off.
+- Runtime reports FEEDBACK closed.
+- The dashboard remains visible or appears frozen.
+
+Root cause:
+
+- Background feedback workers and visual hide commands were not ordered defensively.
+- A hide command could be missed while the Visual Shell was busy.
+
+Fix:
+
+- Send HIDE_FEEDBACK immediately when Feedback Mode turns off.
+- Stop feedback status and vision workers.
+- Detach the feedback log handler.
+- Send HIDE_FEEDBACK again after cleanup.
+- Hide both the dashboard view and dashboard layer in Godot.
+
+Expected behavior:
+
+- feedback off hides the dashboard immediately.
+- Worker shutdown happens safely.
+- Repeated feedback off commands are safe.
+
+### Visual Shell commands fail with renderer unavailable
+
+Observed symptoms:
+
+- Voice command is recognized correctly.
+- Logs show transport_result=failed.
+- Logs show reason=renderer_unavailable.
+- show desktop or feedback commands do not affect the renderer.
+
+Root cause:
+
+- Godot Visual Shell is not running, failed to bind TCP, or a stale Godot process is running without listening on port 8765.
+- A stale process can appear in pgrep while ss shows no listener.
+
+Diagnostic commands:
+
+    pgrep -af "godot3|visual_shell" || true
+    ss -ltnp 2>/dev/null | grep ":8765" || true
+    tail -n 120 var/logs/visual_shell_manual.log
+
+Fix:
+
+- Kill stale Godot processes whose current working directory is modules/presentation/visual_shell/godot_app.
+- Remove the stale Visual Shell lock.
+- Restart Visual Shell from modules/presentation/visual_shell/bin/run_visual_shell.sh.
+- Confirm that port 127.0.0.1:8765 is listening.
+
+Expected behavior:
+
+- show desktop, hide desktop, feedback on and feedback off send TCP commands successfully.
+- Logs show transport_result=ok.
+
+### Visual Shell appears halfway down the DSI display
+
+Observed symptoms:
+
+- The Visual Shell window exists and has size 1280x800.
+- xdotool may report the window at position 0,0.
+- Visually, the shell appears partly off-screen or starts halfway down the DSI display.
+
+Root cause:
+
+- The desktop is a combined virtual display.
+- In the current DSI plus HDMI setup, xrandr reports DSI-2 at 1280x800+0+360.
+- HDMI-A-1 is placed at 2560x1440+1280+360.
+- The combined virtual desktop size is 3840x1800.
+- Global coordinate 0,0 is above the physical DSI output.
+- The Visual Shell must target the DSI output geometry, not global 0,0.
+
+Fix:
+
+- Detect the target output geometry from xrandr.
+- Use DSI-2 as the default Visual Shell output.
+- Start the full shell at the detected DSI output offset, for example 0,360.
+- Export detected geometry to Godot through environment variables.
+- Compute docked mode inside the DSI output bounds.
+
+Expected behavior:
+
+- Full Visual Shell covers the DSI screen.
+- show desktop docks the assistant inside the DSI top-right corner.
+- hide desktop restores the full shell to the DSI geometry.
+- The shell no longer appears halfway off-screen.
+
+Useful verification:
+
+    xrandr --current
+    PID="$(pgrep -n -f 'godot3.*--path .')"
+    for WID in $(xdotool search --pid "$PID" 2>/dev/null || true); do
+      xdotool getwindowgeometry "$WID"
+    done
+    ss -ltnp 2>/dev/null | grep ":8765" || true
+
+### ESC does not close the Visual Shell
+
+Observed symptoms:
+
+- Pressing ESC does not close the Visual Shell.
+- This can happen when an overlay or control has focus.
+
+Root cause:
+
+- Depending only on _input is not robust enough when UI controls consume input.
+- If Godot scripts fail to parse, ESC cannot work because the main shell script is not loaded.
+
+Fix:
+
+- Add keyboard handling through _input, _unhandled_input, _unhandled_key_input and process-level polling.
+- Ensure the Godot project has no script parse errors.
+- Check var/logs/visual_shell_manual.log for SCRIPT ERROR before debugging keyboard handling.
+
+Expected behavior:
+
+- ESC closes the Godot Visual Shell.
+- The log may show Visual Shell quit requested by ESC.
+<!-- END feedback-dashboard-and-visual-shell-troubleshooting -->

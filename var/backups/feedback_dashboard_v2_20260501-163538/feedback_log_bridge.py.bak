@@ -1,0 +1,122 @@
+"""Feedback log bridge — pipes Python logging records to the Visual Shell dashboard."""
+from __future__ import annotations
+
+import logging
+import threading
+import time
+from typing import Any
+
+
+_ATTACHED_HANDLER: "FeedbackLogHandler | None" = None
+
+
+def _classify_record(record: logging.LogRecord) -> tuple[str, str]:
+    name = str(record.name or "").lower()
+    message = str(record.getMessage() or "").lower()
+
+    haystack = f"{name} {message}"
+
+    if any(token in haystack for token in ("vision", "camera", "detector", "perception", "capture")):
+        return ("VISION", "camera / perception")
+    if any(token in haystack for token in ("voice_engine", "speech_recognition", "command_asr", "faster_whisper", "vosk", "stt")):
+        return ("STT", "speech / command recognition")
+    if any(token in haystack for token in ("wake", "openwakeword")):
+        return ("WAKE", "wake word detection")
+    if any(token in haystack for token in ("tts", "piper", "voice_output", "speaker", "audio coordinator")):
+        return ("AUDIO", "speech output / playback")
+    if any(token in haystack for token in ("llm", "dialogue", "ollama", "qwen")):
+        return ("LLM", "language model")
+    if any(token in haystack for token in ("visual_shell", "display", "godot", "ui")):
+        return ("UI", "visual shell / display")
+    return ("SYSTEM", "runtime / orchestration")
+
+
+class FeedbackLogHandler(logging.Handler):
+    """Forward log records to the Visual Shell feedback dashboard."""
+
+    def __init__(self, controller: Any, level: int = logging.INFO) -> None:
+        super().__init__(level=level)
+        self._controller = controller
+        self._lock = threading.Lock()
+        self._fail_count = 0
+        self.setFormatter(logging.Formatter("%(name)s — %(message)s"))
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            raw_message = self.format(record)
+        except Exception:
+            return
+
+        single_line = raw_message.replace("\n", " ⏎ ").strip()
+        if not single_line:
+            return
+
+        if len(single_line) > 560:
+            single_line = single_line[:557] + "…"
+
+        component, responsibility = _classify_record(record)
+        pretty_message = f"{component} | {responsibility} | {single_line}"
+        ts_ms = int(time.time() * 1000)
+        level_name = str(record.levelname or "INFO").lower()
+
+        try:
+            with self._lock:
+                self._controller.feedback_log_append(
+                    level=level_name,
+                    message=pretty_message,
+                    ts_ms=ts_ms,
+                    source="nexa-feedback-bridge",
+                )
+                self._fail_count = 0
+        except Exception:
+            self._fail_count += 1
+            if self._fail_count >= 25:
+                try:
+                    root_logger = logging.getLogger()
+                    root_logger.removeHandler(self)
+                except Exception:
+                    pass
+
+    @property
+    def fail_count(self) -> int:
+        return self._fail_count
+
+
+def attach_feedback_log_handler(controller: Any) -> FeedbackLogHandler:
+    global _ATTACHED_HANDLER
+
+    root_logger = logging.getLogger()
+
+    if _ATTACHED_HANDLER is not None:
+        try:
+            root_logger.removeHandler(_ATTACHED_HANDLER)
+        except Exception:
+            pass
+        _ATTACHED_HANDLER = None
+
+    handler = FeedbackLogHandler(controller=controller, level=logging.INFO)
+    root_logger.addHandler(handler)
+    _ATTACHED_HANDLER = handler
+    return handler
+
+
+def detach_feedback_log_handler() -> None:
+    global _ATTACHED_HANDLER
+
+    if _ATTACHED_HANDLER is None:
+        return
+
+    root_logger = logging.getLogger()
+    try:
+        root_logger.removeHandler(_ATTACHED_HANDLER)
+    except Exception:
+        pass
+
+    _ATTACHED_HANDLER = None
+
+
+__all__ = [
+    "FeedbackLogHandler",
+    "attach_feedback_log_handler",
+    "detach_feedback_log_handler",
+]

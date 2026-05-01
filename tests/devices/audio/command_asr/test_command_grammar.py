@@ -393,3 +393,47 @@ def test_default_grammar_recognizes_visual_help_overlay_aliases() -> None:
         assert result.status == CommandRecognitionStatus.MATCHED
         assert result.intent_key == intent_key
         assert result.language == language
+
+def test_default_grammar_recognizes_feedback_mode_commands() -> None:
+    grammar = build_default_command_grammar()
+
+    on_result = grammar.match("feedback on")
+    assert on_result.status == CommandRecognitionStatus.MATCHED
+    assert on_result.intent_key == "feedback.on"
+    assert on_result.language == CommandLanguage.ENGLISH
+
+    pl_on_result = grammar.match("uruchom feedback")
+    assert pl_on_result.status == CommandRecognitionStatus.MATCHED
+    assert pl_on_result.intent_key == "feedback.on"
+    assert pl_on_result.language == CommandLanguage.POLISH
+
+    off_result = grammar.match("feedback off")
+    assert off_result.status == CommandRecognitionStatus.MATCHED
+    assert off_result.intent_key == "feedback.off"
+    assert off_result.language == CommandLanguage.ENGLISH
+
+    pl_off_result = grammar.match("zamknij feedback")
+    assert pl_off_result.status == CommandRecognitionStatus.MATCHED
+    assert pl_off_result.intent_key == "feedback.off"
+    assert pl_off_result.language == CommandLanguage.POLISH
+
+
+def test_default_grammar_recognizes_feedback_asr_variants() -> None:
+    grammar = build_default_command_grammar()
+
+    cases = [
+        ("feed back on", "feedback.on"),
+        ("feedback own", "feedback.on"),
+        ("feedback of", "feedback.off"),
+        ("feed back off", "feedback.off"),
+        ("feed the back of", "feedback.off"),
+        ("sheet back off", "feedback.off"),
+        ("sheets back off", "feedback.off"),
+    ]
+
+    for phrase, expected_intent in cases:
+        result = grammar.match(phrase)
+
+        assert result.status == CommandRecognitionStatus.MATCHED
+        assert result.intent_key == expected_intent
+        assert result.language == CommandLanguage.ENGLISH
