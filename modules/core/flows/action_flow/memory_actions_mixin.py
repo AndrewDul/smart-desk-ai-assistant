@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from modules.runtime.contracts import RouteDecision
+from modules.runtime.contracts import RouteDecision, RouteKind
 
 from .models import ResolvedAction, SkillRequest
 
@@ -17,9 +17,44 @@ class ActionMemoryActionsMixin:
         resolved: ResolvedAction,
         request: SkillRequest | None = None,
     ) -> bool:
-        del route
+        del route, resolved
+
+        guided = bool(payload.get("guided", False))
+        memory_text = self._first_present(payload, "memory_text", "message", "content", "text")
         key, value = self._resolve_memory_store_fields(payload)
-        outcome = self._get_memory_skill_executor().store(key=key, value=value)
+
+        if guided or (not str(memory_text or "").strip() and (not key or not value)):
+            self.assistant.pending_follow_up = {
+                "type": "memory_message",
+                "language": language,
+            }
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Jasne. Co mam zapamiętać?",
+                    "Sure. What should I remember?",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="action_memory_guided_message_prompt",
+                metadata={
+                    "follow_up_type": "memory_message",
+                    "action": "memory_store",
+                },
+            )
+
+        if str(memory_text or "").strip():
+            outcome = self._get_memory_skill_executor().store_text(
+                text=memory_text,
+                language=language,
+                source="memory_service.store_text",
+            )
+        else:
+            outcome = self._get_memory_skill_executor().store(
+                key=key,
+                value=value,
+                language=language,
+            )
 
         if outcome.status == "unavailable":
             return self._deliver_feature_unavailable(language=language, action="memory_store")
@@ -28,7 +63,7 @@ class ActionMemoryActionsMixin:
             language=language,
             action=request.action if request is not None else "memory_store",
             outcome_status=outcome.status,
-            resolved_source=resolved.source,
+            resolved_source="action_memory_store",
             key=str(outcome.data.get("key", key or "")).strip(),
             value=str(outcome.data.get("value", value or "")).strip(),
             metadata=dict(outcome.metadata or {}),
@@ -46,7 +81,7 @@ class ActionMemoryActionsMixin:
     ) -> bool:
         del route
         key = self._first_present(payload, "key", "subject", "item", "name", "query")
-        outcome = self._get_memory_skill_executor().recall(key=key)
+        outcome = self._get_memory_skill_executor().recall(key=key, language=language)
 
         if outcome.status == "unavailable":
             return self._deliver_feature_unavailable(language=language, action="memory_recall")
@@ -75,7 +110,7 @@ class ActionMemoryActionsMixin:
     ) -> bool:
         del route
         key = self._first_present(payload, "key", "subject", "item", "name", "query")
-        outcome = self._get_memory_skill_executor().forget(key=key)
+        outcome = self._get_memory_skill_executor().forget(key=key, language=language)
 
         if outcome.status == "unavailable":
             return self._deliver_feature_unavailable(language=language, action="memory_forget")
@@ -101,7 +136,7 @@ class ActionMemoryActionsMixin:
         request: SkillRequest | None = None,
     ) -> bool:
         del route, payload
-        outcome = self._get_memory_skill_executor().list_items()
+        outcome = self._get_memory_skill_executor().list_items(language=language)
         if outcome.status == "unavailable":
             return self._deliver_feature_unavailable(language=language, action="memory_list")
 

@@ -7,7 +7,6 @@ from typing import Any
 
 from modules.core.voice_engine import VoiceTurnResult, VoiceTurnRoute
 from modules.runtime.contracts import (
-    EntityValue,
     IntentMatch,
     RouteDecision,
     RouteKind,
@@ -155,11 +154,6 @@ class RuntimeCandidateExecutionPlanBuilder:
                   legacy_action="memory_list",
                   tool_name="memory.list",
               ),
-              "memory.recall": RuntimeCandidateActionSpec(
-                  voice_engine_intent_key="memory.recall",
-                  legacy_action="memory_recall",
-                  tool_name="memory.recall",
-              ),
         }
     )
 
@@ -189,16 +183,6 @@ class RuntimeCandidateExecutionPlanBuilder:
         safe_language = language if language in {"pl", "en"} else "unknown"
         safe_confidence = max(float(confidence or 0.0), 0.90)
 
-        # For memory.recall the spoken transcript carries the subject
-        # ("gdzie jest mój telefon" → "telefon"). Extract it now so that the
-        # downstream ActionFlow / MemorySkillExecutor receives the key
-        # without having to re-run the parser.
-        action_payload: dict[str, Any] = {}
-        if intent_key == "memory.recall":
-            recall_key = self._extract_recall_key(transcript)
-            if recall_key:
-                action_payload = {"key": recall_key, "query": recall_key}
-
         route = RouteDecision(
             turn_id=str(turn_id or ""),
             raw_text=str(transcript or "").strip(),
@@ -211,10 +195,7 @@ class RuntimeCandidateExecutionPlanBuilder:
                 IntentMatch(
                     name=spec.legacy_action,
                     confidence=safe_confidence,
-                    entities=[
-                        EntityValue(name=str(k), value=v)
-                        for k, v in action_payload.items()
-                    ],
+                    entities=[],
                     requires_clarification=False,
                     metadata={
                         "lane": "voice_engine_v2_runtime_candidate",
@@ -227,7 +208,7 @@ class RuntimeCandidateExecutionPlanBuilder:
             tool_invocations=[
                 ToolInvocation(
                     tool_name=spec.tool_name,
-                    payload=dict(action_payload),
+                    payload={},
                     reason="voice_engine_v2_runtime_candidate",
                     confidence=safe_confidence,
                     execute_immediately=True,
@@ -243,7 +224,6 @@ class RuntimeCandidateExecutionPlanBuilder:
                 "matched_phrase": matched_phrase,
                 "llm_prevented": True,
                 "fallback_to_legacy_enabled": True,
-                "payload": dict(action_payload),
             },
         )
 
@@ -283,15 +263,12 @@ class RuntimeCandidateExecutionPlanBuilder:
           "remember that": "memory.guided_start",
           "remember it": "memory.guided_start",
           "save this": "memory.guided_start",
-          "remember": "memory.guided_start",
           "zapamiętaj coś": "memory.guided_start",
           "zapamietaj cos": "memory.guided_start",
           "zapamiętaj to": "memory.guided_start",
           "zapamietaj to": "memory.guided_start",
           "pamiętaj coś": "memory.guided_start",
           "pamietaj cos": "memory.guided_start",
-          "zapamiętaj": "memory.guided_start",
-          "zapamietaj": "memory.guided_start",
           "memory list": "memory.list",
           "show memory": "memory.list",
           "list memory": "memory.list",
@@ -304,35 +281,6 @@ class RuntimeCandidateExecutionPlanBuilder:
           "co zapamiętałaś": "memory.list",
           "co zapamietalas": "memory.list",
 }
-
-    # Recall is open-ended ("where is my <anything>"), so we cannot enumerate
-    # full phrases like for guided_start. Instead we recognise short prefixes
-    # and let MemoryService.recall do the token search using the rest of the
-    # transcript as the query key. These prefixes use only words that small
-    # Vosk vocabularies recognise (no rare conjugations).
-    _RECALL_PREFIXES = (
-        "where is my ",
-        "where is the ",
-        "where is ",
-        "where are my ",
-        "where are the ",
-        "where are ",
-        "do you remember ",
-        "what do you remember about ",
-        "gdzie jest mój ",
-        "gdzie jest moj ",
-        "gdzie jest moja ",
-        "gdzie jest moje ",
-        "gdzie jest ",
-        "gdzie są moje ",
-        "gdzie sa moje ",
-        "gdzie są ",
-        "gdzie sa ",
-        "czy pamiętasz ",
-        "czy pamietasz ",
-        "co pamiętasz o ",
-        "co pamietasz o ",
-    )
 
     @classmethod
     def _resolve_runtime_intent_key(
@@ -356,37 +304,7 @@ class RuntimeCandidateExecutionPlanBuilder:
         override = cls._TRANSCRIPT_INTENT_OVERRIDES.get(normalized)
         if override:
             return str(override)
-
-        # Fast-lane recall: "where is my X", "gdzie jest X", etc.
-        # The X part is variable, so we only match the prefix and let
-        # MemoryService.recall resolve the actual subject downstream.
-        normalized_with_space = normalized + " "
-        for prefix in cls._RECALL_PREFIXES:
-            if normalized_with_space.startswith(prefix):
-                remainder = normalized_with_space[len(prefix):].strip()
-                if remainder:
-                    return "memory.recall"
-
         return str(intent_key or "").strip()
-
-    @classmethod
-    def _extract_recall_key(cls, transcript: str) -> str:
-        """Return the subject portion of a recall transcript, or empty."""
-        normalized = " ".join(
-            str(transcript or "")
-            .strip()
-            .lower()
-            .replace(".", " ")
-            .replace(",", " ")
-            .replace("?", " ")
-            .replace("!", " ")
-            .split()
-        )
-        normalized_with_space = normalized + " "
-        for prefix in cls._RECALL_PREFIXES:
-            if normalized_with_space.startswith(prefix):
-                return normalized_with_space[len(prefix):].strip()
-        return ""
 
     def build_plan(
         self,
@@ -431,13 +349,6 @@ class RuntimeCandidateExecutionPlanBuilder:
         normalized_text = str(transcript or "").strip()
         voice_engine_action = str(getattr(raw_intent, "action", "") or "").strip()
 
-        # For memory.recall the spoken transcript carries the subject.
-        action_payload: dict[str, Any] = {}
-        if resolved_intent_key == "memory.recall":
-            recall_key = self._extract_recall_key(transcript)
-            if recall_key:
-                action_payload = {"key": recall_key, "query": recall_key}
-
         route = RouteDecision(
             turn_id=str(getattr(turn_result, "turn_id", "") or ""),
             raw_text=str(transcript or "").strip(),
@@ -450,10 +361,7 @@ class RuntimeCandidateExecutionPlanBuilder:
                 IntentMatch(
                     name=spec.legacy_action,
                     confidence=confidence,
-                    entities=[
-                        EntityValue(name=str(k), value=v)
-                        for k, v in action_payload.items()
-                    ],
+                    entities=[],
                     requires_clarification=False,
                     metadata={
                         "lane": "voice_engine_v2_runtime_candidate",
@@ -466,7 +374,7 @@ class RuntimeCandidateExecutionPlanBuilder:
             tool_invocations=[
                 ToolInvocation(
                     tool_name=spec.tool_name,
-                    payload=dict(action_payload),
+                    payload={},
                     reason="voice_engine_v2_runtime_candidate",
                     confidence=confidence,
                     execute_immediately=True,
@@ -483,7 +391,6 @@ class RuntimeCandidateExecutionPlanBuilder:
                 "matched_phrase": matched_phrase,
                 "llm_prevented": True,
                 "fallback_to_legacy_enabled": True,
-                "payload": dict(action_payload),
             },
         )
 

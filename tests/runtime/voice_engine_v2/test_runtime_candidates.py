@@ -328,3 +328,49 @@ def test_runtime_candidate_adapter_accepts_allowlisted_help_command() -> None:
     assert result.route_decision.primary_intent == "help"
     assert result.route_decision.tool_invocations[0].tool_name == "system.help"
     assert result.route_decision.metadata["llm_prevented"] is True
+
+
+def test_runtime_candidate_adapter_accepts_memory_guided_start_transcript_override() -> None:
+    bundle = _bundle(
+        runtime_candidates_enabled=True,
+        allowlist=["memory.guided_start", "memory.list"],
+    )
+
+    result = bundle.runtime_candidate_adapter.process_transcript(
+        turn_id="turn-candidate-memory-guided-start",
+        transcript="remember something",
+        language_hint=CommandLanguage.ENGLISH,
+        started_monotonic=1.0,
+        speech_end_monotonic=1.0,
+    )
+
+    assert result.accepted is True
+    assert result.reason == "accepted"
+    assert result.intent_key == "memory.guided_start"
+    assert result.route_decision is not None
+    assert result.route_decision.primary_intent == "memory_store"
+    assert result.route_decision.tool_invocations[0].tool_name == "memory.guided_start"
+    assert result.route_decision.metadata["llm_prevented"] is True
+
+
+def test_runtime_candidate_adapter_accepts_memory_list_transcript_override() -> None:
+    bundle = _bundle(
+        runtime_candidates_enabled=True,
+        allowlist=["memory.guided_start", "memory.list"],
+    )
+
+    result = bundle.runtime_candidate_adapter.process_transcript(
+        turn_id="turn-candidate-memory-list",
+        transcript="co zapamiętałaś",
+        language_hint=CommandLanguage.POLISH,
+        started_monotonic=1.0,
+        speech_end_monotonic=1.0,
+    )
+
+    assert result.accepted is True
+    assert result.reason == "accepted"
+    assert result.intent_key == "memory.list"
+    assert result.route_decision is not None
+    assert result.route_decision.primary_intent == "memory_list"
+    assert result.route_decision.tool_invocations[0].tool_name == "memory.list"
+    assert result.route_decision.metadata["llm_prevented"] is True

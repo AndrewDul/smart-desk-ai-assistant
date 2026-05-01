@@ -1665,73 +1665,13 @@ def build_default_command_grammar() -> CommandGrammar:
             'memory.list',
             'co zapamiętałaś',
             language=CommandLanguage.POLISH,
-            tags=('memory', 'list', 'stt_recovery', 'vosk_exclude'),
+            tags=('memory', 'list'),
         ),
         CommandPhrase(
             'memory.list',
             'co zapamietalas',
             language=CommandLanguage.POLISH,
-            tags=('memory', 'list', 'stt_recovery', 'vosk_exclude'),
-        ),
-
-        # ------------------------------------------------------------------
-        # Memory recall — fast-lane (Vosk friendly)
-        #
-        # These short trigger phrases let "where is my X" / "gdzie jest X"
-        # land in the Voice Engine v2 fast lane. The actual subject (X) is
-        # resolved later by MemoryService token search, so the grammar only
-        # needs to recognise the trigger prefix.
-        #
-        # Words below are intentionally chosen from the small Vosk vocab
-        # (no rare Polish conjugations, no soft-sign endings).
-        # ------------------------------------------------------------------
-        CommandPhrase(
-            'memory.recall',
-            'where is',
-            language=CommandLanguage.ENGLISH,
-            tags=('memory', 'recall', 'prefix'),
-        ),
-        CommandPhrase(
-            'memory.recall',
-            'where are',
-            language=CommandLanguage.ENGLISH,
-            tags=('memory', 'recall', 'prefix'),
-        ),
-        CommandPhrase(
-            'memory.recall',
-            'do you remember',
-            language=CommandLanguage.ENGLISH,
-            tags=('memory', 'recall', 'prefix'),
-        ),
-        CommandPhrase(
-            'memory.recall',
-            'gdzie jest',
-            language=CommandLanguage.POLISH,
-            tags=('memory', 'recall', 'prefix'),
-        ),
-        CommandPhrase(
-            'memory.recall',
-            'gdzie są',
-            language=CommandLanguage.POLISH,
-            tags=('memory', 'recall', 'prefix'),
-        ),
-        CommandPhrase(
-            'memory.recall',
-            'gdzie sa',
-            language=CommandLanguage.POLISH,
-            tags=('memory', 'recall', 'prefix'),
-        ),
-        CommandPhrase(
-            'memory.recall',
-            'czy pamiętasz',
-            language=CommandLanguage.POLISH,
-            tags=('memory', 'recall', 'prefix'),
-        ),
-        CommandPhrase(
-            'memory.recall',
-            'czy pamietasz',
-            language=CommandLanguage.POLISH,
-            tags=('memory', 'recall', 'prefix'),
+            tags=('memory', 'list'),
         ),
     ]
 

@@ -76,6 +76,12 @@
         "end_silence_seconds": 0.18,
         "min_speech_seconds": 0.08,
         "pre_roll_seconds": 0.1
+      },
+      "memory_message": {
+        "timeout_seconds": 4.2,
+        "end_silence_seconds": 0.42,
+        "min_speech_seconds": 0.1,
+        "pre_roll_seconds": 0.16
       }
     }
   },
@@ -124,7 +130,9 @@
       "visual_shell.show_time",
       "visual_shell.show_date",
       "reminder.guided_start",
-      "reminder.time_answer"
+      "reminder.time_answer",
+      "memory.guided_start",
+      "memory.list"
     ],
     "runtime_candidate_log_path": "var/data/voice_engine_v2_runtime_candidates.jsonl",
     "pre_stt_shadow_enabled": false,

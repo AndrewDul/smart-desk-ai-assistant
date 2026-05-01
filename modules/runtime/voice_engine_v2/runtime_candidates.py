@@ -79,9 +79,28 @@ class VoiceEngineV2RuntimeCandidateResult:
 
     @property
     def intent_key(self) -> str:
-        if self.turn_result is None or self.turn_result.intent is None:
-            return ""
-        return self.turn_result.intent.key
+        result_metadata = dict(self.metadata or {})
+        metadata_intent = str(
+            result_metadata.get("voice_engine_intent_key")
+            or result_metadata.get("intent_key")
+            or ""
+        ).strip()
+        if metadata_intent:
+            return metadata_intent
+
+        route = self.route_decision
+        if route is not None:
+            route_metadata = dict(getattr(route, "metadata", {}) or {})
+            route_intent = str(
+                route_metadata.get("voice_engine_intent_key")
+                or route_metadata.get("intent_key")
+                or ""
+            ).strip()
+            if route_intent:
+                return route_intent
+
+        intent = getattr(self.turn_result, "intent", None)
+        return str(getattr(intent, "key", "") or "").strip()
 
     @property
     def route_decision(self) -> RouteDecision | None:
@@ -369,6 +388,59 @@ class VoiceEngineV2RuntimeCandidateAdapter:
         )
 
 
+
+    def _build_memory_transcript_override_plan(
+        self,
+        *,
+        request: VoiceEngineV2RuntimeCandidateRequest,
+        turn_result,
+        fallback_reason: str,
+    ):
+        """Build a guarded plan for memory transcript overrides after a shadow fallback.
+
+        Memory guided/list phrases are safe deterministic commands, but the legacy
+        shadow turn can report them as unknown_intent before the runtime candidate
+        executor gets a chance to map them. Keep this bridge narrow and limited to
+        memory intents only.
+        """
+
+        resolved_intent_key = self._execution_plan_builder._resolve_runtime_intent_key(
+            intent_key="",
+            transcript=request.transcript,
+        )
+        if resolved_intent_key not in {"memory.guided_start", "memory.list"}:
+            return None
+
+        if resolved_intent_key not in self._settings.runtime_candidate_intent_allowlist:
+            return None
+
+        raw_language = getattr(request, "language_hint", "")
+        language = str(getattr(raw_language, "value", raw_language) or "").strip()
+        if language not in {"pl", "en"}:
+            language = "unknown"
+
+        metadata = dict(getattr(request, "metadata", {}) or {})
+        metadata.update(
+            {
+                "candidate_source": "transcript_override_after_shadow_fallback",
+                "runtime_candidate": True,
+                "transcript_override_used": True,
+                "fallback_route": getattr(getattr(turn_result, "route", None), "value", ""),
+                "fallback_reason": str(fallback_reason or "").strip(),
+            }
+        )
+
+        return self._execution_plan_builder.build_plan_from_intent(
+            turn_id=request.turn_id,
+            intent_key=resolved_intent_key,
+            transcript=request.transcript,
+            language=language,
+            metadata=metadata,
+            confidence=0.90,
+            matched_phrase=request.transcript,
+        )
+
+
     def process_request(
         self,
         request: VoiceEngineV2RuntimeCandidateRequest,
@@ -413,6 +485,32 @@ class VoiceEngineV2RuntimeCandidateAdapter:
             fallback_reason = ""
             if turn_result.fallback is not None:
                 fallback_reason = turn_result.fallback.reason
+
+            memory_override_plan = self._build_memory_transcript_override_plan(
+                request=request,
+                turn_result=turn_result,
+                fallback_reason=fallback_reason,
+            )
+            if memory_override_plan is not None:
+                return self._finalize(
+                    VoiceEngineV2RuntimeCandidateResult(
+                        accepted=True,
+                        reason="accepted",
+                        legacy_runtime_primary=True,
+                        request=request,
+                        turn_result=turn_result,
+                        execution_plan=memory_override_plan,
+                        metadata={
+                            "route": "command",
+                            "fallback_used": True,
+                            "fallback_reason": fallback_reason or "unknown",
+                            "candidate_source": "transcript_override_after_shadow_fallback",
+                            "runtime_candidate": True,
+                            "runtime_candidate_source_safe": True,
+                        },
+                    )
+                )
+
             return self._finalize(
                 self._rejected(
                     request=request,

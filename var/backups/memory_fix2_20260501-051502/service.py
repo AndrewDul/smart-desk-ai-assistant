@@ -373,7 +373,6 @@ class MemoryService:
 
         best_match: MemoryMatch | None = None
         best_score = 0.0
-        best_record_token_count = 0
 
         for record in records:
             original_text = str(record.get("original_text", "") or "").strip()
@@ -387,7 +386,6 @@ class MemoryService:
             if not original_text or not normalized_text or not record_tokens:
                 continue
 
-            # Exact match always wins immediately.
             if normalized_query == normalized_text:
                 return self._to_match(
                     record,
@@ -396,43 +394,20 @@ class MemoryService:
                     normalized_query=normalized_query,
                 )
 
-            # Score every candidate. Don't return the first containment hit —
-            # otherwise a stale truncated record like "my phone is..." beats
-            # a complete one like "my phone is on the desk." just because it
-            # was saved first.
             if normalized_query in normalized_text:
-                length_bonus = min(len(record_tokens) * 0.005, 0.03)
-                combined_score = 0.94 + length_bonus
-                if (
-                    combined_score > best_score
-                    or (
-                        combined_score == best_score
-                        and len(record_tokens) > best_record_token_count
-                    )
-                ):
-                    best_score = combined_score
-                    best_record_token_count = len(record_tokens)
-                    best_match = self._to_match(
-                        record,
-                        score=combined_score,
-                        exact=False,
-                        normalized_query=normalized_query,
-                    )
-                continue
+                return self._to_match(
+                    record,
+                    score=0.94,
+                    exact=False,
+                    normalized_query=normalized_query,
+                )
 
             overlap_score = self._token_overlap_score(query_tokens, record_tokens)
             similarity_score = SequenceMatcher(None, normalized_query, normalized_text).ratio()
             combined_score = max(overlap_score, similarity_score * 0.72)
 
-            if (
-                combined_score > best_score
-                or (
-                    combined_score == best_score
-                    and len(record_tokens) > best_record_token_count
-                )
-            ):
+            if combined_score > best_score:
                 best_score = combined_score
-                best_record_token_count = len(record_tokens)
                 best_match = self._to_match(
                     record,
                     score=combined_score,
@@ -480,11 +455,7 @@ class MemoryService:
         if not common:
             return 0.0
 
-        # Normalize by the smaller side (typically the query). This way a
-        # complete record like "telefon jest na biurku" is not penalized
-        # for being longer than the query "telefon" — it still scores 1.0
-        # for full coverage of the query tokens.
-        return float(len(common) / max(min(len(set(left_tokens)), len(set(right_tokens))), 1))
+        return float(len(common) / max(len(set(left_tokens)), len(set(right_tokens)), 1))
 
     # ------------------------------------------------------------------
     # Record building

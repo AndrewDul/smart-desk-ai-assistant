@@ -49,21 +49,6 @@ class IntentParserMemoryMixin:
         return None
 
     def _parse_memory_store(self, normalized: str) -> IntentResult | None:
-        # Bare trigger words → enter guided mode immediately.
-        # ("remember" alone, "zapamiętaj" alone, etc.)
-        bare_triggers = {
-            "remember",
-            "zapamietaj",
-            "zapamiętaj",
-            "pamietaj",
-            "pamiętaj",
-        }
-        if normalized in bare_triggers:
-            return IntentResult.from_action(
-                action="memory_store",
-                data={"guided": True},
-            )
-
         prefixes = (
             "remember that ",
             "remember ",
@@ -85,24 +70,7 @@ class IntentParserMemoryMixin:
         if not matched_prefix:
             return None
 
-        # Trigger-only residues (pronouns / fillers) → guided mode.
-        # After stripping "remember " from "remember it" we get "it";
-        # after stripping "zapamietaj " from "zapamietaj to" we get "to".
-        # These are not real memory contents, they ask NeXa to start
-        # guided capture.
-        guided_residues = {
-            "",
-            "co",
-            "cos",
-            "coś",
-            "to",
-            "this",
-            "that",
-            "it",
-            "something",
-            "anything",
-        }
-        if candidate in guided_residues:
+        if not candidate or candidate in {"cos", "co", "something", "anything"}:
             return IntentResult.from_action(
                 action="memory_store",
                 data={"guided": True},

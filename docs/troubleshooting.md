@@ -3957,3 +3957,76 @@ Memory should be debugged with the same principles as reminders:
 - If memory delete or clear runs without confirmation, treat it as a safety bug.
 - If LLM is used for simple memory save or recall, treat it as a runtime architecture regression.
 <!-- END NEXA_GUIDED_REMINDER_AND_MEMORY_TROUBLESHOOTING -->
+
+<!-- BEGIN guided-reminder-memory-troubleshooting -->
+## Guided reminders and guided memory troubleshooting
+
+### Reminder runtime candidate rejected with `unknown_intent:reminder.guided_start`
+
+Observed symptom:
+
+- Vosk recognizes `set reminder`.
+- Runtime candidate log shows `recognized=true`.
+- Candidate is rejected with `fallback_required:unknown_intent:reminder.guided_start`.
+
+Root cause found during repair:
+
+- `RuntimeCandidateExecutionPlanBuilder.build_plan()` used `turn_result.is_match`.
+- `VoiceTurnResult` does not expose `is_match`; it exposes `is_command` / `is_fallback`.
+- `is_match` belongs to lower-level command recognition results.
+- This made valid command turns appear invalid unless transcript overrides bypassed the gate.
+
+Fix:
+
+- Gate on presence of `turn_result.intent` instead of non-existing `turn_result.is_match`.
+- Add reminder specs to runtime candidate execution specs.
+- Remove dead duplicate reminder acceptance block from runtime candidates.
+
+### Visual Shell runtime candidate mismatches
+
+Observed symptoms:
+
+- `show yourself` mapped to `visual_shell.show_face`.
+- `show the time` returned no execution plan.
+- Some unfinished Visual Shell actions were not public grammar intents.
+
+Decision:
+
+- Do not add unfinished Visual Shell intents to public command intent definitions or public grammar.
+- Keep unfinished actions as runtime-candidate-only specs.
+- Route selected phrases through transcript overrides where required.
+
+This preserves `test_unfinished_visual_shell_intents_are_not_public`.
+
+### Settings JSON has `Extra data` after patch
+
+Observed symptom:
+
+- `json.loads(Path("config/settings.json").read_text())` fails with `JSONDecodeError: Extra data`.
+- The file ends with literal trailing text like `\n`.
+
+Fix:
+
+- Parse the first JSON object with `json.JSONDecoder().raw_decode(...)`.
+- Rewrite the file using `json.dumps(..., indent=2) + "\n"`.
+- Do this for both `config/settings.json` and `config/settings.example.json`.
+
+### Guided memory expectations
+
+Guided memory should behave like guided reminders:
+
+- `zapamiętaj coś` / `remember something` starts a follow-up.
+- NEXA asks what to remember in the same language.
+- The next utterance is saved as a full phrase.
+- Recall searches by tokens, not only exact keys.
+- Polish and English records must remain separated per turn.
+- No silent memory save failures are acceptable.
+
+If memory recall fails unexpectedly:
+
+1. Check `var/data/memory.json` shape.
+2. Confirm it is either a legacy dict or a list of memory records.
+3. Confirm records include `language`, `original_text`, `normalized_text`, and `tokens`.
+4. Confirm the recall language matches the stored record language.
+5. Run `pytest -q tests/unit/services/test_memory.py`.
+<!-- END guided-reminder-memory-troubleshooting -->

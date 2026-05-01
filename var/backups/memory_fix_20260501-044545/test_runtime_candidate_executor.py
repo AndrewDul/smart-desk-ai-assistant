@@ -163,7 +163,6 @@ def test_runtime_candidate_executor_rejects_exit_even_if_recognized() -> None:
         "assistant.identity",
         "memory.guided_start",
         "memory.list",
-        "memory.recall",
         "reminder.guided_start",
         "reminder.time_answer",
         "system.current_time",

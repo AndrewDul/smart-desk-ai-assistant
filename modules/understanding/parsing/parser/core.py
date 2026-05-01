@@ -222,6 +222,10 @@ class IntentParser(
                 "pamiec",
                 "pokaz pamiec",
                 "co pamietasz",
+                "co zapamietales",
+                "co zapamietalas",
+                "co masz zapamietane",
+                "lista pamieci",
             ],
             "memory_clear": [
                 "clear memory",

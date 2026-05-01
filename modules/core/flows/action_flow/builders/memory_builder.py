@@ -202,7 +202,9 @@ class MemorySkillResponseBuilder(BaseActionResponseBuilder):
         count: int,
         metadata: dict | None = None,
     ) -> ActionResponseSpec:
-        if not items:
+        memory_lines = self._memory_list_lines(items)
+
+        if not memory_lines:
             return ActionResponseSpec(
                 action=action,
                 spoken_text=self.localized(
@@ -219,21 +221,42 @@ class MemorySkillResponseBuilder(BaseActionResponseBuilder):
                 },
             )
 
+        preview = "; ".join(memory_lines[:3])
+        if len(memory_lines) == 1:
+            spoken_text = self.localized(
+                language,
+                f"Zapamiętałam: {preview}.",
+                f"I remember: {preview}.",
+            )
+        else:
+            spoken_text = self.localized(
+                language,
+                f"Zapamiętałam {count} rzeczy. Pierwsze wpisy: {preview}.",
+                f"I remember {count} things. First entries: {preview}.",
+            )
+
         return ActionResponseSpec(
             action=action,
-            spoken_text=self.localized(
-                language,
-                f"Mam zapisane {count} wpisy w pamięci.",
-                f"I have {count} items saved in memory.",
-            ),
+            spoken_text=spoken_text,
             display_title="MEMORY",
-            display_lines=list(items.keys())[:4],
+            display_lines=memory_lines[:4],
             extra_metadata={
                 **dict(metadata or {}),
                 "resolved_source": resolved_source,
                 "count": count,
             },
         )
+
+    @staticmethod
+    def _memory_list_lines(items: dict[str, str]) -> list[str]:
+        lines: list[str] = []
+        for key, value in dict(items or {}).items():
+            text = str(value or key or "").strip()
+            if not text:
+                continue
+            if text not in lines:
+                lines.append(text)
+        return lines
 
     def build_clear_confirmation(
         self,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,110 +9,128 @@ from modules.features.memory.service import MemoryService
 from modules.shared.persistence.repositories import MemoryRepository
 
 
-class TestSimpleMemory(unittest.TestCase):
+class TestMemoryRecords(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         self.memory_file = Path(self.temp_dir.name) / "memory.json"
-
         self.memory = MemoryService(store=MemoryRepository(path=str(self.memory_file)))
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
-    def test_remember_and_recall_exact_key(self) -> None:
-        self.memory.remember("keys", "in the kitchen")
-        recalled = self.memory.recall("keys")
+    def test_remember_text_stores_full_polish_phrase_with_tokens(self) -> None:
+        memory_id = self.memory.remember_text(
+            "klucze są w kuchni",
+            language="pl",
+            source="unit_test",
+        )
 
-        self.assertEqual(recalled, "in the kitchen")
+        records = self.memory.list_records(language="pl")
 
-    def test_remember_and_recall_polish_exact_key(self) -> None:
-        self.memory.remember("klucze", "w kuchni")
-        recalled = self.memory.recall("klucze")
+        self.assertIsNotNone(memory_id)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["language"], "pl")
+        self.assertEqual(records[0]["original_text"], "klucze są w kuchni")
+        self.assertIn("klucze", records[0]["tokens"])
+        self.assertIn("kuchni", records[0]["tokens"])
 
-        self.assertEqual(recalled, "w kuchni")
+    def test_recall_polish_memory_by_object_token(self) -> None:
+        self.memory.remember_text("klucze są w kuchni", language="pl")
 
-    def test_recall_with_my_prefix_removed(self) -> None:
-        self.memory.remember("keys", "in the drawer")
-        recalled = self.memory.recall("my keys")
+        recalled = self.memory.recall("przypomnij mi gdzie są klucze", language="pl")
 
-        self.assertEqual(recalled, "in the drawer")
+        self.assertEqual(recalled, "klucze są w kuchni")
 
-    def test_recall_with_polish_possessive_removed(self) -> None:
-        self.memory.remember("klucz", "w plecaku")
-        recalled = self.memory.recall("moj klucz")
+    def test_recall_polish_memory_by_location_token(self) -> None:
+        self.memory.remember_text("mam telefon na biurku", language="pl")
 
-        self.assertEqual(recalled, "w plecaku")
+        recalled = self.memory.recall("co mam na biurku", language="pl")
 
-    def test_recall_matches_plural_and_singular_english(self) -> None:
-        self.memory.remember("key", "on the desk")
-        recalled = self.memory.recall("keys")
+        self.assertEqual(recalled, "mam telefon na biurku")
 
-        self.assertEqual(recalled, "on the desk")
+    def test_recall_english_memory_by_object_token(self) -> None:
+        self.memory.remember_text("my phone is on the desk", language="en")
 
-    def test_recall_matches_plural_and_singular_polish(self) -> None:
-        self.memory.remember("klucz", "na biurku")
-        recalled = self.memory.recall("klucze")
+        recalled = self.memory.recall("where is my phone", language="en")
 
-        self.assertEqual(recalled, "na biurku")
+        self.assertEqual(recalled, "my phone is on the desk")
 
-    def test_recall_with_phone_number_phrase(self) -> None:
-        self.memory.remember("phone number", "123456789")
-        recalled = self.memory.recall("my phone number")
+    def test_recall_english_memory_by_location_token(self) -> None:
+        self.memory.remember_text("my phone is on the desk", language="en")
 
-        self.assertEqual(recalled, "123456789")
+        recalled = self.memory.recall("what is on my desk", language="en")
 
-    def test_fuzzy_recall_with_partial_overlap(self) -> None:
-        self.memory.remember("car keys", "on the shelf")
-        recalled = self.memory.recall("keys")
+        self.assertEqual(recalled, "my phone is on the desk")
 
-        self.assertEqual(recalled, "on the shelf")
+    def test_language_filter_keeps_polish_and_english_memory_separate(self) -> None:
+        self.memory.remember_text("radio jest w kuchni", language="pl")
+        self.memory.remember_text("radio is in the garage", language="en")
 
-    def test_recall_returns_none_for_unknown_key(self) -> None:
-        self.memory.remember("wallet", "in the jacket")
-        recalled = self.memory.recall("passport")
+        polish_recall = self.memory.recall("gdzie jest radio", language="pl")
+        english_recall = self.memory.recall("where is radio", language="en")
 
-        self.assertIsNone(recalled)
+        self.assertEqual(polish_recall, "radio jest w kuchni")
+        self.assertEqual(english_recall, "radio is in the garage")
 
-    def test_get_all_returns_saved_items(self) -> None:
-        self.memory.remember("keys", "kitchen")
-        self.memory.remember("wallet", "drawer")
+    def test_legacy_key_value_memory_is_migrated_to_records(self) -> None:
+        self.memory.remember("keys", "in the kitchen", language="en")
+
+        records = self.memory.list_records(language="en")
+        recalled = self.memory.recall("keys", language="en")
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["original_text"], "keys in the kitchen")
+        self.assertEqual(recalled, "keys in the kitchen")
+
+    def test_old_dict_file_is_read_as_legacy_memory(self) -> None:
+        self.memory_file.write_text(json.dumps({"keys": "in the drawer"}))
+        memory = MemoryService(store=MemoryRepository(path=str(self.memory_file)))
+
+        recalled = memory.recall("where are my keys")
+
+        self.assertEqual(recalled, "keys in the drawer")
+
+    def test_get_all_returns_compatibility_mapping_for_action_lists(self) -> None:
+        self.memory.remember_text("klucze są w kuchni", language="pl")
+        self.memory.remember_text("my phone is on the desk", language="en")
 
         items = self.memory.get_all()
 
-        self.assertIn("keys", items)
-        self.assertIn("wallet", items)
-        self.assertEqual(items["keys"], "kitchen")
-        self.assertEqual(items["wallet"], "drawer")
+        self.assertIn("klucze są w kuchni", items)
+        self.assertIn("my phone is on the desk", items)
+        self.assertEqual(items["klucze są w kuchni"], "klucze są w kuchni")
 
-    def test_remember_overwrites_same_normalized_key(self) -> None:
-        self.memory.remember("my keys", "in the kitchen")
-        self.memory.remember("keys", "in the backpack")
+    def test_duplicate_same_language_phrase_replaces_existing_record(self) -> None:
+        self.memory.remember_text("my phone is on the desk", language="en")
+        self.memory.remember_text("my phone is on the desk", language="en")
 
-        items = self.memory.get_all()
+        records = self.memory.list_records(language="en")
 
-        self.assertEqual(len(items), 1)
-        only_value = next(iter(items.values()))
-        self.assertEqual(only_value, "in the backpack")
+        self.assertEqual(len(records), 1)
 
-    def test_empty_key_or_value_is_ignored(self) -> None:
-        self.memory.remember("", "value")
-        self.memory.remember("keys", "")
-        items = self.memory.get_all()
+    def test_empty_memory_text_is_ignored(self) -> None:
+        memory_id = self.memory.remember_text("   ", language="en")
 
-        self.assertEqual(items, {})
+        self.assertIsNone(memory_id)
+        self.assertEqual(self.memory.list_records(), [])
 
-    def test_memory_file_is_ensured_by_repository_contract(self) -> None:
-        self.assertTrue(self.memory_file.exists())
+    def test_forget_removes_best_matching_record(self) -> None:
+        self.memory.remember_text("my phone is on the desk", language="en")
 
-        self.memory.remember("keys", "kitchen")
+        removed_key, removed_value = self.memory.forget("phone", language="en")
 
-        self.assertTrue(self.memory_file.exists())
+        self.assertEqual(removed_key, "my phone is on the desk")
+        self.assertEqual(removed_value, "my phone is on the desk")
+        self.assertIsNone(self.memory.recall("phone", language="en"))
 
-    def test_cleanup_normalizes_case_and_spacing(self) -> None:
-        self.memory.remember("   Keys   ", "   In   The Kitchen   ")
-        recalled = self.memory.recall("keys")
+    def test_clear_removes_all_records(self) -> None:
+        self.memory.remember_text("my phone is on the desk", language="en")
+        self.memory.remember_text("klucze są w kuchni", language="pl")
 
-        self.assertEqual(recalled, "in the kitchen")
+        removed = self.memory.clear()
+
+        self.assertEqual(removed, 2)
+        self.assertEqual(self.memory.list_records(), [])
 
 
 if __name__ == "__main__":

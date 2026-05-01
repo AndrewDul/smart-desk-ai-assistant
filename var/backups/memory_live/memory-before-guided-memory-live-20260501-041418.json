@@ -1,0 +1,103 @@
+[
+  {
+    "id": "mem_f2fd1b78e76fd46b",
+    "language": "unknown",
+    "original_text": "i have something to eat is 10 seconds",
+    "normalized_text": "i have something to eat is 10 seconds",
+    "tokens": [
+      "something",
+      "eat",
+      "10",
+      "seconds"
+    ],
+    "source": "legacy_migration",
+    "created_at_iso": "2026-05-01T02:55:07.280457+00:00",
+    "confidence": 1.0,
+    "metadata": {
+      "legacy_key": "i have something to eat",
+      "legacy_value": "10 seconds"
+    }
+  },
+  {
+    "id": "mem_29c1f5901f2e8f6d",
+    "language": "unknown",
+    "original_text": "me that is 10 minutes i have something to eat",
+    "normalized_text": "me that is 10 minutes i have something to eat",
+    "tokens": [
+      "that",
+      "10",
+      "minutes",
+      "something",
+      "eat"
+    ],
+    "source": "legacy_migration",
+    "created_at_iso": "2026-05-01T02:55:07.280527+00:00",
+    "confidence": 1.0,
+    "metadata": {
+      "legacy_key": "me that",
+      "legacy_value": "10 minutes i have something to eat"
+    }
+  },
+  {
+    "id": "mem_35b1a266c28c4c3a",
+    "language": "unknown",
+    "original_text": "klucze is wykuchni",
+    "normalized_text": "klucze is wykuchni",
+    "tokens": [
+      "klucze",
+      "wykuchni"
+    ],
+    "source": "legacy_migration",
+    "created_at_iso": "2026-05-01T02:55:07.280557+00:00",
+    "confidence": 1.0,
+    "metadata": {
+      "legacy_key": "klucze",
+      "legacy_value": "wykuchni"
+    }
+  },
+  {
+    "id": "mem_a500423ad98aec48",
+    "language": "unknown",
+    "original_text": "me in two minutes i have to eat something",
+    "normalized_text": "me in two minutes i have to eat something",
+    "tokens": [
+      "two",
+      "minutes",
+      "eat",
+      "something"
+    ],
+    "source": "legacy_migration",
+    "created_at_iso": "2026-05-01T02:55:07.280601+00:00",
+    "confidence": 1.0,
+    "metadata": {
+      "legacy_key": "me",
+      "legacy_value": "in two minutes i have to eat something"
+    }
+  },
+  {
+    "id": "mem_b2fb101ce7a7e867",
+    "language": "en",
+    "original_text": "My wallet.",
+    "normalized_text": "my wallet",
+    "tokens": [
+      "wallet"
+    ],
+    "source": "guided_memory_follow_up",
+    "created_at_iso": "2026-05-01T02:55:07.279660+00:00",
+    "confidence": 1.0,
+    "metadata": {}
+  },
+  {
+    "id": "mem_147191158e5d229f",
+    "language": "en",
+    "original_text": "My phone is...",
+    "normalized_text": "my phone is",
+    "tokens": [
+      "phone"
+    ],
+    "source": "guided_memory_follow_up",
+    "created_at_iso": "2026-05-01T02:55:56.095701+00:00",
+    "confidence": 1.0,
+    "metadata": {}
+  }
+]

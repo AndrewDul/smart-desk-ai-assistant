@@ -1686,49 +1686,49 @@ def build_default_command_grammar() -> CommandGrammar:
         # (no rare Polish conjugations, no soft-sign endings).
         # ------------------------------------------------------------------
         CommandPhrase(
-            'memory.recall',
+            'memory.recall_prefix',
             'where is',
             language=CommandLanguage.ENGLISH,
             tags=('memory', 'recall', 'prefix'),
         ),
         CommandPhrase(
-            'memory.recall',
+            'memory.recall_prefix',
             'where are',
             language=CommandLanguage.ENGLISH,
             tags=('memory', 'recall', 'prefix'),
         ),
         CommandPhrase(
-            'memory.recall',
+            'memory.recall_prefix',
             'do you remember',
             language=CommandLanguage.ENGLISH,
             tags=('memory', 'recall', 'prefix'),
         ),
         CommandPhrase(
-            'memory.recall',
+            'memory.recall_prefix',
             'gdzie jest',
             language=CommandLanguage.POLISH,
             tags=('memory', 'recall', 'prefix'),
         ),
         CommandPhrase(
-            'memory.recall',
+            'memory.recall_prefix',
             'gdzie są',
             language=CommandLanguage.POLISH,
             tags=('memory', 'recall', 'prefix'),
         ),
         CommandPhrase(
-            'memory.recall',
+            'memory.recall_prefix',
             'gdzie sa',
             language=CommandLanguage.POLISH,
             tags=('memory', 'recall', 'prefix'),
         ),
         CommandPhrase(
-            'memory.recall',
+            'memory.recall_prefix',
             'czy pamiętasz',
             language=CommandLanguage.POLISH,
             tags=('memory', 'recall', 'prefix'),
         ),
         CommandPhrase(
-            'memory.recall',
+            'memory.recall_prefix',
             'czy pamietasz',
             language=CommandLanguage.POLISH,
             tags=('memory', 'recall', 'prefix'),

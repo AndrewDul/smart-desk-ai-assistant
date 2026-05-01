@@ -12774,3 +12774,47 @@ Memory runtime rules:
 - No memory operation may fail silently.
 - Runtime must log memory save, recall, delete, language, confidence, fallback usage and executor result.
 <!-- END NEXA_GUIDED_REMINDERS_AND_MEMORY_RUNTIME -->
+
+<!-- BEGIN guided-record-memory-runtime -->
+## Guided record memory runtime
+
+NEXA memory is now moving from simple key/value storage toward record-based, language-separated memory.
+
+Target user flow:
+
+- Polish: `zapamiętaj coś`
+- English: `remember something`
+
+The assistant starts a deterministic guided flow:
+
+1. NEXA asks what should be remembered.
+2. The follow-up uses the short `memory_message` capture profile.
+3. The full spoken phrase is saved as a memory record.
+4. Recall searches by normalized tokens, not only by exact key.
+5. Polish and English records remain separated per turn.
+
+Examples:
+
+- `klucze są w kuchni`
+  - recall by: `przypomnij mi gdzie są klucze`
+  - expected answer: `klucze są w kuchni`
+
+- `my phone is on the desk`
+  - recall by: `where is my phone`
+  - expected answer: `my phone is on the desk`
+
+Memory record storage keeps:
+
+- stable record id
+- language
+- original text
+- normalized text
+- tokens
+- source
+- timestamp
+- metadata
+
+Legacy dict-shaped memory files are still readable and can be migrated into record-shaped storage. This avoids breaking existing `var/data/memory.json` files while allowing the new memory design to move forward.
+
+The current guided memory foundation is still routed through existing parser/action/pending-flow infrastructure. The next architectural step is to add Vosk fast-path support for `memory.guided_start`, similar to guided reminders, so simple memory commands do not require LLM or Whisper-first routing.
+<!-- END guided-record-memory-runtime -->

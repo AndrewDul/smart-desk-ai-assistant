@@ -59,6 +59,14 @@ class PendingFlowFollowUpMixin:
                 consumed_by="follow_up:reminder_message",
             )
 
+        if follow_type == "memory_message":
+            result = self._handle_memory_message_follow_up(text=routing_text, language=lang)
+            return PendingFlowDecision(
+                handled=True,
+                response=result,
+                consumed_by="follow_up:memory_message",
+            )
+
         if follow_type == "capture_name":
             result = self._handle_capture_name(text=routing_text, language=lang)
             return PendingFlowDecision(
@@ -370,6 +378,102 @@ class PendingFlowFollowUpMixin:
                 "seconds": int(seconds),
                 "message": clean_message,
                 "reminder_id": reminder_id,
+            },
+        )
+
+    def _handle_memory_message_follow_up(self, *, text: str, language: str) -> bool:
+        memory_text = str(text or "").strip()
+
+        if not memory_text:
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Powiedz proszę, co mam zapamiętać.",
+                    "Please tell me what I should remember.",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_memory_message_retry",
+                metadata={"follow_up_type": "memory_message"},
+            )
+
+        if self._is_no(memory_text):
+            self.assistant.pending_follow_up = None
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Dobrze. Nie zapisuję tego w pamięci.",
+                    "Okay. I will not save that to memory.",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_memory_message_cancelled",
+                metadata={"follow_up_type": "memory_message"},
+            )
+
+        memory = getattr(self.assistant, "memory", None)
+        remember_text_method = getattr(memory, "remember_text", None)
+        if not callable(remember_text_method):
+            self.assistant.pending_follow_up = None
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Moduł pamięci nie jest jeszcze gotowy.",
+                    "The memory module is not ready yet.",
+                ),
+                language=language,
+                route_kind=RouteKind.UNCLEAR,
+                source="pending_memory_message_unavailable",
+                metadata={"follow_up_type": "memory_message"},
+            )
+
+        self.assistant.pending_follow_up = None
+
+        try:
+            memory_id = remember_text_method(
+                memory_text,
+                language=language,
+                source="guided_memory_follow_up",
+            )
+        except TypeError:
+            try:
+                memory_id = remember_text_method(memory_text, language=language)
+            except TypeError:
+                memory_id = remember_text_method(memory_text)
+        except Exception as error:
+            LOGGER.warning("Guided memory save failed: %s", error)
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Nie udało mi się zapisać tego w pamięci.",
+                    "I could not save that to memory.",
+                ),
+                language=language,
+                route_kind=RouteKind.UNCLEAR,
+                source="pending_memory_message_failed",
+                metadata={"follow_up_type": "memory_message"},
+            )
+
+        LOGGER.info(
+            "Guided memory saved: language=%s memory_id=%s text=%s",
+            language,
+            str(memory_id or ""),
+            memory_text,
+        )
+
+        return self.assistant.deliver_text_response(
+            self.assistant._localized(
+                language,
+                f"Zapamiętałam: {memory_text}.",
+                f"I remembered: {memory_text}.",
+            ),
+            language=language,
+            route_kind=RouteKind.ACTION,
+            source="pending_memory_message_saved",
+            metadata={
+                "follow_up_type": "memory_message",
+                "memory_id": str(memory_id or "").strip(),
+                "language": language,
             },
         )
 
