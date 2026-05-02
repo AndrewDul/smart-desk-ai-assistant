@@ -4208,3 +4208,87 @@ Expected behavior:
 - ESC closes the Godot Visual Shell.
 - The log may show Visual Shell quit requested by ESC.
 <!-- END feedback-dashboard-and-visual-shell-troubleshooting -->
+
+<!-- BEGIN pan-tilt-gpio-uart-troubleshooting -->
+## Issue - Waveshare pan-tilt did not move through USB but worked through Dashboard
+
+**Date:** 2026-05-02  
+**Area:** pan-tilt / GPIO UART / Waveshare General Driver  
+**Status:** resolved for hardware communication path  
+
+**Problem**  
+The Waveshare pan-tilt worked from the web Dashboard over hotspot, but did not move when NEXA test scripts sent JSON commands over USB.
+
+**Symptoms**
+
+- Dashboard JSON commands moved the pan-tilt correctly.
+- Servo ID calibration eventually worked:
+  - TILT servo = ID 1
+  - PAN servo = ID 2
+- USB tests showed serial telemetry, but physical movement did not happen.
+- USB `T:210` torque lock did not lock the pan-tilt servos.
+- USB `T:133` and `T:141` movement commands did not move the pan-tilt.
+- The USB serial log included fields such as `L`, `R`, `odl`, `odr`, `pan` and `tilt`.
+- After unplugging the mobile base USB, the only visible USB serial port disappeared.
+
+**Root cause**  
+The USB serial port originally used by the test scripts was the mobile base serial device, not the pan-tilt control path. The pan-tilt itself was working through its WiFi Dashboard, but it was not visible to Raspberry Pi as the expected USB serial control device.
+
+A charging-only USB-C cable also complicated diagnosis because it did not expose a reliable USB data connection.
+
+**What was tested**
+
+- Dashboard JSON servo lock/unlock.
+- Dashboard servo ID checks.
+- Dashboard small axis movement.
+- USB serial device enumeration through:
+  - `/dev/serial/by-id`
+  - `/dev/serial/by-path`
+  - `/dev/ttyUSB*`
+  - `/dev/ttyACM*`
+  - `lsusb`
+  - passive serial reads.
+- USB echo/debug commands.
+- GPIO UART availability.
+- Linux serial console removal from `/dev/serial0`.
+- GPIO UART passive telemetry.
+- GPIO UART echo/status commands.
+- GPIO UART torque lock/unlock.
+- GPIO UART tiny movement sequence.
+
+**Fix applied**
+
+- The pan-tilt communication path was moved to Raspberry Pi GPIO UART.
+- `/dev/serial0` was freed from Linux serial console usage.
+- `enable_uart=1` was added to boot config.
+- serial getty was disabled/inactive.
+- The confirmed runtime path is now `/dev/serial0`.
+- USB auto-detection must not be used for pan-tilt while the mobile base can expose a similar serial device.
+
+**Confirmed working result**
+
+- `/dev/serial0 -> ttyAMA0`
+- `console=tty1`
+- no `console=serial0,115200`
+- GPIO UART receives `T:1001` telemetry.
+- GPIO UART echoes JSON commands.
+- `T:210 cmd:1` locks the pan-tilt servos.
+- `T:210 cmd:0` unlocks the pan-tilt servos.
+- Tiny movement over GPIO UART works.
+
+**Important safety note**
+
+The pan-tilt must not run full sweeps or large angle tests by default. The safe validation sequence is tiny movement only:
+
+- right
+- center
+- left
+- center
+- up
+- center
+- down
+- center
+- stop
+
+The first production backend must remain config-driven, conservative, and guarded by calibration/safety limits.
+<!-- END pan-tilt-gpio-uart-troubleshooting -->

@@ -8,7 +8,7 @@ from .fallbacks import NullPanTiltBackend
 
 
 class RuntimeBuilderPanTiltMixin:
-    """Build the pan/tilt backend with explicit fallback handling."""
+    """Build the safe pan/tilt backend with explicit fallback handling."""
 
     def _build_pan_tilt(
         self,
@@ -20,8 +20,8 @@ class RuntimeBuilderPanTiltMixin:
                 RuntimeBackendStatus(
                     component="pan_tilt",
                     ok=True,
-                    selected_backend="null_pan_tilt",
-                    detail="Pan/tilt disabled in config.",
+                    selected_backend="disabled_pan_tilt",
+                    detail="Pan/tilt disabled in config. No hardware backend loaded.",
                 ),
             )
 
@@ -31,13 +31,18 @@ class RuntimeBuilderPanTiltMixin:
                 "PanTiltService",
             )
             backend = backend_class(config=config)
+            status = backend.status()
+            selected_backend = str(status.get("backend", "safe_pan_tilt"))
             return (
                 backend,
                 RuntimeBackendStatus(
                     component="pan_tilt",
                     ok=True,
-                    selected_backend="pca9685_pan_tilt",
-                    detail="Pan/tilt backend loaded successfully.",
+                    selected_backend=selected_backend,
+                    detail=(
+                        "Safe pan/tilt backend loaded. Startup motion is blocked; "
+                        "movement requires explicit safety flags and calibration."
+                    ),
                 ),
             )
         except Exception as error:
@@ -47,7 +52,7 @@ class RuntimeBuilderPanTiltMixin:
                     component="pan_tilt",
                     ok=False,
                     selected_backend="null_pan_tilt",
-                    detail=f"Pan/tilt backend failed. Using null pan/tilt. Error: {error}",
+                    detail=f"Safe pan/tilt backend failed. Using null pan/tilt. Error: {error}",
                     fallback_used=True,
                 ),
             )

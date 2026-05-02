@@ -1,221 +1,375 @@
 from __future__ import annotations
 
-import math
-import threading
-import time
 from dataclasses import dataclass
-from typing import Any
+from pathlib import Path
+from typing import Any, Protocol
 
 from modules.shared.logging.logger import get_logger
 
-from .pca9685 import PCA9685, PCA9685Config
 
 LOGGER = get_logger(__name__)
 
 
-@dataclass(slots=True)
-class ServoAxisConfig:
-    channel: int
-    min_angle: float
-    center_angle: float
-    max_angle: float
+@dataclass(frozen=True, slots=True)
+class PanTiltSafeLimits:
+    pan_min_degrees: float
+    pan_center_degrees: float
+    pan_max_degrees: float
+    tilt_min_degrees: float
+    tilt_center_degrees: float
+    tilt_max_degrees: float
+
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> "PanTiltSafeLimits":
+        limits = dict(config.get("safe_limits", {}) or {})
+        return cls(
+            pan_min_degrees=float(limits.get("pan_min_degrees", -15.0)),
+            pan_center_degrees=float(limits.get("pan_center_degrees", 0.0)),
+            pan_max_degrees=float(limits.get("pan_max_degrees", 15.0)),
+            tilt_min_degrees=float(limits.get("tilt_min_degrees", -8.0)),
+            tilt_center_degrees=float(limits.get("tilt_center_degrees", 0.0)),
+            tilt_max_degrees=float(limits.get("tilt_max_degrees", 8.0)),
+        )
+
+    def validate(self) -> None:
+        if not self.pan_min_degrees <= self.pan_center_degrees <= self.pan_max_degrees:
+            raise ValueError("Pan safe limits must contain the pan center angle.")
+        if not self.tilt_min_degrees <= self.tilt_center_degrees <= self.tilt_max_degrees:
+            raise ValueError("Tilt safe limits must contain the tilt center angle.")
+
+    def clamp_pan(self, value: float) -> float:
+        return max(self.pan_min_degrees, min(self.pan_max_degrees, float(value)))
+
+    def clamp_tilt(self, value: float) -> float:
+        return max(self.tilt_min_degrees, min(self.tilt_max_degrees, float(value)))
+
+    def as_dict(self) -> dict[str, float]:
+        return {
+            "pan_min_degrees": self.pan_min_degrees,
+            "pan_center_degrees": self.pan_center_degrees,
+            "pan_max_degrees": self.pan_max_degrees,
+            "tilt_min_degrees": self.tilt_min_degrees,
+            "tilt_center_degrees": self.tilt_center_degrees,
+            "tilt_max_degrees": self.tilt_max_degrees,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PanTiltRuntimeConfig:
+    enabled: bool
+    backend: str
+    hardware_enabled: bool
+    motion_enabled: bool
+    dry_run: bool
+    device: str
+    baudrate: int
+    timeout_seconds: float
+    protocol: str
+    startup_policy: str
+    calibration_required: bool
+    allow_uncalibrated_motion: bool
+    max_step_degrees: float
+    safe_limits: PanTiltSafeLimits
+
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> "PanTiltRuntimeConfig":
+        safe_limits = PanTiltSafeLimits.from_config(config)
+        safe_limits.validate()
+
+        backend = str(config.get("backend", "disabled")).strip().lower()
+        if backend in {"pca9685", "pwm", "legacy", "legacy_pca9685"}:
+            LOGGER.warning(
+                "Legacy PCA9685 pan/tilt backend requested but blocked for Waveshare safety."
+            )
+            backend = "disabled"
+
+        if not bool(config.get("enabled", False)):
+            backend = "disabled"
+
+        return cls(
+            enabled=bool(config.get("enabled", False)),
+            backend=backend,
+            hardware_enabled=bool(config.get("hardware_enabled", False)),
+            motion_enabled=bool(config.get("motion_enabled", False)),
+            dry_run=bool(config.get("dry_run", True)),
+            device=str(config.get("device", "")).strip(),
+            baudrate=int(config.get("baudrate", 115200)),
+            timeout_seconds=max(0.01, float(config.get("timeout_seconds", 0.2))),
+            protocol=str(config.get("protocol", "waveshare_json_serial")).strip(),
+            startup_policy=str(config.get("startup_policy", "no_motion")).strip().lower(),
+            calibration_required=bool(config.get("calibration_required", True)),
+            allow_uncalibrated_motion=bool(config.get("allow_uncalibrated_motion", False)),
+            max_step_degrees=max(0.1, float(config.get("max_step_degrees", 2.0))),
+            safe_limits=safe_limits,
+        )
+
+
+class PanTiltBackend(Protocol):
+    name: str
+
+    def status(self) -> dict[str, Any]:
+        ...
+
+    def center(self) -> dict[str, Any]:
+        ...
+
+    def move_direction(self, direction: str) -> dict[str, Any]:
+        ...
+
+    def close(self) -> None:
+        ...
+
+
+class DisabledPanTiltBackend:
+    name = "disabled"
+
+    def __init__(self, runtime_config: PanTiltRuntimeConfig) -> None:
+        self._config = runtime_config
+
+    def status(self) -> dict[str, Any]:
+        return _base_status(
+            config=self._config,
+            backend=self.name,
+            ok=True,
+            movement_available=False,
+            detail="Pan/tilt is disabled. No hardware commands will be sent.",
+        )
+
+    def center(self) -> dict[str, Any]:
+        return _blocked_result(self._config, self.name, "Pan/tilt is disabled.")
+
+    def move_direction(self, direction: str) -> dict[str, Any]:
+        result = _blocked_result(self._config, self.name, "Pan/tilt is disabled.")
+        result["direction"] = str(direction or "").strip().lower()
+        return result
+
+    def close(self) -> None:
+        return None
+
+
+class MockPanTiltBackend:
+    name = "mock"
+
+    _DIRECTION_STEP = {
+        "left": ("pan", -1.0),
+        "right": ("pan", 1.0),
+        "up": ("tilt", 1.0),
+        "down": ("tilt", -1.0),
+    }
+
+    def __init__(self, runtime_config: PanTiltRuntimeConfig) -> None:
+        self._config = runtime_config
+        self._pan_angle = runtime_config.safe_limits.pan_center_degrees
+        self._tilt_angle = runtime_config.safe_limits.tilt_center_degrees
+
+    def status(self) -> dict[str, Any]:
+        status = _base_status(
+            config=self._config,
+            backend=self.name,
+            ok=True,
+            movement_available=self._config.motion_enabled,
+            detail="Mock pan/tilt backend is active. No hardware commands will be sent.",
+        )
+        status.update(
+            {
+                "pan_angle": round(self._pan_angle, 3),
+                "tilt_angle": round(self._tilt_angle, 3),
+            }
+        )
+        return status
+
+    def center(self) -> dict[str, Any]:
+        if not self._config.motion_enabled:
+            return _blocked_result(self._config, self.name, "Mock motion is disabled.")
+
+        self._pan_angle = self._config.safe_limits.pan_center_degrees
+        self._tilt_angle = self._config.safe_limits.tilt_center_degrees
+        result = self.status()
+        result["centered"] = True
+        return result
+
+    def move_direction(self, direction: str) -> dict[str, Any]:
+        normalized = str(direction or "").strip().lower()
+        if normalized not in self._DIRECTION_STEP:
+            return {
+                "ok": False,
+                "backend": self.name,
+                "error": f"Unsupported direction: {direction}",
+            }
+
+        if not self._config.motion_enabled:
+            result = _blocked_result(self._config, self.name, "Mock motion is disabled.")
+            result["direction"] = normalized
+            return result
+
+        axis, multiplier = self._DIRECTION_STEP[normalized]
+        step = self._config.max_step_degrees * multiplier
+
+        if axis == "pan":
+            self._pan_angle = self._config.safe_limits.clamp_pan(self._pan_angle + step)
+        else:
+            self._tilt_angle = self._config.safe_limits.clamp_tilt(self._tilt_angle + step)
+
+        result = self.status()
+        result.update(
+            {
+                "direction": normalized,
+                "axis": axis,
+                "applied_angle": round(
+                    self._pan_angle if axis == "pan" else self._tilt_angle,
+                    3,
+                ),
+            }
+        )
+        return result
+
+    def close(self) -> None:
+        return None
+
+
+class WaveshareSerialPanTiltBackend:
+    name = "waveshare_serial"
+
+    def __init__(self, runtime_config: PanTiltRuntimeConfig) -> None:
+        self._config = runtime_config
+
+    def status(self) -> dict[str, Any]:
+        device_exists = bool(self._config.device) and Path(self._config.device).exists()
+        status = _base_status(
+            config=self._config,
+            backend=self.name,
+            ok=True,
+            movement_available=False,
+            detail=(
+                "Waveshare serial backend is in status-only mode. "
+                "No serial writes or movement commands are sent."
+            ),
+        )
+        status.update(
+            {
+                "device_exists": device_exists,
+                "serial_opened": False,
+                "serial_write_enabled": False,
+            }
+        )
+        return status
+
+    def center(self) -> dict[str, Any]:
+        return _blocked_result(
+            self._config,
+            self.name,
+            "Waveshare serial movement is blocked until calibration enables motion.",
+        )
+
+    def move_direction(self, direction: str) -> dict[str, Any]:
+        result = _blocked_result(
+            self._config,
+            self.name,
+            "Waveshare serial movement is blocked until calibration enables motion.",
+        )
+        result["direction"] = str(direction or "").strip().lower()
+        return result
+
+    def close(self) -> None:
+        return None
 
 
 class PanTiltService:
     """
-    High-level pan/tilt service for the ArduCam B0283 platform.
+    Safe pan/tilt service for NEXA.
 
-    IMPORTANT:
-    This build is configured for the user's current mechanical orientation,
-    where the physical axes are effectively crossed:
-
-    - logical LEFT/RIGHT is driven by the tilt servo
-    - logical UP/DOWN is driven by the pan servo
+    This service intentionally avoids startup motion. The legacy PCA9685 path was removed
+    from the active runtime because the current target hardware is the Waveshare serial
+    bus-servo pan/tilt platform, not the older ArduCam/PCA9685 PWM platform.
     """
 
-    STEP_BY_DIRECTION = {
-        "left": ("tilt", 1.0),
-        "right": ("tilt", -1.0),
-        "up": ("pan", -1.0),
-        "down": ("pan", 1.0),
-    }
-
     def __init__(self, config: dict[str, Any]) -> None:
-        self._lock = threading.RLock()
-        self._enabled = bool(config.get("enabled", False))
+        self._runtime_config = PanTiltRuntimeConfig.from_config(config)
+        self._backend = self._build_backend(self._runtime_config)
 
-        self._step_degrees = float(config.get("step_degrees", 14.0))
-        self._move_delay_seconds = max(0.0, float(config.get("move_delay_seconds", 0.0)))
-        self._settle_seconds = max(0.0, float(config.get("settle_seconds", 0.02)))
-
-        self._motion_duration_seconds = max(
-            0.0,
-            float(config.get("motion_duration_seconds", 0.32)),
-        )
-        self._motion_steps = max(1, int(config.get("motion_steps", 12)))
-        self._motion_curve = str(config.get("motion_curve", "ease_in_out")).strip().lower()
-
-        self._min_pulse_us = float(config.get("servo_min_pulse_us", 500.0))
-        self._max_pulse_us = float(config.get("servo_max_pulse_us", 2500.0))
-
-        self._pan_inverted = bool(config.get("pan_inverted", False))
-        self._tilt_inverted = bool(config.get("tilt_inverted", False))
-
-        self._pan = ServoAxisConfig(
-            channel=int(config.get("pan_channel", 0)),
-            min_angle=float(config.get("pan_min_angle", 58.0)),
-            center_angle=float(config.get("pan_center_angle", 90.0)),
-            max_angle=float(config.get("pan_max_angle", 118.0)),
-        )
-        self._tilt = ServoAxisConfig(
-            channel=int(config.get("tilt_channel", 1)),
-            min_angle=float(config.get("tilt_min_angle", 40.0)),
-            center_angle=float(config.get("tilt_center_angle", 90.0)),
-            max_angle=float(config.get("tilt_max_angle", 140.0)),
-        )
-
-        if not self._enabled:
-            raise ValueError("PanTiltService requires enabled=true in config.")
-
-        self._driver = PCA9685(
-            PCA9685Config(
-                i2c_bus=int(config.get("i2c_bus", 1)),
-                i2c_address=int(config.get("i2c_address", 0x40)),
-                pwm_frequency_hz=float(config.get("pwm_frequency_hz", 50.0)),
+        if self._runtime_config.startup_policy != "no_motion":
+            LOGGER.warning(
+                "Ignoring pan/tilt startup_policy=%s. Safe runtime forces no_motion.",
+                self._runtime_config.startup_policy,
             )
-        )
-
-        self._angles = {
-            "pan": self._pan.center_angle,
-            "tilt": self._tilt.center_angle,
-        }
-
-        self.center()
-
-    def status(self) -> dict[str, Any]:
-        with self._lock:
-            return {
-                "ok": True,
-                "pan_angle": round(self._angles["pan"], 2),
-                "tilt_angle": round(self._angles["tilt"], 2),
-                "step_degrees": self._step_degrees,
-                "pan_inverted": self._pan_inverted,
-                "tilt_inverted": self._tilt_inverted,
-                "motion_duration_seconds": self._motion_duration_seconds,
-                "motion_steps": self._motion_steps,
-                "motion_curve": self._motion_curve,
-            }
-
-    def center(self) -> dict[str, Any]:
-        with self._lock:
-            self._animate_axis_to("pan", self._pan.center_angle)
-            self._animate_axis_to("tilt", self._tilt.center_angle)
-            return self.status()
-
-    def move_direction(self, direction: str) -> dict[str, Any]:
-        normalized = str(direction or "").strip().lower()
-        if normalized not in self.STEP_BY_DIRECTION:
-            return {
-                "ok": False,
-                "error": f"Unsupported direction: {direction}",
-            }
-
-        axis_name, direction_multiplier = self.STEP_BY_DIRECTION[normalized]
-        direction_multiplier = self._apply_axis_inversion(axis_name, direction_multiplier)
-
-        with self._lock:
-            current_angle = self._angles[axis_name]
-            target_angle = current_angle + (self._step_degrees * direction_multiplier)
-            applied_angle = self._animate_axis_to(axis_name, target_angle)
-
-            if self._settle_seconds > 0.0:
-                time.sleep(self._settle_seconds)
-
-            result = self.status()
-            result.update(
-                {
-                    "direction": normalized,
-                    "axis": axis_name,
-                    "applied_angle": round(applied_angle, 2),
-                }
-            )
-            return result
-
-    def _apply_axis_inversion(self, axis_name: str, direction_multiplier: float) -> float:
-        if axis_name == "pan" and self._pan_inverted:
-            return direction_multiplier * -1.0
-        if axis_name == "tilt" and self._tilt_inverted:
-            return direction_multiplier * -1.0
-        return direction_multiplier
-
-    def _animate_axis_to(self, axis_name: str, target_angle: float) -> float:
-        axis = self._axis(axis_name)
-        start_angle = float(self._angles[axis_name])
-        final_angle = max(axis.min_angle, min(axis.max_angle, float(target_angle)))
-
-        if self._motion_duration_seconds <= 0.0 or self._motion_steps <= 1:
-            return self._set_axis_angle(axis_name, final_angle)
-
-        step_sleep = self._motion_duration_seconds / self._motion_steps
-
-        for step_index in range(1, self._motion_steps + 1):
-            progress = step_index / self._motion_steps
-            eased_progress = self._apply_curve(progress)
-            intermediate = start_angle + ((final_angle - start_angle) * eased_progress)
-            self._set_axis_angle(axis_name, intermediate)
-            if step_sleep > 0.0:
-                time.sleep(step_sleep)
-
-        return final_angle
-
-    def _apply_curve(self, progress: float) -> float:
-        progress = max(0.0, min(1.0, float(progress)))
-
-        if self._motion_curve == "linear":
-            return progress
-
-        if self._motion_curve == "ease_in_out_cubic":
-            if progress < 0.5:
-                return 4.0 * progress * progress * progress
-            return 1.0 - pow(-2.0 * progress + 2.0, 3.0) / 2.0
-
-        # Default: smooth and natural
-        return -(math.cos(math.pi * progress) - 1.0) / 2.0
-
-    def _set_axis_angle(self, axis_name: str, target_angle: float) -> float:
-        axis = self._axis(axis_name)
-        clamped = max(axis.min_angle, min(axis.max_angle, float(target_angle)))
-        pulse_us = self._pulse_for_axis(axis, clamped)
-        self._driver.set_servo_pulse_us(axis.channel, pulse_us)
-        self._angles[axis_name] = clamped
-
-        if self._move_delay_seconds > 0.0:
-            time.sleep(self._move_delay_seconds)
 
         LOGGER.info(
-            "PanTilt move: axis=%s channel=%s angle=%.2f pulse_us=%.2f",
-            axis_name,
-            axis.channel,
-            clamped,
-            pulse_us,
+            "Pan/tilt service initialized safely. backend=%s enabled=%s "
+            "hardware_enabled=%s motion_enabled=%s dry_run=%s",
+            self._backend.name,
+            self._runtime_config.enabled,
+            self._runtime_config.hardware_enabled,
+            self._runtime_config.motion_enabled,
+            self._runtime_config.dry_run,
         )
-        return clamped
 
-    def _pulse_for_axis(self, axis: ServoAxisConfig, angle: float) -> float:
-        span = axis.max_angle - axis.min_angle
-        if span <= 0.0:
-            raise ValueError("Servo axis max_angle must be greater than min_angle.")
+    @property
+    def backend_name(self) -> str:
+        return self._backend.name
 
-        ratio = (float(angle) - axis.min_angle) / span
-        ratio = max(0.0, min(1.0, ratio))
-        return self._min_pulse_us + ((self._max_pulse_us - self._min_pulse_us) * ratio)
+    def status(self) -> dict[str, Any]:
+        return self._backend.status()
 
-    def _axis(self, axis_name: str) -> ServoAxisConfig:
-        if axis_name == "pan":
-            return self._pan
-        if axis_name == "tilt":
-            return self._tilt
-        raise ValueError(f"Unsupported axis: {axis_name}")
+    def center(self) -> dict[str, Any]:
+        return self._backend.center()
+
+    def move_direction(self, direction: str) -> dict[str, Any]:
+        return self._backend.move_direction(direction)
 
     def close(self) -> None:
-        self._driver.close()
+        self._backend.close()
+
+    def _build_backend(self, runtime_config: PanTiltRuntimeConfig) -> PanTiltBackend:
+        if runtime_config.backend == "mock":
+            return MockPanTiltBackend(runtime_config)
+        if runtime_config.backend == "waveshare_serial":
+            return WaveshareSerialPanTiltBackend(runtime_config)
+        return DisabledPanTiltBackend(runtime_config)
+
+
+def _base_status(
+    *,
+    config: PanTiltRuntimeConfig,
+    backend: str,
+    ok: bool,
+    movement_available: bool,
+    detail: str,
+) -> dict[str, Any]:
+    return {
+        "ok": ok,
+        "backend": backend,
+        "enabled": config.enabled,
+        "hardware_enabled": config.hardware_enabled,
+        "motion_enabled": config.motion_enabled,
+        "dry_run": config.dry_run,
+        "movement_available": movement_available,
+        "device": config.device,
+        "baudrate": config.baudrate,
+        "timeout_seconds": config.timeout_seconds,
+        "protocol": config.protocol,
+        "startup_policy": "no_motion",
+        "calibration_required": config.calibration_required,
+        "allow_uncalibrated_motion": config.allow_uncalibrated_motion,
+        "max_step_degrees": config.max_step_degrees,
+        "safe_limits": config.safe_limits.as_dict(),
+        "detail": detail,
+    }
+
+
+def _blocked_result(
+    config: PanTiltRuntimeConfig,
+    backend: str,
+    message: str,
+) -> dict[str, Any]:
+    result = _base_status(
+        config=config,
+        backend=backend,
+        ok=False,
+        movement_available=False,
+        detail=message,
+    )
+    result["error"] = message
+    return result
+
+
+__all__ = ["PanTiltService", "PanTiltRuntimeConfig", "PanTiltSafeLimits"]

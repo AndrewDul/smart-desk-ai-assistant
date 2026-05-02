@@ -12778,3 +12778,61 @@ Current layout behavior:
 - hide desktop restores the full assistant view,
 - ESC closes the Godot Visual Shell through event handling and process polling.
 <!-- END feedback-dashboard-and-visual-shell-display-runtime -->
+
+<!-- BEGIN pan-tilt-gpio-uart-integration -->
+## Waveshare 2-Axis Pan-Tilt Camera Module integration
+
+NEXA now has a confirmed hardware integration path for the Waveshare 2-Axis Pan-Tilt Camera Module based on the Waveshare General Driver board and ST3215 bus servos.
+
+Confirmed hardware:
+
+- Waveshare 2-Axis Pan-Tilt Camera Module
+- Waveshare General Driver board
+- ST3215 serial bus servos
+- Raspberry Pi 5
+- GPIO UART communication path through `/dev/serial0`
+- External 12V pan-tilt power supply
+
+Confirmed communication path:
+
+- Raspberry Pi `/dev/serial0`
+- `/dev/serial0 -> ttyAMA0`
+- Linux serial console disabled for `/dev/serial0`
+- serial getty disabled/inactive
+- GPIO UART enabled through `enable_uart=1`
+- pan-tilt receives and echoes JSON commands over GPIO UART
+- passive telemetry works over GPIO UART
+- torque lock/unlock works over GPIO UART
+- tiny movement test works over GPIO UART
+
+Important decision:
+
+- USB is not the active pan-tilt control path for the current NEXA hardware setup.
+- Earlier USB testing accidentally targeted the mobile base serial device.
+- The pan-tilt runtime configuration must use `/dev/serial0`, not auto USB detection.
+
+Servo role mapping:
+
+- `ID 1` is the TILT servo.
+- `ID 2` is the PAN servo.
+
+Safety rules for the current stage:
+
+- No full 360 degree sweeps.
+- No movement to mechanical extremes.
+- No startup motion.
+- No uncalibrated large movement.
+- First hardware validation must remain tiny, slow, reversible and centered.
+- The screen/camera wiring must remain slack and must not be twisted by pan movement.
+- Any runtime movement must be gated behind software limits and calibration state.
+
+Current validation status:
+
+- GPIO UART passive telemetry: passed.
+- GPIO UART echo/status test: passed.
+- GPIO UART torque lock/unlock: passed.
+- GPIO UART tiny movement sequence: passed.
+- Repository smoke test should default to `/dev/serial0` and use tiny movement only.
+
+The current production direction is to keep the low-level hardware transport behind the pan-tilt backend interface, with conservative JSON command helpers, dry-run validation, hardware smoke scripts, and config-driven safety limits.
+<!-- END pan-tilt-gpio-uart-integration -->

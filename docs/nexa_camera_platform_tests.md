@@ -1,3 +1,14 @@
+# Legacy pan-tilt test commands removed
+
+The previous PCA9685 / ArduCam-style pan-tilt hardware scripts were removed because the current NEXA target hardware is the Waveshare serial bus-servo pan-tilt platform with an 8-inch DSI display attached.
+
+For the current Waveshare board, use:
+
+- `python scripts/probe_waveshare_pan_tilt_status.py --settings config/settings.json`
+- `python scripts/waveshare_pan_tilt_led_probe.py --settings config/settings.json`
+
+Do not run gimbal movement commands until the Waveshare calibration flow, software limits, and tiny guarded movement stage are implemented.
+
 # NeXa — Camera Platform Movement Tests
 
 ## 1. Stop NeXa service

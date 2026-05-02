@@ -49,11 +49,16 @@ class ActionPanTiltActionsMixin:
 
             backend_statuses = getattr(assistant, "backend_statuses", None)
             if isinstance(backend_statuses, dict):
+                recovered_status = {}
+                status_method = getattr(recovered_backend, "status", None)
+                if callable(status_method):
+                    recovered_status = status_method()
+
                 backend_statuses["pan_tilt"] = RuntimeBackendStatus(
                     component="pan_tilt",
                     ok=True,
-                    selected_backend="pca9685_pan_tilt",
-                    detail="Pan/tilt backend recovered on demand from action flow.",
+                    selected_backend=str(recovered_status.get("backend", "safe_pan_tilt")),
+                    detail="Safe pan/tilt backend recovered on demand from action flow.",
                     fallback_used=False,
                 )
 

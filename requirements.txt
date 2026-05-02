@@ -44,3 +44,4 @@ pytest
 # opencv-python-headless
 
 smbus2
+pyserial
