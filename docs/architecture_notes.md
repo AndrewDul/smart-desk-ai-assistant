@@ -12836,3 +12836,98 @@ Current validation status:
 
 The current production direction is to keep the low-level hardware transport behind the pan-tilt backend interface, with conservative JSON command helpers, dry-run validation, hardware smoke scripts, and config-driven safety limits.
 <!-- END pan-tilt-gpio-uart-integration -->
+
+<!-- BEGIN pan-tilt-calibrated-limits-and-behaviors -->
+## Waveshare pan-tilt calibrated safety envelope and behavior tests
+
+NEXA now has a confirmed calibrated movement envelope for the Waveshare 2-Axis Pan-Tilt Camera Module.
+
+Confirmed hardware path:
+
+- Device: Waveshare 2-Axis Pan-Tilt Camera Module
+- Driver board: Waveshare General Driver board
+- Servo type: ST3215 serial bus servos
+- Host: Raspberry Pi 5
+- Communication path: GPIO UART
+- Runtime serial device: `/dev/serial0`
+- `/dev/serial0` maps to `ttyAMA0`
+- Pan-tilt power: external 12V supply
+- USB is not the active pan-tilt control path for this hardware setup
+
+Confirmed servo mapping:
+
+- TILT servo: ID 1
+- PAN servo: ID 2
+
+Confirmed calibrated software limits:
+
+- `pan_left_x`: `-89.67032623`
+- `pan_right_x`: `89.67032623`
+- `tilt_min_y`: `-18.0`
+- `tilt_max_y`: `80.0`
+
+Current safety file:
+
+- `var/data/pan_tilt_limit_calibration.json`
+
+Current hardware validation scripts:
+
+- `tests/hardware/pan_tilt/waveshare_pan_tilt_tiny_sequence_smoke.py`
+- `tests/hardware/pan_tilt/waveshare_pan_tilt_limit_range_smoke.py`
+- `tests/hardware/pan_tilt/waveshare_pan_tilt_emotion_behavior_smoke.py`
+
+Confirmed validation status:
+
+- GPIO UART passive telemetry works.
+- GPIO UART command echo works.
+- Torque lock/unlock works.
+- Tiny movement smoke test works.
+- Calibrated limit range test works.
+- Calibrated diagonal movements work.
+- Emotion behavior smoke test exists for:
+  - anger
+  - fear
+  - joy
+  - sadness
+
+The calibrated limit range test intentionally verifies movement through the confirmed safe envelope without using a full 360 degree sweep. The sequence is:
+
+- center
+- right limit
+- center
+- left limit
+- center
+- up limit
+- center
+- down limit
+- center
+- right-up diagonal
+- center
+- right-down diagonal
+- center
+- left-up diagonal
+- center
+- left-down diagonal
+- center
+- stop
+
+The emotion behavior smoke test is intentionally conservative and uses small expressive movement patterns instead of mechanical extremes:
+
+- anger: lower focused stare with short side snaps
+- fear: upward recoil with small tremble
+- joy: lifted bounce and small side-to-side movement
+- sadness: slow downward head drop and soft return
+
+Important runtime rules:
+
+- No full 360 degree sweep by default.
+- No movement to mechanical extremes outside calibrated limits.
+- No pan-tilt startup movement.
+- No uncalibrated runtime motion.
+- No USB auto-detection for pan-tilt while the mobile base can expose similar serial devices.
+- Runtime code must use `/dev/serial0` for this Waveshare pan-tilt setup.
+- All physical movement must be guarded by config, calibration limits, speed/acceleration limits, and emergency stop behavior.
+- The screen and cables must be protected from twisting, pulling, or downward collision.
+
+This stage completes the hardware communication and safe-envelope discovery required before integrating pan-tilt behavior into the normal NEXA runtime flow.
+<!-- END pan-tilt-calibrated-limits-and-behaviors -->
