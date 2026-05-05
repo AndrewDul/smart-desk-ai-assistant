@@ -15675,3 +15675,72 @@ The next recommended sprint is Sprint 10B:
 - test with fake backend first,
 - then prepare a manual runtime-gated one-step smoke only after tests are green.
 
+
+---
+
+## NEXA Vision Runtime — Sprint 10B safe pan-tilt move_delta backend wrapper
+
+**Date:** 2026-05-05  
+**Area:** vision / pan-tilt / tracking / hardware backend boundary  
+**Status:** implemented and tested
+
+### What changed
+
+Sprint 10B added a safe `move_delta(...)` contract to the pan-tilt service layer.
+
+Updated files:
+
+- `modules/devices/pan_tilt/service.py`
+- `tests/devices/pan_tilt/test_safe_pan_tilt_service.py`
+
+The `PanTiltService` now exposes:
+
+- `move_delta(pan_delta_degrees=..., tilt_delta_degrees=...)`
+
+The Waveshare serial backend now has a hardware-capable but safety-gated `move_delta(...)` path.
+
+### Safety gates
+
+The Waveshare serial backend only sends serial commands when all backend-level gates are satisfied:
+
+- `pan_tilt.enabled = true`
+- `pan_tilt.backend = waveshare_serial`
+- `pan_tilt.hardware_enabled = true`
+- `pan_tilt.motion_enabled = true`
+- `pan_tilt.dry_run = false`
+- `pan_tilt.protocol = waveshare_json_serial`
+- configured device path exists
+- calibration is ready when calibration is required
+
+Default runtime settings remain blocked.
+
+### Runtime behavior
+
+The backend clamps requested deltas by `max_step_degrees` and clamps target pan/tilt angles to configured safe limits before building a Waveshare command.
+
+The backend prepares the pan-tilt controller with conservative runtime commands and then sends a `T=133` absolute gimbal target command.
+
+The service keeps internal commanded pan/tilt state but does not move anything during initialization.
+
+### Testing
+
+Focused tests verify:
+
+- disabled backend blocks `move_delta(...)`
+- Waveshare backend remains status-only by default
+- calibration is required when configured
+- fake serial receives the expected Waveshare JSON commands only when gates are enabled
+- mock backend respects safe limits
+- existing pan-tilt protocol tests still pass
+- vision tracking adapter tests still pass
+
+### Result
+
+Sprint 10B completes the safe backend wrapper needed by the existing `PanTiltExecutionAdapter`.
+
+The next recommended step is Sprint 10C: one controlled runtime-gated pan-tilt step through the real chain:
+
+`VisionTrackingService -> TrackingMotionExecutor -> PanTiltExecutionAdapter -> PanTiltService.move_delta(...)`
+
+The movement must remain tiny, explicitly gated, and hardware-confirmed before any tracking loop is enabled.
+

@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from modules.shared.logging.logger import get_logger
 
+from .waveshare_protocol import compact_json_line, gimbal_simple_command
+
 
 LOGGER = get_logger(__name__)
+SerialFactory = Callable[..., Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,7 +73,12 @@ class PanTiltRuntimeConfig:
     startup_policy: str
     calibration_required: bool
     allow_uncalibrated_motion: bool
+    calibration_state_path: str
     max_step_degrees: float
+    command_speed: int
+    command_acceleration: int
+    serial_warmup_seconds: float
+    read_after_write_seconds: float
     safe_limits: PanTiltSafeLimits
 
     @classmethod
@@ -99,7 +109,20 @@ class PanTiltRuntimeConfig:
             startup_policy=str(config.get("startup_policy", "no_motion")).strip().lower(),
             calibration_required=bool(config.get("calibration_required", True)),
             allow_uncalibrated_motion=bool(config.get("allow_uncalibrated_motion", False)),
+            calibration_state_path=str(
+                config.get("calibration_state_path", "var/data/pan_tilt_limit_calibration.json")
+            ).strip(),
             max_step_degrees=max(0.1, float(config.get("max_step_degrees", 2.0))),
+            command_speed=max(1, int(config.get("command_speed", 45))),
+            command_acceleration=max(1, int(config.get("command_acceleration", 45))),
+            serial_warmup_seconds=max(
+                0.0,
+                float(config.get("serial_warmup_seconds", 0.05)),
+            ),
+            read_after_write_seconds=max(
+                0.0,
+                float(config.get("read_after_write_seconds", 0.0)),
+            ),
             safe_limits=safe_limits,
         )
 
@@ -114,6 +137,9 @@ class PanTiltBackend(Protocol):
         ...
 
     def move_direction(self, direction: str) -> dict[str, Any]:
+        ...
+
+    def move_delta(self, *, pan_delta_degrees: float, tilt_delta_degrees: float) -> dict[str, Any]:
         ...
 
     def close(self) -> None:
@@ -141,6 +167,17 @@ class DisabledPanTiltBackend:
     def move_direction(self, direction: str) -> dict[str, Any]:
         result = _blocked_result(self._config, self.name, "Pan/tilt is disabled.")
         result["direction"] = str(direction or "").strip().lower()
+        return result
+
+    def move_delta(self, *, pan_delta_degrees: float, tilt_delta_degrees: float) -> dict[str, Any]:
+        result = _blocked_result(self._config, self.name, "Pan/tilt is disabled.")
+        result.update(
+            {
+                "requested_pan_delta_degrees": round(float(pan_delta_degrees), 4),
+                "requested_tilt_delta_degrees": round(float(tilt_delta_degrees), 4),
+                "movement_executed": False,
+            }
+        )
         return result
 
     def close(self) -> None:
@@ -174,6 +211,8 @@ class MockPanTiltBackend:
             {
                 "pan_angle": round(self._pan_angle, 3),
                 "tilt_angle": round(self._tilt_angle, 3),
+                "serial_opened": False,
+                "serial_write_enabled": False,
             }
         )
         return status
@@ -223,6 +262,32 @@ class MockPanTiltBackend:
         )
         return result
 
+    def move_delta(self, *, pan_delta_degrees: float, tilt_delta_degrees: float) -> dict[str, Any]:
+        if not self._config.motion_enabled:
+            return _blocked_result(self._config, self.name, "Mock motion is disabled.")
+
+        requested_pan = float(pan_delta_degrees)
+        requested_tilt = float(tilt_delta_degrees)
+        applied_pan = _clamp_delta(requested_pan, self._config.max_step_degrees)
+        applied_tilt = _clamp_delta(requested_tilt, self._config.max_step_degrees)
+        self._pan_angle = self._config.safe_limits.clamp_pan(self._pan_angle + applied_pan)
+        self._tilt_angle = self._config.safe_limits.clamp_tilt(self._tilt_angle + applied_tilt)
+
+        result = self.status()
+        result.update(
+            {
+                "ok": True,
+                "movement_executed": True,
+                "requested_pan_delta_degrees": round(requested_pan, 4),
+                "requested_tilt_delta_degrees": round(requested_tilt, 4),
+                "applied_pan_delta_degrees": round(applied_pan, 4),
+                "applied_tilt_delta_degrees": round(applied_tilt, 4),
+                "pan_angle": round(self._pan_angle, 3),
+                "tilt_angle": round(self._tilt_angle, 3),
+            }
+        )
+        return result
+
     def close(self) -> None:
         return None
 
@@ -230,48 +295,294 @@ class MockPanTiltBackend:
 class WaveshareSerialPanTiltBackend:
     name = "waveshare_serial"
 
-    def __init__(self, runtime_config: PanTiltRuntimeConfig) -> None:
+    def __init__(
+        self,
+        runtime_config: PanTiltRuntimeConfig,
+        *,
+        serial_factory: SerialFactory | None = None,
+    ) -> None:
         self._config = runtime_config
+        self._serial_factory = serial_factory
+        self._pan_angle = runtime_config.safe_limits.pan_center_degrees
+        self._tilt_angle = runtime_config.safe_limits.tilt_center_degrees
+        self._serial_write_count = 0
+        self._load_initial_position_from_calibration_state()
 
     def status(self) -> dict[str, Any]:
         device_exists = bool(self._config.device) and Path(self._config.device).exists()
+        calibration_status = self._calibration_status()
+        serial_write_enabled = self._serial_write_enabled(
+            device_exists=device_exists,
+            calibration_ready=calibration_status["calibration_ready"],
+        )
         status = _base_status(
             config=self._config,
             backend=self.name,
             ok=True,
-            movement_available=False,
+            movement_available=serial_write_enabled,
             detail=(
-                "Waveshare serial backend is in status-only mode. "
-                "No serial writes or movement commands are sent."
+                "Waveshare serial backend is hardware-capable but safety-gated."
+                if serial_write_enabled
+                else "Waveshare serial movement is blocked by runtime safety gates."
             ),
         )
         status.update(
             {
                 "device_exists": device_exists,
                 "serial_opened": False,
-                "serial_write_enabled": False,
+                "serial_write_enabled": serial_write_enabled,
+                "serial_write_count": self._serial_write_count,
+                "pan_angle": round(self._pan_angle, 3),
+                "tilt_angle": round(self._tilt_angle, 3),
+                **calibration_status,
             }
         )
         return status
 
     def center(self) -> dict[str, Any]:
-        return _blocked_result(
-            self._config,
-            self.name,
-            "Waveshare serial movement is blocked until calibration enables motion.",
+        pan_delta = self._config.safe_limits.pan_center_degrees - self._pan_angle
+        tilt_delta = self._config.safe_limits.tilt_center_degrees - self._tilt_angle
+        return self.move_delta(
+            pan_delta_degrees=pan_delta,
+            tilt_delta_degrees=tilt_delta,
         )
 
     def move_direction(self, direction: str) -> dict[str, Any]:
         result = _blocked_result(
             self._config,
             self.name,
-            "Waveshare serial movement is blocked until calibration enables motion.",
+            "Waveshare serial direction movement is blocked; use move_delta with safety gates.",
         )
         result["direction"] = str(direction or "").strip().lower()
         return result
 
+    def move_delta(self, *, pan_delta_degrees: float, tilt_delta_degrees: float) -> dict[str, Any]:
+        requested_pan = float(pan_delta_degrees)
+        requested_tilt = float(tilt_delta_degrees)
+        applied_pan = _clamp_delta(requested_pan, self._config.max_step_degrees)
+        applied_tilt = _clamp_delta(requested_tilt, self._config.max_step_degrees)
+
+        target_pan = self._config.safe_limits.clamp_pan(self._pan_angle + applied_pan)
+        target_tilt = self._config.safe_limits.clamp_tilt(self._tilt_angle + applied_tilt)
+        effective_pan_delta = target_pan - self._pan_angle
+        effective_tilt_delta = target_tilt - self._tilt_angle
+
+        common = {
+            "requested_pan_delta_degrees": round(requested_pan, 4),
+            "requested_tilt_delta_degrees": round(requested_tilt, 4),
+            "applied_pan_delta_degrees": round(effective_pan_delta, 4),
+            "applied_tilt_delta_degrees": round(effective_tilt_delta, 4),
+            "target_pan_degrees": round(target_pan, 4),
+            "target_tilt_degrees": round(target_tilt, 4),
+            "movement_executed": False,
+        }
+
+        if abs(effective_pan_delta) == 0.0 and abs(effective_tilt_delta) == 0.0:
+            result = self.status()
+            result.update(common)
+            result["detail"] = "No pan/tilt movement required after safe-limit clamping."
+            return result
+
+        status = self.status()
+        if not bool(status.get("serial_write_enabled", False)):
+            message = "Waveshare serial movement is blocked by runtime safety gates."
+            result = dict(status)
+            result.update(common)
+            result.update(
+                {
+                    "ok": False,
+                    "movement_available": False,
+                    "movement_executed": False,
+                    "detail": message,
+                    "error": message,
+                    "missing_safety_gates": self._missing_safety_gates(status),
+                }
+            )
+            return result
+
+        command = gimbal_simple_command(
+            x=target_pan,
+            y=target_tilt,
+            speed=self._config.command_speed,
+            acceleration=self._config.command_acceleration,
+        )
+        commands = _build_waveshare_runtime_sequence(command)
+
+        try:
+            self._send_commands(commands)
+        except Exception as error:
+            result = self.status()
+            result.update(common)
+            result.update(
+                {
+                    "ok": False,
+                    "movement_executed": False,
+                    "error": f"{error.__class__.__name__}: {error}",
+                    "detail": "Waveshare serial command failed before state update.",
+                }
+            )
+            return result
+
+        self._pan_angle = target_pan
+        self._tilt_angle = target_tilt
+        result = self.status()
+        result.update(common)
+        result.update(
+            {
+                "ok": True,
+                "movement_available": True,
+                "movement_executed": True,
+                "command_count": len(commands),
+                "detail": "Waveshare serial move_delta executed.",
+            }
+        )
+        return result
+
     def close(self) -> None:
         return None
+
+    def _load_initial_position_from_calibration_state(self) -> None:
+        path = Path(self._config.calibration_state_path)
+        if not path.exists():
+            return
+        try:
+            payload = json.loads(path.read_text())
+            self._pan_angle = self._config.safe_limits.clamp_pan(
+                float(payload.get("x", self._pan_angle))
+            )
+            self._tilt_angle = self._config.safe_limits.clamp_tilt(
+                float(payload.get("y", self._tilt_angle))
+            )
+        except Exception as error:
+            LOGGER.warning("Failed to load pan/tilt calibration state: %s", error)
+
+    def _calibration_status(self) -> dict[str, Any]:
+        if not self._config.calibration_required:
+            return {
+                "calibration_ready": True,
+                "calibration_required": False,
+                "calibration_state_path": self._config.calibration_state_path,
+                "calibration_block_reason": "calibration_not_required",
+            }
+
+        if self._config.allow_uncalibrated_motion:
+            return {
+                "calibration_ready": True,
+                "calibration_required": True,
+                "calibration_state_path": self._config.calibration_state_path,
+                "calibration_block_reason": "uncalibrated_motion_allowed_by_config",
+            }
+
+        path = Path(self._config.calibration_state_path)
+        if not path.exists():
+            return {
+                "calibration_ready": False,
+                "calibration_required": True,
+                "calibration_state_path": self._config.calibration_state_path,
+                "calibration_block_reason": "missing_calibration_state",
+            }
+
+        try:
+            payload = json.loads(path.read_text())
+        except Exception as error:
+            return {
+                "calibration_ready": False,
+                "calibration_required": True,
+                "calibration_state_path": self._config.calibration_state_path,
+                "calibration_block_reason": f"invalid_calibration_state:{error.__class__.__name__}",
+            }
+
+        marked = payload.get("marked_limits", {})
+        required = {"pan_left_x", "pan_right_x", "tilt_min_y", "tilt_max_y"}
+        missing = sorted(required.difference(marked)) if isinstance(marked, dict) else sorted(required)
+        return {
+            "calibration_ready": not missing,
+            "calibration_required": True,
+            "calibration_state_path": self._config.calibration_state_path,
+            "calibration_block_reason": "" if not missing else "missing_marked_limits",
+            "missing_calibration_limits": missing,
+        }
+
+    def _serial_write_enabled(self, *, device_exists: bool, calibration_ready: bool) -> bool:
+        return bool(
+            self._config.enabled
+            and self._config.backend == self.name
+            and self._config.hardware_enabled
+            and self._config.motion_enabled
+            and not self._config.dry_run
+            and self._config.protocol == "waveshare_json_serial"
+            and bool(self._config.device)
+            and device_exists
+            and calibration_ready
+        )
+
+    def _missing_safety_gates(self, status: dict[str, Any]) -> list[str]:
+        missing: list[str] = []
+        if not self._config.enabled:
+            missing.append("pan_tilt.enabled")
+        if self._config.backend != self.name:
+            missing.append("pan_tilt.backend")
+        if not self._config.hardware_enabled:
+            missing.append("pan_tilt.hardware_enabled")
+        if not self._config.motion_enabled:
+            missing.append("pan_tilt.motion_enabled")
+        if self._config.dry_run:
+            missing.append("pan_tilt.dry_run=false")
+        if self._config.protocol != "waveshare_json_serial":
+            missing.append("pan_tilt.protocol")
+        if not self._config.device:
+            missing.append("pan_tilt.device")
+        if not bool(status.get("device_exists", False)):
+            missing.append("pan_tilt.device_exists")
+        if not bool(status.get("calibration_ready", False)):
+            missing.append("pan_tilt.calibration_ready")
+        return missing
+
+    def _send_commands(self, commands: list[dict[str, Any]]) -> None:
+        serial_port = self._open_serial()
+        with serial_port as ser:
+            if self._config.serial_warmup_seconds > 0.0:
+                time.sleep(self._config.serial_warmup_seconds)
+            reset = getattr(ser, "reset_input_buffer", None)
+            if callable(reset):
+                reset()
+            for command in commands:
+                line = compact_json_line(command)
+                ser.write(line.encode("utf-8"))
+                flush = getattr(ser, "flush", None)
+                if callable(flush):
+                    flush()
+                self._serial_write_count += 1
+                self._drain_serial(ser)
+
+    def _open_serial(self) -> Any:
+        if self._serial_factory is not None:
+            return self._serial_factory(
+                self._config.device,
+                self._config.baudrate,
+                timeout=self._config.timeout_seconds,
+            )
+
+        try:
+            import serial
+        except Exception as error:
+            raise RuntimeError(f"pyserial is required for Waveshare pan-tilt movement: {error}") from error
+
+        return serial.Serial(
+            self._config.device,
+            self._config.baudrate,
+            timeout=self._config.timeout_seconds,
+        )
+
+    def _drain_serial(self, ser: Any) -> None:
+        if self._config.read_after_write_seconds <= 0.0:
+            return
+        readline = getattr(ser, "readline", None)
+        if not callable(readline):
+            return
+        deadline = time.monotonic() + self._config.read_after_write_seconds
+        while time.monotonic() < deadline:
+            readline()
 
 
 class PanTiltService:
@@ -283,8 +594,9 @@ class PanTiltService:
     bus-servo pan/tilt platform, not the older ArduCam/PCA9685 PWM platform.
     """
 
-    def __init__(self, config: dict[str, Any]) -> None:
+    def __init__(self, config: dict[str, Any], *, serial_factory: SerialFactory | None = None) -> None:
         self._runtime_config = PanTiltRuntimeConfig.from_config(config)
+        self._serial_factory = serial_factory
         self._backend = self._build_backend(self._runtime_config)
 
         if self._runtime_config.startup_policy != "no_motion":
@@ -316,6 +628,12 @@ class PanTiltService:
     def move_direction(self, direction: str) -> dict[str, Any]:
         return self._backend.move_direction(direction)
 
+    def move_delta(self, *, pan_delta_degrees: float, tilt_delta_degrees: float) -> dict[str, Any]:
+        return self._backend.move_delta(
+            pan_delta_degrees=pan_delta_degrees,
+            tilt_delta_degrees=tilt_delta_degrees,
+        )
+
     def close(self) -> None:
         self._backend.close()
 
@@ -323,7 +641,10 @@ class PanTiltService:
         if runtime_config.backend == "mock":
             return MockPanTiltBackend(runtime_config)
         if runtime_config.backend == "waveshare_serial":
-            return WaveshareSerialPanTiltBackend(runtime_config)
+            return WaveshareSerialPanTiltBackend(
+                runtime_config,
+                serial_factory=self._serial_factory,
+            )
         return DisabledPanTiltBackend(runtime_config)
 
 
@@ -350,7 +671,12 @@ def _base_status(
         "startup_policy": "no_motion",
         "calibration_required": config.calibration_required,
         "allow_uncalibrated_motion": config.allow_uncalibrated_motion,
+        "calibration_state_path": config.calibration_state_path,
         "max_step_degrees": config.max_step_degrees,
+        "command_speed": config.command_speed,
+        "command_acceleration": config.command_acceleration,
+        "serial_warmup_seconds": config.serial_warmup_seconds,
+        "read_after_write_seconds": config.read_after_write_seconds,
         "safe_limits": config.safe_limits.as_dict(),
         "detail": detail,
     }
@@ -370,6 +696,20 @@ def _blocked_result(
     )
     result["error"] = message
     return result
+
+
+def _clamp_delta(value: float, max_abs_value: float) -> float:
+    limit = abs(float(max_abs_value))
+    return max(-limit, min(limit, float(value)))
+
+
+def _build_waveshare_runtime_sequence(command: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        {"T": 137, "s": 0, "y": 0},
+        {"T": 4, "cmd": 2},
+        {"T": 210, "cmd": 1},
+        command,
+    ]
 
 
 __all__ = ["PanTiltService", "PanTiltRuntimeConfig", "PanTiltSafeLimits"]
