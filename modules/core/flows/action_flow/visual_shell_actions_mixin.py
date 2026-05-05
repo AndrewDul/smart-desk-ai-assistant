@@ -265,6 +265,10 @@ class ActionVisualShellActionsMixin:
 
         plan_metadata = self._tracking_plan_metadata(plan)
         execution_metadata = self._tracking_execution_metadata(service=service, plan=plan)
+        pan_tilt_adapter_metadata = self._pan_tilt_adapter_metadata(
+            service=service,
+            execution=execution_metadata,
+        )
         base_yaw_assist_required = bool(
             plan_metadata.get("base_yaw_assist_required", False)
         )
@@ -286,6 +290,7 @@ class ActionVisualShellActionsMixin:
                 "vision_tracking_available": True,
                 "vision_tracking_plan": plan_metadata,
                 "vision_tracking_execution_result": execution_metadata,
+                "pan_tilt_adapter_result": pan_tilt_adapter_metadata,
                 "dry_run": True,
                 "movement_execution_enabled": False,
                 "pan_tilt_movement_executed": False,
@@ -307,6 +312,33 @@ class ActionVisualShellActionsMixin:
             return metadata.get("vision_tracking_service")
 
         return None
+
+    @staticmethod
+    def _pan_tilt_adapter_metadata(*, service: Any, execution: dict[str, Any]) -> dict[str, Any]:
+        latest_result = getattr(service, "latest_pan_tilt_adapter_result", None)
+        if callable(latest_result):
+            result = latest_result()
+            if result is not None:
+                return ActionVisualShellActionsMixin._tracking_plan_metadata(result)
+
+        prepare_dry_run = getattr(service, "prepare_pan_tilt_dry_run", None)
+        if callable(prepare_dry_run):
+            result = prepare_dry_run(execution)
+            return ActionVisualShellActionsMixin._tracking_plan_metadata(result)
+
+        try:
+            from modules.devices.vision.tracking import PanTiltExecutionAdapter
+
+            result = PanTiltExecutionAdapter().prepare(execution)
+            return ActionVisualShellActionsMixin._tracking_plan_metadata(result)
+        except Exception as error:
+            return {
+                "status": "pan_tilt_adapter_metadata_error",
+                "dry_run": True,
+                "backend_command_execution_enabled": False,
+                "backend_command_executed": False,
+                "error": f"{error.__class__.__name__}: {error}",
+            }
 
     @staticmethod
     def _tracking_execution_metadata(*, service: Any, plan: Any) -> dict[str, Any]:

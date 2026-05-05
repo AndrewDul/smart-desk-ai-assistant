@@ -81,6 +81,13 @@ def test_look_at_user_action_runs_tracking_dry_run_without_movement() -> None:
     assert execution["pan_tilt_movement_executed"] is False
     assert execution["base_movement_executed"] is False
 
+    assert "pan_tilt_adapter_result" in result.metadata
+    adapter = result.metadata["pan_tilt_adapter_result"]
+    assert adapter["dry_run"] is True
+    assert adapter["would_send_pan_tilt_command"] is True
+    assert adapter["backend_command_execution_enabled"] is False
+    assert adapter["backend_command_executed"] is False
+
     assert assistant._last_vision_tracking_plan["reason"] == "pan_limit_base_yaw_assist_required"
 
 

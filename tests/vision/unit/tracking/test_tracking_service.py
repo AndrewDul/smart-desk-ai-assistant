@@ -257,3 +257,54 @@ def test_tracking_service_exposes_motion_executor_requested_and_effective_gates(
     assert payload["motion_executor_status"]["effective_movement_execution_enabled"] is False
     assert payload["last_execution_result"]["requested_movement_execution_enabled"] is True
     assert payload["last_execution_result"]["movement_execution_enabled"] is False
+
+
+
+def test_tracking_service_records_pan_tilt_adapter_result_without_backend_command() -> None:
+    vision = _FakeVisionBackend(_observation(1100, 1260))
+    pan_tilt = _FakePanTiltBackend(pan_angle=14.5)
+    service = VisionTrackingService(vision_backend=vision, pan_tilt_backend=pan_tilt)
+
+    plan = service.plan_once()
+    execution = service.latest_execution_result()
+    adapter_result = service.latest_pan_tilt_adapter_result()
+    status = service.status()
+
+    assert plan.base_yaw_assist_required is True
+    assert execution is not None
+    assert adapter_result is not None
+    assert adapter_result.dry_run is True
+    assert adapter_result.would_send_pan_tilt_command is True
+    assert adapter_result.backend_command_execution_enabled is False
+    assert adapter_result.backend_command_executed is False
+    assert adapter_result.clamped_pan_delta_degrees == 0.5
+    assert adapter_result.blocked_reason == "dry_run_backend_command_gate"
+
+    assert status["last_pan_tilt_adapter_result"]["would_send_pan_tilt_command"] is True
+    assert status["last_pan_tilt_adapter_result"]["backend_command_executed"] is False
+    assert status["pan_tilt_adapter_status"]["effective_backend_command_execution_enabled"] is False
+    assert pan_tilt.move_calls == []
+
+
+def test_tracking_service_persists_pan_tilt_adapter_result_in_latest_snapshot(tmp_path) -> None:
+    status_path = tmp_path / "vision_tracking_status.json"
+    vision = _FakeVisionBackend(_observation(1100, 1260))
+    pan_tilt = _FakePanTiltBackend(pan_angle=14.5)
+    service = VisionTrackingService(
+        vision_backend=vision,
+        pan_tilt_backend=pan_tilt,
+        config={"status_path": str(status_path), "persist_status": True},
+    )
+
+    service.plan_once()
+
+    import json
+
+    payload = json.loads(status_path.read_text())
+
+    assert payload["last_pan_tilt_adapter_result"]["dry_run"] is True
+    assert payload["last_pan_tilt_adapter_result"]["would_send_pan_tilt_command"] is True
+    assert payload["last_pan_tilt_adapter_result"]["backend_command_execution_enabled"] is False
+    assert payload["last_pan_tilt_adapter_result"]["backend_command_executed"] is False
+    assert payload["pan_tilt_adapter_status"]["backend_command_execution_enabled"] is False
+    assert payload["pan_tilt_adapter_status"]["effective_backend_command_execution_enabled"] is False

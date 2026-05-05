@@ -8,6 +8,7 @@ from modules.runtime.contracts import VisionObservation
 
 from .models import TrackingMotionPlan, TrackingPolicyConfig, TrackingSafeLimits
 from .motion_executor import TrackingMotionExecutionResult, TrackingMotionExecutor
+from .pan_tilt_execution_adapter import PanTiltExecutionAdapter, PanTiltExecutionAdapterResult
 from .pan_tilt_policy import PanTiltTrackingPolicy
 from .telemetry import VisionTrackingTelemetryWriter
 
@@ -18,7 +19,8 @@ class VisionTrackingService:
 
     The service reads only the latest cached vision observation by default,
     computes a pure tracking motion plan, creates a dry-run execution result,
-    and never moves pan-tilt or the mobile base directly.
+    prepares a dry-run pan-tilt adapter result, and never moves pan-tilt or
+    the mobile base directly.
     """
 
     def __init__(
@@ -29,6 +31,7 @@ class VisionTrackingService:
         config: dict[str, Any] | None = None,
         policy: PanTiltTrackingPolicy | None = None,
         motion_executor: TrackingMotionExecutor | None = None,
+        pan_tilt_adapter: PanTiltExecutionAdapter | None = None,
     ) -> None:
         self._vision_backend = vision_backend
         self._pan_tilt_backend = pan_tilt_backend
@@ -47,8 +50,21 @@ class VisionTrackingService:
             config=motion_executor_config,
         )
 
+        pan_tilt_adapter_config = dict(
+            self._config.get(
+                "pan_tilt_adapter",
+                self._config.get("pan_tilt_execution_adapter", {}),
+            )
+            or {}
+        )
+        self._pan_tilt_adapter = pan_tilt_adapter or PanTiltExecutionAdapter(
+            pan_tilt_backend=pan_tilt_backend,
+            config=pan_tilt_adapter_config,
+        )
+
         self._last_plan: TrackingMotionPlan | None = None
         self._last_execution_result: TrackingMotionExecutionResult | None = None
+        self._last_pan_tilt_adapter_result: PanTiltExecutionAdapterResult | None = None
         self._last_error: str | None = None
         self._last_telemetry_error: str | None = None
         self._last_plan_timestamp_monotonic: float | None = None
@@ -78,6 +94,9 @@ class VisionTrackingService:
             )
             self._last_plan = plan
             self._last_execution_result = self._motion_executor.execute(plan)
+            self._last_pan_tilt_adapter_result = self._pan_tilt_adapter.prepare(
+                self._last_execution_result
+            )
             self._last_error = None
             self._last_plan_timestamp_monotonic = time.monotonic()
             self._persist_latest_status(
@@ -95,6 +114,9 @@ class VisionTrackingService:
             )
             self._last_plan = plan
             self._last_execution_result = self._motion_executor.execute(plan)
+            self._last_pan_tilt_adapter_result = self._pan_tilt_adapter.prepare(
+                self._last_execution_result
+            )
             self._last_plan_timestamp_monotonic = time.monotonic()
             self._persist_latest_status(
                 force_refresh=force_refresh,
@@ -108,6 +130,17 @@ class VisionTrackingService:
     ) -> TrackingMotionExecutionResult:
         result = self._motion_executor.execute(plan)
         self._last_execution_result = result
+        self._last_pan_tilt_adapter_result = self._pan_tilt_adapter.prepare(result)
+        return result
+
+    def prepare_pan_tilt_dry_run(
+        self,
+        execution: TrackingMotionExecutionResult | dict[str, Any] | None = None,
+    ) -> PanTiltExecutionAdapterResult:
+        if execution is None:
+            execution = self._last_execution_result
+        result = self._pan_tilt_adapter.prepare(execution)
+        self._last_pan_tilt_adapter_result = result
         return result
 
     def latest_plan(self) -> TrackingMotionPlan | None:
@@ -115,6 +148,9 @@ class VisionTrackingService:
 
     def latest_execution_result(self) -> TrackingMotionExecutionResult | None:
         return self._last_execution_result
+
+    def latest_pan_tilt_adapter_result(self) -> PanTiltExecutionAdapterResult | None:
+        return self._last_pan_tilt_adapter_result
 
     def status(self) -> dict[str, Any]:
         return {
@@ -133,7 +169,13 @@ class VisionTrackingService:
             "last_execution_result": (
                 None if self._last_execution_result is None else asdict(self._last_execution_result)
             ),
+            "last_pan_tilt_adapter_result": (
+                None
+                if self._last_pan_tilt_adapter_result is None
+                else asdict(self._last_pan_tilt_adapter_result)
+            ),
             "motion_executor_status": self._motion_executor.status(),
+            "pan_tilt_adapter_status": self._pan_tilt_adapter.status(),
         }
 
     def _latest_observation(self, *, force_refresh: bool) -> VisionObservation | None:
