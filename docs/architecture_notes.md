@@ -14293,3 +14293,137 @@ The next recommended sprint is Sprint 7B:
 - keep all movement disabled,
 - then prepare a future tiny pan-tilt hardware smoke plan with explicit manual confirmation and stop path.
 
+---
+
+## NEXA Vision Runtime — Sprint 7B developer readiness checklist command
+
+**Date:** 2026-05-05  
+**Area:** vision / tracking / developer tooling / safety checklist  
+**Status:** implemented and tested
+
+### What changed
+
+Sprint 7B adds a developer-facing readiness checklist command for NEXA Vision Runtime tracking execution.
+
+The new command is:
+
+- scripts/run_vision_tracking_execution_readiness_check.py
+
+It wraps the lower-level validator:
+
+- scripts/validate_vision_tracking_execution_readiness.py
+
+A new test file was added:
+
+- tests/vision/unit/tracking/test_tracking_execution_readiness_check_command.py
+
+### Why this was needed
+
+Sprint 7A introduced the safety validator for tracking execution settings.
+
+Sprint 7B makes that validator easier to run and easier to understand during development.
+
+The checklist command gives a clear human-readable status:
+
+- validator passed
+- physical movement is allowed
+- global movement execution is allowed
+- pan-tilt execution is allowed
+- base yaw assist execution is allowed
+- base forward/backward movement is allowed
+
+For the current development stage, physical movement must remain false.
+
+### Current command behaviour
+
+The checklist command reads settings and prints a safe development interpretation.
+
+It confirms when config is valid for continued dry-run vision tracking development.
+
+It also clearly states that a valid result is not permission to execute physical pan-tilt movement or mobile-base movement.
+
+The command can be run with:
+
+- python scripts/run_vision_tracking_execution_readiness_check.py --settings config/settings.json
+
+It also supports JSON output:
+
+- python scripts/run_vision_tracking_execution_readiness_check.py --settings config/settings.json --json
+
+### Safety rule
+
+Sprint 7B does not enable hardware movement.
+
+The command never starts:
+
+- camera capture
+- pan-tilt hardware
+- mobile-base hardware
+- tracking loops
+- object detection
+- Visual Shell state changes
+
+It only validates settings and prints a checklist.
+
+### Required mobile-base yaw assist rule
+
+The required mobile-base yaw assist rule remains unchanged.
+
+When pan-tilt reaches or approaches its safe pan limit during face/person tracking, NEXA must eventually use controlled yaw-only mobile-base rotation to re-center the target.
+
+Sprint 7B does not execute that movement.
+
+It only verifies that the current development configuration still blocks physical execution.
+
+Forward/backward base movement remains disabled and is not part of camera tracking assist.
+
+### Architecture impact
+
+The current safety workflow is now:
+
+settings
+→ validation script
+→ developer checklist command
+→ clear dry-run readiness result
+→ no hardware movement
+
+This gives a safe pre-hardware checkpoint before any future tiny pan-tilt movement sprint.
+
+### Tests run
+
+The following test groups passed after Sprint 7B:
+
+- tests/vision/unit/tracking
+- tests/core/vision/test_look_at_user_dry_run_bridge.py
+- tests/core/voice_engine/test_visual_shell_action_flow_bridge.py
+- tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+- tests/vision/integration/test_runtime_builder_vision_tracking_bridge.py
+- tests/vision/integration/test_runtime_builder_vision_bridge.py
+- tests/vision/unit/fusion
+- tests/vision/unit/camera_service
+- tests/vision/unit/runtime/test_ai_broker_service.py
+- tests/vision/unit/runtime/test_ai_broker_builder_integration.py
+- tests/devices/pan_tilt/test_safe_pan_tilt_service.py
+- tests/devices/pan_tilt/test_waveshare_protocol.py
+- tests/presentation/visual_shell/test_visual_shell_controller.py
+- tests/presentation/visual_shell/test_visual_shell_voice_command_router.py
+
+The checklist command was also run directly against:
+
+- config/settings.json
+
+### Current result
+
+Sprint 7B gives NEXA Vision Runtime a clear developer readiness command.
+
+The project now has a safe, test-covered way to confirm that vision tracking execution is still dry-run only before moving toward any hardware smoke testing.
+
+### Next architecture step
+
+The next recommended sprint is Sprint 8A:
+
+- prepare a tiny pan-tilt execution adapter in dry-run-first mode,
+- keep real movement disabled by effective gates,
+- define the exact metadata that future hardware movement must return,
+- do not move hardware yet.
+
