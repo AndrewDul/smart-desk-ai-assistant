@@ -46,6 +46,14 @@ def _safe_settings() -> dict:
                 "base_yaw_assist_execution_enabled": False,
                 "base_forward_backward_movement_enabled": False,
             },
+            "pan_tilt_adapter": {
+                "dry_run": True,
+                "backend_command_execution_enabled": False,
+                "require_calibrated_limits": True,
+                "require_no_motion_startup_policy": True,
+                "max_allowed_pan_delta_degrees": 2.0,
+                "max_allowed_tilt_delta_degrees": 2.0,
+            },
         },
         "pan_tilt": {
             "enabled": True,
@@ -105,6 +113,28 @@ def test_validator_rejects_enabled_tracking_motion_gates() -> None:
     assert "vision_tracking.motion_executor.pan_tilt_movement_execution_enabled" in issue_paths
     assert "vision_tracking.motion_executor.base_yaw_assist_execution_enabled" in issue_paths
     assert "vision_tracking.motion_executor.base_forward_backward_movement_enabled" in issue_paths
+
+
+def test_validator_rejects_unsafe_pan_tilt_adapter_gates() -> None:
+    module = _load_module()
+    settings = _safe_settings()
+    settings["vision_tracking"]["pan_tilt_adapter"]["dry_run"] = False
+    settings["vision_tracking"]["pan_tilt_adapter"]["backend_command_execution_enabled"] = True
+    settings["vision_tracking"]["pan_tilt_adapter"]["require_calibrated_limits"] = False
+    settings["vision_tracking"]["pan_tilt_adapter"]["require_no_motion_startup_policy"] = False
+    settings["vision_tracking"]["pan_tilt_adapter"]["max_allowed_pan_delta_degrees"] = 4.0
+    settings["vision_tracking"]["pan_tilt_adapter"]["max_allowed_tilt_delta_degrees"] = 3.0
+
+    result = module.validate_settings(settings)
+
+    assert result["ok"] is False
+    issue_paths = {issue["path"] for issue in result["issues"]}
+    assert "vision_tracking.pan_tilt_adapter.dry_run" in issue_paths
+    assert "vision_tracking.pan_tilt_adapter.backend_command_execution_enabled" in issue_paths
+    assert "vision_tracking.pan_tilt_adapter.require_calibrated_limits" in issue_paths
+    assert "vision_tracking.pan_tilt_adapter.require_no_motion_startup_policy" in issue_paths
+    assert "vision_tracking.pan_tilt_adapter.max_allowed_pan_delta_degrees" in issue_paths
+    assert "vision_tracking.pan_tilt_adapter.max_allowed_tilt_delta_degrees" in issue_paths
 
 
 def test_validator_rejects_unsafe_pan_tilt_hardware_gates() -> None:

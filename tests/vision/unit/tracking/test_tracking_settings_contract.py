@@ -56,6 +56,14 @@ def _assert_vision_tracking_contract(settings: dict) -> None:
     assert executor["base_yaw_assist_execution_enabled"] is False
     assert executor["base_forward_backward_movement_enabled"] is False
 
+    adapter = tracking["pan_tilt_adapter"]
+    assert adapter["dry_run"] is True
+    assert adapter["backend_command_execution_enabled"] is False
+    assert adapter["require_calibrated_limits"] is True
+    assert adapter["require_no_motion_startup_policy"] is True
+    assert adapter["max_allowed_pan_delta_degrees"] == 2.0
+    assert adapter["max_allowed_tilt_delta_degrees"] == 2.0
+
 
 def test_default_settings_define_safe_vision_tracking_execution_gates() -> None:
     settings = _settings_dict_from_defaults_py()

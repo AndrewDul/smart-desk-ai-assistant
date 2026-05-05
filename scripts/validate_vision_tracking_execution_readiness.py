@@ -202,6 +202,82 @@ def _validate_vision_tracking(settings: Mapping[str, Any], issues: list[Validati
         )
 
 
+def _validate_pan_tilt_adapter(settings: Mapping[str, Any], issues: list[ValidationIssue]) -> None:
+    adapter = _expect_mapping(settings, issues, "vision_tracking", "pan_tilt_adapter")
+    if adapter is None:
+        return
+
+    _expect_bool(
+        settings,
+        issues,
+        "vision_tracking",
+        "pan_tilt_adapter",
+        "dry_run",
+        expected=True,
+        message="Pan-tilt adapter must remain dry-run.",
+    )
+    _expect_bool(
+        settings,
+        issues,
+        "vision_tracking",
+        "pan_tilt_adapter",
+        "backend_command_execution_enabled",
+        expected=False,
+        message="Pan-tilt backend command execution must remain blocked.",
+    )
+    _expect_bool(
+        settings,
+        issues,
+        "vision_tracking",
+        "pan_tilt_adapter",
+        "require_calibrated_limits",
+        expected=True,
+        message="Pan-tilt adapter must require calibrated limits.",
+    )
+    _expect_bool(
+        settings,
+        issues,
+        "vision_tracking",
+        "pan_tilt_adapter",
+        "require_no_motion_startup_policy",
+        expected=True,
+        message="Pan-tilt adapter must require no-motion startup policy.",
+    )
+
+    max_pan = _expect_number(
+        settings,
+        issues,
+        "vision_tracking",
+        "pan_tilt_adapter",
+        "max_allowed_pan_delta_degrees",
+        message="Pan-tilt adapter max pan delta is required.",
+    )
+    max_tilt = _expect_number(
+        settings,
+        issues,
+        "vision_tracking",
+        "pan_tilt_adapter",
+        "max_allowed_tilt_delta_degrees",
+        message="Pan-tilt adapter max tilt delta is required.",
+    )
+
+    if max_pan is not None and not (0.0 < max_pan <= 2.0):
+        _add_issue(
+            issues,
+            severity="error",
+            path=("vision_tracking", "pan_tilt_adapter", "max_allowed_pan_delta_degrees"),
+            message="Pan-tilt adapter max pan delta must be > 0 and <= 2.0 degrees.",
+        )
+
+    if max_tilt is not None and not (0.0 < max_tilt <= 2.0):
+        _add_issue(
+            issues,
+            severity="error",
+            path=("vision_tracking", "pan_tilt_adapter", "max_allowed_tilt_delta_degrees"),
+            message="Pan-tilt adapter max tilt delta must be > 0 and <= 2.0 degrees.",
+        )
+
+
 def _validate_pan_tilt(settings: Mapping[str, Any], issues: list[ValidationIssue]) -> None:
     pan_tilt = _expect_mapping(settings, issues, "pan_tilt")
     if pan_tilt is None:
@@ -367,6 +443,7 @@ def validate_settings(settings: Mapping[str, Any]) -> dict[str, Any]:
     issues: list[ValidationIssue] = []
 
     _validate_vision_tracking(settings, issues)
+    _validate_pan_tilt_adapter(settings, issues)
     _validate_pan_tilt(settings, issues)
     _validate_mobility(settings, issues)
 

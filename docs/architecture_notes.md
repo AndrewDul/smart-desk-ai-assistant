@@ -14720,3 +14720,171 @@ The next recommended sprint is Sprint 8C:
 - extend settings tests and readiness validator,
 - keep all hardware movement blocked.
 
+---
+
+## NEXA Vision Runtime — Sprint 8C pan-tilt adapter settings contract
+
+**Date:** 2026-05-05  
+**Area:** vision / tracking / settings / pan-tilt adapter / safety validator  
+**Status:** implemented and tested
+
+### What changed
+
+Sprint 8C adds an explicit settings contract for the PanTiltExecutionAdapter.
+
+The new config section is:
+
+- vision_tracking.pan_tilt_adapter
+
+It was added to:
+
+- modules/shared/config/settings_core/defaults.py
+- config/settings.example.json
+- config/settings.json
+
+The readiness validator was extended in:
+
+- scripts/validate_vision_tracking_execution_readiness.py
+
+Updated tests include:
+
+- tests/vision/unit/tracking/test_tracking_settings_contract.py
+- tests/vision/unit/tracking/test_tracking_execution_readiness_validator.py
+- tests/vision/unit/tracking/test_tracking_execution_readiness_check_command.py
+- tests/vision/unit/tracking/test_pan_tilt_execution_adapter.py
+
+### New settings contract
+
+The new vision_tracking.pan_tilt_adapter section contains:
+
+- dry_run
+- backend_command_execution_enabled
+- require_calibrated_limits
+- require_no_motion_startup_policy
+- max_allowed_pan_delta_degrees
+- max_allowed_tilt_delta_degrees
+
+The safe default contract is:
+
+- dry_run = true
+- backend_command_execution_enabled = false
+- require_calibrated_limits = true
+- require_no_motion_startup_policy = true
+- max_allowed_pan_delta_degrees = 2.0
+- max_allowed_tilt_delta_degrees = 2.0
+
+### Why this was needed
+
+Sprint 8A created the dry-run pan-tilt adapter contract.
+
+Sprint 8B connected that adapter into VisionTrackingService and look_at_user metadata.
+
+Sprint 8C makes the adapter contract explicit in configuration and validator checks.
+
+This keeps the future pan-tilt hardware path controlled by visible, test-covered safety settings instead of hidden assumptions.
+
+### Validator impact
+
+The readiness validator now checks vision_tracking.pan_tilt_adapter and rejects unsafe adapter gates.
+
+It verifies that:
+
+- pan_tilt_adapter.dry_run is true
+- backend_command_execution_enabled is false
+- require_calibrated_limits is true
+- require_no_motion_startup_policy is true
+- max_allowed_pan_delta_degrees is greater than 0 and no more than 2.0
+- max_allowed_tilt_delta_degrees is greater than 0 and no more than 2.0
+
+This means the developer readiness checklist now also protects the pan-tilt adapter layer.
+
+### Safety rule
+
+Sprint 8C does not enable physical movement.
+
+Pan-tilt backend command execution remains blocked.
+
+The adapter still reports:
+
+- backend_command_execution_enabled = false
+- backend_command_executed = false
+
+The wider tracking execution path still reports:
+
+- movement_execution_enabled = false
+- pan_tilt_movement_execution_enabled = false
+- base_yaw_assist_execution_enabled = false
+- base_forward_backward_movement_enabled = false
+
+No camera movement, pan-tilt movement, or mobile-base movement is enabled by this sprint.
+
+### Required mobile-base yaw assist rule
+
+The required mobile-base yaw assist rule remains unchanged.
+
+When pan-tilt reaches or approaches its safe pan limit during face/person tracking, NEXA must eventually use controlled yaw-only mobile-base rotation to re-center the target.
+
+Sprint 8C does not execute mobile-base yaw assist.
+
+It only strengthens the pan-tilt adapter config and validator before future hardware work.
+
+Forward/backward base movement remains disabled and is not part of camera tracking assist.
+
+### Architecture impact
+
+The current dry-run tracking pipeline now has explicit settings and validation for each pre-hardware layer:
+
+settings
+→ vision_tracking.policy
+→ vision_tracking.motion_executor
+→ vision_tracking.pan_tilt_adapter
+→ readiness validator
+→ developer checklist
+→ VisionTrackingService
+→ TrackingMotionExecutor
+→ PanTiltExecutionAdapter
+→ no hardware movement
+
+This is the correct architecture state before preparing a tiny pan-tilt hardware smoke path.
+
+### Tests run
+
+The following test groups passed after Sprint 8C:
+
+- tests/vision/unit/tracking
+- tests/core/vision/test_look_at_user_dry_run_bridge.py
+- tests/core/voice_engine/test_visual_shell_action_flow_bridge.py
+- tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+- tests/vision/integration/test_runtime_builder_vision_tracking_bridge.py
+- tests/vision/integration/test_runtime_builder_vision_bridge.py
+- tests/vision/unit/fusion
+- tests/vision/unit/camera_service
+- tests/vision/unit/runtime/test_ai_broker_service.py
+- tests/vision/unit/runtime/test_ai_broker_builder_integration.py
+- tests/devices/pan_tilt/test_safe_pan_tilt_service.py
+- tests/devices/pan_tilt/test_waveshare_protocol.py
+- tests/presentation/visual_shell/test_visual_shell_controller.py
+- tests/presentation/visual_shell/test_visual_shell_voice_command_router.py
+
+The developer readiness checklist was also run against:
+
+- config/settings.json
+
+### Current result
+
+Sprint 8C completes the pan-tilt adapter dry-run configuration contract.
+
+NEXA now has a test-covered settings and validator path for the future pan-tilt backend command layer while still guaranteeing that hardware movement is blocked.
+
+### Next architecture step
+
+The next recommended sprint is Sprint 9A:
+
+- prepare a manual tiny pan-tilt hardware smoke checklist script,
+- keep the real movement path disabled by default,
+- require explicit CLI confirmation flags,
+- require readiness validator success,
+- require tiny movement limits,
+- include clear stop/rollback instructions,
+- do not integrate hardware movement into normal runtime yet.
+

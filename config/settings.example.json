@@ -335,6 +335,14 @@
       "pan_tilt_movement_execution_enabled": false,
       "base_yaw_assist_execution_enabled": false,
       "base_forward_backward_movement_enabled": false
+    },
+    "pan_tilt_adapter": {
+      "dry_run": true,
+      "backend_command_execution_enabled": false,
+      "require_calibrated_limits": true,
+      "require_no_motion_startup_policy": true,
+      "max_allowed_pan_delta_degrees": 2.0,
+      "max_allowed_tilt_delta_degrees": 2.0
     }
   },
   "pan_tilt": {

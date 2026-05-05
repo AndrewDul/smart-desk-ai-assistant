@@ -46,6 +46,14 @@ def _safe_settings() -> dict:
                 "base_yaw_assist_execution_enabled": False,
                 "base_forward_backward_movement_enabled": False,
             },
+            "pan_tilt_adapter": {
+                "dry_run": True,
+                "backend_command_execution_enabled": False,
+                "require_calibrated_limits": True,
+                "require_no_motion_startup_policy": True,
+                "max_allowed_pan_delta_degrees": 2.0,
+                "max_allowed_tilt_delta_degrees": 2.0,
+            },
         },
         "pan_tilt": {
             "enabled": True,
