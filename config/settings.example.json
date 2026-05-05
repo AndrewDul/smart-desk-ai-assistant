@@ -342,7 +342,9 @@
       "require_calibrated_limits": true,
       "require_no_motion_startup_policy": true,
       "max_allowed_pan_delta_degrees": 2.0,
-      "max_allowed_tilt_delta_degrees": 2.0
+      "max_allowed_tilt_delta_degrees": 2.0,
+      "runtime_hardware_execution_enabled": false,
+      "physical_movement_confirmed": false
     }
   },
   "pan_tilt": {

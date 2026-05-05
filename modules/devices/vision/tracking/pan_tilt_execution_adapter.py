@@ -9,14 +9,16 @@ from .motion_executor import TrackingMotionExecutionResult
 @dataclass(frozen=True, slots=True)
 class PanTiltExecutionAdapterConfig:
     """
-    Dry-run pan-tilt adapter configuration.
+    Safety-gated pan-tilt adapter configuration.
 
-    Sprint 8A defines the adapter contract only. It does not allow physical
-    backend calls even if a future config accidentally asks for them.
+    Default settings remain dry-run only. Backend execution is only possible
+    when all explicit hardware gates are enabled by a future controlled sprint.
     """
 
     dry_run: bool = True
     backend_command_execution_enabled: bool = False
+    runtime_hardware_execution_enabled: bool = False
+    physical_movement_confirmed: bool = False
     require_calibrated_limits: bool = True
     require_no_motion_startup_policy: bool = True
     max_allowed_pan_delta_degrees: float = 2.0
@@ -29,6 +31,12 @@ class PanTiltExecutionAdapterConfig:
             dry_run=bool(data.get("dry_run", True)),
             backend_command_execution_enabled=bool(
                 data.get("backend_command_execution_enabled", False)
+            ),
+            runtime_hardware_execution_enabled=bool(
+                data.get("runtime_hardware_execution_enabled", False)
+            ),
+            physical_movement_confirmed=bool(
+                data.get("physical_movement_confirmed", False)
             ),
             require_calibrated_limits=bool(data.get("require_calibrated_limits", True)),
             require_no_motion_startup_policy=bool(
@@ -46,7 +54,12 @@ class PanTiltExecutionAdapterConfig:
 
     @property
     def effective_backend_command_execution_enabled(self) -> bool:
-        return False
+        return bool(
+            not self.dry_run
+            and self.backend_command_execution_enabled
+            and self.runtime_hardware_execution_enabled
+            and self.physical_movement_confirmed
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,8 +85,9 @@ class PanTiltExecutionAdapter:
     """
     Contract boundary between tracking execution results and pan-tilt hardware.
 
-    Sprint 8A never calls the backend. It only converts a dry-run tracking
-    execution result into adapter-level metadata for future tiny movement work.
+    Sprint 10A adds a hardware-capable path, but it is gated by explicit config
+    and remains disabled by default. Existing runtime settings must still produce
+    backend_command_executed=false.
     """
 
     def __init__(
@@ -143,26 +157,37 @@ class PanTiltExecutionAdapter:
                 payload=payload,
             )
 
-        return self._result(
-            status="dry_run_backend_command_blocked",
-            accepted=True,
-            has_target=True,
-            would_send_pan_tilt_command=True,
-            requested_pan_delta_degrees=requested_pan,
-            requested_tilt_delta_degrees=requested_tilt,
-            clamped_pan_delta_degrees=clamped_pan,
-            clamped_tilt_delta_degrees=clamped_tilt,
-            blocked_reason="dry_run_backend_command_gate",
+        if not self._config.effective_backend_command_execution_enabled:
+            return self._result(
+                status="dry_run_backend_command_blocked",
+                accepted=True,
+                has_target=True,
+                would_send_pan_tilt_command=True,
+                requested_pan_delta_degrees=requested_pan,
+                requested_tilt_delta_degrees=requested_tilt,
+                clamped_pan_delta_degrees=clamped_pan,
+                clamped_tilt_delta_degrees=clamped_tilt,
+                blocked_reason=self._blocked_backend_execution_reason(),
+                payload=payload,
+            )
+
+        return self._execute_backend_delta(
             payload=payload,
+            requested_pan=requested_pan,
+            requested_tilt=requested_tilt,
+            clamped_pan=clamped_pan,
+            clamped_tilt=clamped_tilt,
         )
 
     def status(self) -> dict[str, Any]:
         return {
-            "dry_run": True,
-            "backend_command_execution_enabled": False,
+            "dry_run": self._config.dry_run,
             "requested_backend_command_execution_enabled": (
                 self._config.backend_command_execution_enabled
             ),
+            "backend_command_execution_enabled": self._config.backend_command_execution_enabled,
+            "runtime_hardware_execution_enabled": self._config.runtime_hardware_execution_enabled,
+            "physical_movement_confirmed": self._config.physical_movement_confirmed,
             "effective_backend_command_execution_enabled": (
                 self._config.effective_backend_command_execution_enabled
             ),
@@ -173,6 +198,90 @@ class PanTiltExecutionAdapter:
             "pan_tilt_backend_attached": self._pan_tilt_backend is not None,
             "backend_name": _backend_name(self._pan_tilt_backend),
         }
+
+    def _blocked_backend_execution_reason(self) -> str:
+        if self._config.dry_run:
+            return "dry_run_backend_command_gate"
+        if not self._config.backend_command_execution_enabled:
+            return "backend_command_execution_gate"
+        if not self._config.runtime_hardware_execution_enabled:
+            return "runtime_hardware_execution_gate"
+        if not self._config.physical_movement_confirmed:
+            return "physical_movement_confirmation_gate"
+        return "runtime_hardware_execution_gate"
+
+    def _execute_backend_delta(
+        self,
+        *,
+        payload: dict[str, Any],
+        requested_pan: float,
+        requested_tilt: float,
+        clamped_pan: float,
+        clamped_tilt: float,
+    ) -> PanTiltExecutionAdapterResult:
+        if self._pan_tilt_backend is None:
+            return self._result(
+                status="backend_unavailable",
+                accepted=False,
+                has_target=True,
+                would_send_pan_tilt_command=True,
+                requested_pan_delta_degrees=requested_pan,
+                requested_tilt_delta_degrees=requested_tilt,
+                clamped_pan_delta_degrees=clamped_pan,
+                clamped_tilt_delta_degrees=clamped_tilt,
+                blocked_reason="backend_unavailable",
+                payload=payload,
+            )
+
+        move_delta = getattr(self._pan_tilt_backend, "move_delta", None)
+        if not callable(move_delta):
+            return self._result(
+                status="backend_move_delta_unavailable",
+                accepted=False,
+                has_target=True,
+                would_send_pan_tilt_command=True,
+                requested_pan_delta_degrees=requested_pan,
+                requested_tilt_delta_degrees=requested_tilt,
+                clamped_pan_delta_degrees=clamped_pan,
+                clamped_tilt_delta_degrees=clamped_tilt,
+                blocked_reason="backend_move_delta_unavailable",
+                payload=payload,
+            )
+
+        try:
+            backend_response = move_delta(
+                pan_delta_degrees=clamped_pan,
+                tilt_delta_degrees=clamped_tilt,
+            )
+        except Exception as error:
+            return self._result(
+                status="backend_command_failed",
+                accepted=False,
+                has_target=True,
+                would_send_pan_tilt_command=True,
+                requested_pan_delta_degrees=requested_pan,
+                requested_tilt_delta_degrees=requested_tilt,
+                clamped_pan_delta_degrees=clamped_pan,
+                clamped_tilt_delta_degrees=clamped_tilt,
+                blocked_reason=f"backend_command_failed:{error.__class__.__name__}",
+                payload=payload,
+                backend_response={"error": f"{error.__class__.__name__}: {error}"},
+            )
+
+        return self._result(
+            status="backend_command_executed",
+            accepted=True,
+            has_target=True,
+            would_send_pan_tilt_command=True,
+            requested_pan_delta_degrees=requested_pan,
+            requested_tilt_delta_degrees=requested_tilt,
+            clamped_pan_delta_degrees=clamped_pan,
+            clamped_tilt_delta_degrees=clamped_tilt,
+            blocked_reason="",
+            payload=payload,
+            backend_command_executed=True,
+            backend_response=_mapping_or_value(backend_response),
+        )
 
     def _result(
         self,
@@ -187,15 +296,18 @@ class PanTiltExecutionAdapter:
         requested_tilt_delta_degrees: float = 0.0,
         clamped_pan_delta_degrees: float = 0.0,
         clamped_tilt_delta_degrees: float = 0.0,
+        backend_command_executed: bool = False,
+        backend_response: Any | None = None,
     ) -> PanTiltExecutionAdapterResult:
+        effective_execution = self._config.effective_backend_command_execution_enabled
         return PanTiltExecutionAdapterResult(
             status=status,
             accepted=accepted,
-            dry_run=True,
+            dry_run=not effective_execution,
             has_target=has_target,
             would_send_pan_tilt_command=would_send_pan_tilt_command,
-            backend_command_execution_enabled=False,
-            backend_command_executed=False,
+            backend_command_execution_enabled=effective_execution,
+            backend_command_executed=bool(backend_command_executed),
             backend_name=_backend_name(self._pan_tilt_backend),
             requested_pan_delta_degrees=round(float(requested_pan_delta_degrees), 4),
             requested_tilt_delta_degrees=round(float(requested_tilt_delta_degrees), 4),
@@ -205,9 +317,12 @@ class PanTiltExecutionAdapter:
             metadata={
                 "tracking_execution_result": payload,
                 "adapter_status": self.status(),
+                "backend_response": backend_response,
                 "safety_note": (
-                    "Sprint 8A defines the pan-tilt adapter contract only. "
-                    "No backend command is executed."
+                    "Backend command execution is only allowed when dry_run=false, "
+                    "backend_command_execution_enabled=true, "
+                    "runtime_hardware_execution_enabled=true, and "
+                    "physical_movement_confirmed=true."
                 ),
             },
         )
@@ -244,6 +359,12 @@ def _backend_name(backend: Any | None) -> str:
     if backend is None:
         return "none"
     return backend.__class__.__name__
+
+
+def _mapping_or_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return dict(value)
+    return value
 
 
 __all__ = [

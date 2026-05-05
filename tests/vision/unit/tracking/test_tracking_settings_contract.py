@@ -59,6 +59,8 @@ def _assert_vision_tracking_contract(settings: dict) -> None:
     adapter = tracking["pan_tilt_adapter"]
     assert adapter["dry_run"] is True
     assert adapter["backend_command_execution_enabled"] is False
+    assert adapter["runtime_hardware_execution_enabled"] is False
+    assert adapter["physical_movement_confirmed"] is False
     assert adapter["require_calibrated_limits"] is True
     assert adapter["require_no_motion_startup_policy"] is True
     assert adapter["max_allowed_pan_delta_degrees"] == 2.0

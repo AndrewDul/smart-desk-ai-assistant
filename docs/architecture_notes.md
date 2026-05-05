@@ -15484,3 +15484,194 @@ The next recommended sprint is Sprint 10A:
 - require config and validator approval before any runtime movement,
 - do not enable mobile-base movement yet.
 
+---
+
+## NEXA Vision Runtime — Sprint 10A hardware-capable pan-tilt adapter behind disabled runtime gates
+
+**Date:** 2026-05-05  
+**Area:** vision / tracking / pan-tilt / runtime gates / hardware execution boundary  
+**Status:** implemented and tested
+
+### What changed
+
+Sprint 10A makes the PanTiltExecutionAdapter technically capable of executing a pan-tilt backend delta command, but only when all explicit runtime hardware gates are enabled.
+
+The updated adapter is:
+
+- modules/devices/vision/tracking/pan_tilt_execution_adapter.py
+
+Updated configuration files include:
+
+- modules/shared/config/settings_core/defaults.py
+- config/settings.example.json
+- config/settings.json
+
+Updated validator file:
+
+- scripts/validate_vision_tracking_execution_readiness.py
+
+Updated tests include:
+
+- tests/vision/unit/tracking/test_pan_tilt_execution_adapter.py
+- tests/vision/unit/tracking/test_tracking_settings_contract.py
+- tests/vision/unit/tracking/test_tracking_execution_readiness_validator.py
+- tests/vision/unit/tracking/test_tracking_execution_readiness_check_command.py
+
+### New runtime hardware gates
+
+The pan_tilt_adapter settings now include:
+
+- dry_run
+- backend_command_execution_enabled
+- runtime_hardware_execution_enabled
+- physical_movement_confirmed
+- require_calibrated_limits
+- require_no_motion_startup_policy
+- max_allowed_pan_delta_degrees
+- max_allowed_tilt_delta_degrees
+
+The safe default remains:
+
+- dry_run = true
+- backend_command_execution_enabled = false
+- runtime_hardware_execution_enabled = false
+- physical_movement_confirmed = false
+
+### Effective execution rule
+
+Backend movement is allowed only when all of these are true:
+
+- dry_run = false
+- backend_command_execution_enabled = true
+- runtime_hardware_execution_enabled = true
+- physical_movement_confirmed = true
+
+If any gate is missing, the adapter returns a blocked dry-run result and does not call the backend.
+
+### Adapter execution path
+
+When all gates are enabled, the adapter can call:
+
+- pan_tilt_backend.move_delta(pan_delta_degrees=..., tilt_delta_degrees=...)
+
+The adapter clamps the requested pan and tilt delta to configured maximums before calling the backend.
+
+### Backward compatibility
+
+Sprint 10A preserved the previous dry-run semantics.
+
+Existing dry-run tests still pass, including the previous blocked reason for default dry-run mode:
+
+- dry_run_backend_command_gate
+
+The adapter status also exposes:
+
+- requested_backend_command_execution_enabled
+- backend_command_execution_enabled
+- runtime_hardware_execution_enabled
+- physical_movement_confirmed
+- effective_backend_command_execution_enabled
+
+### Validator impact
+
+The readiness validator now rejects unsafe default runtime hardware gates.
+
+It checks that:
+
+- runtime_hardware_execution_enabled remains false
+- physical_movement_confirmed remains false
+
+The readiness checklist still reports:
+
+- physical movement is allowed: NO
+- global movement execution is allowed: NO
+- pan-tilt execution is allowed: NO
+- base yaw assist execution is allowed: NO
+- base forward/backward movement is allowed: NO
+
+### Safety rule
+
+Sprint 10A does not enable normal runtime hardware movement.
+
+The following remain blocked:
+
+- look_at_user pan-tilt movement
+- tracking-loop pan-tilt movement
+- mobile-base yaw assist
+- forward/backward mobile-base movement
+- default backend command execution
+
+### Required mobile-base yaw assist rule
+
+The required yaw-only mobile-base assist rule remains unchanged.
+
+When pan-tilt reaches or approaches its safe pan limit during face/person tracking, NEXA must eventually use controlled yaw-only mobile-base rotation to re-center the target.
+
+Sprint 10A does not execute mobile-base yaw assist.
+
+Forward/backward base movement remains disabled and is not part of camera tracking assist.
+
+### Architecture impact
+
+The tracking execution chain now has a hardware-capable adapter boundary without enabling runtime movement by default.
+
+Current safe runtime chain:
+
+look_at_user command
+→ VisionTrackingService
+→ TrackingMotionPlan
+→ TrackingMotionExecutor
+→ PanTiltExecutionAdapter
+→ runtime gates checked
+→ backend command blocked by default
+→ metadata/status emitted
+
+Future controlled runtime chain:
+
+look_at_user command
+→ VisionTrackingService
+→ TrackingMotionPlan
+→ TrackingMotionExecutor
+→ PanTiltExecutionAdapter
+→ all explicit hardware gates enabled
+→ pan_tilt_backend.move_delta(...)
+→ small clamped pan/tilt correction
+
+### Tests run
+
+The following test groups passed after Sprint 10A:
+
+- tests/vision/unit/tracking
+- tests/core/vision/test_look_at_user_dry_run_bridge.py
+- tests/core/voice_engine/test_visual_shell_action_flow_bridge.py
+- tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+- tests/vision/integration/test_runtime_builder_vision_tracking_bridge.py
+- tests/vision/integration/test_runtime_builder_vision_bridge.py
+- tests/vision/unit/fusion
+- tests/vision/unit/camera_service
+- tests/vision/unit/runtime/test_ai_broker_service.py
+- tests/vision/unit/runtime/test_ai_broker_builder_integration.py
+- tests/devices/pan_tilt/test_safe_pan_tilt_service.py
+- tests/devices/pan_tilt/test_waveshare_protocol.py
+- tests/presentation/visual_shell/test_visual_shell_controller.py
+- tests/presentation/visual_shell/test_visual_shell_voice_command_router.py
+
+The readiness checklist also passed against:
+
+- config/settings.json
+
+### Current result
+
+Sprint 10A completes the first hardware-capable adapter boundary for runtime pan-tilt movement while keeping all default runtime movement gates disabled.
+
+This prepares the next stage: adding a real safe move_delta implementation to the pan-tilt service or a dedicated Waveshare backend wrapper, still behind explicit gates.
+
+### Next architecture step
+
+The next recommended sprint is Sprint 10B:
+
+- add a safe pan_tilt_backend.move_delta(...) path or adapter wrapper,
+- keep config/settings.json blocked by default,
+- test with fake backend first,
+- then prepare a manual runtime-gated one-step smoke only after tests are green.
+

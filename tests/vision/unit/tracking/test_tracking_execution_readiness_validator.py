@@ -49,6 +49,8 @@ def _safe_settings() -> dict:
             "pan_tilt_adapter": {
                 "dry_run": True,
                 "backend_command_execution_enabled": False,
+                "runtime_hardware_execution_enabled": False,
+                "physical_movement_confirmed": False,
                 "require_calibrated_limits": True,
                 "require_no_motion_startup_policy": True,
                 "max_allowed_pan_delta_degrees": 2.0,
@@ -120,6 +122,8 @@ def test_validator_rejects_unsafe_pan_tilt_adapter_gates() -> None:
     settings = _safe_settings()
     settings["vision_tracking"]["pan_tilt_adapter"]["dry_run"] = False
     settings["vision_tracking"]["pan_tilt_adapter"]["backend_command_execution_enabled"] = True
+    settings["vision_tracking"]["pan_tilt_adapter"]["runtime_hardware_execution_enabled"] = True
+    settings["vision_tracking"]["pan_tilt_adapter"]["physical_movement_confirmed"] = True
     settings["vision_tracking"]["pan_tilt_adapter"]["require_calibrated_limits"] = False
     settings["vision_tracking"]["pan_tilt_adapter"]["require_no_motion_startup_policy"] = False
     settings["vision_tracking"]["pan_tilt_adapter"]["max_allowed_pan_delta_degrees"] = 4.0
@@ -131,6 +135,8 @@ def test_validator_rejects_unsafe_pan_tilt_adapter_gates() -> None:
     issue_paths = {issue["path"] for issue in result["issues"]}
     assert "vision_tracking.pan_tilt_adapter.dry_run" in issue_paths
     assert "vision_tracking.pan_tilt_adapter.backend_command_execution_enabled" in issue_paths
+    assert "vision_tracking.pan_tilt_adapter.runtime_hardware_execution_enabled" in issue_paths
+    assert "vision_tracking.pan_tilt_adapter.physical_movement_confirmed" in issue_paths
     assert "vision_tracking.pan_tilt_adapter.require_calibrated_limits" in issue_paths
     assert "vision_tracking.pan_tilt_adapter.require_no_motion_startup_policy" in issue_paths
     assert "vision_tracking.pan_tilt_adapter.max_allowed_pan_delta_degrees" in issue_paths

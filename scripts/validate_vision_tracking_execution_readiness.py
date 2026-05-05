@@ -230,6 +230,24 @@ def _validate_pan_tilt_adapter(settings: Mapping[str, Any], issues: list[Validat
         issues,
         "vision_tracking",
         "pan_tilt_adapter",
+        "runtime_hardware_execution_enabled",
+        expected=False,
+        message="Runtime pan-tilt hardware execution must remain disabled.",
+    )
+    _expect_bool(
+        settings,
+        issues,
+        "vision_tracking",
+        "pan_tilt_adapter",
+        "physical_movement_confirmed",
+        expected=False,
+        message="Physical movement confirmation must remain false in default settings.",
+    )
+    _expect_bool(
+        settings,
+        issues,
+        "vision_tracking",
+        "pan_tilt_adapter",
         "require_calibrated_limits",
         expected=True,
         message="Pan-tilt adapter must require calibrated limits.",

@@ -353,6 +353,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "pan_tilt_adapter": {
             "dry_run": True,
             "backend_command_execution_enabled": False,
+            "runtime_hardware_execution_enabled": False,
+            "physical_movement_confirmed": False,
             "require_calibrated_limits": True,
             "require_no_motion_startup_policy": True,
             "max_allowed_pan_delta_degrees": 2.0,

@@ -19,6 +19,25 @@ class _PanTiltBackendShouldNotBeCalled:
         raise AssertionError("Pan-tilt backend must not be called in Sprint 8A.")
 
 
+
+class _PanTiltBackendWithDelta:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, float]] = []
+
+    def move_delta(self, *, pan_delta_degrees: float, tilt_delta_degrees: float) -> dict:
+        self.calls.append(
+            {
+                "pan_delta_degrees": pan_delta_degrees,
+                "tilt_delta_degrees": tilt_delta_degrees,
+            }
+        )
+        return {
+            "ok": True,
+            "pan_delta_degrees": pan_delta_degrees,
+            "tilt_delta_degrees": tilt_delta_degrees,
+        }
+
+
 def test_pan_tilt_adapter_prepares_dry_run_command_without_calling_backend() -> None:
     backend = _PanTiltBackendShouldNotBeCalled()
     adapter = PanTiltExecutionAdapter(pan_tilt_backend=backend)
@@ -142,3 +161,97 @@ def test_pan_tilt_adapter_rejects_missing_execution_result() -> None:
     assert result.status == "no_execution_result"
     assert result.backend_command_executed is False
     assert result.blocked_reason == "no_execution_result"
+
+
+
+def test_pan_tilt_adapter_executes_backend_delta_only_when_all_runtime_gates_are_enabled() -> None:
+    backend = _PanTiltBackendWithDelta()
+    adapter = PanTiltExecutionAdapter(
+        pan_tilt_backend=backend,
+        config={
+            "dry_run": False,
+            "backend_command_execution_enabled": True,
+            "runtime_hardware_execution_enabled": True,
+            "physical_movement_confirmed": True,
+            "max_allowed_pan_delta_degrees": 2.0,
+            "max_allowed_tilt_delta_degrees": 2.0,
+        },
+    )
+    execution = TrackingMotionExecutionResult(
+        has_target=True,
+        would_move_pan_tilt=True,
+        pan_delta_degrees=0.75,
+        tilt_delta_degrees=-0.25,
+    )
+
+    result = adapter.prepare(execution)
+
+    assert result.status == "backend_command_executed"
+    assert result.accepted is True
+    assert result.dry_run is False
+    assert result.would_send_pan_tilt_command is True
+    assert result.backend_command_execution_enabled is True
+    assert result.backend_command_executed is True
+    assert result.clamped_pan_delta_degrees == 0.75
+    assert result.clamped_tilt_delta_degrees == -0.25
+    assert result.blocked_reason == ""
+    assert backend.calls == [
+        {
+            "pan_delta_degrees": 0.75,
+            "tilt_delta_degrees": -0.25,
+        }
+    ]
+
+
+def test_pan_tilt_adapter_keeps_backend_blocked_when_runtime_gate_is_missing() -> None:
+    backend = _PanTiltBackendWithDelta()
+    adapter = PanTiltExecutionAdapter(
+        pan_tilt_backend=backend,
+        config={
+            "dry_run": False,
+            "backend_command_execution_enabled": True,
+            "runtime_hardware_execution_enabled": False,
+            "physical_movement_confirmed": True,
+        },
+    )
+    execution = TrackingMotionExecutionResult(
+        has_target=True,
+        would_move_pan_tilt=True,
+        pan_delta_degrees=0.5,
+    )
+
+    result = adapter.prepare(execution)
+
+    assert result.status == "dry_run_backend_command_blocked"
+    assert result.backend_command_execution_enabled is False
+    assert result.backend_command_executed is False
+    assert result.blocked_reason == "runtime_hardware_execution_gate"
+    assert backend.calls == []
+
+
+def test_pan_tilt_adapter_reports_missing_move_delta_when_execution_is_enabled() -> None:
+    class _BackendWithoutMoveDelta:
+        pass
+
+    adapter = PanTiltExecutionAdapter(
+        pan_tilt_backend=_BackendWithoutMoveDelta(),
+        config={
+            "dry_run": False,
+            "backend_command_execution_enabled": True,
+            "runtime_hardware_execution_enabled": True,
+            "physical_movement_confirmed": True,
+        },
+    )
+    execution = TrackingMotionExecutionResult(
+        has_target=True,
+        would_move_pan_tilt=True,
+        pan_delta_degrees=0.5,
+    )
+
+    result = adapter.prepare(execution)
+
+    assert result.status == "backend_move_delta_unavailable"
+    assert result.accepted is False
+    assert result.backend_command_execution_enabled is True
+    assert result.backend_command_executed is False
+    assert result.blocked_reason == "backend_move_delta_unavailable"

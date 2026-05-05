@@ -4651,3 +4651,63 @@ Before debugging software movement logic, always verify:
 - `/dev/serial0` mapping,
 - serial console disabled.
 
+---
+
+## Vision Runtime Sprint 10A — adapter runtime gate tests failed after partial patch
+
+**Date:** 2026-05-05  
+**Area:** vision / tracking / pan-tilt adapter / tests  
+**Status:** resolved
+
+### Problem
+
+During Sprint 10A, the first patch partially succeeded but focused tests failed.
+
+The failing tests were:
+
+- tests/vision/unit/tracking/test_pan_tilt_execution_adapter.py::test_pan_tilt_adapter_prepares_dry_run_command_without_calling_backend
+- tests/vision/unit/tracking/test_pan_tilt_execution_adapter.py::test_pan_tilt_adapter_blocks_even_when_config_requests_backend_execution
+
+### Symptoms
+
+The failures were:
+
+- old test expected blocked_reason = dry_run_backend_command_gate
+- new adapter returned blocked_reason = runtime_hardware_execution_gate
+- old test expected status requested_backend_command_execution_enabled
+- new status did not expose that compatibility field
+
+### Root cause
+
+Sprint 10A changed the pan-tilt adapter gate model from a single backend execution gate to a multi-gate hardware execution model.
+
+The implementation was safe, but it broke old dry-run test expectations and removed a compatibility status key.
+
+### Fix applied
+
+The adapter was updated to preserve backward-compatible dry-run behaviour.
+
+Changes:
+
+- default dry-run still reports dry_run_backend_command_gate
+- requested_backend_command_execution_enabled is exposed in adapter status
+- new runtime hardware gates are still included
+- effective_backend_command_execution_enabled remains false unless all explicit gates are enabled
+
+### Result
+
+Focused tests passed:
+
+- tests/vision/unit/tracking/test_pan_tilt_execution_adapter.py
+- tests/vision/unit/tracking/test_tracking_settings_contract.py
+- tests/vision/unit/tracking/test_tracking_execution_readiness_validator.py
+- tests/vision/unit/tracking/test_tracking_execution_readiness_check_command.py
+
+The wider Sprint 10A test suite also passed.
+
+### Follow-up rule
+
+When adding new safety gates, preserve old dry-run result semantics unless there is a deliberate migration plan.
+
+This keeps telemetry, tests, and runtime metadata stable while the hardware path evolves.
+
