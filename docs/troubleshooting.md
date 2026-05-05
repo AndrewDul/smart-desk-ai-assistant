@@ -4771,3 +4771,38 @@ For Waveshare pan-tilt runtime movement, successful serial writes are not enough
 
 If the backend reports execution but hardware does not move, compare the runtime command sequence and timing against the known-good hardware smoke test before assuming wiring or power failure.
 
+## 2026-05-05 — Vision Runtime: face tracking tuning and debug issues
+
+Context:
+During the realtime face tracking hardware sprint, several real runtime issues were found and handled.
+
+Issues observed:
+- The first face debug helper failed because this OpenCV build did not expose `cv2.data.haarcascades`.
+- The initial camera/debug script needed a fallback cascade lookup path.
+- The pan-tilt service reported successful command execution for very small deltas, but the physical movement was sometimes too small to observe.
+- Haar-based face detection sometimes produced false positives in the background, which prevented aggressive scan mode from starting.
+- When the face was already near center, the loop sometimes produced tiny up/down corrections, visible as micro-jitter.
+
+Root causes:
+- OpenCV packaging differs across Raspberry Pi/Debian environments, so `cv2.data` cannot be assumed.
+- Very small pan/tilt deltas can be physically valid but visually hard to see.
+- Haar cascades are fast but not robust enough as a final production face/person detector.
+- Optical flow can keep tracking stale regions briefly after the real face has moved away.
+- A pure recentering loop without a hold zone keeps correcting minor detector noise.
+
+Fixes / mitigations applied:
+- Used fallback Haar cascade locations such as `/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml`.
+- Compared PanTiltService command output with the known-good behavior smoke test command sequence.
+- Confirmed that the hardware command format is compatible with the behavior smoke script:
+  - prepare/stop/steady-off/pan-tilt-mode/torque-on sequence,
+  - `T=133` move commands with `X`, `Y`, `SPD`, and `ACC`.
+- Increased movement visibility during tests with larger safe step sizes.
+- Added hold-zone and minimum command delta tuning to reduce micro-jitter.
+- Increased minimum face size and area-ratio thresholds during anti-false-positive tests.
+- Added optical-flow assisted tracking for faster reaction between full Haar detections.
+- Added scan behavior for the no-target state, sweeping X and raising Y upward within calibrated limits.
+
+Follow-up:
+- Keep Haar/OpenCV as a useful fast prototype/fallback path.
+- For the product-grade version, prefer a stronger face/person detector when available, likely through the future Hailo/YOLO/person detection path.
+- Next step is voice command integration, not more validator-only work.

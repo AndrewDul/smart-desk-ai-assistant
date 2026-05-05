@@ -15808,3 +15808,42 @@ The first real face-tracking loop must remain short, gated, and limited to pan-t
 
 Mobile-base yaw assist remains OFF until pan-tilt-only face tracking is stable.
 
+## 2026-05-05 — Vision Runtime: realtime face lock and pan-tilt scan milestone
+
+Status: green hardware milestone.
+
+This sprint moved NEXA Vision Runtime from dry-run tracking foundations into real hardware-capable face tracking experiments with the Waveshare serial pan-tilt backend.
+
+Completed:
+- Confirmed that the Waveshare pan-tilt hardware moves reliably through the GPIO UART path.
+- Confirmed the correct UART wiring for pan-tilt:
+  - Raspberry Pi physical pin 8 / GPIO14 TXD0 to Waveshare RX.
+  - Raspberry Pi physical pin 10 / GPIO15 RXD0 to Waveshare TX.
+  - Raspberry Pi GND to Waveshare GND.
+  - TX and RX must be crossed.
+- Confirmed that the USB serial device belongs to the mobile base path, not the pan-tilt path.
+- Confirmed that pan-tilt uses `/dev/serial0 -> ttyAMA0`.
+- Added and exercised hardware-capable pan-tilt tracking movement through the safe adapter/backend path.
+- Confirmed that synthetic single-step tracking can execute pan/tilt backend commands when explicit runtime hardware gates are opened in-memory.
+- Built and tested realtime face tracking loops using the Raspberry Pi Camera Module 3 Wide through the Picamera2/libcamera path.
+- Tuned face tracking with OpenCV Haar detection plus optical-flow assisted tracking for lower latency.
+- Added a continuous realtime face lock + scan test that can be stopped with Ctrl+C.
+- Added scan behavior for the no-face case:
+  - scan across the X axis from left to right within calibrated safe limits,
+  - raise the camera on the Y axis toward the upper tilt limit,
+  - avoid downward search because NEXA is physically low and the user is unlikely to hide below the camera.
+- Tuned the loop to reduce micro-jitter when the face is already centered by using hold-zone and minimum command delta behavior.
+- Preserved default runtime safety:
+  - normal runtime movement remains OFF by default,
+  - look-at-user movement remains OFF by default,
+  - tracking-loop movement remains OFF by default,
+  - mobile-base yaw assist remains OFF by default,
+  - forward/backward base movement remains OFF.
+
+Important implementation direction:
+- The current realtime face lock script is a hardware validation bridge, not the final product integration layer.
+- The next product step is to connect this behavior to the Vosk fast command lane:
+  - `look at me` / `popatrz na mnie` starts face lock and tracking.
+  - `stop look at me` / `przestań na mnie patrzeć` stops tracking and centers the pan-tilt.
+- The voice path must remain fast and non-blocking. The vision loop should run as a controlled separate process or service and must not block STT/TTS/LLM runtime.
+- Mobile-base assist remains required later, but yaw-only only. No forward/backward driving is allowed for this feature.
