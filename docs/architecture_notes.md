@@ -15149,3 +15149,177 @@ The next recommended sprint is Sprint 9B.1:
 - use low speed and low acceleration,
 - do not integrate movement into normal runtime yet.
 
+---
+
+## NEXA Vision Runtime — Sprint 9B.1 safe manual pan-tilt center recovery
+
+**Date:** 2026-05-05  
+**Area:** vision / tracking / pan-tilt / manual center recovery / hardware safety  
+**Status:** implemented and tested
+
+### What changed
+
+Sprint 9B.1 adds a safe manual center recovery script for the Waveshare pan-tilt hardware.
+
+The new script is:
+
+- scripts/waveshare_pan_tilt_safe_center_recovery.py
+
+The new test file is:
+
+- tests/vision/unit/tracking/test_safe_center_recovery.py
+
+This script is a developer-only manual hardware recovery tool.
+
+It is not part of the normal NEXA runtime.
+
+It is not connected to look_at_user runtime execution.
+
+### Why this was needed
+
+Sprint 9B found that the saved calibration state was not near center:
+
+- x = 0.0
+- y = 80.0
+
+The tiny smoke script correctly refused execute mode because moving directly from Y=80 to Y=0 could be a large movement.
+
+Sprint 9B.1 creates a dedicated center recovery path that can move from the saved state to center through small waypoints, instead of hiding a large center move inside the tiny tracking smoke script.
+
+### Default behaviour
+
+The center recovery script is preview-only by default.
+
+Preview mode:
+
+- validates readiness settings
+- loads calibration state
+- checks marked calibration limits
+- verifies the current saved pose is inside marked limits
+- verifies center pose is inside marked limits
+- builds small waypoint steps toward X=0, Y=0
+- prints the exact Waveshare JSON command sequence
+- does not open the serial port
+- does not move hardware
+
+### Hardware execution safeguards
+
+Hardware execution requires all of the following:
+
+- --execute
+- --i-understand-this-moves-hardware
+- --i-confirm-physical-position-matches-state
+- --i-confirm-area-clear
+- --confirm-text RUN_CENTER_RECOVERY
+- environment variable CONFIRM_NEXA_PAN_TILT_CENTER_RECOVERY=RUN_CENTER_RECOVERY
+- readiness validator success
+- valid calibration state
+- marked pan/tilt limits
+- current pose inside marked limits
+- center pose inside marked limits
+- max step no larger than 2.0 degrees
+- speed no larger than 45
+- acceleration no larger than 45
+
+Without these confirmations, the script refuses to move.
+
+### Center recovery path
+
+The script builds a waypoint path from the saved current pose to center.
+
+For example, with:
+
+- current_x = 0.0
+- current_y = 80.0
+- max_step = 2.0
+
+The script creates 40 small steps, ending at:
+
+- X = 0.0
+- Y = 0.0
+
+The final command is always stop.
+
+### Safety rule
+
+Sprint 9B.1 does not enable normal runtime movement.
+
+The following remain blocked:
+
+- look_at_user pan-tilt movement
+- tracking-loop pan-tilt movement
+- mobile-base yaw assist
+- forward/backward mobile-base movement
+- automatic backend command execution
+
+The center recovery script is manual-only.
+
+### Required mobile-base yaw assist rule
+
+The required yaw-only mobile-base assist rule remains unchanged.
+
+When pan-tilt reaches or approaches its safe pan limit during face/person tracking, NEXA must eventually use controlled yaw-only mobile-base rotation to re-center the target.
+
+Sprint 9B.1 does not execute mobile-base yaw assist.
+
+Forward/backward base movement remains disabled and is not part of camera tracking assist.
+
+### Architecture impact
+
+The manual pre-runtime hardware path now has two separate tools:
+
+1. safe center recovery
+2. tiny tracking smoke preview/run
+
+This prevents a tiny smoke test from accidentally containing a large hidden center movement.
+
+The intended sequence is:
+
+settings
+→ readiness validator
+→ calibration state check
+→ safe center recovery preview
+→ optional manual center recovery execute
+→ tiny tracking smoke preview
+→ optional tiny tracking smoke execute
+
+Normal runtime execution remains blocked.
+
+### Tests run
+
+The following tests passed after Sprint 9B.1:
+
+- tests/vision/unit/tracking/test_safe_center_recovery.py
+- tests/vision/unit/tracking/test_tiny_pan_tilt_tracking_smoke.py
+- tests/vision/unit/tracking/test_tracking_execution_readiness_validator.py
+- tests/vision/unit/tracking
+- tests/core/vision/test_look_at_user_dry_run_bridge.py
+- tests/core/voice_engine/test_visual_shell_action_flow_bridge.py
+- tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+- tests/vision/integration/test_runtime_builder_vision_tracking_bridge.py
+- tests/vision/integration/test_runtime_builder_vision_bridge.py
+- tests/vision/unit/fusion
+- tests/vision/unit/camera_service
+- tests/vision/unit/runtime/test_ai_broker_service.py
+- tests/vision/unit/runtime/test_ai_broker_builder_integration.py
+- tests/devices/pan_tilt/test_safe_pan_tilt_service.py
+- tests/devices/pan_tilt/test_waveshare_protocol.py
+- tests/presentation/visual_shell/test_visual_shell_controller.py
+- tests/presentation/visual_shell/test_visual_shell_voice_command_router.py
+
+### Current result
+
+Sprint 9B.1 gives NEXA Vision Runtime a safe manual path to recover pan-tilt center state before running any tiny tracking smoke test.
+
+The system now avoids hiding large center recovery movement inside a tiny smoke command.
+
+### Next architecture step
+
+The next recommended sprint is Sprint 9B.2:
+
+- run the center recovery preview against the real calibration state,
+- inspect the waypoint sequence,
+- visually confirm the physical pan-tilt position matches the saved state,
+- confirm cables and screen are clear,
+- then prepare one-time hardware center recovery command if safe.
+
