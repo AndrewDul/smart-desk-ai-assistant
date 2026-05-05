@@ -13705,3 +13705,151 @@ The next recommended sprint is Sprint 5B:
 - keep hardware movement disabled,
 - make the execution result visible in status telemetry.
 
+---
+
+## NEXA Vision Runtime — Sprint 5B tracking executor bridge in look_at_user
+
+**Date:** 2026-05-05  
+**Area:** vision / tracking / dry-run execution / command metadata  
+**Status:** implemented and tested
+
+### What changed
+
+Sprint 5B connects the dry-run TrackingMotionExecutor to the look_at_user command path.
+
+The look_at_user action can now return both:
+
+- vision_tracking_plan
+- vision_tracking_execution_result
+
+The updated runtime areas are:
+
+- modules/devices/vision/tracking/service.py
+- modules/core/flows/action_flow/visual_shell_actions_mixin.py
+
+Updated tests include:
+
+- tests/vision/unit/tracking/test_tracking_service.py
+- tests/core/vision/test_look_at_user_dry_run_bridge.py
+
+### Why this was needed
+
+Sprint 5A created the dry-run execution boundary, but the command path still mainly exposed the tracking plan.
+
+Sprint 5B completes the next safe layer by making the command path show what the executor would do with that plan.
+
+This makes the future hardware path easier to validate because NEXA now exposes two separate layers:
+
+1. planning decision
+2. execution decision
+
+This preserves the architecture rule:
+
+policy decides
+→ executor checks safety gates
+→ hardware execution comes later
+
+### Current behaviour
+
+When look_at_user runs, it now produces:
+
+- a TrackingMotionPlan from VisionTrackingService
+- a TrackingMotionExecutionResult from TrackingMotionExecutor
+- command metadata containing both plan and execution result
+
+The execution result can report:
+
+- would_move_pan_tilt
+- would_request_base_yaw_assist
+- base_yaw_direction
+- movement_execution_enabled
+- pan_tilt_movement_executed
+- base_movement_executed
+
+### Safety rule
+
+Sprint 5B does not enable movement.
+
+The executor still guarantees:
+
+- movement_execution_enabled = false
+- pan_tilt_movement_execution_enabled = false
+- base_yaw_assist_execution_enabled = false
+- base_forward_backward_movement_enabled = false
+- pan_tilt_movement_executed = false
+- base_movement_executed = false
+
+This remains true even when the plan says that pan-tilt would move or base yaw assist would be required.
+
+### Required mobile-base yaw assist rule
+
+The command metadata can now show:
+
+- base_yaw_assist_required from the tracking plan
+- would_request_base_yaw_assist from the executor
+- base_yaw_direction from both layers
+
+This keeps the required yaw-only mobile-base assist design visible without executing it yet.
+
+Forward/backward movement remains disabled and is not part of camera tracking assist.
+
+### Status snapshot update
+
+VisionTrackingService status now includes:
+
+- last_plan
+- last_execution_result
+- motion_executor_status
+
+The persisted status snapshot can also include the dry-run execution result.
+
+This improves observability before hardware execution is introduced.
+
+### Architecture impact
+
+The current look_at_user flow is now:
+
+look_at_user command
+→ VisionTrackingService.plan_once(force_refresh=False)
+→ TrackingMotionPlan
+→ TrackingMotionExecutor.execute(plan)
+→ TrackingMotionExecutionResult
+→ command metadata and latest status snapshot
+→ no physical movement
+
+This is the correct safe bridge before enabling pan-tilt execution.
+
+### Tests run
+
+The following test groups passed after Sprint 5B:
+
+- tests/vision/unit/tracking
+- tests/core/vision/test_look_at_user_dry_run_bridge.py
+- tests/core/voice_engine/test_visual_shell_action_flow_bridge.py
+- tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+- tests/vision/integration/test_runtime_builder_vision_tracking_bridge.py
+- tests/vision/integration/test_runtime_builder_vision_bridge.py
+- tests/vision/unit/fusion
+- tests/vision/unit/camera_service
+- tests/vision/unit/runtime/test_ai_broker_service.py
+- tests/vision/unit/runtime/test_ai_broker_builder_integration.py
+- tests/devices/pan_tilt/test_safe_pan_tilt_service.py
+- tests/devices/pan_tilt/test_waveshare_protocol.py
+- tests/presentation/visual_shell/test_visual_shell_controller.py
+- tests/presentation/visual_shell/test_visual_shell_voice_command_router.py
+
+### Current result
+
+Sprint 5B makes look_at_user expose both the tracking decision and the dry-run execution decision.
+
+NEXA can now clearly show what it would do to pan-tilt and whether required yaw-only mobile-base assist would be requested, while still guaranteeing no hardware movement.
+
+### Next architecture step
+
+The next recommended sprint is Sprint 6A:
+
+- add a runtime-visible tracking executor service/status through builder metadata,
+- keep execution dry-run,
+- prepare config gates for later pan-tilt hardware movement,
+- do not enable physical movement yet.
+

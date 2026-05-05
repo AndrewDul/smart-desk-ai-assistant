@@ -153,3 +153,53 @@ def test_tracking_service_can_disable_status_persistence(tmp_path) -> None:
     assert plan.has_target is True
     assert status_path.exists() is False
     assert service.status()["persist_status"] is False
+
+
+def test_tracking_service_records_dry_run_execution_result_without_moving_pan_tilt() -> None:
+    vision = _FakeVisionBackend(_observation(1100, 1260))
+    pan_tilt = _FakePanTiltBackend(pan_angle=14.5)
+    service = VisionTrackingService(vision_backend=vision, pan_tilt_backend=pan_tilt)
+
+    plan = service.plan_once()
+    execution = service.latest_execution_result()
+    status = service.status()
+
+    assert plan.base_yaw_assist_required is True
+    assert execution is not None
+    assert execution.dry_run is True
+    assert execution.would_move_pan_tilt is True
+    assert execution.would_request_base_yaw_assist is True
+    assert execution.base_yaw_direction == "right"
+    assert execution.movement_execution_enabled is False
+    assert execution.pan_tilt_movement_executed is False
+    assert execution.base_movement_executed is False
+    assert status["last_execution_result"]["would_request_base_yaw_assist"] is True
+    assert status["last_execution_result"]["base_yaw_direction"] == "right"
+    assert status["motion_executor_status"]["effective_movement_execution_enabled"] is False
+    assert pan_tilt.move_calls == []
+
+
+def test_tracking_service_persists_execution_result_in_latest_snapshot(tmp_path) -> None:
+    status_path = tmp_path / "vision_tracking_status.json"
+    vision = _FakeVisionBackend(_observation(1100, 1260))
+    pan_tilt = _FakePanTiltBackend(pan_angle=14.5)
+    service = VisionTrackingService(
+        vision_backend=vision,
+        pan_tilt_backend=pan_tilt,
+        config={"status_path": str(status_path), "persist_status": True},
+    )
+
+    service.plan_once()
+
+    import json
+
+    payload = json.loads(status_path.read_text())
+
+    assert payload["last_execution_result"]["dry_run"] is True
+    assert payload["last_execution_result"]["would_move_pan_tilt"] is True
+    assert payload["last_execution_result"]["would_request_base_yaw_assist"] is True
+    assert payload["last_execution_result"]["base_yaw_direction"] == "right"
+    assert payload["last_execution_result"]["movement_execution_enabled"] is False
+    assert payload["last_execution_result"]["pan_tilt_movement_executed"] is False
+    assert payload["last_execution_result"]["base_movement_executed"] is False
+    assert payload["motion_executor_status"]["effective_movement_execution_enabled"] is False

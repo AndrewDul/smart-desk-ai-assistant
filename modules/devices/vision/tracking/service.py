@@ -7,6 +7,7 @@ from typing import Any
 from modules.runtime.contracts import VisionObservation
 
 from .models import TrackingMotionPlan, TrackingPolicyConfig, TrackingSafeLimits
+from .motion_executor import TrackingMotionExecutionResult, TrackingMotionExecutor
 from .pan_tilt_policy import PanTiltTrackingPolicy
 from .telemetry import VisionTrackingTelemetryWriter
 
@@ -16,8 +17,8 @@ class VisionTrackingService:
     Low-latency dry-run tracking coordinator.
 
     The service reads only the latest cached vision observation by default,
-    computes a pure tracking motion plan, and never moves pan-tilt or the
-    mobile base directly.
+    computes a pure tracking motion plan, creates a dry-run execution result,
+    and never moves pan-tilt or the mobile base directly.
     """
 
     def __init__(
@@ -27,6 +28,7 @@ class VisionTrackingService:
         pan_tilt_backend: Any | None = None,
         config: dict[str, Any] | None = None,
         policy: PanTiltTrackingPolicy | None = None,
+        motion_executor: TrackingMotionExecutor | None = None,
     ) -> None:
         self._vision_backend = vision_backend
         self._pan_tilt_backend = pan_tilt_backend
@@ -35,7 +37,18 @@ class VisionTrackingService:
         self._policy = policy or PanTiltTrackingPolicy(
             config=TrackingPolicyConfig.from_mapping(policy_config_payload)
         )
+
+        motion_executor_config = dict(
+            self._config.get("motion_executor", self._config.get("executor", {})) or {}
+        )
+        self._motion_executor = motion_executor or TrackingMotionExecutor(
+            pan_tilt_backend=pan_tilt_backend,
+            mobile_base_backend=None,
+            config=motion_executor_config,
+        )
+
         self._last_plan: TrackingMotionPlan | None = None
+        self._last_execution_result: TrackingMotionExecutionResult | None = None
         self._last_error: str | None = None
         self._last_telemetry_error: str | None = None
         self._last_plan_timestamp_monotonic: float | None = None
@@ -64,6 +77,7 @@ class VisionTrackingService:
                 safe_limits=pan_state["safe_limits"],
             )
             self._last_plan = plan
+            self._last_execution_result = self._motion_executor.execute(plan)
             self._last_error = None
             self._last_plan_timestamp_monotonic = time.monotonic()
             self._persist_latest_status(
@@ -80,6 +94,7 @@ class VisionTrackingService:
                 diagnostics={"error": self._last_error},
             )
             self._last_plan = plan
+            self._last_execution_result = self._motion_executor.execute(plan)
             self._last_plan_timestamp_monotonic = time.monotonic()
             self._persist_latest_status(
                 force_refresh=force_refresh,
@@ -87,8 +102,19 @@ class VisionTrackingService:
             )
             return plan
 
+    def execute_plan_dry_run(
+        self,
+        plan: TrackingMotionPlan | dict[str, Any] | None,
+    ) -> TrackingMotionExecutionResult:
+        result = self._motion_executor.execute(plan)
+        self._last_execution_result = result
+        return result
+
     def latest_plan(self) -> TrackingMotionPlan | None:
         return self._last_plan
+
+    def latest_execution_result(self) -> TrackingMotionExecutionResult | None:
+        return self._last_execution_result
 
     def status(self) -> dict[str, Any]:
         return {
@@ -104,6 +130,10 @@ class VisionTrackingService:
             "last_telemetry_error": self._last_telemetry_error,
             "last_plan_timestamp_monotonic": self._last_plan_timestamp_monotonic,
             "last_plan": None if self._last_plan is None else asdict(self._last_plan),
+            "last_execution_result": (
+                None if self._last_execution_result is None else asdict(self._last_execution_result)
+            ),
+            "motion_executor_status": self._motion_executor.status(),
         }
 
     def _latest_observation(self, *, force_refresh: bool) -> VisionObservation | None:

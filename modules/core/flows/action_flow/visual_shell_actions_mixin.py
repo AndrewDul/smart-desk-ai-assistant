@@ -264,6 +264,7 @@ class ActionVisualShellActionsMixin:
             )
 
         plan_metadata = self._tracking_plan_metadata(plan)
+        execution_metadata = self._tracking_execution_metadata(service=service, plan=plan)
         base_yaw_assist_required = bool(
             plan_metadata.get("base_yaw_assist_required", False)
         )
@@ -284,6 +285,7 @@ class ActionVisualShellActionsMixin:
                 "resolved_source": resolved.source,
                 "vision_tracking_available": True,
                 "vision_tracking_plan": plan_metadata,
+                "vision_tracking_execution_result": execution_metadata,
                 "dry_run": True,
                 "movement_execution_enabled": False,
                 "pan_tilt_movement_executed": False,
@@ -305,6 +307,34 @@ class ActionVisualShellActionsMixin:
             return metadata.get("vision_tracking_service")
 
         return None
+
+    @staticmethod
+    def _tracking_execution_metadata(*, service: Any, plan: Any) -> dict[str, Any]:
+        latest_result = getattr(service, "latest_execution_result", None)
+        if callable(latest_result):
+            result = latest_result()
+            if result is not None:
+                return ActionVisualShellActionsMixin._tracking_plan_metadata(result)
+
+        execute_dry_run = getattr(service, "execute_plan_dry_run", None)
+        if callable(execute_dry_run):
+            result = execute_dry_run(plan)
+            return ActionVisualShellActionsMixin._tracking_plan_metadata(result)
+
+        try:
+            from modules.devices.vision.tracking import TrackingMotionExecutor
+
+            result = TrackingMotionExecutor().execute(plan)
+            return ActionVisualShellActionsMixin._tracking_plan_metadata(result)
+        except Exception as error:
+            return {
+                "status": "execution_metadata_error",
+                "dry_run": True,
+                "movement_execution_enabled": False,
+                "pan_tilt_movement_executed": False,
+                "base_movement_executed": False,
+                "error": f"{error.__class__.__name__}: {error}",
+            }
 
     @staticmethod
     def _tracking_plan_metadata(plan: Any) -> dict[str, Any]:

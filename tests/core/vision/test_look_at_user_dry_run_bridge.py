@@ -71,6 +71,16 @@ def test_look_at_user_action_runs_tracking_dry_run_without_movement() -> None:
     plan = result.metadata["vision_tracking_plan"]
     assert plan["base_forward_velocity"] == 0.0
     assert plan["base_backward_velocity"] == 0.0
+
+    assert "vision_tracking_execution_result" in result.metadata
+    execution = result.metadata["vision_tracking_execution_result"]
+    assert execution["dry_run"] is True
+    assert execution["would_move_pan_tilt"] is True
+    assert execution["would_request_base_yaw_assist"] is True
+    assert execution["movement_execution_enabled"] is False
+    assert execution["pan_tilt_movement_executed"] is False
+    assert execution["base_movement_executed"] is False
+
     assert assistant._last_vision_tracking_plan["reason"] == "pan_limit_base_yaw_assist_required"
 
 
