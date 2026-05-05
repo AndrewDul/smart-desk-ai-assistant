@@ -153,6 +153,23 @@ def target_within_marked_limits(*, state: dict[str, Any], target_x: float, targe
     return lower_pan <= target_x <= upper_pan and tilt_min <= target_y <= tilt_max
 
 
+def require_state_near_center_for_execute(*, state: dict[str, Any], execute: bool) -> None:
+    if not execute:
+        return
+
+    current_x = float(state.get("x", 0.0))
+    current_y = float(state.get("y", 0.0))
+
+    if abs(current_x) <= MAX_TINY_DELTA_DEGREES and abs(current_y) <= MAX_TINY_DELTA_DEGREES:
+        return
+
+    raise SystemExit(
+        "Refusing execute because calibration state is not near center. "
+        f"Current state is X={current_x} Y={current_y}. "
+        "Run a safe manual center step first, then re-run preview."
+    )
+
+
 def require_execute_confirmation(*, execute: bool, understand: bool, confirm_text: str) -> None:
     if not execute:
         return
@@ -293,6 +310,8 @@ def main(argv: list[str] | None = None) -> int:
             f"Refusing target X={target_x} Y={target_y}. "
             "Target is outside marked calibration limits."
         )
+
+    require_state_near_center_for_execute(state=state, execute=bool(args.execute))
 
     sequence = build_sequence(
         target_x=target_x,

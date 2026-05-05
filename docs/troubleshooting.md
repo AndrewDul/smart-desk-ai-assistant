@@ -4533,3 +4533,56 @@ When tests load script files with importlib and those scripts define dataclasses
 
 This avoids false failures in Python 3.13 and keeps script-style validator tests reliable.
 
+---
+
+## Vision Runtime Sprint 9B — tiny smoke preview found non-centered calibration state
+
+**Date:** 2026-05-05  
+**Area:** vision / pan-tilt / hardware smoke safety  
+**Status:** resolved with guard
+
+### Problem
+
+The tiny pan-tilt smoke preview looked safe at the target level, but the saved calibration state showed:
+
+- x = 0.0
+- y = 80.0
+
+The planned sequence first moves to center:
+
+- X = 0
+- Y = 0
+
+This means execute mode could have caused a large movement before the tiny 0.25 degree tracking target command.
+
+### Risk
+
+The script name and requested target suggested a tiny movement, but the initial center command could be much larger if the physical pan-tilt was truly near Y=80.
+
+This could create cable strain or collision risk.
+
+### Fix applied
+
+A center-state guard was added to the tiny smoke script.
+
+Execute mode now refuses to run unless the saved calibration state is near center:
+
+- abs(x) <= 0.5
+- abs(y) <= 0.5
+
+Preview mode still works.
+
+### Result
+
+The execute test correctly refused hardware movement with:
+
+- Refusing execute because calibration state is not near center.
+- Current state is X=0.0 Y=80.0.
+- Run a safe manual center step first, then re-run preview.
+
+### Follow-up rule
+
+Before any tiny tracking smoke execute, confirm that both saved calibration state and physical pan-tilt position are near center.
+
+If not, use a dedicated safe center recovery checklist/script first.
+

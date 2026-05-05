@@ -168,3 +168,49 @@ def test_tiny_smoke_build_sequence_returns_to_center_and_stops() -> None:
     assert sequence[6][0] == "return center"
     assert sequence[-1][0] == "final stop"
     assert sequence[-1][1] == {"T": 135}
+
+
+
+def test_tiny_smoke_execute_rejects_non_centered_calibration_state(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    state_path = tmp_path / "pan_tilt_limit_calibration.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "port": "/dev/serial0",
+                "baudrate": 115200,
+                "x": 0.0,
+                "y": 80.0,
+                "marked_limits": {
+                    "pan_left_x": -15.0,
+                    "pan_right_x": 15.0,
+                    "tilt_min_y": -8.0,
+                    "tilt_max_y": 80.0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv(module.CONFIRM_ENV_NAME, module.CONFIRM_VALUE)
+
+    try:
+        module.main(
+            [
+                "--settings",
+                "config/settings.json",
+                "--state",
+                str(state_path),
+                "--pan-delta",
+                "0.25",
+                "--execute",
+                "--i-understand-this-moves-hardware",
+                "--confirm-text",
+                module.CONFIRM_VALUE,
+            ]
+        )
+    except SystemExit as error:
+        assert "calibration state is not near center" in str(error)
+        assert "Y=80.0" in str(error)
+    else:
+        raise AssertionError("Expected SystemExit for non-centered calibration state.")

@@ -15056,3 +15056,96 @@ The next recommended sprint is Sprint 9B:
 - do not integrate movement into look_at_user runtime yet,
 - keep mobile-base movement blocked.
 
+---
+
+## NEXA Vision Runtime — Sprint 9B tiny pan-tilt preview and center-state guard
+
+**Date:** 2026-05-05  
+**Area:** vision / tracking / pan-tilt / manual smoke safety  
+**Status:** implemented and tested
+
+### What changed
+
+Sprint 9B validated the manual tiny pan-tilt smoke preview against the real calibration state.
+
+The preview command was run against:
+
+- config/settings.json
+- var/data/pan_tilt_limit_calibration.json
+
+The smoke script correctly generated a preview-only sequence and did not open the serial port.
+
+A safety guard was added to:
+
+- scripts/waveshare_pan_tilt_tiny_tracking_smoke.py
+
+The guard refuses hardware execution when the saved calibration state is not near center.
+
+Updated tests include:
+
+- tests/vision/unit/tracking/test_tiny_pan_tilt_tracking_smoke.py
+
+### Why this was needed
+
+The preview showed that the requested tiny target was safe, but the saved calibration state was:
+
+- x = 0.0
+- y = 80.0
+
+The smoke sequence starts by commanding center:
+
+- X = 0
+- Y = 0
+
+If executed while the physical pan-tilt was really at Y=80, the first movement would not be a tiny 0.25 degree movement. It could be a much larger center recovery movement.
+
+Sprint 9B therefore adds a guard that prevents execute mode unless the saved calibration state is already near center.
+
+### Current behaviour
+
+Preview mode still works normally.
+
+Execute mode is refused if the saved state is not near center.
+
+The refusal message includes the current saved state and instructs the developer to run a safe manual center step first.
+
+### Safety rule
+
+Sprint 9B does not enable normal runtime movement.
+
+The following remain blocked:
+
+- look_at_user pan-tilt movement
+- tracking-loop pan-tilt movement
+- mobile-base yaw assist
+- forward/backward mobile-base movement
+- automatic backend command execution
+
+The manual smoke script is still preview-first and refuses unsafe execute conditions.
+
+### Required mobile-base yaw assist rule
+
+The required yaw-only mobile-base assist rule remains unchanged.
+
+When pan-tilt reaches or approaches its safe pan limit during face/person tracking, NEXA must eventually use controlled yaw-only mobile-base rotation to re-center the target.
+
+Sprint 9B does not execute mobile-base yaw assist.
+
+Forward/backward base movement remains disabled and is not part of camera tracking assist.
+
+### Current result
+
+The manual tiny smoke path now detects a dangerous mismatch between tiny requested movement and non-centered saved calibration state.
+
+This prevents an accidental large pan-tilt movement before the first tiny tracking smoke test.
+
+### Next architecture step
+
+The next recommended sprint is Sprint 9B.1:
+
+- add a safe manual center recovery checklist/script,
+- keep preview-only as default,
+- require explicit confirmations for hardware center recovery,
+- use low speed and low acceleration,
+- do not integrate movement into normal runtime yet.
+
