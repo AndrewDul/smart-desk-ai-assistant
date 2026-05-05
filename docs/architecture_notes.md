@@ -14888,3 +14888,171 @@ The next recommended sprint is Sprint 9A:
 - include clear stop/rollback instructions,
 - do not integrate hardware movement into normal runtime yet.
 
+---
+
+## NEXA Vision Runtime — Sprint 9A manual tiny pan-tilt hardware smoke script
+
+**Date:** 2026-05-05  
+**Area:** vision / tracking / pan-tilt / manual hardware smoke / safety  
+**Status:** implemented and tested
+
+### What changed
+
+Sprint 9A adds a manual tiny pan-tilt tracking smoke script for NEXA Vision Runtime.
+
+The new script is:
+
+- scripts/waveshare_pan_tilt_tiny_tracking_smoke.py
+
+The new test file is:
+
+- tests/vision/unit/tracking/test_tiny_pan_tilt_tracking_smoke.py
+
+This script is a developer-only manual hardware smoke tool.
+
+It is not part of the normal runtime path.
+
+It is not connected to look_at_user runtime execution.
+
+### Why this was needed
+
+Earlier sprints built the complete dry-run pre-hardware chain:
+
+- tracking policy
+- VisionTrackingService
+- TrackingMotionExecutor
+- PanTiltExecutionAdapter
+- settings contract
+- readiness validator
+- developer readiness checklist
+- pan-tilt adapter settings contract
+
+Sprint 9A prepares the first safe manual step toward real pan-tilt validation without enabling runtime movement.
+
+The script allows a developer to preview a tiny pan-tilt smoke sequence and, only with multiple explicit confirmations, run a very small hardware movement.
+
+### Default behaviour
+
+By default, the script is preview-only.
+
+Preview mode:
+
+- validates readiness settings
+- loads calibration state
+- checks marked calibration limits
+- validates tiny movement limits
+- prints the exact Waveshare JSON command sequence
+- does not open the serial port
+- does not move hardware
+
+### Hardware execution safeguards
+
+Hardware execution requires all of the following:
+
+- --execute
+- --i-understand-this-moves-hardware
+- --confirm-text RUN_TINY_PAN_TILT_SMOKE
+- environment variable CONFIRM_NEXA_TINY_PAN_TILT_SMOKE=RUN_TINY_PAN_TILT_SMOKE
+- readiness validator success
+- valid calibration state
+- marked pan/tilt limits
+- target inside marked limits
+- pan/tilt delta no larger than 0.5 degrees
+- speed no larger than 60
+- acceleration no larger than 60
+
+Without these confirmations, the script refuses to move.
+
+### Command sequence
+
+The manual smoke sequence is intentionally tiny and conservative:
+
+- stop
+- steady off
+- pan-tilt mode
+- torque on
+- center
+- tiny tracking target
+- return center
+- final stop
+
+The final command is always stop.
+
+### Safety rule
+
+Sprint 9A does not enable normal runtime movement.
+
+The following remain blocked:
+
+- look_at_user pan-tilt movement
+- tracking-loop pan-tilt movement
+- mobile-base yaw assist
+- forward/backward base movement
+- automatic hardware execution from runtime metadata
+
+The script is manual-only.
+
+### Required mobile-base yaw assist rule
+
+The required mobile-base yaw assist rule remains unchanged.
+
+When pan-tilt reaches or approaches its safe pan limit during face/person tracking, NEXA must eventually use controlled yaw-only mobile-base rotation to re-center the target.
+
+Sprint 9A does not execute mobile-base yaw assist.
+
+Forward/backward base movement remains disabled and is not part of camera tracking assist.
+
+### Architecture impact
+
+The current architecture now has a controlled pre-runtime hardware smoke path:
+
+settings
+→ readiness validator
+→ calibration state
+→ manual tiny smoke script
+→ preview-only by default
+→ explicit hardware confirmation required
+→ tiny pan-tilt movement only if manually executed
+
+This keeps hardware smoke testing separate from normal NEXA runtime execution.
+
+### Tests run
+
+The following tests passed after Sprint 9A:
+
+- tests/vision/unit/tracking/test_tiny_pan_tilt_tracking_smoke.py
+- tests/vision/unit/tracking/test_tracking_execution_readiness_validator.py
+- tests/vision/unit/tracking/test_pan_tilt_execution_adapter.py
+- tests/vision/unit/tracking
+- tests/core/vision/test_look_at_user_dry_run_bridge.py
+- tests/core/voice_engine/test_visual_shell_action_flow_bridge.py
+- tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+- tests/vision/integration/test_runtime_builder_vision_tracking_bridge.py
+- tests/vision/integration/test_runtime_builder_vision_bridge.py
+- tests/vision/unit/fusion
+- tests/vision/unit/camera_service
+- tests/vision/unit/runtime/test_ai_broker_service.py
+- tests/vision/unit/runtime/test_ai_broker_builder_integration.py
+- tests/devices/pan_tilt/test_safe_pan_tilt_service.py
+- tests/devices/pan_tilt/test_waveshare_protocol.py
+- tests/presentation/visual_shell/test_visual_shell_controller.py
+- tests/presentation/visual_shell/test_visual_shell_voice_command_router.py
+
+### Current result
+
+Sprint 9A prepares a safe manual tiny pan-tilt smoke script while keeping normal runtime movement fully blocked.
+
+NEXA can now preview the exact tiny Waveshare pan-tilt command sequence and refuse unsafe hardware execution unless all manual confirmation gates are satisfied.
+
+### Next architecture step
+
+The next recommended sprint is Sprint 9B:
+
+- run and inspect the tiny smoke preview output,
+- verify calibration state values,
+-B:
+
+- run and inspect optionally prepare a one-time manual hardware run command,
+- do not integrate movement into look_at_user runtime yet,
+- keep mobile-base movement blocked.
+
