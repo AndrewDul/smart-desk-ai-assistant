@@ -13081,3 +13081,71 @@ The next recommended step is to continue from dry-run planning toward runtime in
 5. later add controlled pan-tilt hardware motion,
 6. later add yaw-only mobile-base execution near pan limits.
 
+---
+
+## NEXA Vision Runtime — Sprint 3A CameraService latency cleanup
+
+**Date:** 2026-05-05  
+**Area:** vision / camera service / latency  
+**Status:** implemented and tested
+
+### What changed
+
+Sprint 3A cleaned up the on-demand capture path inside CameraService.
+
+The synchronous capture method now reads exactly one frame before running the vision pipeline.
+
+The affected runtime area is:
+
+- modules/devices/vision/camera_service/service.py
+
+A regression test was added under:
+
+- tests/vision/unit/camera_service/test_on_demand_capture_single_read.py
+
+### Why this was needed
+
+NEXA Vision Runtime must stay fast and must not add unnecessary delay to the assistant.
+
+The previous on-demand capture path contained two consecutive frame reads before running the pipeline.
+
+That was unnecessary for the synchronous one-shot capture path and could add avoidable latency when a caller forces a fresh observation.
+
+The cleanup supports the wider NEXA Vision Runtime rule:
+
+camera and perception may run in the background, but hot-path decisions must remain lightweight and fast.
+
+### Architecture impact
+
+This sprint does not change the continuous capture worker, object detection, tracking policy, pan-tilt safety, Visual Shell, Voice Engine v2, or any hardware movement path.
+
+The change is intentionally small and local:
+
+on-demand capture
+→ read one frame
+→ run the existing pipeline
+→ return VisionObservation
+
+### Safety impact
+
+No physical movement behaviour was changed.
+
+Pan-tilt movement remains blocked unless later enabled through a dedicated safe executor and hardware test path.
+
+Mobile-base yaw assist also remains dry-run only at this stage.
+
+### Tests run
+
+The following test groups passed after this cleanup:
+
+- tests/vision/unit/camera_service/test_on_demand_capture_single_read.py
+- tests/vision/unit/camera_service
+- tests/vision/unit/tracking
+- broader vision, pan-tilt, Visual Shell, and Voice Engine v2 runtime candidate tests
+
+### Current result
+
+Sprint 3A reduces unnecessary camera-service latency risk and protects the on-demand capture path with a regression test.
+
+This keeps the camera foundation cleaner before connecting tracking status into the wider runtime metadata.
+
