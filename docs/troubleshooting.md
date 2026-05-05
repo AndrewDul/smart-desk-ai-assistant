@@ -4586,3 +4586,68 @@ Before any tiny tracking smoke execute, confirm that both saved calibration stat
 
 If not, use a dedicated safe center recovery checklist/script first.
 
+---
+
+## Vision Runtime — pan-tilt did not move because UART pins were wired incorrectly
+
+**Date:** 2026-05-05  
+**Area:** vision / pan-tilt / Waveshare / GPIO UART  
+**Status:** resolved
+
+### Problem
+
+The Waveshare pan-tilt scripts were sending commands successfully, but the pan-tilt did not move.
+
+Observed command path:
+
+- `/dev/serial0`
+- `/dev/ttyAMA0`
+- GPIO14 / TXD0
+- GPIO15 / RXD0
+
+The system configuration looked correct:
+
+- `enable_uart=1`
+- `/dev/serial0 -> ttyAMA0`
+- `serial-getty` inactive
+- user in `dialout`
+- GPIO14 showed `TXD0`
+- GPIO15 showed `RXD0`
+
+Despite this, the hardware did not move.
+
+### Root cause
+
+The UART pins were wired incorrectly.
+
+After correcting the physical pin wiring, the behaviour/emotion pan-tilt test worked.
+
+### Correct wiring rule
+
+For Raspberry Pi GPIO UART:
+
+- Raspberry Pi physical pin 8 / GPIO14 TXD0 -> Waveshare RX
+- Raspberry Pi physical pin 10 / GPIO15 RXD0 -> Waveshare TX
+- Raspberry Pi GND -> Waveshare GND
+
+TX/RX must be crossed.
+
+Do not connect TX to TX and RX to RX.
+
+### Result
+
+After correcting the wiring, pan-tilt movement worked.
+
+This confirms that the issue was physical wiring, not the NEXA Vision Runtime tracking pipeline or Python smoke scripts.
+
+### Follow-up rule
+
+Before debugging software movement logic, always verify:
+
+- correct physical pins,
+- crossed TX/RX,
+- shared GND,
+- pan-tilt power,
+- `/dev/serial0` mapping,
+- serial console disabled.
+

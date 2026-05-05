@@ -15323,3 +15323,164 @@ The next recommended sprint is Sprint 9B.2:
 - confirm cables and screen are clear,
 - then prepare one-time hardware center recovery command if safe.
 
+---
+
+## NEXA Vision Runtime — Sprint 9C first tiny pan-tilt hardware smoke
+
+**Date:** 2026-05-05  
+**Area:** vision / tracking / pan-tilt / manual hardware smoke  
+**Status:** completed
+
+### What happened
+
+Sprint 9C completed the first manually confirmed tiny pan-tilt hardware smoke sequence.
+
+The command used:
+
+- scripts/waveshare_pan_tilt_tiny_tracking_smoke.py
+
+The run used:
+
+- settings: config/settings.json
+- calibration state: var/data/pan_tilt_limit_calibration.json
+- port: /dev/serial0
+- baudrate: 115200
+- pan delta: 0.25 degrees
+- tilt delta: 0.0 degrees
+- speed: 35
+- acceleration: 35
+- settle: 0.6 seconds
+
+### Sequence sent
+
+The script sent:
+
+- stop
+- steady off
+- pan-tilt mode
+- torque on
+- center
+- tiny tracking target X=0.25 Y=0
+- return center X=0 Y=0
+- final stop
+
+The script completed with:
+
+- exit_code = 0
+
+### Safety gates used
+
+Hardware execution required:
+
+- CONFIRM_NEXA_TINY_PAN_TILT_SMOKE=RUN_TINY_PAN_TILT_SMOKE
+- --execute
+- --i-understand-this-moves-hardware
+- --confirm-text RUN_TINY_PAN_TILT_SMOKE
+
+The tiny smoke script also required:
+
+- readiness validator success
+- valid calibration state
+- target inside marked limits
+- near-center saved state
+- pan/tilt delta no larger than 0.5 degrees
+- conservative speed and acceleration
+
+### Safety result
+
+This was a manual hardware smoke test only.
+
+It did not enable normal runtime movement.
+
+The following remain blocked:
+
+- look_at_user pan-tilt movement
+- tracking-loop pan-tilt movement
+- mobile-base yaw assist
+- forward/backward mobile-base movement
+- automatic backend command execution from runtime metadata
+
+### Architecture impact
+
+NEXA Vision Runtime now has a verified manual pan-tilt hardware smoke path.
+
+The project has proven that the safe manual path can send a tiny pan-tilt command sequence to Waveshare hardware while keeping runtime movement disabled.
+
+The normal runtime still follows the safe dry-run chain:
+
+look_at_user command
+→ VisionTrackingService
+→ TrackingMotionPlan
+→ TrackingMotionExecutor
+→ PanTiltExecutionAdapter
+→ metadata/status
+→ no automatic hardware movement
+
+### Current result
+
+The first tiny hardware command sequence completed successfully.
+
+This prepares the next stage: making the pan-tilt adapter capable of executing a single tiny movement behind explicit runtime gates, while still keeping default settings safe and disabled.
+
+### Next architecture step
+
+The next recommended sprint depends on physical observation:
+
+If the 0.25 degree movement was visible:
+
+- Sprint 10A: add hardware-capable pan-tilt adapter execution behind disabled effective gates.
+
+If the 0.25 degree movement was too small to see:
+
+- Sprint 9C.1: run a second manual tiny smoke at 0.5 degrees, still manual-only and outside normal runtime.
+
+---
+
+## NEXA Vision Runtime — pan-tilt GPIO UART wiring validated
+
+**Date:** 2026-05-05  
+**Area:** vision / pan-tilt / hardware validation  
+**Status:** validated
+
+### Result
+
+The Waveshare pan-tilt hardware now moves after correcting the GPIO UART wiring.
+
+This validates the manual hardware path for pan-tilt movement over Raspberry Pi GPIO UART.
+
+### Validated assumptions
+
+The working hardware path is:
+
+- Raspberry Pi GPIO UART
+- `/dev/serial0`
+- `/dev/ttyAMA0`
+- GPIO14 TXD0
+- GPIO15 RXD0
+- Waveshare JSON serial commands
+
+### Important wiring rule
+
+The UART connection must be crossed:
+
+- Raspberry Pi TXD0 -> Waveshare RX
+- Raspberry Pi RXD0 -> Waveshare TX
+- Raspberry Pi GND -> Waveshare GND
+
+### Architecture impact
+
+The NEXA Vision Runtime pan-tilt hardware issue was not caused by the tracking architecture.
+
+The dry-run tracking pipeline, manual smoke scripts, and Waveshare command sequence remain valid.
+
+Normal runtime movement is still intentionally blocked until the next safety-gated sprint enables a controlled single-step runtime adapter.
+
+### Next step
+
+The next recommended sprint is Sprint 10A:
+
+- add hardware-capable PanTiltExecutionAdapter path behind explicit disabled-by-default gates,
+- keep default runtime safe,
+- require config and validator approval before any runtime movement,
+- do not enable mobile-base movement yet.
+
