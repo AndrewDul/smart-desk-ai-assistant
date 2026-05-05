@@ -65,6 +65,7 @@ class ActionFlowOrchestrator(
         "visual_shell.show_desktop": "show_desktop",
         "visual_shell.show_shell": "show_shell",
         "visual_shell.show_face": "show_face_contour",
+        "visual_shell.look_at_user": "look_at_user",
         "visual_shell.return_to_idle": "return_to_idle",
         "visual_shell.show_temperature": "show_temperature",
         "visual_shell.show_battery": "show_battery",
@@ -152,6 +153,7 @@ class ActionFlowOrchestrator(
         "show_desktop": ("pokazanie pulpitu", "show desktop"),
         "show_shell": ("schowanie pulpitu", "hide desktop"),
         "show_face_contour": ("pokazanie twarzy", "show face"),
+        "look_at_user": ("spojrzenie na uzytkownika", "look at user"),
         "return_to_idle": ("powrót do chmury", "return to idle"),
         "show_temperature": ("pokazanie temperatury", "show temperature"),
         "show_battery": ("pokazanie baterii", "show battery"),
@@ -190,6 +192,7 @@ class ActionFlowOrchestrator(
         )
 
     _VISION_PRIORITY_ACTIONS = frozenset({
+        "look_at_user",
         "look_direction",
     })
     _VISION_PRIORITY_SOURCE_PREFIXES = (

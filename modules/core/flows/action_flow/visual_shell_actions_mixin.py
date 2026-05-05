@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict, is_dataclass
 from typing import Any
 
 from modules.runtime.contracts import RouteDecision
@@ -201,6 +202,145 @@ class ActionVisualShellActionsMixin:
             request=request,
             action="show_battery",
         )
+
+
+    def _handle_look_at_user(
+        self,
+        *,
+        route,
+        language: str,
+        payload: dict[str, Any],
+        resolved: ResolvedAction,
+    ) -> SkillResult:
+        """
+        Run a dry-run vision tracking plan for look_at_user.
+
+        This bridge intentionally does not execute pan/tilt movement and does
+        not execute mobile-base yaw assist. It only exposes the tracking
+        decision so later safety-gated executors can consume it.
+        """
+        del route, language, payload
+
+        service = self._vision_tracking_service()
+        if service is None:
+            return SkillResult(
+                action="look_at_user",
+                handled=True,
+                response_delivered=False,
+                status="vision_tracking_unavailable",
+                metadata={
+                    "source": "action_flow.vision_tracking",
+                    "phase": "look_at_user_dry_run",
+                    "resolved_source": resolved.source,
+                    "vision_tracking_available": False,
+                    "dry_run": True,
+                    "movement_execution_enabled": False,
+                    "pan_tilt_movement_executed": False,
+                    "base_movement_executed": False,
+                    "base_yaw_assist_execution_enabled": False,
+                },
+            )
+
+        try:
+            plan = service.plan_once(force_refresh=False)
+        except Exception as error:
+            return SkillResult(
+                action="look_at_user",
+                handled=True,
+                response_delivered=False,
+                status="vision_tracking_error",
+                metadata={
+                    "source": "action_flow.vision_tracking",
+                    "phase": "look_at_user_dry_run",
+                    "resolved_source": resolved.source,
+                    "vision_tracking_available": True,
+                    "dry_run": True,
+                    "movement_execution_enabled": False,
+                    "pan_tilt_movement_executed": False,
+                    "base_movement_executed": False,
+                    "base_yaw_assist_execution_enabled": False,
+                    "error": f"{error.__class__.__name__}: {error}",
+                },
+            )
+
+        plan_metadata = self._tracking_plan_metadata(plan)
+        base_yaw_assist_required = bool(
+            plan_metadata.get("base_yaw_assist_required", False)
+        )
+
+        if hasattr(self.assistant, "_last_vision_tracking_plan"):
+            self.assistant._last_vision_tracking_plan = plan_metadata
+        else:
+            setattr(self.assistant, "_last_vision_tracking_plan", plan_metadata)
+
+        return SkillResult(
+            action="look_at_user",
+            handled=True,
+            response_delivered=False,
+            status=str(plan_metadata.get("reason", "vision_tracking_dry_run")),
+            metadata={
+                "source": "action_flow.vision_tracking",
+                "phase": "look_at_user_dry_run",
+                "resolved_source": resolved.source,
+                "vision_tracking_available": True,
+                "vision_tracking_plan": plan_metadata,
+                "dry_run": True,
+                "movement_execution_enabled": False,
+                "pan_tilt_movement_executed": False,
+                "base_movement_executed": False,
+                "base_yaw_assist_required": base_yaw_assist_required,
+                "base_yaw_direction": plan_metadata.get("base_yaw_direction"),
+                "base_yaw_assist_execution_enabled": False,
+            },
+        )
+
+    def _vision_tracking_service(self) -> Any | None:
+        service = getattr(self.assistant, "vision_tracking", None)
+        if service is not None:
+            return service
+
+        runtime = getattr(self.assistant, "runtime", None)
+        metadata = getattr(runtime, "metadata", {}) if runtime is not None else {}
+        if isinstance(metadata, dict):
+            return metadata.get("vision_tracking_service")
+
+        return None
+
+    @staticmethod
+    def _tracking_plan_metadata(plan: Any) -> dict[str, Any]:
+        if plan is None:
+            return {"has_target": False, "reason": "no_plan"}
+
+        if is_dataclass(plan):
+            return dict(asdict(plan))
+
+        if isinstance(plan, dict):
+            return dict(plan)
+
+        metadata: dict[str, Any] = {}
+        for key in (
+            "has_target",
+            "pan_delta_degrees",
+            "tilt_delta_degrees",
+            "desired_pan_degrees",
+            "desired_tilt_degrees",
+            "clamped_pan_degrees",
+            "clamped_tilt_degrees",
+            "pan_at_limit",
+            "tilt_at_limit",
+            "base_yaw_assist_required",
+            "base_yaw_direction",
+            "base_forward_velocity",
+            "base_backward_velocity",
+            "mobile_assist_recommended",
+            "reason",
+            "diagnostics",
+        ):
+            if hasattr(plan, key):
+                metadata[key] = getattr(plan, key)
+
+        return metadata or {"has_target": False, "reason": "unserializable_plan"}
+
 
     def _handle_visual_shell_action(
         self,

@@ -180,6 +180,7 @@ class CoreAssistant(
         self.timer = self.runtime.timer
         self.audio_coordinator = self.runtime.metadata.get("audio_coordinator")
         self.vision = self.runtime.metadata.get("vision_backend")
+        self.vision_tracking = self.runtime.metadata.get("vision_tracking_service")
         self.ai_broker = self.runtime.metadata.get("ai_broker")
         self.pan_tilt = self.runtime.metadata.get("pan_tilt_backend")
         self.mobility = self.runtime.metadata.get("mobility_backend")

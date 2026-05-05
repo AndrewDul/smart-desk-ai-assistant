@@ -13262,3 +13262,141 @@ Sprint 3B makes the tracking layer available to the runtime in a safe way.
 
 This prepares the next sprint: connecting look_at_user or tracking status to runtime actions while keeping hardware movement disabled until the dedicated safety executor exists.
 
+---
+
+## NEXA Vision Runtime — Sprint 4A look_at_user dry-run command bridge
+
+**Date:** 2026-05-05  
+**Area:** vision / tracking / command bridge / runtime action flow  
+**Status:** implemented and tested
+
+### What changed
+
+Sprint 4A connects the existing look_at_user command path to the dry-run VisionTrackingService.
+
+The command bridge now allows the runtime action flow to call:
+
+- VisionTrackingService.plan_once(force_refresh=False)
+
+for the look_at_user action.
+
+The affected runtime areas are:
+
+- modules/core/assistant_impl/core.py
+- modules/core/flows/action_flow/orchestrator.py
+- modules/core/flows/action_flow/visual_shell_actions_mixin.py
+
+A new regression test was added under:
+
+- tests/core/vision/test_look_at_user_dry_run_bridge.py
+
+### Why this was needed
+
+Sprint 1 and Sprint 2 created the dry-run vision tracking policy and service.
+
+Sprint 3B exposed that service through runtime metadata.
+
+Sprint 4A is the first command bridge that lets a real runtime action use the tracking service without enabling hardware movement.
+
+This prepares the future command flow:
+
+spójrz na mnie / look at me
+→ visual_shell.look_at_user
+→ look_at_user action
+→ VisionTrackingService dry-run plan
+→ later safe pan-tilt executor
+→ later required yaw-only mobile-base assist near pan limits
+
+### Current behaviour
+
+At this stage, look_at_user only produces a dry-run tracking decision.
+
+It can return metadata such as:
+
+- vision_tracking_available
+- vision_tracking_plan
+- base_yaw_assist_required
+- base_yaw_direction
+- dry_run
+- movement_execution_enabled = false
+- pan_tilt_movement_executed = false
+- base_movement_executed = false
+- base_yaw_assist_execution_enabled = false
+
+### Safety rule
+
+Sprint 4A does not execute physical movement.
+
+Even when the tracking plan says:
+
+- base_yaw_assist_required = true
+- base_yaw_direction = right or left
+
+the mobile base does not rotate yet.
+
+This is intentional.
+
+The command bridge exposes the decision layer only.
+
+Physical pan-tilt movement and mobile-base yaw execution must still wait for a dedicated safety-gated executor.
+
+### Performance rule
+
+The command bridge uses:
+
+- force_refresh=False
+
+This is important because the look_at_user dry-run path should consume the latest cached vision observation instead of forcing a fresh camera capture.
+
+This protects the voice runtime from unnecessary camera latency.
+
+### Architecture impact
+
+The command path now has a clean separation:
+
+runtime command action
+→ tracking service decision
+→ dry-run metadata
+
+It still does not couple command recognition directly to motors.
+
+This preserves the NEXA Vision Runtime architecture rule:
+
+Vision detects and plans.
+Policy decides.
+Dedicated safety executor moves later.
+
+### Tests run
+
+The following tests passed after Sprint 4A:
+
+- tests/core/vision/test_look_at_user_dry_run_bridge.py
+- tests/core/voice_engine/test_visual_shell_action_flow_bridge.py
+- tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+- tests/vision/integration/test_runtime_builder_vision_tracking_bridge.py
+- tests/vision/integration/test_runtime_builder_vision_bridge.py
+- tests/vision/unit/tracking
+- tests/vision/unit/fusion
+- tests/vision/unit/camera_service
+- tests/vision/unit/runtime/test_ai_broker_service.py
+- tests/vision/unit/runtime/test_ai_broker_builder_integration.py
+- tests/devices/pan_tilt/test_safe_pan_tilt_service.py
+- tests/devices/pan_tilt/test_waveshare_protocol.py
+- tests/presentation/visual_shell/test_visual_shell_controller.py
+- tests/presentation/visual_shell/test_visual_shell_voice_command_router.py
+
+### Current result
+
+Sprint 4A creates the first runtime command bridge for camera tracking.
+
+NEXA can now process look_at_user through a dry-run tracking plan while keeping pan-tilt and mobile-base movement fully blocked.
+
+### Next architecture step
+
+The next recommended sprint is Sprint 4B:
+
+- add a small tracking status persistence/telemetry record,
+- keep hardware movement disabled,
+- make the last look_at_user dry-run decision easier to inspect from runtime status,
+- then prepare a safety-gated pan-tilt executor.
+
