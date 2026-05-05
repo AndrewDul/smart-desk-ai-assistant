@@ -13556,3 +13556,152 @@ The next recommended sprint is Sprint 5A:
 - return execution metadata,
 - prove that no physical pan-tilt or base movement happens unless explicit execution gates are enabled.
 
+---
+
+## NEXA Vision Runtime — Sprint 5A safety-gated tracking motion executor dry-run
+
+**Date:** 2026-05-05  
+**Area:** vision / tracking / motion execution boundary / safety gates  
+**Status:** implemented and tested
+
+### What changed
+
+Sprint 5A adds the first safety-gated tracking motion executor for NEXA Vision Runtime.
+
+The new executor lives in:
+
+- modules/devices/vision/tracking/motion_executor.py
+
+It introduces:
+
+- TrackingMotionExecutorConfig
+- TrackingMotionExecutionResult
+- TrackingMotionExecutor
+
+The executor accepts a TrackingMotionPlan and converts it into execution metadata.
+
+At this stage, it is intentionally dry-run only.
+
+### Why this was needed
+
+Earlier sprints created the dry-run tracking decision path:
+
+VisionObservation
+→ TrackingTargetSelector
+→ PanTiltTrackingPolicy
+→ VisionTrackingService
+→ look_at_user dry-run command bridge
+→ latest tracking status snapshot
+
+The next required architecture boundary is execution.
+
+NEXA must not connect tracking policy directly to motors.
+
+The correct separation is:
+
+policy decides what should happen
+→ executor checks whether execution is allowed
+→ device service moves only after safety gates permit it
+
+Sprint 5A adds that executor boundary before any physical movement is enabled.
+
+### Current behaviour
+
+The executor can report whether a plan would require:
+
+- pan-tilt movement
+- yaw-only mobile-base assist
+- no movement
+- no-target handling
+
+It returns metadata such as:
+
+- would_move_pan_tilt
+- would_request_base_yaw_assist
+- movement_execution_enabled
+- pan_tilt_movement_execution_enabled
+- base_yaw_assist_execution_enabled
+- base_forward_backward_movement_enabled
+- pan_tilt_movement_executed
+- base_movement_executed
+- base_yaw_direction
+- pan_delta_degrees
+- tilt_delta_degrees
+
+### Safety rule
+
+Sprint 5A blocks all physical execution.
+
+Even if config accidentally requests movement execution, the executor still reports:
+
+- movement_execution_enabled = false
+- pan_tilt_movement_execution_enabled = false
+- base_yaw_assist_execution_enabled = false
+- base_forward_backward_movement_enabled = false
+- pan_tilt_movement_executed = false
+- base_movement_executed = false
+
+This protects NEXA from accidental motor activation while the execution boundary is being developed.
+
+### Required mobile-base yaw assist rule
+
+The executor preserves the product rule:
+
+When pan-tilt reaches or approaches its safe pan limit during face/person tracking, NEXA must use controlled yaw-only mobile-base rotation to re-center the target.
+
+At this stage, the executor records only:
+
+- would_request_base_yaw_assist = true
+- base_yaw_direction = left or right
+
+It does not rotate the base yet.
+
+Forward/backward movement remains disabled and must not be used for camera tracking assist.
+
+### Architecture impact
+
+The current tracking architecture is now:
+
+look_at_user command
+→ VisionTrackingService.plan_once(force_refresh=False)
+→ TrackingMotionPlan
+→ TrackingMotionExecutor.execute(plan)
+→ dry-run execution result
+→ no hardware movement
+
+This adds the missing boundary between tracking decisions and future movement execution.
+
+### Tests run
+
+The following test groups passed after Sprint 5A:
+
+- tests/vision/unit/tracking
+- tests/core/vision/test_look_at_user_dry_run_bridge.py
+- tests/core/voice_engine/test_visual_shell_action_flow_bridge.py
+- tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+- tests/vision/integration/test_runtime_builder_vision_tracking_bridge.py
+- tests/vision/integration/test_runtime_builder_vision_bridge.py
+- tests/vision/unit/fusion
+- tests/vision/unit/camera_service
+- tests/vision/unit/runtime/test_ai_broker_service.py
+- tests/vision/unit/runtime/test_ai_broker_builder_integration.py
+- tests/devices/pan_tilt/test_safe_pan_tilt_service.py
+- tests/devices/pan_tilt/test_waveshare_protocol.py
+- tests/presentation/visual_shell/test_visual_shell_controller.py
+- tests/presentation/visual_shell/test_visual_shell_voice_command_router.py
+
+### Current result
+
+Sprint 5A creates the dry-run execution boundary for tracking motion.
+
+NEXA can now say what it would do with a tracking plan while still guaranteeing that pan-tilt and mobile-base hardware are not physically moved.
+
+### Next architecture step
+
+The next recommended sprint is Sprint 5B:
+
+- attach TrackingMotionExecutor to VisionTrackingService or runtime metadata,
+- let look_at_user produce both a tracking plan and dry-run execution result,
+- keep hardware movement disabled,
+- make the execution result visible in status telemetry.
+
