@@ -203,3 +203,57 @@ def test_tracking_service_persists_execution_result_in_latest_snapshot(tmp_path)
     assert payload["last_execution_result"]["pan_tilt_movement_executed"] is False
     assert payload["last_execution_result"]["base_movement_executed"] is False
     assert payload["motion_executor_status"]["effective_movement_execution_enabled"] is False
+
+
+
+def test_tracking_service_exposes_motion_executor_requested_and_effective_gates(tmp_path) -> None:
+    status_path = tmp_path / "vision_tracking_status.json"
+    vision = _FakeVisionBackend(_observation(1100, 1260))
+    pan_tilt = _FakePanTiltBackend(pan_angle=14.5)
+    service = VisionTrackingService(
+        vision_backend=vision,
+        pan_tilt_backend=pan_tilt,
+        config={
+            "status_path": str(status_path),
+            "persist_status": True,
+            "motion_executor": {
+                "dry_run": False,
+                "movement_execution_enabled": True,
+                "pan_tilt_movement_execution_enabled": True,
+                "base_yaw_assist_execution_enabled": True,
+                "base_forward_backward_movement_enabled": True,
+            },
+        },
+    )
+
+    service.plan_once()
+    status = service.status()
+
+    executor_status = status["motion_executor_status"]
+    assert executor_status["requested_any_physical_execution"] is True
+    assert executor_status["requested_movement_execution_enabled"] is True
+    assert executor_status["requested_pan_tilt_movement_execution_enabled"] is True
+    assert executor_status["requested_base_yaw_assist_execution_enabled"] is True
+    assert executor_status["requested_base_forward_backward_movement_enabled"] is True
+
+    assert executor_status["effective_movement_execution_enabled"] is False
+    assert executor_status["effective_pan_tilt_movement_execution_enabled"] is False
+    assert executor_status["effective_base_yaw_assist_execution_enabled"] is False
+    assert executor_status["effective_base_forward_backward_movement_enabled"] is False
+
+    execution = status["last_execution_result"]
+    assert execution["requested_movement_execution_enabled"] is True
+    assert execution["requested_pan_tilt_movement_execution_enabled"] is True
+    assert execution["requested_base_yaw_assist_execution_enabled"] is True
+    assert execution["requested_base_forward_backward_movement_enabled"] is True
+    assert execution["movement_execution_enabled"] is False
+    assert execution["pan_tilt_movement_executed"] is False
+    assert execution["base_movement_executed"] is False
+
+    import json
+
+    payload = json.loads(status_path.read_text())
+    assert payload["motion_executor_status"]["requested_any_physical_execution"] is True
+    assert payload["motion_executor_status"]["effective_movement_execution_enabled"] is False
+    assert payload["last_execution_result"]["requested_movement_execution_enabled"] is True
+    assert payload["last_execution_result"]["movement_execution_enabled"] is False

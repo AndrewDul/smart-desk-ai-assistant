@@ -11,8 +11,8 @@ class TrackingMotionExecutorConfig:
     """
     Safety gate configuration for tracking motion execution.
 
-    Sprint 5A is dry-run only. Even if config asks for movement execution,
-    this executor will not call pan-tilt or mobile-base hardware yet.
+    Sprint 6A exposes requested execution gates separately from effective
+    execution gates. Physical movement remains blocked at the effective layer.
     """
 
     dry_run: bool = True
@@ -39,13 +39,32 @@ class TrackingMotionExecutorConfig:
         )
 
     @property
-    def effective_movement_execution_enabled(self) -> bool:
-        """
-        Sprint 5A intentionally blocks physical execution.
+    def requested_any_physical_execution(self) -> bool:
+        return bool(
+            self.movement_execution_enabled
+            or self.pan_tilt_movement_execution_enabled
+            or self.base_yaw_assist_execution_enabled
+            or self.base_forward_backward_movement_enabled
+        )
 
-        Future sprints can replace this once hardware smoke tests and safety
-        gates are ready.
-        """
+    @property
+    def effective_dry_run(self) -> bool:
+        return True
+
+    @property
+    def effective_movement_execution_enabled(self) -> bool:
+        return False
+
+    @property
+    def effective_pan_tilt_movement_execution_enabled(self) -> bool:
+        return False
+
+    @property
+    def effective_base_yaw_assist_execution_enabled(self) -> bool:
+        return False
+
+    @property
+    def effective_base_forward_backward_movement_enabled(self) -> bool:
         return False
 
 
@@ -58,16 +77,25 @@ class TrackingMotionExecutionResult:
     has_target: bool = False
     would_move_pan_tilt: bool = False
     would_request_base_yaw_assist: bool = False
+
+    requested_movement_execution_enabled: bool = False
+    requested_pan_tilt_movement_execution_enabled: bool = False
+    requested_base_yaw_assist_execution_enabled: bool = False
+    requested_base_forward_backward_movement_enabled: bool = False
+
     movement_execution_enabled: bool = False
     pan_tilt_movement_execution_enabled: bool = False
     base_yaw_assist_execution_enabled: bool = False
     base_forward_backward_movement_enabled: bool = False
+
     pan_tilt_movement_executed: bool = False
     base_movement_executed: bool = False
+
     pan_delta_degrees: float = 0.0
     tilt_delta_degrees: float = 0.0
     base_yaw_direction: str | None = None
     reason: str = "no_plan"
+    execution_block_reason: str = "dry_run_safety_gate"
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -75,10 +103,8 @@ class TrackingMotionExecutor:
     """
     Dry-run execution boundary for vision tracking motion plans.
 
-    This class is intentionally separate from the tracking policy:
-    - policy decides what should happen,
-    - executor decides whether anything may be executed,
-    - Sprint 5A always blocks physical movement.
+    The executor shows what would be requested, but Sprint 6A keeps all
+    effective execution gates closed.
     """
 
     def __init__(
@@ -141,11 +167,36 @@ class TrackingMotionExecutor:
     def status(self) -> dict[str, Any]:
         return {
             "dry_run": True,
+            "execution_block_reason": "dry_run_safety_gate",
+            "requested_any_physical_execution": self._config.requested_any_physical_execution,
+            "requested_dry_run": self._config.dry_run,
+            "requested_movement_execution_enabled": self._config.movement_execution_enabled,
+            "requested_pan_tilt_movement_execution_enabled": (
+                self._config.pan_tilt_movement_execution_enabled
+            ),
+            "requested_base_yaw_assist_execution_enabled": (
+                self._config.base_yaw_assist_execution_enabled
+            ),
+            "requested_base_forward_backward_movement_enabled": (
+                self._config.base_forward_backward_movement_enabled
+            ),
+            "effective_dry_run": self._config.effective_dry_run,
+            "effective_movement_execution_enabled": (
+                self._config.effective_movement_execution_enabled
+            ),
+            "effective_pan_tilt_movement_execution_enabled": (
+                self._config.effective_pan_tilt_movement_execution_enabled
+            ),
+            "effective_base_yaw_assist_execution_enabled": (
+                self._config.effective_base_yaw_assist_execution_enabled
+            ),
+            "effective_base_forward_backward_movement_enabled": (
+                self._config.effective_base_forward_backward_movement_enabled
+            ),
             "movement_execution_enabled": False,
             "pan_tilt_movement_execution_enabled": False,
             "base_yaw_assist_execution_enabled": False,
             "base_forward_backward_movement_enabled": False,
-            "effective_movement_execution_enabled": self._config.effective_movement_execution_enabled,
             "pan_tilt_backend_attached": self._pan_tilt_backend is not None,
             "mobile_base_backend_attached": self._mobile_base_backend is not None,
         }
@@ -164,6 +215,7 @@ class TrackingMotionExecutor:
         tilt_delta_degrees: float = 0.0,
         base_yaw_direction: str | None = None,
     ) -> TrackingMotionExecutionResult:
+        executor_status = self.status()
         return TrackingMotionExecutionResult(
             status=status,
             accepted=accepted,
@@ -171,6 +223,16 @@ class TrackingMotionExecutor:
             has_target=has_target,
             would_move_pan_tilt=would_move_pan_tilt,
             would_request_base_yaw_assist=would_request_base_yaw_assist,
+            requested_movement_execution_enabled=self._config.movement_execution_enabled,
+            requested_pan_tilt_movement_execution_enabled=(
+                self._config.pan_tilt_movement_execution_enabled
+            ),
+            requested_base_yaw_assist_execution_enabled=(
+                self._config.base_yaw_assist_execution_enabled
+            ),
+            requested_base_forward_backward_movement_enabled=(
+                self._config.base_forward_backward_movement_enabled
+            ),
             movement_execution_enabled=False,
             pan_tilt_movement_execution_enabled=False,
             base_yaw_assist_execution_enabled=False,
@@ -181,12 +243,13 @@ class TrackingMotionExecutor:
             tilt_delta_degrees=round(float(tilt_delta_degrees), 4),
             base_yaw_direction=base_yaw_direction,
             reason=reason,
+            execution_block_reason="dry_run_safety_gate",
             metadata={
                 "plan": plan_metadata,
-                "executor_status": self.status(),
+                "executor_status": executor_status,
                 "safety_note": (
-                    "Sprint 5A is dry-run only. Physical pan-tilt and "
-                    "mobile-base movement remain blocked."
+                    "Sprint 6A exposes requested execution gates, but all "
+                    "effective physical movement gates remain closed."
                 ),
             },
         )

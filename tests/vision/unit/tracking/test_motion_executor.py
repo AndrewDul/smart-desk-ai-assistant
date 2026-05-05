@@ -151,3 +151,67 @@ def test_motion_executor_rejects_missing_plan() -> None:
     assert result.reason == "no_plan"
     assert result.pan_tilt_movement_executed is False
     assert result.base_movement_executed is False
+
+
+
+def test_motion_executor_exposes_requested_and_effective_execution_gates() -> None:
+    executor = TrackingMotionExecutor(
+        config={
+            "dry_run": False,
+            "movement_execution_enabled": True,
+            "pan_tilt_movement_execution_enabled": True,
+            "base_yaw_assist_execution_enabled": True,
+            "base_forward_backward_movement_enabled": True,
+        }
+    )
+
+    status = executor.status()
+
+    assert status["requested_any_physical_execution"] is True
+    assert status["requested_dry_run"] is False
+    assert status["requested_movement_execution_enabled"] is True
+    assert status["requested_pan_tilt_movement_execution_enabled"] is True
+    assert status["requested_base_yaw_assist_execution_enabled"] is True
+    assert status["requested_base_forward_backward_movement_enabled"] is True
+
+    assert status["effective_dry_run"] is True
+    assert status["effective_movement_execution_enabled"] is False
+    assert status["effective_pan_tilt_movement_execution_enabled"] is False
+    assert status["effective_base_yaw_assist_execution_enabled"] is False
+    assert status["effective_base_forward_backward_movement_enabled"] is False
+    assert status["execution_block_reason"] == "dry_run_safety_gate"
+
+
+def test_motion_executor_result_preserves_requested_gates_but_blocks_effective_execution() -> None:
+    executor = TrackingMotionExecutor(
+        config={
+            "movement_execution_enabled": True,
+            "pan_tilt_movement_execution_enabled": True,
+            "base_yaw_assist_execution_enabled": True,
+            "base_forward_backward_movement_enabled": True,
+        }
+    )
+    plan = TrackingMotionPlan(
+        has_target=True,
+        target=None,
+        pan_delta_degrees=1.0,
+        tilt_delta_degrees=0.0,
+        base_yaw_assist_required=True,
+        base_yaw_direction="right",
+        reason="pan_limit_base_yaw_assist_required",
+    )
+
+    result = executor.execute(plan)
+
+    assert result.requested_movement_execution_enabled is True
+    assert result.requested_pan_tilt_movement_execution_enabled is True
+    assert result.requested_base_yaw_assist_execution_enabled is True
+    assert result.requested_base_forward_backward_movement_enabled is True
+
+    assert result.movement_execution_enabled is False
+    assert result.pan_tilt_movement_execution_enabled is False
+    assert result.base_yaw_assist_execution_enabled is False
+    assert result.base_forward_backward_movement_enabled is False
+    assert result.pan_tilt_movement_executed is False
+    assert result.base_movement_executed is False
+    assert result.execution_block_reason == "dry_run_safety_gate"
