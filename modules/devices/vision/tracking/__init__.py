@@ -2,6 +2,7 @@ from .models import TrackingMotionPlan, TrackingPolicyConfig, TrackingSafeLimits
 from .pan_tilt_policy import PanTiltTrackingPolicy
 from .service import VisionTrackingService
 from .target_selector import TrackingTargetSelector
+from .telemetry import VisionTrackingTelemetryWriter
 
 __all__ = [
     "PanTiltTrackingPolicy",
@@ -11,4 +12,5 @@ __all__ = [
     "TrackingTarget",
     "TrackingTargetSelector",
     "VisionTrackingService",
+    "VisionTrackingTelemetryWriter",
 ]

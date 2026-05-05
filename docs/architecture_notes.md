@@ -13400,3 +13400,159 @@ The next recommended sprint is Sprint 4B:
 - make the last look_at_user dry-run decision easier to inspect from runtime status,
 - then prepare a safety-gated pan-tilt executor.
 
+---
+
+## NEXA Vision Runtime — Sprint 4B tracking status telemetry
+
+**Date:** 2026-05-05  
+**Area:** vision / tracking / telemetry / runtime status  
+**Status:** implemented and tested
+
+### What changed
+
+Sprint 4B adds lightweight tracking status telemetry for NEXA Vision Runtime.
+
+The VisionTrackingService can now persist the latest dry-run tracking decision as a small JSON status snapshot.
+
+The status snapshot path is:
+
+- var/data/vision_tracking_status.json
+
+The new telemetry module is:
+
+- modules/devices/vision/tracking/telemetry.py
+
+The updated service is:
+
+- modules/devices/vision/tracking/service.py
+
+New or updated tests include:
+
+- tests/vision/unit/tracking/test_tracking_telemetry.py
+- tests/vision/unit/tracking/test_tracking_service.py
+
+### Why this was needed
+
+Sprint 4A connected the look_at_user action to the dry-run VisionTrackingService.
+
+After that, the next requirement was observability.
+
+Before any physical pan-tilt movement or mobile-base yaw assist execution is enabled, NEXA must make tracking decisions easy to inspect.
+
+This sprint gives the runtime a clear latest-plan snapshot without creating heavy logging pressure.
+
+### Current telemetry behaviour
+
+The tracking service writes only the latest status snapshot.
+
+It does not write a high-frequency JSONL stream.
+
+This is intentional because the current tracking bridge is command-level dry-run, not a continuous high-rate tracking loop.
+
+The snapshot includes:
+
+- dry_run
+- movement_execution_enabled
+- pan_tilt_movement_execution_enabled
+- base_yaw_assist_execution_enabled
+- base_forward_backward_movement_enabled
+- last_plan
+- last_error
+- last_telemetry_error
+- last_plan_timestamp_monotonic
+- status_path
+- persist_status
+- force_refresh
+- plan_elapsed_ms
+
+### Required mobile-base yaw assist status
+
+The persisted status can show when yaw-only base assist is required near pan-tilt limits.
+
+At this stage it records decision fields such as:
+
+- base_yaw_assist_required
+- base_yaw_direction
+- base_forward_velocity = 0.0
+- base_backward_velocity = 0.0
+
+This preserves the product rule:
+
+When pan-tilt reaches or approaches its safe pan limit during face/person tracking, NEXA must use controlled yaw-only mobile-base rotation to re-center the target.
+
+However, Sprint 4B still records only the decision.
+
+It does not execute the base movement.
+
+### Safety rule
+
+Sprint 4B does not enable any physical movement.
+
+The following remain false:
+
+- movement_execution_enabled
+- pan_tilt_movement_execution_enabled
+- base_yaw_assist_execution_enabled
+- base_forward_backward_movement_enabled
+
+Pan-tilt and mobile-base execution must still wait for a dedicated safety-gated executor.
+
+### Performance rule
+
+The status snapshot is intentionally lightweight.
+
+The service persists only the latest command-level decision and can disable persistence through config:
+
+- persist_status = false
+
+This avoids turning dry-run tracking into a high-frequency disk writer.
+
+Future continuous tracking loops should keep hot-path decisions in memory and use throttled telemetry if needed.
+
+### Architecture impact
+
+The current flow is now:
+
+look_at_user command
+→ VisionTrackingService.plan_once(force_refresh=False)
+→ dry-run TrackingMotionPlan
+→ in-memory last plan
+→ optional latest JSON status snapshot
+→ no physical movement
+
+This improves debugging and validation before hardware execution is introduced.
+
+### Tests run
+
+The following test groups passed after Sprint 4B:
+
+- tests/vision/unit/tracking
+- tests/core/vision/test_look_at_user_dry_run_bridge.py
+- tests/core/voice_engine/test_visual_shell_action_flow_bridge.py
+- tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+- tests/vision/integration/test_runtime_builder_vision_tracking_bridge.py
+- tests/vision/integration/test_runtime_builder_vision_bridge.py
+- tests/vision/unit/fusion
+- tests/vision/unit/camera_service
+- tests/vision/unit/runtime/test_ai_broker_service.py
+- tests/vision/unit/runtime/test_ai_broker_builder_integration.py
+- tests/devices/pan_tilt/test_safe_pan_tilt_service.py
+- tests/devices/pan_tilt/test_waveshare_protocol.py
+- tests/presentation/visual_shell/test_visual_shell_controller.py
+- tests/presentation/visual_shell/test_visual_shell_voice_command_router.py
+
+### Current result
+
+Sprint 4B makes dry-run tracking decisions inspectable.
+
+NEXA can now expose the latest look_at_user tracking plan through a persistent status snapshot while keeping pan-tilt movement and mobile-base yaw assist execution blocked.
+
+### Next architecture step
+
+The next recommended sprint is Sprint 5A:
+
+- add a safety-gated pan-tilt motion executor in dry-run mode,
+- consume TrackingMotionPlan,
+- return execution metadata,
+- prove that no physical pan-tilt or base movement happens unless explicit execution gates are enabled.
+

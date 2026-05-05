@@ -103,3 +103,53 @@ def test_tracking_service_returns_no_target_plan_without_observation() -> None:
     assert plan.has_target is False
     assert plan.reason == "no_target"
     assert service.status()["ok"] is True
+
+
+def test_tracking_service_persists_latest_dry_run_status_snapshot(tmp_path) -> None:
+    status_path = tmp_path / "vision_tracking_status.json"
+    vision = _FakeVisionBackend(_observation(1100, 1260))
+    pan_tilt = _FakePanTiltBackend(pan_angle=14.5)
+    service = VisionTrackingService(
+        vision_backend=vision,
+        pan_tilt_backend=pan_tilt,
+        config={"status_path": str(status_path), "persist_status": True},
+    )
+
+    plan = service.plan_once()
+
+    assert plan.base_yaw_assist_required is True
+    assert status_path.exists()
+
+    import json
+
+    payload = json.loads(status_path.read_text())
+
+    assert payload["event"] == "vision_tracking_plan"
+    assert payload["dry_run"] is True
+    assert payload["movement_execution_enabled"] is False
+    assert payload["pan_tilt_movement_execution_enabled"] is False
+    assert payload["base_yaw_assist_execution_enabled"] is False
+    assert payload["base_forward_backward_movement_enabled"] is False
+    assert payload["last_plan"]["base_yaw_assist_required"] is True
+    assert payload["last_plan"]["base_yaw_direction"] == "right"
+    assert payload["last_plan"]["base_forward_velocity"] == 0.0
+    assert payload["last_plan"]["base_backward_velocity"] == 0.0
+    assert payload["force_refresh"] is False
+    assert payload["plan_elapsed_ms"] >= 0.0
+
+
+def test_tracking_service_can_disable_status_persistence(tmp_path) -> None:
+    status_path = tmp_path / "vision_tracking_status.json"
+    vision = _FakeVisionBackend(_observation(930, 1130))
+    pan_tilt = _FakePanTiltBackend(pan_angle=0.0)
+    service = VisionTrackingService(
+        vision_backend=vision,
+        pan_tilt_backend=pan_tilt,
+        config={"status_path": str(status_path), "persist_status": False},
+    )
+
+    plan = service.plan_once()
+
+    assert plan.has_target is True
+    assert status_path.exists() is False
+    assert service.status()["persist_status"] is False

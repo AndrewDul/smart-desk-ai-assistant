@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import asdict
 from typing import Any
 
@@ -7,6 +8,7 @@ from modules.runtime.contracts import VisionObservation
 
 from .models import TrackingMotionPlan, TrackingPolicyConfig, TrackingSafeLimits
 from .pan_tilt_policy import PanTiltTrackingPolicy
+from .telemetry import VisionTrackingTelemetryWriter
 
 
 class VisionTrackingService:
@@ -35,6 +37,13 @@ class VisionTrackingService:
         )
         self._last_plan: TrackingMotionPlan | None = None
         self._last_error: str | None = None
+        self._last_telemetry_error: str | None = None
+        self._last_plan_timestamp_monotonic: float | None = None
+        self._persist_status = bool(self._config.get("persist_status", True))
+        self._status_path = str(
+            self._config.get("status_path", "var/data/vision_tracking_status.json")
+        )
+        self._telemetry_writer = VisionTrackingTelemetryWriter(path=self._status_path)
 
     def plan_once(self, *, force_refresh: bool = False) -> TrackingMotionPlan:
         """
@@ -44,6 +53,7 @@ class VisionTrackingService:
         hot tracking path. It should not force camera capture unless a caller
         explicitly asks for that slower behavior.
         """
+        started_at = time.monotonic()
         try:
             observation = self._latest_observation(force_refresh=force_refresh)
             pan_state = self._pan_tilt_state()
@@ -55,6 +65,11 @@ class VisionTrackingService:
             )
             self._last_plan = plan
             self._last_error = None
+            self._last_plan_timestamp_monotonic = time.monotonic()
+            self._persist_latest_status(
+                force_refresh=force_refresh,
+                elapsed_ms=(time.monotonic() - started_at) * 1000.0,
+            )
             return plan
         except Exception as error:
             self._last_error = f"{error.__class__.__name__}: {error}"
@@ -65,6 +80,11 @@ class VisionTrackingService:
                 diagnostics={"error": self._last_error},
             )
             self._last_plan = plan
+            self._last_plan_timestamp_monotonic = time.monotonic()
+            self._persist_latest_status(
+                force_refresh=force_refresh,
+                elapsed_ms=(time.monotonic() - started_at) * 1000.0,
+            )
             return plan
 
     def latest_plan(self) -> TrackingMotionPlan | None:
@@ -75,7 +95,14 @@ class VisionTrackingService:
             "ok": self._last_error is None,
             "dry_run": True,
             "movement_execution_enabled": False,
+            "pan_tilt_movement_execution_enabled": False,
+            "base_yaw_assist_execution_enabled": False,
+            "base_forward_backward_movement_enabled": False,
+            "persist_status": self._persist_status,
+            "status_path": self._status_path,
             "last_error": self._last_error,
+            "last_telemetry_error": self._last_telemetry_error,
+            "last_plan_timestamp_monotonic": self._last_plan_timestamp_monotonic,
             "last_plan": None if self._last_plan is None else asdict(self._last_plan),
         }
 
@@ -116,6 +143,20 @@ class VisionTrackingService:
         result = method()
         return result if isinstance(result, dict) else {}
 
+    def _persist_latest_status(self, *, force_refresh: bool, elapsed_ms: float) -> None:
+        self._last_telemetry_error = None
+        if not self._persist_status:
+            return
+
+        try:
+            payload = self.status()
+            payload["event"] = "vision_tracking_plan"
+            payload["force_refresh"] = bool(force_refresh)
+            payload["plan_elapsed_ms"] = round(float(elapsed_ms), 4)
+            self._telemetry_writer.write_snapshot(payload)
+        except Exception as error:
+            self._last_telemetry_error = f"{error.__class__.__name__}: {error}"
+
 
 def _float_from(payload: Any, key: str, default: float) -> float:
     if not isinstance(payload, dict):
@@ -124,3 +165,6 @@ def _float_from(payload: Any, key: str, default: float) -> float:
         return float(payload.get(key, default))
     except (TypeError, ValueError):
         return float(default)
+
+
+__all__ = ["VisionTrackingService"]
