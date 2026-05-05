@@ -15744,3 +15744,67 @@ The next recommended step is Sprint 10C: one controlled runtime-gated pan-tilt s
 
 The movement must remain tiny, explicitly gated, and hardware-confirmed before any tracking loop is enabled.
 
+
+---
+
+## NEXA Vision Runtime — Sprint 10C hardware-confirmed pan-tilt runtime step
+
+**Date:** 2026-05-05  
+**Area:** vision / pan-tilt / tracking / hardware runtime execution  
+**Status:** implemented and hardware-confirmed
+
+### What changed
+
+Sprint 10C confirmed that the NEXA vision tracking path can reach the real Waveshare pan-tilt hardware through the runtime backend.
+
+Confirmed path:
+
+`VisionTrackingService -> TrackingMotionExecutor -> PanTiltExecutionAdapter -> PanTiltService.move_delta(...) -> Waveshare serial backend -> /dev/serial0`
+
+The runtime backend was updated so that the Waveshare controller receives a more reliable preparation sequence before target movement.
+
+The working runtime command sequence is now aligned with the previously confirmed hardware behavior smoke pattern:
+
+- stop
+- steady off
+- pan-tilt mode
+- torque on
+- hold current position
+- target movement
+
+### Safety state
+
+Default runtime movement remains disabled.
+
+The default readiness validator still reports:
+
+- `movement_execution_allowed = false`
+- `pan_tilt_execution_allowed = false`
+- `base_yaw_assist_execution_allowed = false`
+- `base_forward_backward_movement_allowed = false`
+- `safe_to_execute_physical_motion = false`
+
+Real hardware movement is only allowed through explicit temporary gates in dedicated hardware scripts.
+
+### Hardware result
+
+A visible hardware movement test confirmed that `PanTiltService` can now move the Waveshare pan-tilt through the runtime backend.
+
+The previous issue where commands were reported as sent but no physical movement was visible was resolved by using a fuller Waveshare preparation sequence and safer timing.
+
+### Current product state
+
+NEXA now has a hardware-confirmed pan-tilt execution backend suitable for the next real vision step.
+
+The system is not yet running continuous tracking by default.
+
+### Next step
+
+Sprint 11A should connect a real camera face target into the tracking service:
+
+`Camera Module 3 Wide -> face detection -> target selection -> tracking policy -> PanTiltService.move_delta(...)`
+
+The first real face-tracking loop must remain short, gated, and limited to pan-tilt only.
+
+Mobile-base yaw assist remains OFF until pan-tilt-only face tracking is stable.
+

@@ -8,7 +8,7 @@ from typing import Any, Callable, Protocol
 
 from modules.shared.logging.logger import get_logger
 
-from .waveshare_protocol import compact_json_line, gimbal_simple_command
+from .waveshare_protocol import compact_json_line
 
 
 LOGGER = get_logger(__name__)
@@ -306,6 +306,7 @@ class WaveshareSerialPanTiltBackend:
         self._pan_angle = runtime_config.safe_limits.pan_center_degrees
         self._tilt_angle = runtime_config.safe_limits.tilt_center_degrees
         self._serial_write_count = 0
+        self._controller_prepared = False
         self._load_initial_position_from_calibration_state()
 
     def status(self) -> dict[str, Any]:
@@ -332,6 +333,7 @@ class WaveshareSerialPanTiltBackend:
                 "serial_opened": False,
                 "serial_write_enabled": serial_write_enabled,
                 "serial_write_count": self._serial_write_count,
+                "controller_prepared": self._controller_prepared,
                 "pan_angle": round(self._pan_angle, 3),
                 "tilt_angle": round(self._tilt_angle, 3),
                 **calibration_status,
@@ -400,16 +402,24 @@ class WaveshareSerialPanTiltBackend:
             )
             return result
 
-        command = gimbal_simple_command(
+        command = _waveshare_move_command(
             x=target_pan,
             y=target_tilt,
             speed=self._config.command_speed,
             acceleration=self._config.command_acceleration,
         )
-        commands = _build_waveshare_runtime_sequence(command)
+        commands = _build_waveshare_runtime_sequence(
+            target_command=command,
+            current_pan_degrees=self._pan_angle,
+            current_tilt_degrees=self._tilt_angle,
+            speed=self._config.command_speed,
+            acceleration=self._config.command_acceleration,
+            include_prepare=not self._controller_prepared,
+        )
 
         try:
             self._send_commands(commands)
+            self._controller_prepared = True
         except Exception as error:
             result = self.status()
             result.update(common)
@@ -538,22 +548,32 @@ class WaveshareSerialPanTiltBackend:
             missing.append("pan_tilt.calibration_ready")
         return missing
 
-    def _send_commands(self, commands: list[dict[str, Any]]) -> None:
+    def _send_commands(self, commands: list[tuple[str, dict[str, Any], float, float]]) -> None:
         serial_port = self._open_serial()
         with serial_port as ser:
-            if self._config.serial_warmup_seconds > 0.0:
-                time.sleep(self._config.serial_warmup_seconds)
+            warmup_seconds = self._config.serial_warmup_seconds
+            if not self._controller_prepared:
+                warmup_seconds = max(warmup_seconds, 1.0)
+            else:
+                warmup_seconds = max(warmup_seconds, 0.2)
+
+            if warmup_seconds > 0.0:
+                time.sleep(warmup_seconds)
+
             reset = getattr(ser, "reset_input_buffer", None)
             if callable(reset):
                 reset()
-            for command in commands:
+
+            for label, command, pause_seconds, read_seconds in commands:
                 line = compact_json_line(command)
                 ser.write(line.encode("utf-8"))
                 flush = getattr(ser, "flush", None)
                 if callable(flush):
                     flush()
                 self._serial_write_count += 1
-                self._drain_serial(ser)
+                self._drain_serial(ser, read_seconds=read_seconds)
+                if pause_seconds > 0.0:
+                    time.sleep(pause_seconds)
 
     def _open_serial(self) -> Any:
         if self._serial_factory is not None:
@@ -574,15 +594,17 @@ class WaveshareSerialPanTiltBackend:
             timeout=self._config.timeout_seconds,
         )
 
-    def _drain_serial(self, ser: Any) -> None:
-        if self._config.read_after_write_seconds <= 0.0:
+    def _drain_serial(self, ser: Any, *, read_seconds: float | None = None) -> None:
+        duration = self._config.read_after_write_seconds if read_seconds is None else float(read_seconds)
+        if duration <= 0.0:
             return
         readline = getattr(ser, "readline", None)
         if not callable(readline):
             return
-        deadline = time.monotonic() + self._config.read_after_write_seconds
+        deadline = time.monotonic() + duration
         while time.monotonic() < deadline:
             readline()
+
 
 
 class PanTiltService:
@@ -703,13 +725,59 @@ def _clamp_delta(value: float, max_abs_value: float) -> float:
     return max(-limit, min(limit, float(value)))
 
 
-def _build_waveshare_runtime_sequence(command: dict[str, Any]) -> list[dict[str, Any]]:
-    return [
-        {"T": 137, "s": 0, "y": 0},
-        {"T": 4, "cmd": 2},
-        {"T": 210, "cmd": 1},
-        command,
-    ]
+def _wire_axis_value(value: float) -> int | float:
+    rounded = round(float(value), 3)
+    if rounded.is_integer():
+        return int(rounded)
+    return rounded
+
+
+def _waveshare_move_command(
+    *,
+    x: float,
+    y: float,
+    speed: int,
+    acceleration: int,
+) -> dict[str, Any]:
+    return {
+        "T": 133,
+        "X": _wire_axis_value(x),
+        "Y": _wire_axis_value(y),
+        "SPD": int(speed),
+        "ACC": int(acceleration),
+    }
+
+
+def _build_waveshare_runtime_sequence(
+    *,
+    target_command: dict[str, Any],
+    current_pan_degrees: float,
+    current_tilt_degrees: float,
+    speed: int,
+    acceleration: int,
+    include_prepare: bool,
+) -> list[tuple[str, dict[str, Any], float, float]]:
+    sequence: list[tuple[str, dict[str, Any], float, float]] = []
+
+    if include_prepare:
+        hold_current = _waveshare_move_command(
+            x=current_pan_degrees,
+            y=current_tilt_degrees,
+            speed=speed,
+            acceleration=acceleration,
+        )
+        sequence.extend(
+            [
+                ("stop", {"T": 135}, 0.4, 0.45),
+                ("steady off", {"T": 137, "s": 0, "y": 0}, 0.4, 0.45),
+                ("pan-tilt mode", {"T": 4, "cmd": 2}, 0.5, 0.45),
+                ("torque on", {"T": 210, "cmd": 1}, 0.7, 0.45),
+                ("hold current", hold_current, 1.0, 0.45),
+            ]
+        )
+
+    sequence.append(("target", target_command, 0.0, 0.45 if include_prepare else 0.05))
+    return sequence
 
 
 __all__ = ["PanTiltService", "PanTiltRuntimeConfig", "PanTiltSafeLimits"]

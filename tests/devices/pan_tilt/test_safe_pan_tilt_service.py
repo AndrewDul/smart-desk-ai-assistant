@@ -204,6 +204,7 @@ def test_waveshare_serial_move_delta_executes_only_when_all_backend_gates_are_en
     assert result["ok"] is True
     assert result["movement_executed"] is True
     assert result["serial_write_enabled"] is True
+    assert result["command_count"] == 6
     assert result["applied_pan_delta_degrees"] == 0.5
     assert result["applied_tilt_delta_degrees"] == -0.25
     assert fake_serial.calls == [
@@ -214,12 +215,14 @@ def test_waveshare_serial_move_delta_executes_only_when_all_backend_gates_are_en
         }
     ]
     sent_commands = [json.loads(line) for line in fake_serial.writes]
-    assert sent_commands[:3] == [
+    assert sent_commands[:5] == [
+        {"T": 135},
         {"T": 137, "s": 0, "y": 0},
         {"T": 4, "cmd": 2},
         {"T": 210, "cmd": 1},
+        {"T": 133, "X": 0, "Y": 0, "SPD": 45, "ACC": 45},
     ]
-    assert sent_commands[3] == {
+    assert sent_commands[5] == {
         "T": 133,
         "X": 0.5,
         "Y": -0.25,

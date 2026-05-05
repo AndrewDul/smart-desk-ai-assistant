@@ -4711,3 +4711,63 @@ When adding new safety gates, preserve old dry-run result semantics unless there
 
 This keeps telemetry, tests, and runtime metadata stable while the hardware path evolves.
 
+
+---
+
+## Pan-tilt backend reports command execution but hardware does not move
+
+**Date:** 2026-05-05  
+**Area:** vision / pan-tilt / Waveshare serial runtime backend  
+**Status:** resolved
+
+### Symptoms
+
+The runtime tracking path reported successful backend command execution:
+
+- `backend_command_executed = true`
+- `movement_executed = true`
+- `serial_write_count > 0`
+
+However, the Waveshare pan-tilt did not visibly move, even for a larger X target.
+
+### What was ruled out
+
+The issue was not caused by:
+
+- UART wiring
+- `/dev/serial0`
+- power
+- Waveshare controller failure
+- pan-tilt mechanical failure
+
+This was confirmed because the hardware emotion behavior smoke test moved the pan-tilt correctly.
+
+### Root cause
+
+The new `PanTiltService` runtime backend sent a shorter and faster command sequence than the working hardware smoke test.
+
+The Waveshare controller accepted serial writes but did not physically respond reliably to the minimal runtime sequence.
+
+### Fix
+
+The runtime backend was updated to use a fuller Waveshare preparation sequence before target movement:
+
+- stop
+- steady off
+- pan-tilt mode
+- torque on
+- hold current position
+- target movement
+
+The sequence now includes safer timing between commands.
+
+### Validation
+
+After the fix, a visible X-axis movement through `PanTiltService` moved the real pan-tilt hardware successfully.
+
+### Lesson
+
+For Waveshare pan-tilt runtime movement, successful serial writes are not enough to prove physical motion.
+
+If the backend reports execution but hardware does not move, compare the runtime command sequence and timing against the known-good hardware smoke test before assuming wiring or power failure.
+
