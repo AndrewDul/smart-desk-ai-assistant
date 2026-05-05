@@ -13149,3 +13149,116 @@ Sprint 3A reduces unnecessary camera-service latency risk and protects the on-de
 
 This keeps the camera foundation cleaner before connecting tracking status into the wider runtime metadata.
 
+---
+
+## NEXA Vision Runtime — Sprint 3B runtime metadata bridge
+
+**Date:** 2026-05-05  
+**Area:** vision / runtime builder / tracking metadata  
+**Status:** implemented and tested
+
+### What changed
+
+Sprint 3B exposes the dry-run VisionTrackingService through the runtime builder metadata.
+
+The runtime can now construct the vision tracking service after the vision backend and pan-tilt backend are created.
+
+The new runtime-visible metadata keys are:
+
+- vision_tracking_service
+- vision_tracking_status
+
+The new backend status entry is:
+
+- vision_tracking
+
+The affected runtime areas are:
+
+- modules/runtime/builder/vision_mixin.py
+- modules/runtime/builder/core.py
+
+A new integration test was added under:
+
+- tests/vision/integration/test_runtime_builder_vision_tracking_bridge.py
+
+### Why this was needed
+
+Sprint 1 and Sprint 2 created the dry-run tracking foundation, but that service still existed only as a vision module.
+
+Sprint 3B connects that foundation to the runtime composition layer without enabling hardware movement.
+
+This is the correct architecture direction because future commands such as look_at_user and start_scanning should not manually construct tracking services. They should use runtime-owned services created by the builder.
+
+The intended flow is:
+
+runtime builder
+→ CameraService / vision backend
+→ PanTiltService / pan-tilt backend
+→ VisionTrackingService dry-run
+→ runtime metadata
+→ future command integration
+
+### Current behaviour
+
+The VisionTrackingService is runtime-visible but remains dry-run only.
+
+It can compute:
+
+- selected tracking target
+- pan/tilt dry-run plan
+- near-limit pan state
+- base_yaw_assist_required
+- base_yaw_direction
+- zero forward/backward base velocity for tracking assist
+
+It does not:
+
+- move pan-tilt hardware
+- move the mobile base
+- execute yaw assist
+- call the LLM
+- call TTS
+- change Visual Shell state directly
+
+### Required mobile-base yaw assist rule
+
+The runtime metadata bridge preserves the product rule that mobile-base yaw assist is required near pan-tilt limits during tracking.
+
+At this stage the service exposes only the decision layer:
+
+- base_yaw_assist_required
+- base_yaw_direction
+
+Physical base movement remains blocked until a dedicated yaw-only safety executor exists.
+
+### Safety impact
+
+No physical movement path was enabled.
+
+Pan-tilt movement and mobile-base movement remain blocked.
+
+This sprint only exposes the dry-run tracking service through runtime metadata.
+
+### Tests run
+
+The following test groups passed after Sprint 3B:
+
+- tests/vision/integration/test_runtime_builder_vision_tracking_bridge.py
+- tests/vision/integration/test_runtime_builder_vision_bridge.py
+- tests/vision/unit/tracking
+- tests/vision/unit/fusion
+- tests/vision/unit/camera_service
+- tests/vision/unit/runtime/test_ai_broker_service.py
+- tests/vision/unit/runtime/test_ai_broker_builder_integration.py
+- tests/devices/pan_tilt/test_safe_pan_tilt_service.py
+- tests/devices/pan_tilt/test_waveshare_protocol.py
+- tests/presentation/visual_shell/test_visual_shell_controller.py
+- tests/presentation/visual_shell/test_visual_shell_voice_command_router.py
+- tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+
+### Current result
+
+Sprint 3B makes the tracking layer available to the runtime in a safe way.
+
+This prepares the next sprint: connecting look_at_user or tracking status to runtime actions while keeping hardware movement disabled until the dedicated safety executor exists.
+

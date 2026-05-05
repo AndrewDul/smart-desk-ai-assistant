@@ -4355,3 +4355,73 @@ For future NEXA Vision Runtime work, prefer names like:
 
 This reduces the chance of Pytest import collisions.
 
+---
+
+## Vision Runtime Sprint 3B — first runtime metadata patch stopped with exit code 1
+
+**Date:** 2026-05-05  
+**Area:** vision / runtime builder / patch safety  
+**Status:** resolved
+
+### Problem
+
+The first attempt to patch runtime builder metadata stopped with terminal exit code 1.
+
+### Symptom
+
+The terminal process ended with:
+
+- exit code: 1
+
+The runtime files were not changed.
+
+### Root cause
+
+The first patch used a large exact text replacement against runtime builder files.
+
+The real repository file structure did not match that exact anchor text closely enough, so the safety script stopped instead of applying a blind change.
+
+This was expected safe behaviour from the patch guard.
+
+### What I checked
+
+I checked:
+
+- latest backup directory
+- git status
+- git diff for runtime builder files
+- Python syntax compilation for the affected files
+
+The result showed:
+
+- git status was clean
+- git diff was empty
+- py_compile passed
+
+So the failed attempt did not corrupt the repository.
+
+### Fix applied
+
+The Sprint 3B patch was rewritten with smaller and more defensive anchors.
+
+The retry patch:
+
+- inserted _build_vision_tracking before the RuntimeBuilderVisionMixin export marker
+- added vision_tracking_cfg to the runtime builder
+- built VisionTrackingService after pan-tilt construction
+- added vision_tracking to backend statuses
+- exposed vision_tracking_service and vision_tracking_status in runtime metadata
+- added an integration test for the builder bridge
+
+### Result
+
+The retry patch passed the relevant tests.
+
+### Follow-up rule
+
+For runtime builder changes, avoid one large exact replacement when the file may have evolved.
+
+Use smaller anchors and fail loudly if an expected insertion point is missing.
+
+This keeps NEXA runtime patches safer and reduces the risk of damaging core startup logic.
+

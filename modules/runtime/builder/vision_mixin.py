@@ -55,4 +55,77 @@ class RuntimeBuilderVisionMixin:
             )
 
 
+    def _build_vision_tracking(
+        self,
+        config: dict[str, object],
+        *,
+        vision_backend: Any,
+        pan_tilt_backend: Any | None,
+    ) -> tuple[Any | None, RuntimeBackendStatus]:
+        """
+        Build the dry-run vision tracking service.
+
+        This service is runtime-visible but does not execute pan/tilt or
+        mobile-base movement. It only computes tracking plans from cached
+        vision observations.
+        """
+        if not bool(config.get("enabled", True)):
+            return (
+                None,
+                RuntimeBackendStatus(
+                    component="vision_tracking",
+                    ok=True,
+                    selected_backend="disabled_vision_tracking",
+                    detail="Vision tracking service disabled in config.",
+                    runtime_mode="disabled",
+                ),
+            )
+
+        try:
+            service_class = self._import_symbol(
+                "modules.devices.vision.tracking",
+                "VisionTrackingService",
+            )
+            service = service_class(
+                vision_backend=vision_backend,
+                pan_tilt_backend=pan_tilt_backend,
+                config=config,
+            )
+            service_status = service.status() if hasattr(service, "status") else {}
+            return (
+                service,
+                RuntimeBackendStatus(
+                    component="vision_tracking",
+                    ok=True,
+                    selected_backend="vision_tracking_service",
+                    detail=(
+                        "Dry-run vision tracking service loaded. "
+                        "Hardware movement remains blocked."
+                    ),
+                    runtime_mode="dry_run",
+                    capabilities=(
+                        "target_selection",
+                        "pan_tilt_dry_run_plan",
+                        "base_yaw_assist_required_decision",
+                    ),
+                    metadata=dict(service_status or {}),
+                ),
+            )
+        except Exception as error:
+            return (
+                None,
+                RuntimeBackendStatus(
+                    component="vision_tracking",
+                    ok=False,
+                    selected_backend="null_vision_tracking",
+                    detail=(
+                        "Vision tracking service failed. "
+                        f"Using null tracking. Error: {error}"
+                    ),
+                    fallback_used=True,
+                    runtime_mode="dry_run",
+                ),
+            )
+
+
 __all__ = ["RuntimeBuilderVisionMixin"]
