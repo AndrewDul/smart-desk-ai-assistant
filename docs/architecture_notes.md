@@ -14139,3 +14139,157 @@ The next recommended sprint is Sprint 7A:
 - still do not enable real movement,
 - prepare for a later tiny hardware smoke sprint.
 
+---
+
+## NEXA Vision Runtime — Sprint 7A pan-tilt execution readiness validator
+
+**Date:** 2026-05-05  
+**Area:** vision / tracking / pan-tilt / safety validator  
+**Status:** implemented and tested
+
+### What changed
+
+Sprint 7A adds a dedicated readiness validator for NEXA Vision Runtime tracking execution.
+
+The new validator is:
+
+- scripts/validate_vision_tracking_execution_readiness.py
+
+The new test file is:
+
+- tests/vision/unit/tracking/test_tracking_execution_readiness_validator.py
+
+The validator checks whether the current settings are still safe before any future pan-tilt or mobile-base hardware execution sprint.
+
+### Why this was needed
+
+Before enabling any physical motion, NEXA needs a clear safety validator that confirms the current config is still in a safe dry-run state.
+
+This validator is intentionally conservative.
+
+It does not start camera capture.
+
+It does not start pan-tilt hardware.
+
+It does not rotate the mobile base.
+
+It only reads settings and reports whether the configuration is safe for the current dry-run development stage.
+
+### What the validator checks
+
+The validator checks the vision_tracking section, including:
+
+- vision_tracking exists
+- vision_tracking.enabled is true
+- vision_tracking.status_path is a non-empty string
+- vision_tracking.policy exists
+- vision_tracking.policy.enabled is true
+- tracking policy numeric fields exist
+- vision_tracking.motion_executor exists
+- motion_executor.dry_run is true
+- movement_execution_enabled is false
+- pan_tilt_movement_execution_enabled is false
+- base_yaw_assist_execution_enabled is false
+- base_forward_backward_movement_enabled is false
+
+It also checks pan_tilt safety fields:
+
+- pan_tilt.dry_run is true
+- pan_tilt.hardware_enabled is false
+- pan_tilt.motion_enabled is false
+- pan_tilt.calibration_required is true
+- pan_tilt.allow_uncalibrated_motion is false
+- pan_tilt.startup_policy is no_motion
+- pan_tilt.safe_limits exist
+- pan and tilt safe limits satisfy min <= center <= max
+- max_step_degrees is greater than zero
+
+It also checks mobility safety:
+
+- mobility.safety_stop_enabled is true
+
+### Safety result contract
+
+The validator always reports physical movement as not allowed at this stage.
+
+The result includes:
+
+- safe_to_execute_physical_motion = false
+- movement_execution_allowed = false
+- pan_tilt_execution_allowed = false
+- base_yaw_assist_execution_allowed = false
+- base_forward_backward_movement_allowed = false
+
+This keeps the validator aligned with the current development stage.
+
+### Required mobile-base yaw assist rule
+
+The required mobile-base yaw assist rule remains unchanged.
+
+When pan-tilt reaches or approaches its safe pan limit during face/person tracking, NEXA must eventually use controlled yaw-only mobile-base rotation to re-center the target.
+
+Sprint 7A does not execute that movement.
+
+It only validates that the current config still blocks execution and that forward/backward base movement remains disabled.
+
+### CLI usage
+
+The validator can be run with:
+
+- python scripts/validate_vision_tracking_execution_readiness.py --settings config/settings.json --json
+
+A successful result means the current dry-run configuration is safe for continuing development.
+
+It does not mean hardware movement is allowed.
+
+### Architecture impact
+
+The current safe architecture now includes a validation layer:
+
+settings
+→ vision_tracking config
+→ motion_executor gates
+→ pan_tilt safe limits
+→ readiness validator
+→ dry-run-only confirmation
+→ no hardware movement
+
+This creates a required checkpoint before later hardware smoke tests.
+
+### Tests run
+
+The following test groups passed after Sprint 7A:
+
+- tests/vision/unit/tracking
+- tests/core/vision/test_look_at_user_dry_run_bridge.py
+- tests/core/voice_engine/test_visual_shell_action_flow_bridge.py
+- tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+- tests/vision/integration/test_runtime_builder_vision_tracking_bridge.py
+- tests/vision/integration/test_runtime_builder_vision_bridge.py
+- tests/vision/unit/fusion
+- tests/vision/unit/camera_service
+- tests/vision/unit/runtime/test_ai_broker_service.py
+- tests/vision/unit/runtime/test_ai_broker_builder_integration.py
+- tests/devices/pan_tilt/test_safe_pan_tilt_service.py
+- tests/devices/pan_tilt/test_waveshare_protocol.py
+- tests/presentation/visual_shell/test_visual_shell_controller.py
+- tests/presentation/visual_shell/test_visual_shell_voice_command_router.py
+
+The validator was also run directly against:
+
+- config/settings.json
+
+### Current result
+
+Sprint 7A adds a safe readiness checkpoint before any future pan-tilt or mobile-base execution sprint.
+
+NEXA can now validate that tracking execution remains dry-run, that physical movement gates are blocked, and that pan-tilt safe limits are configured correctly.
+
+### Next architecture step
+
+The next recommended sprint is Sprint 7B:
+
+- integrate the readiness validator into a lightweight developer command or pre-hardware checklist,
+- keep all movement disabled,
+- then prepare a future tiny pan-tilt hardware smoke plan with explicit manual confirmation and stop path.
+

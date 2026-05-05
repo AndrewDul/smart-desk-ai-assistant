@@ -4482,3 +4482,54 @@ When testing Python config files through ast, support both regular assignments a
 
 This avoids false failures when the project uses type-annotated settings constants.
 
+---
+
+## Vision Runtime Sprint 7A — importlib test loader broke dataclass annotations on Python 3.13
+
+**Date:** 2026-05-05  
+**Area:** vision / tests / validator / Python 3.13  
+**Status:** resolved
+
+### Problem
+
+The new readiness validator tests failed when importing:
+
+- scripts/validate_vision_tracking_execution_readiness.py
+
+### Symptom
+
+The focused validator tests failed with an AttributeError from dataclasses:
+
+- NoneType object has no attribute __dict__
+
+The failure happened when the test loaded the script with importlib and the script defined a dataclass.
+
+### Root cause
+
+The test used importlib.util.module_from_spec and spec.loader.exec_module, but did not register the module in sys.modules before executing it.
+
+With Python 3.13, dataclass processing with postponed annotations can look up the module through sys.modules.
+
+Because the module was not registered, dataclasses could not find the module namespace during class processing.
+
+### Fix applied
+
+The test loader was updated to register the module before execution:
+
+- sys.modules[spec.name] = module
+- spec.loader.exec_module(module)
+
+After this change, the validator module loaded correctly and all validator tests passed.
+
+### Result
+
+The focused validator tests passed.
+
+The broader vision, runtime, pan-tilt, Visual Shell, and Voice Engine v2 test set also passed.
+
+### Follow-up rule
+
+When tests load script files with importlib and those scripts define dataclasses, register the module in sys.modules before exec_module.
+
+This avoids false failures in Python 3.13 and keeps script-style validator tests reliable.
+
