@@ -14427,3 +14427,143 @@ The next recommended sprint is Sprint 8A:
 - define the exact metadata that future hardware movement must return,
 - do not move hardware yet.
 
+---
+
+## NEXA Vision Runtime — Sprint 8A pan-tilt execution adapter contract dry-run
+
+**Date:** 2026-05-05  
+**Area:** vision / tracking / pan-tilt adapter / dry-run hardware boundary  
+**Status:** implemented and tested
+
+### What changed
+
+Sprint 8A adds the first pan-tilt execution adapter contract for NEXA Vision Runtime.
+
+The new adapter lives in:
+
+- modules/devices/vision/tracking/pan_tilt_execution_adapter.py
+
+It introduces:
+
+- PanTiltExecutionAdapterConfig
+- PanTiltExecutionAdapterResult
+- PanTiltExecutionAdapter
+
+A new test file was added:
+
+- tests/vision/unit/tracking/test_pan_tilt_execution_adapter.py
+
+### Why this was needed
+
+Earlier sprints created:
+
+- dry-run tracking policy
+- VisionTrackingService
+- look_at_user dry-run command bridge
+- latest tracking status snapshot
+- TrackingMotionExecutor
+- explicit requested/effective execution gates
+- settings contract
+- readiness validator
+- developer readiness checklist command
+
+Sprint 8A adds the next boundary: an adapter between dry-run tracking execution results and future pan-tilt backend commands.
+
+This prevents the future hardware path from being coupled directly to tracking policy or command handling.
+
+### Current behaviour
+
+The adapter accepts a TrackingMotionExecutionResult and produces adapter-level metadata.
+
+It can report:
+
+- whether a pan-tilt backend command would be sent
+- requested pan delta
+- requested tilt delta
+- clamped pan delta
+- clamped tilt delta
+- whether backend command execution is enabled
+- whether the backend command was actually executed
+- backend name
+- blocked reason
+
+At this stage, backend command execution is always blocked.
+
+### Safety rule
+
+Sprint 8A does not execute physical pan-tilt movement.
+
+The adapter does not call:
+
+- move_direction
+- move_delta
+- any pan-tilt backend command
+
+Even if config requests backend command execution, the effective execution gate remains false.
+
+The result always keeps:
+
+- backend_command_execution_enabled = false
+- backend_command_executed = false
+
+### Required mobile-base yaw assist rule
+
+Sprint 8A focuses only on the pan-tilt adapter contract.
+
+The required mobile-base yaw assist rule remains unchanged:
+
+When pan-tilt reaches or approaches its safe pan limit during face/person tracking, NEXA must eventually use controlled yaw-only mobile-base rotation to re-center the target.
+
+No mobile-base movement is executed in this sprint.
+
+Forward/backward movement remains disabled and is not part of camera tracking assist.
+
+### Architecture impact
+
+The current dry-run tracking architecture is now:
+
+look_at_user command
+→ VisionTrackingService.plan_once(force_refresh=False)
+→ TrackingMotionPlan
+→ TrackingMotionExecutor
+→ TrackingMotionExecutionResult
+→ PanTiltExecutionAdapter.prepare(...)
+→ PanTiltExecutionAdapterResult
+→ no hardware movement
+
+This adds a clean adapter contract before any future tiny pan-tilt hardware movement sprint.
+
+### Tests run
+
+The following test groups passed after Sprint 8A:
+
+- tests/vision/unit/tracking
+- tests/core/vision/test_look_at_user_dry_run_bridge.py
+- tests/core/voice_engine/test_visual_shell_action_flow_bridge.py
+- tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+- tests/vision/integration/test_runtime_builder_vision_tracking_bridge.py
+- tests/vision/integration/test_runtime_builder_vision_bridge.py
+- tests/vision/unit/fusion
+- tests/vision/unit/camera_service
+- tests/vision/unit/runtime/test_ai_broker_service.py
+- tests/vision/unit/runtime/test_ai_broker_builder_integration.py
+- tests/devices/pan_tilt/test_safe_pan_tilt_service.py
+- tests/devices/pan_tilt/test_waveshare_protocol.py
+- tests/presentation/visual_shell/test_visual_shell_controller.py
+- tests/presentation/visual_shell/test_visual_shell_voice_command_router.py
+
+### Current result
+
+Sprint 8A creates the dry-run adapter contract required before pan-tilt backend execution can be safely introduced.
+
+NEXA can now express what pan-tilt command would be prepared, while still guaranteeing that no backend command is executed.
+
+### Next architecture step
+
+The next recommended sprint is Sprint 8B:
+
+- connect PanTiltExecutionAdapter into VisionTrackingService status,
+- expose pan_tilt_adapter_result in look_at_user metadata,
+- keep backend command execution disabled,
+- keep all hardware movement blocked.
+
