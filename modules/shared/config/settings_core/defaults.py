@@ -329,6 +329,28 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "continuous_capture_error_backoff_seconds": 0.5,
         "continuous_capture_stop_timeout_seconds": 2.0,
     },
+    "vision_tracking": {
+        "enabled": True,
+        "persist_status": True,
+        "status_path": "var/data/vision_tracking_status.json",
+        "policy": {
+            "enabled": True,
+            "dead_zone_x": 0.08,
+            "dead_zone_y": 0.10,
+            "pan_gain_degrees": 12.0,
+            "tilt_gain_degrees": 8.0,
+            "max_step_degrees": 2.0,
+            "limit_margin_degrees": 1.0,
+            "base_yaw_assist_edge_threshold": 0.42,
+        },
+        "motion_executor": {
+            "dry_run": True,
+            "movement_execution_enabled": False,
+            "pan_tilt_movement_execution_enabled": False,
+            "base_yaw_assist_execution_enabled": False,
+            "base_forward_backward_movement_enabled": False,
+        },
+    },
     "pan_tilt": {
         "enabled": False,
         "backend": "disabled",

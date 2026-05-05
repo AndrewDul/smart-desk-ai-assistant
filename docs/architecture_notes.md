@@ -13994,3 +13994,148 @@ The next recommended sprint is Sprint 6B:
 - keep all execution gates false by default,
 - make the configuration contract explicit before any hardware movement sprint.
 
+---
+
+## NEXA Vision Runtime — Sprint 6B settings contract for tracking execution gates
+
+**Date:** 2026-05-05  
+**Area:** vision / tracking / settings / safety gates  
+**Status:** implemented and tested
+
+### What changed
+
+Sprint 6B adds an explicit configuration contract for NEXA Vision Runtime tracking execution gates.
+
+The new settings section is:
+
+- vision_tracking
+
+It was added to:
+
+- modules/shared/config/settings_core/defaults.py
+- config/settings.example.json
+- config/settings.json
+
+A regression test was added under:
+
+- tests/vision/unit/tracking/test_tracking_settings_contract.py
+
+### Why this was needed
+
+Earlier sprints created the tracking policy, dry-run tracking service, command bridge, status snapshot, dry-run motion executor, and explicit requested/effective execution gates.
+
+Sprint 6B makes those execution gates visible in the main settings contract before any hardware movement sprint begins.
+
+This prevents hidden or accidental movement configuration.
+
+### New settings contract
+
+The vision_tracking section includes:
+
+- enabled
+- persist_status
+- status_path
+- policy
+- motion_executor
+
+The policy section defines the safe tracking behaviour:
+
+- enabled
+- dead_zone_x
+- dead_zone_y
+- pan_gain_degrees
+- tilt_gain_degrees
+- max_step_degrees
+- limit_margin_degrees
+- base_yaw_assist_edge_threshold
+
+The motion_executor section defines movement gates:
+
+- dry_run
+- movement_execution_enabled
+- pan_tilt_movement_execution_enabled
+- base_yaw_assist_execution_enabled
+- base_forward_backward_movement_enabled
+
+### Safe defaults
+
+All physical movement gates are false by default.
+
+The safe default contract is:
+
+- dry_run = true
+- movement_execution_enabled = false
+- pan_tilt_movement_execution_enabled = false
+- base_yaw_assist_execution_enabled = false
+- base_forward_backward_movement_enabled = false
+
+This means configuration now exposes the intended future hardware controls while still keeping all effective physical movement blocked.
+
+### Required mobile-base yaw assist rule
+
+The settings contract preserves the product requirement:
+
+When pan-tilt reaches or approaches its safe pan limit during face/person tracking, NEXA must eventually use controlled yaw-only mobile-base rotation to re-center the target.
+
+Sprint 6B does not execute that rotation.
+
+It only exposes the configuration gates that will later control this behaviour.
+
+Forward/backward base movement remains disabled and is not part of camera tracking assist.
+
+### Safety impact
+
+No hardware movement was enabled.
+
+Pan-tilt and mobile-base execution remain blocked.
+
+The config contract prepares future controlled hardware sprints but does not activate them.
+
+### Architecture impact
+
+The current tracking architecture now has a complete safe configuration path:
+
+settings
+→ vision_tracking
+→ policy config
+→ motion_executor requested gates
+→ effective gates still blocked
+→ dry-run execution result
+→ status snapshot
+
+This makes the next hardware-preparation sprint safer because config intent is explicit and test-covered.
+
+### Tests run
+
+The following test groups passed after Sprint 6B:
+
+- tests/vision/unit/tracking
+- tests/core/vision/test_look_at_user_dry_run_bridge.py
+- tests/core/voice_engine/test_visual_shell_action_flow_bridge.py
+- tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+- tests/vision/integration/test_runtime_builder_vision_tracking_bridge.py
+- tests/vision/integration/test_runtime_builder_vision_bridge.py
+- tests/vision/unit/fusion
+- tests/vision/unit/camera_service
+- tests/vision/unit/runtime/test_ai_broker_service.py
+- tests/vision/unit/runtime/test_ai_broker_builder_integration.py
+- tests/devices/pan_tilt/test_safe_pan_tilt_service.py
+- tests/devices/pan_tilt/test_waveshare_protocol.py
+- tests/presentation/visual_shell/test_visual_shell_controller.py
+- tests/presentation/visual_shell/test_visual_shell_voice_command_router.py
+
+### Current result
+
+Sprint 6B makes the vision tracking execution gates explicit in defaults, example settings, and current settings.
+
+NEXA now has a test-covered configuration contract for future pan-tilt and yaw-only mobile-base assist execution while keeping every physical movement gate disabled.
+
+### Next architecture step
+
+The next recommended sprint is Sprint 7A:
+
+- add a pan-tilt execution readiness validator,
+- verify config gates, dry-run mode, safe limits, calibration requirement, and backend status,
+- still do not enable real movement,
+- prepare for a later tiny hardware smoke sprint.
+

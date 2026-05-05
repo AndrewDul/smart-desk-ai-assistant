@@ -402,6 +402,28 @@
     "object_detector_hailo_initial_cadence_hz": 2.0,
     "object_detector_hailo_desk_relevant_only": false
   },
+  "vision_tracking": {
+    "enabled": true,
+    "persist_status": true,
+    "status_path": "var/data/vision_tracking_status.json",
+    "policy": {
+      "enabled": true,
+      "dead_zone_x": 0.08,
+      "dead_zone_y": 0.1,
+      "pan_gain_degrees": 12.0,
+      "tilt_gain_degrees": 8.0,
+      "max_step_degrees": 2.0,
+      "limit_margin_degrees": 1.0,
+      "base_yaw_assist_edge_threshold": 0.42
+    },
+    "motion_executor": {
+      "dry_run": true,
+      "movement_execution_enabled": false,
+      "pan_tilt_movement_execution_enabled": false,
+      "base_yaw_assist_execution_enabled": false,
+      "base_forward_backward_movement_enabled": false
+    }
+  },
   "pan_tilt": {
     "enabled": true,
     "backend": "waveshare_serial",

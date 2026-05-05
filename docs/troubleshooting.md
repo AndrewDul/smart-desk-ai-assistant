@@ -4425,3 +4425,60 @@ Use smaller anchors and fail loudly if an expected insertion point is missing.
 
 This keeps NEXA runtime patches safer and reduces the risk of damaging core startup logic.
 
+---
+
+## Vision Runtime Sprint 6B — settings defaults test did not handle typed assignment
+
+**Date:** 2026-05-05  
+**Area:** vision / settings / tests  
+**Status:** resolved
+
+### Problem
+
+The Sprint 6B settings contract test failed while reading:
+
+- modules/shared/config/settings_core/defaults.py
+
+### Symptom
+
+The failing test was:
+
+- test_default_settings_define_safe_vision_tracking_execution_gates
+
+The error was:
+
+- Could not find the main defaults settings dictionary.
+
+### Root cause
+
+The test helper parsed defaults.py with ast and only handled normal assignment nodes.
+
+It expected a pattern equivalent to:
+
+DEFAULT_SETTINGS = dict
+
+But the real defaults file uses a typed assignment pattern, represented in Python AST as AnnAssign.
+
+The helper did not handle AnnAssign, so it could not find the settings dictionary even though the config patch had been applied.
+
+### Fix applied
+
+The test helper was updated to support both:
+
+- ast.Assign
+- ast.AnnAssign
+
+After that, the test correctly found the main defaults dictionary and verified the new vision_tracking contract.
+
+### Result
+
+The focused settings contract tests passed.
+
+The broader vision, runtime, pan-tilt, Visual Shell, and Voice Engine v2 test set also passed.
+
+### Follow-up rule
+
+When testing Python config files through ast, support both regular assignments and typed assignments.
+
+This avoids false failures when the project uses type-annotated settings constants.
+
