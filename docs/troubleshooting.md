@@ -4292,3 +4292,66 @@ The pan-tilt must not run full sweeps or large angle tests by default. The safe 
 
 The first production backend must remain config-driven, conservative, and guarded by calibration/safety limits.
 <!-- END pan-tilt-gpio-uart-troubleshooting -->
+
+---
+
+## Vision Runtime Sprint 2 — Pytest import mismatch caused by duplicate test module name
+
+**Date:** 2026-05-05  
+**Area:** vision / tests / pytest collection  
+**Status:** resolved
+
+### Problem
+
+After adding the new VisionTrackingService tests, the broader test run failed during Pytest collection.
+
+### Symptom
+
+Pytest reported an import file mismatch between:
+
+- tests/vision/unit/tracking/test_service.py
+- tests/vision/unit/camera_service/test_service.py
+
+The error happened before the full suite could run.
+
+### Root cause
+
+Two test files had the same basename:
+
+- test_service.py
+
+Pytest imported the tracking test module first as test_service, then tried to collect the camera service test file with the same module name.
+
+This created a module-name collision during collection.
+
+### Fix applied
+
+The new tracking service test file was renamed from:
+
+- tests/vision/unit/tracking/test_service.py
+
+to:
+
+- tests/vision/unit/tracking/test_tracking_service.py
+
+The Python cache directories were also removed to avoid stale import state.
+
+### Result
+
+The test collection issue was resolved.
+
+The broader vision, pan-tilt, Visual Shell, and Voice Engine v2 runtime candidate test set passed after the rename.
+
+### Follow-up rule
+
+New test files should use specific names when another package already contains a generic test name such as test_service.py.
+
+For future NEXA Vision Runtime work, prefer names like:
+
+- test_tracking_service.py
+- test_pan_tilt_tracking_policy.py
+- test_scan_planner.py
+- test_base_yaw_assist_policy.py
+
+This reduces the chance of Pytest import collisions.
+

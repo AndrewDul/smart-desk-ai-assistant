@@ -12931,3 +12931,153 @@ Important runtime rules:
 
 This stage completes the hardware communication and safe-envelope discovery required before integrating pan-tilt behavior into the normal NEXA runtime flow.
 <!-- END pan-tilt-calibrated-limits-and-behaviors -->
+
+---
+
+## NEXA Vision Runtime — Sprint 1–2 tracking foundation
+
+**Date:** 2026-05-05  
+**Area:** vision / tracking / pan-tilt / mobile-base yaw assist  
+**Status:** implemented and tested as dry-run foundation
+
+### What changed
+
+This sprint started the dedicated NEXA Vision Runtime workstream.
+
+The goal of this workstream is to build the camera, perception, face tracking, object detection, desk presence, pan-tilt scanning, and mobile-base-assisted tracking layer without mixing it into the voice runtime or Visual Shell internals.
+
+The first implemented foundation is a dry-run tracking layer under:
+
+- modules/devices/vision/tracking/
+
+The new tracking foundation includes:
+
+- TrackingTarget
+- TrackingSafeLimits
+- TrackingPolicyConfig
+- TrackingMotionPlan
+- TrackingTargetSelector
+- PanTiltTrackingPolicy
+- VisionTrackingService
+
+### Why this was needed
+
+The camera and perception stack already had useful foundations, including CameraService, perception modules, behaviour interpreters, and VisionObservation contracts.
+
+However, the system still needed a dedicated layer that can convert a detected face or person into a safe motion decision.
+
+The correct architecture is:
+
+VisionObservation
+→ target selection
+→ tracking policy
+→ dry-run motion plan
+→ later safe pan-tilt executor
+→ required mobile-base yaw assist near pan limit
+
+This keeps perception, policy, and motion execution separate.
+
+### Current behaviour
+
+The new tracking layer does not move hardware.
+
+It only computes a dry-run plan from existing observation metadata.
+
+The plan can describe:
+
+- whether a face/person target exists
+- the selected tracking target
+- pan and tilt delta degrees
+- clamped desired pan/tilt values
+- whether pan/tilt is at or near a safe limit
+- whether mobile-base yaw assist is required
+- the required yaw direction for the base
+- guaranteed zero forward/backward base velocity for this feature
+
+### Required mobile-base yaw assist rule
+
+Mobile-base assist is not optional in the final tracking behaviour.
+
+The product rule is:
+
+When pan-tilt reaches or approaches its safe pan limit during face/person tracking, NEXA must use controlled yaw-only mobile-base rotation to re-center the target.
+
+This is not forward/backward driving.
+
+For camera tracking assist, the mobile base is allowed to perform only:
+
+- small rotate-left-in-place movement
+- small rotate-right-in-place movement
+- stop
+
+The dry-run plan now expresses this with:
+
+- base_yaw_assist_required
+- base_yaw_direction
+- base_forward_velocity = 0.0
+- base_backward_velocity = 0.0
+
+The older mobile_assist_recommended field is retained only as a temporary compatibility alias.
+
+### Performance rule
+
+The tracking layer is intentionally fast and deterministic.
+
+It does not:
+
+- read from the camera
+- run OpenCV
+- run Hailo / YOLO
+- call the LLM
+- call TTS
+- move pan-tilt hardware
+- move the mobile base
+
+It only reads the latest available observation and performs lightweight target selection and offset calculation.
+
+This protects the voice runtime from vision-related delays.
+
+### Safety rule
+
+The current tracking stage is dry-run only.
+
+Hardware movement remains blocked.
+
+The intended future sequence is:
+
+unit test
+→ dry-run
+→ mock executor
+→ tiny hardware smoke test
+→ controlled runtime integration
+
+### Tests run
+
+The following tests passed after the tracking foundation and service were added:
+
+- tests/vision/unit/tracking
+- tests/vision/unit/fusion
+- tests/vision/unit/camera_service
+- tests/devices/pan_tilt/test_safe_pan_tilt_service.py
+- tests/devices/pan_tilt/test_waveshare_protocol.py
+- tests/presentation/visual_shell/test_visual_shell_controller.py
+- tests/presentation/visual_shell/test_visual_shell_voice_command_router.py
+- tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+
+### Current sprint result
+
+Sprint 1 and Sprint 2 established the first safe tracking foundation for NEXA Vision Runtime.
+
+The system can now compute a tracking plan and can mark required mobile-base yaw assist near pan-tilt limits, while keeping all physical movement disabled.
+
+### Next architecture step
+
+The next recommended step is to continue from dry-run planning toward runtime integration:
+
+1. keep VisionTrackingService dry-run only,
+2. expose tracking plan/status through runtime metadata,
+3. keep hardware movement disabled,
+4. then add a safe motion executor behind config gates,
+5. later add controlled pan-tilt hardware motion,
+6. later add yaw-only mobile-base execution near pan limits.
+
