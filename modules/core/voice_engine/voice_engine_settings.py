@@ -216,16 +216,23 @@ class VoiceEngineSettings:
 
     @property
     def runtime_candidates_can_run(self) -> bool:
-        """Return whether guarded runtime candidates may run before legacy fallback."""
+        """
+        Return whether the safe Voice Engine v2 runtime-candidate lane may run.
 
+        Runtime candidates are used as a guarded fast lane while the main
+        runtime can still operate in legacy mode. They must not require the
+        full Voice Engine v2 runtime to be enabled, otherwise deterministic
+        commands such as look-at-me are recognized but fall through to the
+        slower generic router as unclear.
+        """
         return (
             self.runtime_candidates_enabled
-            and not self.enabled
             and self.mode == "legacy"
             and not self.command_first_enabled
             and self.fallback_to_legacy_enabled
             and bool(self.runtime_candidate_intent_allowlist)
         )
+
 
     @property
     def pre_stt_shadow_can_run(self) -> bool:

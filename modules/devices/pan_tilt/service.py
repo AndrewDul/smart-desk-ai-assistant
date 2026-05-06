@@ -80,6 +80,7 @@ class PanTiltRuntimeConfig:
     serial_warmup_seconds: float
     read_after_write_seconds: float
     safe_limits: PanTiltSafeLimits
+    command_mode: str = "absolute"
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> "PanTiltRuntimeConfig":
@@ -124,6 +125,7 @@ class PanTiltRuntimeConfig:
                 float(config.get("read_after_write_seconds", 0.0)),
             ),
             safe_limits=safe_limits,
+            command_mode=str(config.get("command_mode", "absolute")).strip().lower(),
         )
 
 
@@ -303,10 +305,13 @@ class WaveshareSerialPanTiltBackend:
     ) -> None:
         self._config = runtime_config
         self._serial_factory = serial_factory
+        self._serial_port: Any | None = None
         self._pan_angle = runtime_config.safe_limits.pan_center_degrees
         self._tilt_angle = runtime_config.safe_limits.tilt_center_degrees
         self._serial_write_count = 0
         self._controller_prepared = False
+        self._latest_telemetry: dict[str, Any] | None = None
+        self._telemetry_updated_at = 0.0
         self._load_initial_position_from_calibration_state()
 
     def status(self) -> dict[str, Any]:
@@ -336,17 +341,18 @@ class WaveshareSerialPanTiltBackend:
                 "controller_prepared": self._controller_prepared,
                 "pan_angle": round(self._pan_angle, 3),
                 "tilt_angle": round(self._tilt_angle, 3),
+                **self._telemetry_status(),
                 **calibration_status,
             }
         )
         return status
 
     def center(self) -> dict[str, Any]:
-        pan_delta = self._config.safe_limits.pan_center_degrees - self._pan_angle
-        tilt_delta = self._config.safe_limits.tilt_center_degrees - self._tilt_angle
-        return self.move_delta(
-            pan_delta_degrees=pan_delta,
-            tilt_delta_degrees=tilt_delta,
+        self._maybe_refresh_telemetry_before_motion()
+        return self._move_absolute(
+            target_pan_degrees=self._config.safe_limits.pan_center_degrees,
+            target_tilt_degrees=self._config.safe_limits.tilt_center_degrees,
+            reason="center",
         )
 
     def move_direction(self, direction: str) -> dict[str, Any]:
@@ -359,6 +365,8 @@ class WaveshareSerialPanTiltBackend:
         return result
 
     def move_delta(self, *, pan_delta_degrees: float, tilt_delta_degrees: float) -> dict[str, Any]:
+        self._maybe_refresh_telemetry_before_motion()
+
         requested_pan = float(pan_delta_degrees)
         requested_tilt = float(tilt_delta_degrees)
         applied_pan = _clamp_delta(requested_pan, self._config.max_step_degrees)
@@ -407,6 +415,7 @@ class WaveshareSerialPanTiltBackend:
             y=target_tilt,
             speed=self._config.command_speed,
             acceleration=self._config.command_acceleration,
+            command_mode=self._config.command_mode,
         )
         commands = _build_waveshare_runtime_sequence(
             target_command=command,
@@ -449,7 +458,196 @@ class WaveshareSerialPanTiltBackend:
         return result
 
     def close(self) -> None:
+        serial_port = self._serial_port
+        self._serial_port = None
+        if serial_port is None:
+            return None
+
+        close = getattr(serial_port, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception as error:
+                LOGGER.debug("Failed to close Waveshare serial port cleanly: %s", error)
         return None
+
+    def _move_absolute(
+        self,
+        *,
+        target_pan_degrees: float,
+        target_tilt_degrees: float,
+        reason: str,
+    ) -> dict[str, Any]:
+        target_pan = self._config.safe_limits.clamp_pan(float(target_pan_degrees))
+        target_tilt = self._config.safe_limits.clamp_tilt(float(target_tilt_degrees))
+
+        current_pan = float(self._pan_angle)
+        current_tilt = float(self._tilt_angle)
+
+        effective_pan_delta = target_pan - current_pan
+        effective_tilt_delta = target_tilt - current_tilt
+
+        common = {
+            "absolute_move_reason": reason,
+            "requested_target_pan_degrees": round(float(target_pan_degrees), 4),
+            "requested_target_tilt_degrees": round(float(target_tilt_degrees), 4),
+            "target_pan_degrees": round(target_pan, 4),
+            "target_tilt_degrees": round(target_tilt, 4),
+            "applied_pan_delta_degrees": round(effective_pan_delta, 4),
+            "applied_tilt_delta_degrees": round(effective_tilt_delta, 4),
+            "movement_executed": False,
+        }
+
+        if abs(effective_pan_delta) < 0.0001 and abs(effective_tilt_delta) < 0.0001:
+            result = self.status()
+            result.update(common)
+            result["detail"] = "No pan/tilt absolute movement required."
+            return result
+
+        status = self.status()
+        if not bool(status.get("serial_write_enabled", False)):
+            message = "Waveshare serial absolute movement is blocked by runtime safety gates."
+            result = dict(status)
+            result.update(common)
+            result.update(
+                {
+                    "ok": False,
+                    "movement_available": False,
+                    "movement_executed": False,
+                    "detail": message,
+                    "error": message,
+                    "missing_safety_gates": self._missing_safety_gates(status),
+                }
+            )
+            return result
+
+        command = _waveshare_move_command(
+            x=target_pan,
+            y=target_tilt,
+            speed=self._config.command_speed,
+            acceleration=self._config.command_acceleration,
+            command_mode=self._config.command_mode,
+        )
+        commands = _build_waveshare_runtime_sequence(
+            target_command=command,
+            current_pan_degrees=current_pan,
+            current_tilt_degrees=current_tilt,
+            speed=self._config.command_speed,
+            acceleration=self._config.command_acceleration,
+            include_prepare=not self._controller_prepared,
+        )
+
+        try:
+            self._send_commands(commands)
+            self._controller_prepared = True
+        except Exception as error:
+            result = self.status()
+            result.update(common)
+            result.update(
+                {
+                    "ok": False,
+                    "movement_executed": False,
+                    "error": f"{error.__class__.__name__}: {error}",
+                    "detail": "Waveshare serial absolute command failed before state update.",
+                }
+            )
+            return result
+
+        self._pan_angle = target_pan
+        self._tilt_angle = target_tilt
+
+        result = self.status()
+        result.update(common)
+        result.update(
+            {
+                "ok": True,
+                "movement_available": True,
+                "movement_executed": True,
+                "command_count": len(commands),
+                "detail": "Waveshare serial absolute move executed.",
+            }
+        )
+        return result
+
+    def _telemetry_status(self) -> dict[str, Any]:
+        if self._latest_telemetry is None:
+            return {
+                "telemetry_available": False,
+                "telemetry_age_seconds": None,
+                "latest_telemetry": None,
+            }
+
+        return {
+            "telemetry_available": True,
+            "telemetry_age_seconds": round(max(0.0, time.monotonic() - self._telemetry_updated_at), 3),
+            "latest_telemetry": dict(self._latest_telemetry),
+        }
+
+    def _maybe_refresh_telemetry_before_motion(self) -> None:
+        if self._serial_factory is not None:
+            return
+        if not self._config.device or not Path(self._config.device).exists():
+            return
+
+        now = time.monotonic()
+        if self._latest_telemetry is not None and now - self._telemetry_updated_at < 0.75:
+            return
+
+        try:
+            self._refresh_telemetry_from_serial(read_seconds=0.25)
+        except Exception as error:
+            LOGGER.debug("Pan/tilt telemetry refresh failed before motion: %s", error)
+
+    def _refresh_telemetry_from_serial(self, *, read_seconds: float) -> None:
+        ser = self._get_serial_for_command()
+
+        reset = getattr(ser, "reset_input_buffer", None)
+        if callable(reset):
+            reset()
+
+        line = compact_json_line({"T": 130})
+        ser.write(line.encode("utf-8"))
+        flush = getattr(ser, "flush", None)
+        if callable(flush):
+            flush()
+
+        self._drain_serial(ser, read_seconds=read_seconds)
+
+        if self._serial_factory is not None:
+            close = getattr(ser, "close", None)
+            if callable(close):
+                close()
+
+    def _update_telemetry_from_line(self, raw_line: Any) -> None:
+        if raw_line is None:
+            return
+
+        if isinstance(raw_line, bytes):
+            text = raw_line.decode("utf-8", errors="replace").strip()
+        else:
+            text = str(raw_line).strip()
+
+        if not text:
+            return
+
+        try:
+            payload = json.loads(text)
+        except Exception:
+            return
+
+        if not isinstance(payload, dict):
+            return
+
+        if "pan" not in payload and "tilt" not in payload:
+            return
+
+        if "pan" in payload:
+            self._pan_angle = float(payload["pan"])
+        if "tilt" in payload:
+            self._tilt_angle = float(payload["tilt"])
+
+        self._latest_telemetry = dict(payload)
+        self._telemetry_updated_at = time.monotonic()
 
     def _load_initial_position_from_calibration_state(self) -> None:
         path = Path(self._config.calibration_state_path)
@@ -549,31 +747,47 @@ class WaveshareSerialPanTiltBackend:
         return missing
 
     def _send_commands(self, commands: list[tuple[str, dict[str, Any], float, float]]) -> None:
-        serial_port = self._open_serial()
-        with serial_port as ser:
-            warmup_seconds = self._config.serial_warmup_seconds
-            if not self._controller_prepared:
-                warmup_seconds = max(warmup_seconds, 1.0)
-            else:
-                warmup_seconds = max(warmup_seconds, 0.2)
+        ser = self._get_serial_for_command()
 
-            if warmup_seconds > 0.0:
-                time.sleep(warmup_seconds)
+        warmup_seconds = self._config.serial_warmup_seconds
+        if not self._controller_prepared:
+            warmup_seconds = max(warmup_seconds, 0.05)
+        else:
+            warmup_seconds = max(warmup_seconds, 0.0)
 
-            reset = getattr(ser, "reset_input_buffer", None)
-            if callable(reset):
-                reset()
+        if warmup_seconds > 0.0:
+            time.sleep(warmup_seconds)
 
-            for label, command, pause_seconds, read_seconds in commands:
-                line = compact_json_line(command)
-                ser.write(line.encode("utf-8"))
-                flush = getattr(ser, "flush", None)
-                if callable(flush):
-                    flush()
-                self._serial_write_count += 1
-                self._drain_serial(ser, read_seconds=read_seconds)
-                if pause_seconds > 0.0:
-                    time.sleep(pause_seconds)
+        # Do not reset the input buffer for every movement command.
+        # Keeping telemetry available helps the backend stay synchronized with hardware.
+
+        for label, command, pause_seconds, read_seconds in commands:
+            line = compact_json_line(command)
+            ser.write(line.encode("utf-8"))
+            flush = getattr(ser, "flush", None)
+            if callable(flush):
+                flush()
+            self._serial_write_count += 1
+            self._drain_serial(ser, read_seconds=read_seconds)
+            if pause_seconds > 0.0:
+                time.sleep(pause_seconds)
+
+        if self._serial_factory is not None:
+            close = getattr(ser, "close", None)
+            if callable(close):
+                close()
+
+    def _get_serial_for_command(self) -> Any:
+        if self._serial_factory is not None:
+            return self._open_serial()
+
+        if self._serial_port is not None:
+            is_open = getattr(self._serial_port, "is_open", True)
+            if bool(is_open):
+                return self._serial_port
+
+        self._serial_port = self._open_serial()
+        return self._serial_port
 
     def _open_serial(self) -> Any:
         if self._serial_factory is not None:
@@ -603,7 +817,9 @@ class WaveshareSerialPanTiltBackend:
             return
         deadline = time.monotonic() + duration
         while time.monotonic() < deadline:
-            readline()
+            raw_line = readline()
+            if raw_line:
+                self._update_telemetry_from_line(raw_line)
 
 
 
@@ -690,6 +906,7 @@ def _base_status(
         "baudrate": config.baudrate,
         "timeout_seconds": config.timeout_seconds,
         "protocol": config.protocol,
+        "command_mode": config.command_mode,
         "startup_policy": "no_motion",
         "calibration_required": config.calibration_required,
         "allow_uncalibrated_motion": config.allow_uncalibrated_motion,
@@ -738,11 +955,26 @@ def _waveshare_move_command(
     y: float,
     speed: int,
     acceleration: int,
+    command_mode: str = "absolute",
 ) -> dict[str, Any]:
+    mode = str(command_mode or "").strip().lower()
+    wire_x = _wire_axis_value(x)
+    wire_y = _wire_axis_value(y)
+
+    if mode in {"gimbal_move", "smooth", "smooth_gimbal", "t134"}:
+        command_speed = max(1, int(speed))
+        return {
+            "T": 134,
+            "X": wire_x,
+            "Y": wire_y,
+            "SX": command_speed,
+            "SY": command_speed,
+        }
+
     return {
         "T": 133,
-        "X": _wire_axis_value(x),
-        "Y": _wire_axis_value(y),
+        "X": wire_x,
+        "Y": wire_y,
         "SPD": int(speed),
         "ACC": int(acceleration),
     }
@@ -760,23 +992,16 @@ def _build_waveshare_runtime_sequence(
     sequence: list[tuple[str, dict[str, Any], float, float]] = []
 
     if include_prepare:
-        hold_current = _waveshare_move_command(
-            x=current_pan_degrees,
-            y=current_tilt_degrees,
-            speed=speed,
-            acceleration=acceleration,
-        )
         sequence.extend(
             [
-                ("stop", {"T": 135}, 0.4, 0.45),
-                ("steady off", {"T": 137, "s": 0, "y": 0}, 0.4, 0.45),
-                ("pan-tilt mode", {"T": 4, "cmd": 2}, 0.5, 0.45),
-                ("torque on", {"T": 210, "cmd": 1}, 0.7, 0.45),
-                ("hold current", hold_current, 1.0, 0.45),
+                ("stop", {"T": 135}, 0.05, 0.0),
+                ("steady off", {"T": 137, "s": 0, "y": 0}, 0.05, 0.0),
+                ("pan-tilt mode", {"T": 4, "cmd": 2}, 0.08, 0.0),
+                ("torque on", {"T": 210, "cmd": 1}, 0.12, 0.0),
             ]
         )
 
-    sequence.append(("target", target_command, 0.0, 0.45 if include_prepare else 0.05))
+    sequence.append(("target", target_command, 0.0, 0.08))
     return sequence
 
 

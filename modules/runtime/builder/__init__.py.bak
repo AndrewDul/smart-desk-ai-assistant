@@ -9,7 +9,6 @@ from .fallbacks import (
     SilentVoiceOutput,
 )
 from .voice_engine_v2_mixin import RuntimeBuilderVoiceEngineV2Mixin
-from .look_at_me_mixin import RuntimeBuilderLookAtMeMixin  # NEXA_LOOK_AT_ME_BUILDER_IMPORT
 from .wake_gate import CompatibilityWakeGate
 
 __all__ = [
@@ -20,6 +19,5 @@ __all__ = [
     "NullWakeGate",
     "RuntimeBuilder",
     "RuntimeBuilderVoiceEngineV2Mixin",
-    "RuntimeBuilderLookAtMeMixin",  # NEXA_LOOK_AT_ME_BUILDER_ALL
     "SilentVoiceOutput",
 ]

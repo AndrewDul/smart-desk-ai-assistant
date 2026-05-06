@@ -23,7 +23,6 @@ from .display_mixin import RuntimeBuilderDisplayMixin
 from .features_mixin import RuntimeBuilderFeaturesMixin
 from .mobility_mixin import RuntimeBuilderMobilityMixin
 from .pan_tilt_mixin import RuntimeBuilderPanTiltMixin
-from .look_at_me_mixin import RuntimeBuilderLookAtMeMixin  # NEXA_LOOK_AT_ME_CORE_IMPORT
 from .understanding_mixin import RuntimeBuilderUnderstandingMixin
 from .utils_mixin import RuntimeBuilderUtilsMixin
 from .vision_mixin import RuntimeBuilderVisionMixin
@@ -46,7 +45,6 @@ class RuntimeBuilder(
     RuntimeBuilderDisplayMixin,
     RuntimeBuilderVisionMixin,
     RuntimeBuilderPanTiltMixin,
-    RuntimeBuilderLookAtMeMixin,  # NEXA_LOOK_AT_ME_CORE_MIXIN
     RuntimeBuilderMobilityMixin,
 ):
     """
@@ -115,12 +113,6 @@ class RuntimeBuilder(
             pan_tilt_backend=pan_tilt,
         )
         mobility, mobility_status = self._build_mobility(mobility_cfg)
-        # NEXA_LOOK_AT_ME_CORE_BUILD
-        look_at_me_session, look_at_me_status = self._build_look_at_me_session(
-            vision_backend=vision,
-            pan_tilt_backend=pan_tilt,
-            vision_tracking_service=vision_tracking,
-        )
         voice_engine_v2_bundle = self._build_voice_engine_v2()
         vosk_pre_whisper_candidate_adapter = (
             build_voice_engine_v2_vosk_pre_whisper_candidate_adapter(
@@ -178,7 +170,6 @@ class RuntimeBuilder(
             "pan_tilt": pan_tilt_status,
             "vision_tracking": vision_tracking_status,
             "mobility": mobility_status,
-            "look_at_me": look_at_me_status,  # NEXA_LOOK_AT_ME_CORE_STATUS
         }
         provider_inventory = {
             name: status.to_snapshot()
@@ -196,7 +187,6 @@ class RuntimeBuilder(
             "vision_tracking_service": vision_tracking,
             "vision_tracking_status": vision_tracking_status.to_snapshot(),
             "mobility_backend": mobility,
-            "look_at_me_session": look_at_me_session,  # NEXA_LOOK_AT_ME_CORE_METADATA
             "voice_engine_v2": voice_engine_v2_bundle.engine,
             "voice_engine_v2_settings": voice_engine_v2_bundle.settings,
             "voice_engine_v2_status": voice_engine_v2_bundle.status,

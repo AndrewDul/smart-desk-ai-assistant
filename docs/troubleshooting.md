@@ -4806,3 +4806,107 @@ Follow-up:
 - Keep Haar/OpenCV as a useful fast prototype/fallback path.
 - For the product-grade version, prefer a stronger face/person detector when available, likely through the future Hailo/YOLO/person detection path.
 - Next step is voice command integration, not more validator-only work.
+
+## 2026-05-06 — Look-at-me pan-tilt did not move after voice command
+
+### Symptom
+
+NEXA recognized the voice command `look at me`, started the camera, detected a face, and produced valid pan/tilt deltas, but the physical pan-tilt did not visibly move.
+
+Observed runtime output included:
+
+- Runtime state became READY after stopping the duplicate service/camera conflict.
+- Voice recognized: `look at me`.
+- Camera lazy-started after the command.
+- Face target was detected.
+- Tracking status showed `would_move_pan_tilt=true`.
+- Runtime-only pan-tilt adapter reported `backend_command_executed=true`.
+- PanTiltService backend response reported `movement_executed=true`.
+- Direct T133 serial test printed the expected commands but produced no visible physical movement.
+
+### Root causes found
+
+1. Duplicate runtime camera owner during manual testing:
+   - `nexa.service` was already running in the background.
+   - The service owned `/dev/video0`, `/dev/media0`, or `/dev/media1`.
+   - Starting `python main.py` manually at the same time caused camera ownership conflicts.
+   - Fix: stop `nexa.service` before manual camera/vision tests.
+
+2. Hailo Ollama local LLM was unavailable:
+   - `/usr/local/bin/hailo-ollama` required `libhailort.so.5.1.1`.
+   - The system currently provides `libhailort.so.5.2.0`.
+   - Hailo device itself was detected as HAILO10H with firmware 5.2.0.
+   - Temporary mitigation: local LLM was disabled in settings so voice/wake/TTS startup is not blocked by the broken LLM backend.
+
+3. Global pan-tilt defaults must remain safe:
+   - Setting physical pan-tilt execution globally caused the readiness validator to fail.
+   - Correct design: keep global defaults dry-run and use a runtime-only gate for explicit look-at-me sessions.
+
+4. Physical pan-tilt did not move because the pan-tilt battery/power source was discharged:
+   - Software successfully wrote movement commands.
+   - No physical motion was visible.
+   - The user confirmed the battery/power source was discharged.
+   - This is the current most likely hardware cause.
+
+### Commands used for diagnosis
+
+Stop background NEXA before manual testing:
+
+    sudo systemctl stop nexa.service 2>/dev/null || true
+    sudo fuser -k /dev/video0 /dev/media0 /dev/media1 2>/dev/null || true
+
+Check camera ownership:
+
+    sudo fuser -v /dev/video0 /dev/media0 /dev/media1 2>/dev/null || true
+    systemctl status nexa.service --no-pager -l
+
+Check runtime status:
+
+    cat var/data/runtime_status.json | python3 -m json.tool | sed -n '1,220p'
+
+Check look-at-me tracking status:
+
+    cat var/data/look_at_me_tracking_status.json 2>/dev/null | python3 -m json.tool | sed -n '1,260p'
+
+Validate safe default tracking configuration:
+
+    python scripts/validate_vision_tracking_execution_readiness.py --settings config/settings.json --json
+
+Run the single runtime-gated pan-tilt step:
+
+    CONFIRM_NEXA_SINGLE_TRACKING_STEP=RUN_SINGLE_TRACKING_STEP python scripts/run_vision_tracking_single_pan_tilt_step.py --settings config/settings.json --pan-delta 0.25 --tilt-delta 0.0 --speed 50 --acceleration 50 --execute --i-understand-this-moves-hardware --confirm-text RUN_SINGLE_TRACKING_STEP
+
+### Validation results
+
+- Readiness validator passed:
+  - ok: true
+  - errors: 0
+- Pytest passed:
+  - 36 passed
+- Single runtime-gated pan-tilt step reported:
+  - adapter_status: backend_command_executed
+  - backend_command_executed: true
+  - backend_response.movement_executed: true
+- Direct T133 visible movement test did not physically move the pan-tilt because the battery/power source was discharged.
+
+### Resolution plan
+
+Do not change more code until the pan-tilt power source is charged.
+
+After charging the battery or connecting stable power:
+
+1. Stop `nexa.service`.
+2. Confirm no process owns the camera.
+3. Run the direct T133 visible movement test.
+4. If the direct T133 test moves the pan-tilt, run `python main.py`.
+5. Say `NeXa, look at me`.
+6. Confirm physical tracking movement.
+7. If movement works but audio overflow appears, reduce vision load:
+   - `vision.continuous_capture_target_fps`: 15.0 to 12.0
+   - `look_at_me.command_interval_seconds`: 0.06 to 0.08
+   - `look_at_me.movement_interval_seconds`: 0.06 to 0.08
+
+### Current status
+
+Software path is green up to serial command execution. Physical validation is paused until the pan-tilt battery/power source is charged.
+

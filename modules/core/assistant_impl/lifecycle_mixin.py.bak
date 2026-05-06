@@ -11,7 +11,6 @@ from modules.core.session.visual_shell_state_feedback import notify_visual_shell
 from modules.presentation.visual_shell.contracts import VisualEventName
 from modules.runtime.startup_gate import StartupGateService
 from modules.shared.logging.logger import append_log, log_exception
-from modules.runtime.backend_autostart import BackendAutostartService  # NEXA_BACKEND_AUTOSTART_IMPORT
 
 
 class CoreAssistantLifecycleMixin:
@@ -159,12 +158,6 @@ class CoreAssistantLifecycleMixin:
             return
 
         try:
-            status_method = getattr(vision, "status", None)
-            status = status_method() if callable(status_method) else {}
-            if isinstance(status, dict) and bool(status.get("lazy_start", False)):
-                append_log("Vision backend lazy-start is enabled; skipping boot camera start.")
-                return
-
             start_method()
             append_log("Vision backend started.")
         except Exception as error:
@@ -283,22 +276,6 @@ class CoreAssistantLifecycleMixin:
                 "Wake acknowledgement inventory prefetched during boot: "
                 f"count={len(prefetched_wake_ack_phrases)}"
             )
-
-        # NEXA_BACKEND_AUTOSTART_BLOCK
-        try:
-            autostart_result = BackendAutostartService(
-                settings=self.settings
-            ).start_llm_backend()
-            append_log(
-                "LLM backend autostart: "
-                f"attempted={autostart_result.attempted}, "
-                f"already_running={autostart_result.already_running}, "
-                f"launched={autostart_result.launched}, "
-                f"ready={autostart_result.ready}, "
-                f"detail={autostart_result.detail}"
-            )
-        except Exception as error:
-            log_exception("LLM backend autostart failed safely", error)
 
         overlay_started_at = time.perf_counter()
         warmup_result = self._warmup_local_llm_backend()
@@ -426,13 +403,6 @@ class CoreAssistantLifecycleMixin:
             log_exception("Failed to update voice session during shutdown", error)
 
         self._close_ai_broker()
-        # NEXA_LOOK_AT_ME_SHUTDOWN
-        try:
-            session = getattr(self, "look_at_me_session", None)
-            if session is not None:
-                session.close()
-        except Exception as error:
-            log_exception("Failed to close look-at-me session during shutdown", error)
         self._close_vision_backend()
 
         self._mark_runtime_state("mark_stopped", "assistant shut down")

@@ -356,15 +356,21 @@ class VisualShellCommandLane:
         mapping = {
             "show_desktop": VisualVoiceAction.SHOW_DESKTOP,
             "show_shell": VisualVoiceAction.HIDE_DESKTOP,
+            "show_self": VisualVoiceAction.SHOW_SELF,
+            "show_eyes": VisualVoiceAction.SHOW_EYES,
             "show_face_contour": VisualVoiceAction.SHOW_FACE_CONTOUR,
+            "look_at_user": VisualVoiceAction.LOOK_AT_USER,
+            "start_scanning": VisualVoiceAction.START_SCANNING,
             "return_to_idle": VisualVoiceAction.RETURN_TO_IDLE,
             "show_temperature": VisualVoiceAction.SHOW_TEMPERATURE,
             "show_battery": VisualVoiceAction.SHOW_BATTERY,
+            "show_time": VisualVoiceAction.SHOW_TIME,
             "show_visual_time": VisualVoiceAction.SHOW_TIME,
         }
 
         show_date = getattr(VisualVoiceAction, "SHOW_DATE", None)
         if show_date is not None:
+            mapping["show_date"] = show_date
             mapping["show_visual_date"] = show_date
 
         return mapping.get(normalized)

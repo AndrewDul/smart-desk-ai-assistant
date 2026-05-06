@@ -120,6 +120,36 @@ class ActionVisualShellActionsMixin:
         resolved: ResolvedAction,
         request: SkillRequest | None = None,
     ) -> SkillResult:
+        # Stop the look-at-me session if it is running. The session centers
+        # pan/tilt on stop. If it was not running, fall through to the
+        # default Visual Shell idle response.
+        stop_meta: dict[str, Any] = {}
+        try:
+            session = getattr(self.assistant, "look_at_me_session", None)
+            if session is not None:
+                stop_meta = dict(session.stop() or {})
+        except Exception as error:
+            stop_meta = {"error": f"{type(error).__name__}: {error}"}
+
+        if bool(stop_meta.get("stopped", False)):
+            self._look_at_me_speak(
+                language,
+                "Dobrze, przestałam na ciebie patrzeć.",
+                "Okay, I stopped looking at you.",
+            )
+            return SkillResult(
+                action="return_to_idle",
+                handled=True,
+                response_delivered=True,
+                status="look_at_user_stopped",
+                metadata={
+                    "source": "action_flow.look_at_me",
+                    "phase": "look_at_user_stopped",
+                    "resolved_source": resolved.source,
+                    "stop_result": stop_meta,
+                },
+            )
+
         return self._handle_visual_shell_action(
             route=route,
             language=language,
@@ -128,8 +158,6 @@ class ActionVisualShellActionsMixin:
             request=request,
             action="return_to_idle",
         )
-
-
 
     def _handle_show_visual_date(
         self,
@@ -204,6 +232,7 @@ class ActionVisualShellActionsMixin:
         )
 
 
+    # NEXA_LOOK_AT_ME_PART2_APPLIED
     def _handle_look_at_user(
         self,
         *,
@@ -212,93 +241,156 @@ class ActionVisualShellActionsMixin:
         payload: dict[str, Any],
         resolved: ResolvedAction,
     ) -> SkillResult:
-        """
-        Run a dry-run vision tracking plan for look_at_user.
+        """Start the in-process LookAtMeSession and deliver an async voice ACK.
 
-        This bridge intentionally does not execute pan/tilt movement and does
-        not execute mobile-base yaw assist. It only exposes the tracking
-        decision so later safety-gated executors can consume it.
+        Tracking starts on a worker thread inside the session (non-blocking).
+        The spoken acknowledgement runs after start() returns so the head is
+        already moving toward the user before they hear the response.
         """
-        del route, language, payload
+        del route, payload
 
-        service = self._vision_tracking_service()
-        if service is None:
+        session = getattr(self.assistant, "look_at_me_session", None)
+        if session is None or not getattr(session, "enabled", True):
+            service = self._vision_tracking_service()
+            if service is None:
+                return SkillResult(
+                    action="look_at_user",
+                    handled=True,
+                    response_delivered=False,
+                    status="vision_tracking_unavailable",
+                    metadata={
+                        "source": "action_flow.look_at_me",
+                        "phase": "vision_tracking_unavailable",
+                        "resolved_source": resolved.source,
+                        "vision_tracking_available": False,
+                        "movement_execution_enabled": False,
+                        "pan_tilt_movement_executed": False,
+                        "base_movement_executed": False,
+                    },
+                )
+
+            try:
+                plan = service.plan_once(force_refresh=False)
+            except Exception as error:
+                return SkillResult(
+                    action="look_at_user",
+                    handled=True,
+                    response_delivered=False,
+                    status="vision_tracking_error",
+                    metadata={
+                        "source": "action_flow.look_at_me",
+                        "phase": "vision_tracking_error",
+                        "resolved_source": resolved.source,
+                        "vision_tracking_available": True,
+                        "movement_execution_enabled": False,
+                        "pan_tilt_movement_executed": False,
+                        "base_movement_executed": False,
+                        "error": f"{type(error).__name__}: {error}",
+                    },
+                )
+
+            plan_meta = self._tracking_plan_metadata(plan)
+            execution_meta = self._tracking_execution_metadata(service=service, plan=plan)
+            adapter_meta = self._pan_tilt_adapter_metadata(service=service, execution=execution_meta)
+            status = str(plan_meta.get("reason") or execution_meta.get("status") or "look_at_user_dry_run")
+            setattr(self.assistant, "_last_vision_tracking_plan", plan_meta)
+
             return SkillResult(
                 action="look_at_user",
                 handled=True,
                 response_delivered=False,
-                status="vision_tracking_unavailable",
+                status=status,
                 metadata={
-                    "source": "action_flow.vision_tracking",
-                    "phase": "look_at_user_dry_run",
+                    "source": "action_flow.look_at_me",
+                    "phase": "vision_tracking_dry_run_fallback",
                     "resolved_source": resolved.source,
-                    "vision_tracking_available": False,
-                    "dry_run": True,
-                    "movement_execution_enabled": False,
-                    "pan_tilt_movement_executed": False,
-                    "base_movement_executed": False,
-                    "base_yaw_assist_execution_enabled": False,
+                    "vision_tracking_available": True,
+                    "dry_run": bool(execution_meta.get("dry_run", True)),
+                    "movement_execution_enabled": bool(execution_meta.get("movement_execution_enabled", False)),
+                    "pan_tilt_movement_executed": bool(execution_meta.get("pan_tilt_movement_executed", False)),
+                    "base_movement_executed": bool(execution_meta.get("base_movement_executed", False)),
+                    "base_yaw_assist_required": bool(plan_meta.get("base_yaw_assist_required", False)),
+                    "base_yaw_direction": plan_meta.get("base_yaw_direction"),
+                    "base_yaw_assist_execution_enabled": bool(execution_meta.get("base_yaw_assist_execution_enabled", False)),
+                    "vision_tracking_plan": plan_meta,
+                    "vision_tracking_execution_result": execution_meta,
+                    "pan_tilt_adapter_result": adapter_meta,
                 },
             )
 
         try:
-            plan = service.plan_once(force_refresh=False)
+            start_result = dict(session.start(language=language) or {})
         except Exception as error:
+            self._look_at_me_speak_unavailable(language)
             return SkillResult(
                 action="look_at_user",
                 handled=True,
-                response_delivered=False,
-                status="vision_tracking_error",
+                response_delivered=True,
+                status="look_at_user_start_error",
                 metadata={
-                    "source": "action_flow.vision_tracking",
-                    "phase": "look_at_user_dry_run",
+                    "source": "action_flow.look_at_me",
+                    "phase": "look_at_user_unavailable",
                     "resolved_source": resolved.source,
-                    "vision_tracking_available": True,
-                    "dry_run": True,
-                    "movement_execution_enabled": False,
-                    "pan_tilt_movement_executed": False,
-                    "base_movement_executed": False,
-                    "base_yaw_assist_execution_enabled": False,
-                    "error": f"{error.__class__.__name__}: {error}",
+                    "error": f"{type(error).__name__}: {error}",
                 },
             )
 
-        plan_metadata = self._tracking_plan_metadata(plan)
-        execution_metadata = self._tracking_execution_metadata(service=service, plan=plan)
-        pan_tilt_adapter_metadata = self._pan_tilt_adapter_metadata(
-            service=service,
-            execution=execution_metadata,
-        )
-        base_yaw_assist_required = bool(
-            plan_metadata.get("base_yaw_assist_required", False)
+        # Fire the spoken ACK AFTER session.start() returns. The session is
+        # already running on its own worker thread; the speak call is OK to
+        # block here.
+        delivered = self._look_at_me_speak(
+            language,
+            "Dobrze, będę teraz na ciebie patrzeć. Gdzie jesteś?",
+            "Okay, I will look at you now. Where are you?",
         )
 
-        if hasattr(self.assistant, "_last_vision_tracking_plan"):
-            self.assistant._last_vision_tracking_plan = plan_metadata
-        else:
-            setattr(self.assistant, "_last_vision_tracking_plan", plan_metadata)
+        try:
+            session_status = session.status()
+        except Exception:
+            session_status = {}
 
         return SkillResult(
             action="look_at_user",
             handled=True,
-            response_delivered=False,
-            status=str(plan_metadata.get("reason", "vision_tracking_dry_run")),
+            response_delivered=bool(delivered),
+            status=(
+                "look_at_user_started"
+                if start_result.get("started")
+                else "look_at_user_already_active"
+            ),
             metadata={
-                "source": "action_flow.vision_tracking",
-                "phase": "look_at_user_dry_run",
+                "source": "action_flow.look_at_me",
+                "phase": "look_at_user_started",
                 "resolved_source": resolved.source,
                 "vision_tracking_available": True,
-                "vision_tracking_plan": plan_metadata,
-                "vision_tracking_execution_result": execution_metadata,
-                "pan_tilt_adapter_result": pan_tilt_adapter_metadata,
-                "dry_run": True,
-                "movement_execution_enabled": False,
-                "pan_tilt_movement_executed": False,
-                "base_movement_executed": False,
-                "base_yaw_assist_required": base_yaw_assist_required,
-                "base_yaw_direction": plan_metadata.get("base_yaw_direction"),
-                "base_yaw_assist_execution_enabled": False,
+                "dry_run": False,
+                "movement_execution_enabled": True,
+                "pan_tilt_movement_executed": True,
+                "start_result": start_result,
+                "session_status": session_status,
             },
+        )
+
+    def _look_at_me_speak(self, language: str, pl_text: str, en_text: str) -> bool:
+        """Direct TTS call. Returns True if speak was attempted successfully."""
+        voice_out = getattr(self.assistant, "voice_out", None)
+        if voice_out is None:
+            return False
+        speak = getattr(voice_out, "speak", None)
+        if not callable(speak):
+            return False
+        text = pl_text if str(language or "").lower().startswith("pl") else en_text
+        try:
+            speak(text, language=language)
+            return True
+        except Exception:
+            return False
+
+    def _look_at_me_speak_unavailable(self, language: str) -> bool:
+        return self._look_at_me_speak(
+            language,
+            "Nie mogę teraz na ciebie patrzeć.",
+            "I cannot look at you right now.",
         )
 
     def _vision_tracking_service(self) -> Any | None:

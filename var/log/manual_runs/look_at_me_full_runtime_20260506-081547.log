@@ -1,0 +1,13 @@
+[0;93m2026-05-06 08:15:50.232055463 [W:onnxruntime:Default, device_discovery.cc:325 DiscoverDevicesForPlatform] GPU device discovery failed: device_discovery.cc:92 ReadFileContents Failed to open file: "/sys/class/drm/card1/device/vendor"[m
+/home/devdul/Projects/smart-desk-ai-assistant/.venv/lib/python3.13/site-packages/onnxruntime/capi/onnxruntime_inference_collection.py:123: UserWarning: Specified provider 'CUDAExecutionProvider' is not in available provider names.Available providers: 'AzureExecutionProvider, CPUExecutionProvider'
+  warnings.warn(
+[2:07:24.071643112] [54005]  INFO Camera camera_manager.cpp:340 libcamera v0.7.0+rpt20260205
+[2:07:24.091411161] [54008]  INFO RPI pisp.cpp:720 libpisp version v1.4.0 23-03-2026 (13:29:05)
+[2:07:24.092423953] [54008]  WARN CameraSensorProperties camera_sensor_properties.cpp:548 No static properties available for 'imx708_wide'
+[2:07:24.092443391] [54008]  WARN CameraSensorProperties camera_sensor_properties.cpp:550 Please consider updating the camera sensor properties database
+[2:07:24.228888487] [54008]  INFO IPAProxy ipa_proxy.cpp:180 Using tuning file /usr/share/libcamera/ipa/rpi/pisp/imx708_wide.json
+[2:07:24.249818529] [54008]  WARN CameraSensor camera_sensor_legacy.cpp:502 'imx708_wide': No sensor delays found in static properties. Assuming unverified defaults.
+[2:07:24.250473995] [54008]  INFO Camera camera_manager.cpp:223 Adding camera '/base/axi/pcie@1000120000/rp1/i2c@88000/imx708@1a' for pipeline handler rpi/pisp
+[2:07:24.250503105] [54008]  INFO RPI pisp.cpp:1181 Registered camera /base/axi/pcie@1000120000/rp1/i2c@88000/imx708@1a to CFE device /dev/media2 and ISP device /dev/media0 using PiSP variant BCM2712_D0
+[2:07:24.298447298] [54005]  INFO Camera camera.cpp:1215 configuring streams: (0) 1280x720-RGB888/Rec709/Rec709/None/Full (1) 1536x864-BGGR_PISP_COMP1/RAW
+[2:07:24.300170294] [54008]  INFO RPI pisp.cpp:1485 Sensor: /base/axi/pcie@1000120000/rp1/i2c@88000/imx708@1a - Selected sensor format: 1536x864-SBGGR10_1X10/RAW - Selected CFE format: 1536x864-PC1B/RAW

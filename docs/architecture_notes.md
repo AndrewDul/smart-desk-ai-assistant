@@ -15847,3 +15847,73 @@ Important implementation direction:
   - `stop look at me` / `przestań na mnie patrzeć` stops tracking and centers the pan-tilt.
 - The voice path must remain fast and non-blocking. The vision loop should run as a controlled separate process or service and must not block STT/TTS/LLM runtime.
 - Mobile-base assist remains required later, but yaw-only only. No forward/backward driving is allowed for this feature.
+
+## 2026-05-06 — Look-at-me runtime pan-tilt tracking safety path
+
+### Summary
+
+Implemented and validated the next stage of the NEXA Vision Runtime look-at-me path. The goal of this sprint was to make the voice command `look at me` start face tracking and prepare smooth pan-tilt movement without breaking voice input, wake word, TTS, startup flow, or the default safety posture.
+
+### Architecture changes
+
+- `look at me` is now routed through a runtime `LookAtMeSession` instead of a separate external camera process.
+- The session reuses the existing runtime camera owner and existing `VisionTrackingService` boundary, avoiding a second independent Picamera2/libcamera owner.
+- `RuntimeBuilder` now passes the runtime `vision_tracking_service` into the look-at-me builder path.
+- `CameraService` supports lazy continuous capture startup: when lazy-start is enabled, the camera worker starts only when a vision command needs frames.
+- `CoreAssistant` lifecycle now respects the vision lazy-start state and skips boot-time camera start when `vision.lazy_start=true`.
+- `PanTiltService` now respects the configured `command_mode` when generating Waveshare serial movement commands.
+- Global pan-tilt and global vision-tracking defaults remain safe:
+  - `pan_tilt.dry_run=true`
+  - `pan_tilt.hardware_enabled=false`
+  - `pan_tilt.motion_enabled=false`
+  - `vision_tracking.pan_tilt_adapter.dry_run=true`
+  - `vision_tracking.pan_tilt_adapter.backend_command_execution_enabled=false`
+  - `vision_tracking.pan_tilt_adapter.runtime_hardware_execution_enabled=false`
+  - `vision_tracking.pan_tilt_adapter.physical_movement_confirmed=false`
+- The look-at-me command now has a separate runtime-only hardware gate:
+  - `look_at_me.runtime_pan_tilt_execution_enabled=true`
+  - `look_at_me.runtime_hardware_execution_enabled=true`
+  - `look_at_me.physical_movement_confirmed=true`
+- The runtime-only gate creates a temporary hardware-capable tracking service for the active look-at-me session only. This avoids making physical motion the default global runtime state.
+
+### Validation completed
+
+- `RuntimeBuilder` imports successfully.
+- Voice startup returned to READY after stopping the systemd service conflict and enabling vision lazy-start.
+- `look at me` was recognized by voice runtime.
+- Camera starts only after the vision command instead of at boot.
+- Face detection produced a valid tracking plan:
+  - target type: face
+  - reason: recenter_target
+  - pan delta generated
+- Vision tracking readiness validator passed with safe default settings:
+  - ok: true
+  - errors: 0
+- Relevant pytest suites passed:
+  - pan-tilt execution adapter tests
+  - pan-tilt service safety tests
+  - look-at-user bridge tests
+  - voice engine runtime candidate tests
+- Runtime-gated single pan-tilt step test succeeded in software:
+  - adapter_status: backend_command_executed
+  - backend_command_executed: true
+  - backend response: movement_executed true
+  - calibration_ready true
+  - safe limits loaded
+
+### Current state
+
+Software path is now correct up to the pan-tilt serial command boundary. The remaining physical movement issue is hardware-side: the pan-tilt battery/power source was discharged, so the controller/servos did not physically move even though the software command path executed successfully.
+
+### Next step
+
+After charging or replacing the pan-tilt battery/power source:
+
+1. Keep `nexa.service` stopped during manual hardware tests.
+2. Run a direct T133 visible movement test.
+3. Confirm the pan-tilt physically moves.
+4. Run `python main.py`.
+5. Say `NeXa, look at me`.
+6. Verify `var/data/look_at_me_tracking_status.json` shows `backend_command_executed=true` and the physical pan-tilt follows the face.
+7. If audio overflow continues during active vision, reduce capture FPS from 15 to 12 and increase look-at-me interval from 0.06 to 0.08.
+

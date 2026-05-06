@@ -133,6 +133,11 @@ class CameraService:
                 return self._last_observation
 
             if self._worker is not None:
+                if not force_refresh:
+                    return self._last_observation
+                if not self._worker.is_running:
+                    self._worker.start()
+                    LOGGER.info("CameraService: continuous capture started lazily.")
                 return self._observation_from_worker()
 
             # On-demand path (legacy).
@@ -145,6 +150,24 @@ class CameraService:
                     return self._last_observation
 
             return self._last_observation
+
+    def latest_frame(self) -> FramePacket | None:
+        """Return the newest cached continuous-capture frame without running perception."""
+        with self._pipeline_lock:
+            if self._closed:
+                return None
+            if self._worker is None:
+                if not self._config.continuous_capture_enabled:
+                    return None
+                self._worker = ContinuousCaptureWorker(
+                    self._reader,
+                    target_fps=self._config.continuous_capture_target_fps,
+                    error_backoff_seconds=self._config.continuous_capture_error_backoff_seconds,
+                )
+                self._worker.start()
+            elif not self._worker.is_running:
+                self._worker.start()
+            return self._worker.latest_frame()
 
     def status(self) -> dict[str, Any]:
         with self._pipeline_lock:

@@ -2068,4 +2068,121 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
     ]
 
+
+    # Vision look-at-me voice aliases.
+    # These intentionally reuse existing fast visual-shell intents so the Vosk
+    # fast lane can route the command without adding a new validator-only stage.
+    phrases.extend(
+        [
+            CommandPhrase(
+                "visual_shell.look_at_user",
+                "look at me",
+                language=CommandLanguage.ENGLISH,
+                tags=("visual_shell", "vision", "look_at_me"),
+            ),
+            CommandPhrase(
+                "visual_shell.look_at_user",
+                "look at me now",
+                language=CommandLanguage.ENGLISH,
+                tags=("visual_shell", "vision", "look_at_me"),
+            ),
+            CommandPhrase(
+                "visual_shell.look_at_user",
+                "start looking at me",
+                language=CommandLanguage.ENGLISH,
+                tags=("visual_shell", "vision", "look_at_me"),
+            ),
+            CommandPhrase(
+                "visual_shell.look_at_user",
+                "track my face",
+                language=CommandLanguage.ENGLISH,
+                tags=("visual_shell", "vision", "look_at_me"),
+            ),
+            CommandPhrase(
+                "visual_shell.look_at_user",
+                "popatrz na mnie",
+                language=CommandLanguage.POLISH,
+                tags=("visual_shell", "vision", "look_at_me"),
+            ),
+            CommandPhrase(
+                "visual_shell.look_at_user",
+                "patrz na mnie",
+                language=CommandLanguage.POLISH,
+                tags=("visual_shell", "vision", "look_at_me"),
+            ),
+            CommandPhrase(
+                "visual_shell.look_at_user",
+                "spójrz na mnie",
+                language=CommandLanguage.POLISH,
+                tags=("visual_shell", "vision", "look_at_me"),
+            ),
+            CommandPhrase(
+                "visual_shell.look_at_user",
+                "spojrz na mnie",
+                language=CommandLanguage.POLISH,
+                tags=("visual_shell", "vision", "look_at_me", "stt_recovery"),
+            ),
+            CommandPhrase(
+                "visual_shell.look_at_user",
+                "śledź moją twarz",
+                language=CommandLanguage.POLISH,
+                tags=("visual_shell", "vision", "look_at_me"),
+            ),
+            CommandPhrase(
+                "visual_shell.look_at_user",
+                "sledz moja twarz",
+                language=CommandLanguage.POLISH,
+                tags=("visual_shell", "vision", "look_at_me", "stt_recovery"),
+            ),
+            CommandPhrase(
+                "visual_shell.return_to_idle",
+                "stop look at me",
+                language=CommandLanguage.ENGLISH,
+                tags=("visual_shell", "vision", "stop_look_at_me"),
+            ),
+            CommandPhrase(
+                "visual_shell.return_to_idle",
+                "stop looking at me",
+                language=CommandLanguage.ENGLISH,
+                tags=("visual_shell", "vision", "stop_look_at_me"),
+            ),
+            CommandPhrase(
+                "visual_shell.return_to_idle",
+                "stop tracking me",
+                language=CommandLanguage.ENGLISH,
+                tags=("visual_shell", "vision", "stop_look_at_me"),
+            ),
+            CommandPhrase(
+                "visual_shell.return_to_idle",
+                "przestań na mnie patrzeć",
+                language=CommandLanguage.POLISH,
+                tags=("visual_shell", "vision", "stop_look_at_me"),
+            ),
+            CommandPhrase(
+                "visual_shell.return_to_idle",
+                "przestan na mnie patrzec",
+                language=CommandLanguage.POLISH,
+                tags=("visual_shell", "vision", "stop_look_at_me", "stt_recovery"),
+            ),
+            CommandPhrase(
+                "visual_shell.return_to_idle",
+                "nie patrz na mnie",
+                language=CommandLanguage.POLISH,
+                tags=("visual_shell", "vision", "stop_look_at_me"),
+            ),
+            CommandPhrase(
+                "visual_shell.return_to_idle",
+                "przestań mnie śledzić",
+                language=CommandLanguage.POLISH,
+                tags=("visual_shell", "vision", "stop_look_at_me"),
+            ),
+            CommandPhrase(
+                "visual_shell.return_to_idle",
+                "zatrzymaj śledzenie twarzy",
+                language=CommandLanguage.POLISH,
+                tags=("visual_shell", "vision", "stop_look_at_me"),
+            ),
+        ]
+    )
+
     return CommandGrammar(phrases)

@@ -204,7 +204,7 @@ def test_waveshare_serial_move_delta_executes_only_when_all_backend_gates_are_en
     assert result["ok"] is True
     assert result["movement_executed"] is True
     assert result["serial_write_enabled"] is True
-    assert result["command_count"] == 6
+    assert result["command_count"] == 5
     assert result["applied_pan_delta_degrees"] == 0.5
     assert result["applied_tilt_delta_degrees"] == -0.25
     assert fake_serial.calls == [
@@ -215,14 +215,13 @@ def test_waveshare_serial_move_delta_executes_only_when_all_backend_gates_are_en
         }
     ]
     sent_commands = [json.loads(line) for line in fake_serial.writes]
-    assert sent_commands[:5] == [
+    assert sent_commands[:4] == [
         {"T": 135},
         {"T": 137, "s": 0, "y": 0},
         {"T": 4, "cmd": 2},
         {"T": 210, "cmd": 1},
-        {"T": 133, "X": 0, "Y": 0, "SPD": 45, "ACC": 45},
     ]
-    assert sent_commands[5] == {
+    assert sent_commands[4] == {
         "T": 133,
         "X": 0.5,
         "Y": -0.25,
@@ -267,3 +266,39 @@ def test_mock_backend_respects_safe_limits() -> None:
     assert delta["applied_tilt_delta_degrees"] == -2.0
     assert delta["pan_angle"] == 0.0
     assert delta["tilt_angle"] == -1.0
+
+
+def test_waveshare_serial_move_delta_uses_configured_smooth_command_mode(
+    tmp_path: Path,
+) -> None:
+    device = tmp_path / "serial0"
+    calibration = tmp_path / "pan_tilt_limit_calibration.json"
+    device.touch()
+    _calibration_state(calibration)
+    fake_serial = _FakeSerialFactory()
+
+    service = PanTiltService(
+        config={
+            "enabled": True,
+            "backend": "waveshare_serial",
+            "hardware_enabled": True,
+            "motion_enabled": True,
+            "dry_run": False,
+            "device": str(device),
+            "calibration_required": True,
+            "allow_uncalibrated_motion": False,
+            "calibration_state_path": str(calibration),
+            "max_step_degrees": 0.5,
+            "command_speed": 90,
+            "command_acceleration": 90,
+            "serial_warmup_seconds": 0.0,
+            "command_mode": "smooth",
+        },
+        serial_factory=fake_serial,
+    )
+
+    result = service.move_delta(pan_delta_degrees=0.25, tilt_delta_degrees=-0.1)
+
+    assert result["ok"] is True
+    sent_commands = [json.loads(line) for line in fake_serial.writes]
+    assert sent_commands[4] == {"T": 134, "X": 0.25, "Y": -0.1, "SX": 90, "SY": 90}
