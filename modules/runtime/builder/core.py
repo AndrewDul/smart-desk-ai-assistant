@@ -93,6 +93,7 @@ class RuntimeBuilder(
         ai_broker_cfg = self._cfg("ai_broker")
         pan_tilt_cfg = self._cfg("pan_tilt")
         vision_tracking_cfg = self._cfg("vision_tracking")
+        focus_vision_cfg = self._cfg("focus_vision")
         mobility_cfg = self._cfg("mobility")
 
         voice_input, voice_input_status = self._build_voice_input(voice_input_cfg)
@@ -104,6 +105,10 @@ class RuntimeBuilder(
         voice_output, voice_output_status = self._build_voice_output(voice_output_cfg)
         display, display_status = self._build_display(display_cfg)
         vision, vision_status = self._build_vision(vision_cfg)
+        focus_vision, focus_vision_status = self._build_focus_vision(
+            focus_vision_cfg,
+            vision_backend=vision,
+        )
         ai_broker, ai_broker_status = self._build_ai_broker(
             ai_broker_cfg,
             vision_backend=vision,
@@ -174,6 +179,7 @@ class RuntimeBuilder(
             "voice_output": voice_output_status,
             "display": display_status,
             "vision": vision_status,
+            "focus_vision": focus_vision_status,
             "ai_broker": ai_broker_status,
             "pan_tilt": pan_tilt_status,
             "vision_tracking": vision_tracking_status,
@@ -191,6 +197,8 @@ class RuntimeBuilder(
         metadata = {
             "audio_coordinator": audio_coordinator,
             "vision_backend": vision,
+            "focus_vision_sentinel_service": focus_vision,
+            "focus_vision_status": focus_vision_status.to_snapshot(),
             "ai_broker": ai_broker,
             "pan_tilt_backend": pan_tilt,
             "vision_tracking_service": vision_tracking,

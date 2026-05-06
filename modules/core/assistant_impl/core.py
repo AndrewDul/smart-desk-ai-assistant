@@ -32,6 +32,7 @@ from modules.shared.persistence.repositories import (
 )
 
 from .ai_broker_mixin import CoreAssistantAiBrokerMixin
+from .focus_vision_mixin import CoreAssistantFocusVisionMixin
 from .helpers_mixin import CoreAssistantHelpersMixin
 from .interaction_mixin import CoreAssistantInteractionMixin
 from .lifecycle_mixin import CoreAssistantLifecycleMixin
@@ -47,6 +48,7 @@ class CoreAssistant(
     CoreAssistantMemoryBackgroundMixin,
     CoreAssistantRoutingMixin,
     CoreAssistantResponseMixin,
+    CoreAssistantFocusVisionMixin,
     CoreAssistantAiBrokerMixin,
     CoreAssistantInteractionMixin,
     CoreAssistantLifecycleMixin,
@@ -181,6 +183,7 @@ class CoreAssistant(
         self.audio_coordinator = self.runtime.metadata.get("audio_coordinator")
         self.vision = self.runtime.metadata.get("vision_backend")
         self.vision_tracking = self.runtime.metadata.get("vision_tracking_service")
+        self.focus_vision = self.runtime.metadata.get("focus_vision_sentinel_service")
         self.ai_broker = self.runtime.metadata.get("ai_broker")
         self.pan_tilt = self.runtime.metadata.get("pan_tilt_backend")
         self.mobility = self.runtime.metadata.get("mobility_backend")

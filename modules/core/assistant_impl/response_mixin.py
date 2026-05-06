@@ -561,6 +561,12 @@ class CoreAssistantResponseMixin:
             self._enter_ai_broker_focus_sentinel_mode(
                 reason="focus_timer_started",
             )
+            start_focus_vision = getattr(self, "_start_focus_vision_sentinel", None)
+            if callable(start_focus_vision):
+                start_focus_vision(
+                    language=lang,
+                    reason="focus_timer_started",
+                )
 
         if timer_type == "focus":
             spoken = self._localized(
@@ -617,6 +623,9 @@ class CoreAssistantResponseMixin:
         self._save_state()
 
         if timer_type == "focus":
+            stop_focus_vision = getattr(self, "_stop_focus_vision_sentinel", None)
+            if callable(stop_focus_vision):
+                stop_focus_vision(reason="focus_timer_finished")
             self._enter_ai_broker_idle_baseline(
                 reason="focus_timer_finished",
             )
@@ -683,6 +692,9 @@ class CoreAssistantResponseMixin:
         self._save_state()
 
         if timer_type == "focus":
+            stop_focus_vision = getattr(self, "_stop_focus_vision_sentinel", None)
+            if callable(stop_focus_vision):
+                stop_focus_vision(reason="focus_timer_stopped")
             self._enter_ai_broker_idle_baseline(
                 reason="focus_timer_stopped",
             )

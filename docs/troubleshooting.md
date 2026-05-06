@@ -4946,3 +4946,38 @@ Use plugin autoload isolation:
     PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q <test-path>
 
 This was used only for the local ZIP audit workspace to avoid unrelated external pytest plugin interference. It is not a NEXA runtime issue.
+
+
+## 2026-05-06 — Focus Vision Sprint 2 integration notes
+
+### Status
+
+No hardware problem was introduced during this sprint.
+
+### Issue found during ZIP audit
+
+While building the runtime integration for Focus Vision, the builder test exposed a configuration parsing bug in `FocusVisionConfig.from_mapping(...)`.
+
+Symptom:
+
+    Focus Vision Sentinel service failed to load. Error: '>' not supported between instances of 'member_descriptor' and 'float'
+
+Cause:
+
+`FocusVisionConfig` is a slotted dataclass. The parser was using class-level dataclass fields such as `cls.observation_interval_seconds` as defaults. With slots, these class attributes are descriptors, not runtime default values.
+
+Fix:
+
+`FocusVisionConfig.from_mapping(...)` now creates `defaults = cls()` and reads defaults from that instance, for example `defaults.observation_interval_seconds`.
+
+### Safety note
+
+Sprint 2 still does not activate voice warnings, pan-tilt scanning, or mobile-base movement. The feature is connected to Focus Mode lifecycle only.
+
+### Validation
+
+Relevant Sprint 2 validation passed:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/features/focus_vision tests/vision/unit/runtime/test_focus_vision_focus_mode_hooks.py tests/vision/unit/runtime/test_focus_vision_builder_integration.py tests/vision/unit/runtime/test_ai_broker_focus_hooks.py tests/vision/unit/runtime/test_ai_broker_service.py tests/vision/unit/behavior/test_pipeline.py tests/vision/unit/behavior/phone_usage/test_interpreter.py
+
+Result: 37 passed.

@@ -53,24 +53,25 @@ class FocusVisionConfig:
 
     @classmethod
     def from_mapping(cls, raw: dict[str, Any] | None) -> "FocusVisionConfig":
+        defaults = cls()
         payload = dict(raw or {})
         if isinstance(payload.get("focus_vision"), dict):
             payload = dict(payload["focus_vision"])
 
         return cls(
-            enabled=_as_bool(payload.get("enabled"), cls.enabled),
-            dry_run=_as_bool(payload.get("dry_run"), cls.dry_run),
-            voice_warnings_enabled=_as_bool(payload.get("voice_warnings_enabled"), cls.voice_warnings_enabled),
-            visual_warnings_enabled=_as_bool(payload.get("visual_warnings_enabled"), cls.visual_warnings_enabled),
-            observation_interval_seconds=_as_float(payload.get("observation_interval_seconds"), cls.observation_interval_seconds, minimum=0.2),
-            startup_grace_seconds=_as_float(payload.get("startup_grace_seconds"), cls.startup_grace_seconds),
-            absence_warning_after_seconds=_as_float(payload.get("absence_warning_after_seconds"), cls.absence_warning_after_seconds),
-            phone_warning_after_seconds=_as_float(payload.get("phone_warning_after_seconds"), cls.phone_warning_after_seconds),
-            warning_cooldown_seconds=_as_float(payload.get("warning_cooldown_seconds"), cls.warning_cooldown_seconds),
-            max_warnings_per_session=_as_int(payload.get("max_warnings_per_session"), cls.max_warnings_per_session),
-            telemetry_path=str(payload.get("telemetry_path") or cls.telemetry_path),
-            latest_observation_force_refresh=_as_bool(payload.get("latest_observation_force_refresh"), cls.latest_observation_force_refresh),
-            pan_tilt_scan_enabled=_as_bool(payload.get("pan_tilt_scan_enabled"), cls.pan_tilt_scan_enabled),
+            enabled=_as_bool(payload.get("enabled"), defaults.enabled),
+            dry_run=_as_bool(payload.get("dry_run"), defaults.dry_run),
+            voice_warnings_enabled=_as_bool(payload.get("voice_warnings_enabled"), defaults.voice_warnings_enabled),
+            visual_warnings_enabled=_as_bool(payload.get("visual_warnings_enabled"), defaults.visual_warnings_enabled),
+            observation_interval_seconds=_as_float(payload.get("observation_interval_seconds"), defaults.observation_interval_seconds, minimum=0.2),
+            startup_grace_seconds=_as_float(payload.get("startup_grace_seconds"), defaults.startup_grace_seconds),
+            absence_warning_after_seconds=_as_float(payload.get("absence_warning_after_seconds"), defaults.absence_warning_after_seconds),
+            phone_warning_after_seconds=_as_float(payload.get("phone_warning_after_seconds"), defaults.phone_warning_after_seconds),
+            warning_cooldown_seconds=_as_float(payload.get("warning_cooldown_seconds"), defaults.warning_cooldown_seconds),
+            max_warnings_per_session=_as_int(payload.get("max_warnings_per_session"), defaults.max_warnings_per_session),
+            telemetry_path=str(payload.get("telemetry_path") or defaults.telemetry_path),
+            latest_observation_force_refresh=_as_bool(payload.get("latest_observation_force_refresh"), defaults.latest_observation_force_refresh),
+            pan_tilt_scan_enabled=_as_bool(payload.get("pan_tilt_scan_enabled"), defaults.pan_tilt_scan_enabled),
         )
 
     def status(self) -> dict[str, Any]:

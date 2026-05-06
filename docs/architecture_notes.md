@@ -15972,3 +15972,47 @@ Sprint 2 should connect this service to real Focus Mode lifecycle:
 `Focus timer stopped/finished -> FocusVisionSentinelService.stop()`
 
 The integration must remain small and should not add heavy logic to `response_mixin.py`.
+
+
+## 2026-05-06 — Focus Vision Sentinel Sprint 2 lifecycle integration
+
+### Summary
+
+Connected the Focus Vision Sentinel foundation to the real Focus Mode timer lifecycle while keeping the feature safe and non-invasive. Focus Mode can now start and stop the sentinel service through small assistant-layer hooks.
+
+### Architecture changes
+
+- Added `modules/core/assistant_impl/focus_vision_mixin.py` as a small lifecycle bridge for Focus Vision.
+- Added `CoreAssistantFocusVisionMixin` to the `CoreAssistant` composition.
+- Added `self.focus_vision` in `CoreAssistant` from runtime metadata.
+- Added `_build_focus_vision(...)` to `RuntimeBuilderFeaturesMixin`.
+- Runtime builder now exposes:
+  - `metadata["focus_vision_sentinel_service"]`,
+  - `metadata["focus_vision_status"]`,
+  - `backend_statuses["focus_vision"]`.
+- `response_mixin.py` now only contains minimal lifecycle hook calls:
+  - Focus timer started calls `_start_focus_vision_sentinel(language=turn_language, reason="focus_timer_started")`.
+  - Focus timer finished calls `_stop_focus_vision_sentinel(reason="focus_timer_finished")`.
+  - Focus timer stopped calls `_stop_focus_vision_sentinel(reason="focus_timer_stopped")`.
+- Focus Vision remains independent from camera internals, detectors, pan-tilt, and voice output. It still reads the existing `VisionObservation` contract through `FocusVisionSentinelService`.
+
+### Safety and runtime boundaries
+
+- Pan-tilt movement remains disabled.
+- Mobile-base movement remains disabled.
+- Voice warning playback remains disabled by default.
+- Focus Vision service is built even when disabled, so status and lifecycle hooks are visible without activating monitoring.
+- If `focus_vision.enabled=false`, `service.start(...)` returns false and no background loop starts.
+- If Focus Vision fails to load, Focus Mode still works without vision monitoring and the backend status degrades only the `focus_vision` component.
+
+### Validation completed
+
+Relevant validation passed:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/features/focus_vision tests/vision/unit/runtime/test_focus_vision_focus_mode_hooks.py tests/vision/unit/runtime/test_focus_vision_builder_integration.py tests/vision/unit/runtime/test_ai_broker_focus_hooks.py tests/vision/unit/runtime/test_ai_broker_service.py tests/vision/unit/behavior/test_pipeline.py tests/vision/unit/behavior/phone_usage/test_interpreter.py
+
+Result: 37 passed.
+
+### Next step
+
+Sprint 3 should add controlled delivery for Focus Vision reminders. The reminder text already exists in the policy layer, but runtime delivery should remain gated by `focus_vision.voice_warnings_enabled` and should use deterministic Polish/English text without LLM.
