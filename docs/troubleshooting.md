@@ -4910,3 +4910,39 @@ After charging the battery or connecting stable power:
 
 Software path is green up to serial command execution. Physical validation is paused until the pan-tilt battery/power source is charged.
 
+
+## 2026-05-06 — Focus Vision Sentinel Sprint 1 notes
+
+### Status
+
+No runtime hardware problem was introduced during this sprint.
+
+### Important note
+
+Focus Vision Sprint 1 is intentionally dry-run only:
+
+- no pan-tilt movement,
+- no mobile-base movement,
+- no voice warning playback by default,
+- telemetry-only reminder candidates.
+
+This protects the current runtime while the focus monitoring logic is being built and tested.
+
+### Validation
+
+The following relevant tests passed in the ZIP audit workspace:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/features/focus_vision
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/vision/unit/runtime/test_ai_broker_focus_hooks.py tests/vision/unit/runtime/test_ai_broker_service.py
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/vision/unit/behavior/test_pipeline.py tests/vision/unit/behavior/phone_usage/test_interpreter.py
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/features/focus_vision tests/vision/unit/runtime/test_ai_broker_focus_hooks.py tests/vision/unit/runtime/test_ai_broker_service.py tests/vision/unit/behavior/test_pipeline.py tests/vision/unit/behavior/phone_usage/test_interpreter.py
+
+Combined relevant result: 30 passed.
+
+### If pytest hangs in a generic desktop/container environment
+
+Use plugin autoload isolation:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q <test-path>
+
+This was used only for the local ZIP audit workspace to avoid unrelated external pytest plugin interference. It is not a NEXA runtime issue.

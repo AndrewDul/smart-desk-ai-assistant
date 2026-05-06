@@ -462,6 +462,21 @@
       "max_allowed_tilt_delta_degrees": 0.5
     }
   },
+  "focus_vision": {
+    "enabled": false,
+    "dry_run": true,
+    "voice_warnings_enabled": false,
+    "visual_warnings_enabled": true,
+    "observation_interval_seconds": 1.0,
+    "startup_grace_seconds": 10.0,
+    "absence_warning_after_seconds": 25.0,
+    "phone_warning_after_seconds": 10.0,
+    "warning_cooldown_seconds": 60.0,
+    "max_warnings_per_session": 5,
+    "telemetry_path": "var/data/focus_vision_sentinel.jsonl",
+    "latest_observation_force_refresh": true,
+    "pan_tilt_scan_enabled": false
+  },
   "pan_tilt": {
     "enabled": true,
     "backend": "waveshare_serial",

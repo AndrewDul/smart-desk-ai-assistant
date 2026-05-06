@@ -15917,3 +15917,58 @@ After charging or replacing the pan-tilt battery/power source:
 6. Verify `var/data/look_at_me_tracking_status.json` shows `backend_command_executed=true` and the physical pan-tilt follows the face.
 7. If audio overflow continues during active vision, reduce capture FPS from 15 to 12 and increase look-at-me interval from 0.06 to 0.08.
 
+
+## 2026-05-06 — Focus Vision Sentinel Sprint 1 foundation
+
+### Summary
+
+Started the Focus Vision Sentinel feature as a separate product-grade feature layer for Focus Mode. The goal is to let NEXA monitor whether the user is present at the desk, working/studying, absent, or distracted by phone usage while Focus Mode is active.
+
+### Architecture changes
+
+- Added a new modular feature package: `modules/features/focus_vision`.
+- The feature reads the existing stable `VisionObservation` contract instead of coupling Focus Mode directly to camera, detectors, or motors.
+- Added normalized focus evidence extraction from existing behavior/session metadata:
+  - presence,
+  - desk activity,
+  - computer work,
+  - phone usage,
+  - study activity.
+- Added `FocusVisionDecisionEngine` with deterministic states:
+  - `no_observation`,
+  - `on_task`,
+  - `absent`,
+  - `phone_distraction`,
+  - `uncertain`.
+- Added `FocusVisionStateMachine` to track how long a state has remained stable before reminders are considered.
+- Added `FocusVisionReminderPolicy` with deterministic Polish/English reminder text, startup grace, cooldown, and max warnings per session.
+- Added `FocusVisionSentinelService` with a safe background loop, manual `tick()` path for tests, telemetry JSONL output, and no direct TTS or pan-tilt movement yet.
+- Added `focus_vision` defaults to `config/settings.json` and `config/settings.example.json`.
+- Pan-tilt scanning remains explicitly disabled with `focus_vision.pan_tilt_scan_enabled=false`.
+
+### Safety and runtime boundaries
+
+- Sprint 1 does not move pan-tilt.
+- Sprint 1 does not move the mobile base.
+- Sprint 1 does not speak reminders yet by default.
+- The service produces dry-run reminder candidates and telemetry only.
+- Existing voice runtime, timer runtime, AI broker, camera service, and behavior pipeline are not modified.
+
+### Validation completed
+
+- Focus Vision unit tests passed: 10 passed.
+- AI broker focus hook tests passed: 9 passed.
+- Existing behavior pipeline and phone usage interpreter tests passed: 11 passed.
+- Combined relevant validation passed: 30 passed.
+- New Focus Vision Python files are all below 500 lines.
+- `config/settings.json` and `config/settings.example.json` remain valid JSON.
+
+### Next step
+
+Sprint 2 should connect this service to real Focus Mode lifecycle:
+
+`Focus timer started -> FocusVisionSentinelService.start(language=turn_language)`
+
+`Focus timer stopped/finished -> FocusVisionSentinelService.stop()`
+
+The integration must remain small and should not add heavy logic to `response_mixin.py`.
