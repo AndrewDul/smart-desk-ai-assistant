@@ -4981,3 +4981,54 @@ Relevant Sprint 2 validation passed:
     PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/features/focus_vision tests/vision/unit/runtime/test_focus_vision_focus_mode_hooks.py tests/vision/unit/runtime/test_focus_vision_builder_integration.py tests/vision/unit/runtime/test_ai_broker_focus_hooks.py tests/vision/unit/runtime/test_ai_broker_service.py tests/vision/unit/behavior/test_pipeline.py tests/vision/unit/behavior/phone_usage/test_interpreter.py
 
 Result: 37 passed.
+
+
+## 2026-05-06 — Focus Vision Sprint 3 reminder delivery notes
+
+### Status
+
+No hardware problem was introduced during this sprint.
+
+### Safety note
+
+Sprint 3 adds the delivery path for Focus Vision reminders, but the default configuration still prevents spoken warnings:
+
+- `focus_vision.enabled=false`,
+- `focus_vision.dry_run=true`,
+- `focus_vision.voice_warnings_enabled=false`,
+- `focus_vision.pan_tilt_scan_enabled=false`.
+
+This means the feature remains safe by default after applying the patch.
+
+### Issue covered by tests
+
+The service now records a clear delivery error if active reminder delivery is enabled but no assistant-layer handler is attached.
+
+Expected telemetry/status marker:
+
+    no_reminder_handler
+
+This is safer than failing the background Focus Vision loop.
+
+### Validation
+
+Relevant Sprint 3 validation passed in the ZIP audit workspace:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/features/focus_vision tests/vision/unit/runtime/test_focus_vision_focus_mode_hooks.py tests/vision/unit/runtime/test_focus_vision_builder_integration.py tests/vision/unit/runtime/test_ai_broker_focus_hooks.py tests/vision/unit/runtime/test_ai_broker_service.py tests/vision/unit/behavior/test_pipeline.py tests/vision/unit/behavior/phone_usage/test_interpreter.py
+
+Result: 40 passed.
+
+### If reminders do not speak later
+
+Check these in order:
+
+1. Confirm Focus Vision is enabled.
+2. Confirm `focus_vision.dry_run=false`.
+3. Confirm `focus_vision.voice_warnings_enabled=true`.
+4. Confirm `focus_vision_status.metadata.reminder_handler_attached=true` or runtime `focus_vision.status().reminder_handler_attached=true`.
+5. Inspect `var/data/focus_vision_sentinel.jsonl` for:
+   - `reminder`,
+   - `reminder_delivered`,
+   - `reminder_delivery_error`.
+
+Do not enable pan-tilt scanning for Focus Vision yet.

@@ -16016,3 +16016,59 @@ Result: 37 passed.
 ### Next step
 
 Sprint 3 should add controlled delivery for Focus Vision reminders. The reminder text already exists in the policy layer, but runtime delivery should remain gated by `focus_vision.voice_warnings_enabled` and should use deterministic Polish/English text without LLM.
+
+
+## 2026-05-06 — Focus Vision Sentinel Sprint 3 controlled reminder delivery
+
+### Summary
+
+Added controlled Focus Vision reminder delivery through the existing async notification flow. The Focus Vision service can now deliver deterministic Polish/English reminders when a stabilized absence or phone-distraction state crosses the configured threshold.
+
+### Architecture changes
+
+- Extended `FocusVisionSentinelService` with a reminder handler boundary:
+  - `set_reminder_handler(...)`,
+  - dry-run reminders remain telemetry-only,
+  - active reminders are delivered only when `focus_vision.dry_run=false` and `focus_vision.voice_warnings_enabled=true`.
+- Added reminder delivery telemetry fields to `FocusVisionTickResult`:
+  - `reminder_delivered`,
+  - `reminder_delivery_error`.
+- Added runtime status fields:
+  - `last_delivery_error`,
+  - `delivered_reminder_count`,
+  - `reminder_handler_attached`.
+- Extended `CoreAssistantFocusVisionMixin` with:
+  - `_bind_focus_vision_reminder_delivery()`,
+  - `_deliver_focus_vision_reminder(...)`.
+- `CoreAssistant` binds Focus Vision reminder delivery after `NotificationFlowOrchestrator` is created.
+- Focus Vision reminders use the existing `_deliver_async_notification(...)` path with:
+  - `source="focus_vision_sentinel"`,
+  - `route_kind="focus_vision_reminder"`,
+  - deterministic reminder text from `FocusVisionReminderPolicy`,
+  - compact metadata for kind, state, stable seconds, and dry-run status.
+- Runtime builder capabilities now advertise deterministic reminder policy and notification-flow delivery gating.
+
+### Safety and runtime boundaries
+
+- LLM is not used for Focus Vision reminders.
+- Reminder text remains deterministic and language-scoped to the Focus Mode session language.
+- Default config remains safe:
+  - `focus_vision.enabled=false`,
+  - `focus_vision.dry_run=true`,
+  - `focus_vision.voice_warnings_enabled=false`,
+  - `focus_vision.pan_tilt_scan_enabled=false`.
+- Pan-tilt movement remains disabled.
+- Mobile-base movement remains disabled.
+- If no reminder handler is attached while active delivery is enabled, the service records `no_reminder_handler` instead of crashing the Focus Vision loop.
+
+### Validation completed
+
+Relevant Sprint 3 validation passed in the ZIP audit workspace:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/features/focus_vision tests/vision/unit/runtime/test_focus_vision_focus_mode_hooks.py tests/vision/unit/runtime/test_focus_vision_builder_integration.py tests/vision/unit/runtime/test_ai_broker_focus_hooks.py tests/vision/unit/runtime/test_ai_broker_service.py tests/vision/unit/behavior/test_pipeline.py tests/vision/unit/behavior/phone_usage/test_interpreter.py
+
+Result: 40 passed.
+
+### Next step
+
+Sprint 4 should add a controlled Focus Vision enablement and telemetry observation path. The next validation should run Focus Mode with Focus Vision enabled in dry-run mode, then inspect `var/data/focus_vision_sentinel.jsonl` while testing desk presence and phone-distraction scenarios. Voice warnings should stay disabled until telemetry proves the decisions are stable enough.

@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from .config import FocusVisionConfig
 from .decision_engine import FocusVisionDecisionEngine
@@ -17,11 +17,15 @@ from .telemetry import FocusVisionTelemetryWriter
 class FocusVisionTickResult:
     snapshot: FocusVisionStateSnapshot | None
     reminder: FocusVisionReminder | None
+    reminder_delivered: bool = False
+    reminder_delivery_error: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "snapshot": None if self.snapshot is None else self.snapshot.to_dict(),
             "reminder": None if self.reminder is None else self.reminder.to_dict(),
+            "reminder_delivered": self.reminder_delivered,
+            "reminder_delivery_error": self.reminder_delivery_error,
         }
 
 
@@ -35,6 +39,7 @@ class FocusVisionSentinelService:
     state_machine: FocusVisionStateMachine = field(default_factory=FocusVisionStateMachine)
     reminder_policy: FocusVisionReminderPolicy | None = None
     telemetry: FocusVisionTelemetryWriter | None = None
+    reminder_handler: Callable[[FocusVisionReminder], None] | None = None
 
     _thread: threading.Thread | None = field(default=None, init=False)
     _stop_event: threading.Event = field(default_factory=threading.Event, init=False)
@@ -43,12 +48,22 @@ class FocusVisionSentinelService:
     _language: str = field(default="en", init=False)
     _last_result: FocusVisionTickResult | None = field(default=None, init=False)
     _last_error: str | None = field(default=None, init=False)
+    _last_delivery_error: str | None = field(default=None, init=False)
+    _delivered_reminder_count: int = field(default=0, init=False)
 
     def __post_init__(self) -> None:
         if self.reminder_policy is None:
             self.reminder_policy = FocusVisionReminderPolicy(config=self.config)
         if self.telemetry is None:
             self.telemetry = FocusVisionTelemetryWriter(self.config.telemetry_path)
+
+    def set_reminder_handler(
+        self,
+        handler: Callable[[FocusVisionReminder], None] | None,
+    ) -> None:
+        with self._lock:
+            self.reminder_handler = handler
+            self._last_delivery_error = None
 
     def start(self, *, language: str = "en") -> bool:
         with self._lock:
@@ -92,7 +107,16 @@ class FocusVisionSentinelService:
             snapshot = self.state_machine.update(decision)
             assert self.reminder_policy is not None
             reminder = self.reminder_policy.evaluate(snapshot, language=self._language, now=current_time)
-            result = FocusVisionTickResult(snapshot=snapshot, reminder=reminder)
+            delivered = False
+            delivery_error = None
+            if reminder is not None:
+                delivered, delivery_error = self._deliver_reminder(reminder)
+            result = FocusVisionTickResult(
+                snapshot=snapshot,
+                reminder=reminder,
+                reminder_delivered=delivered,
+                reminder_delivery_error=delivery_error,
+            )
             self._last_result = result
             self._last_error = None
             self._write_telemetry(result, current_time=current_time)
@@ -113,9 +137,32 @@ class FocusVisionSentinelService:
                 "language": self._language,
                 "dry_run": self.config.dry_run,
                 "last_error": self._last_error,
+                "last_delivery_error": self._last_delivery_error,
+                "delivered_reminder_count": self._delivered_reminder_count,
+                "reminder_handler_attached": self.reminder_handler is not None,
                 "last_result": None if self._last_result is None else self._last_result.to_dict(),
                 "policy": policy_status,
             }
+
+
+    def _deliver_reminder(self, reminder: FocusVisionReminder) -> tuple[bool, str | None]:
+        if reminder.dry_run:
+            return False, None
+
+        handler = self.reminder_handler
+        if handler is None:
+            self._last_delivery_error = "no_reminder_handler"
+            return False, self._last_delivery_error
+
+        try:
+            handler(reminder)
+        except Exception as error:
+            self._last_delivery_error = f"{error.__class__.__name__}: {error}"
+            return False, self._last_delivery_error
+
+        self._last_delivery_error = None
+        self._delivered_reminder_count += 1
+        return True, None
 
     def _run_loop(self) -> None:
         try:

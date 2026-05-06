@@ -11,6 +11,10 @@ class _FakeFocusVisionService:
         self.started_languages: list[str] = []
         self.stop_count = 0
         self.running = False
+        self.reminder_handler = None
+
+    def set_reminder_handler(self, handler) -> None:
+        self.reminder_handler = handler
 
     def start(self, *, language: str = "en") -> bool:
         self.started_languages.append(language)
@@ -26,7 +30,29 @@ class _FakeFocusVisionService:
             "running": self.running,
             "started_languages": list(self.started_languages),
             "stop_count": self.stop_count,
+            "reminder_handler_attached": self.reminder_handler is not None,
         }
+
+
+class _Kind:
+    value = "absence"
+
+
+class _State:
+    value = "absent"
+
+
+class _Snapshot:
+    current_state = _State()
+    stable_seconds = 30.0
+
+
+class _Reminder:
+    kind = _Kind()
+    language = "pl"
+    text = "To jest twój czas pracy. Wróć do biurka."
+    dry_run = False
+    snapshot = _Snapshot()
 
 
 class _Host(CoreAssistantFocusVisionMixin, CoreAssistantResponseMixin):
@@ -84,6 +110,21 @@ class _Host(CoreAssistantFocusVisionMixin, CoreAssistantResponseMixin):
 
 
 class FocusVisionFocusModeHookTests(unittest.TestCase):
+    def test_focus_vision_reminder_delivery_is_bound_to_async_notifications(self) -> None:
+        host = _Host()
+
+        binding = host._bind_focus_vision_reminder_delivery()
+        self.assertIsNotNone(host.focus_vision.reminder_handler)
+        host.focus_vision.reminder_handler(_Reminder())
+
+        self.assertEqual(binding, {"available": True, "bound": True})
+        self.assertEqual(len(host.notifications), 1)
+        self.assertEqual(host.notifications[0]["lang"], "pl")
+        self.assertEqual(host.notifications[0]["source"], "focus_vision_sentinel")
+        self.assertEqual(host.notifications[0]["route_kind"], "focus_vision_reminder")
+        self.assertEqual(host.notifications[0]["action"], "focus_vision:absence")
+        self.assertEqual(host.notifications[0]["extra_metadata"]["focus_vision_state"], "absent")
+
     def test_focus_timer_start_starts_focus_vision_with_turn_language(self) -> None:
         host = _Host()
 

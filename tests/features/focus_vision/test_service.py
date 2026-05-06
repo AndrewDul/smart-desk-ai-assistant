@@ -92,3 +92,68 @@ def test_tick_writes_telemetry_and_returns_reminder_candidate(tmp_path) -> None:
     lines = telemetry_path.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2
     assert json.loads(lines[-1])["snapshot"]["current_state"] == "phone_distraction"
+
+
+def test_tick_delivers_reminder_when_voice_warnings_are_enabled(tmp_path) -> None:
+    telemetry_path = tmp_path / "focus_vision_delivery.jsonl"
+    backend = _VisionBackend(_phone_observation(captured_at=20.0))
+    delivered = []
+    service = FocusVisionSentinelService(
+        vision_backend=backend,
+        config=FocusVisionConfig(
+            enabled=True,
+            dry_run=False,
+            voice_warnings_enabled=True,
+            startup_grace_seconds=0.0,
+            phone_warning_after_seconds=1.0,
+            warning_cooldown_seconds=0.0,
+            telemetry_path=str(telemetry_path),
+        ),
+    )
+    service.set_reminder_handler(delivered.append)
+    assert service.reminder_policy is not None
+    service.reminder_policy.start_session(started_at=0.0)
+
+    service.tick(now=20.0)
+    backend.observation = _phone_observation(captured_at=22.0)
+    result = service.tick(now=22.0)
+
+    assert result.reminder is not None
+    assert result.reminder.dry_run is False
+    assert result.reminder_delivered is True
+    assert result.reminder_delivery_error is None
+    assert delivered == [result.reminder]
+    status = service.status()
+    assert status["delivered_reminder_count"] == 1
+    assert status["reminder_handler_attached"] is True
+
+    last_event = json.loads(telemetry_path.read_text(encoding="utf-8").splitlines()[-1])
+    assert last_event["reminder_delivered"] is True
+    assert last_event["reminder_delivery_error"] is None
+
+
+def test_tick_records_missing_handler_when_voice_warning_delivery_is_active(tmp_path) -> None:
+    backend = _VisionBackend(_phone_observation(captured_at=20.0))
+    service = FocusVisionSentinelService(
+        vision_backend=backend,
+        config=FocusVisionConfig(
+            enabled=True,
+            dry_run=False,
+            voice_warnings_enabled=True,
+            startup_grace_seconds=0.0,
+            phone_warning_after_seconds=1.0,
+            warning_cooldown_seconds=0.0,
+            telemetry_path=str(tmp_path / "focus_vision_missing_handler.jsonl"),
+        ),
+    )
+    assert service.reminder_policy is not None
+    service.reminder_policy.start_session(started_at=0.0)
+
+    service.tick(now=20.0)
+    backend.observation = _phone_observation(captured_at=22.0)
+    result = service.tick(now=22.0)
+
+    assert result.reminder is not None
+    assert result.reminder_delivered is False
+    assert result.reminder_delivery_error == "no_reminder_handler"
+    assert service.status()["last_delivery_error"] == "no_reminder_handler"

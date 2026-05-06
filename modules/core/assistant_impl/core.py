@@ -264,6 +264,7 @@ class CoreAssistant(
         self.action_flow = ActionFlowOrchestrator(self)
         self.dialogue_flow = DialogueFlowOrchestrator(self)
         self.notification_flow = NotificationFlowOrchestrator(self)
+        self._last_focus_vision_delivery_binding = self._bind_focus_vision_reminder_delivery()
         self.fast_command_lane = FastCommandLane(
             enabled=bool(self.settings.get("fast_command_lane", {}).get("enabled", True)),
             visual_shell_lane=VisualShellCommandLane.from_settings(

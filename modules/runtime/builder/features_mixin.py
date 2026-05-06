@@ -76,6 +76,7 @@ class RuntimeBuilderFeaturesMixin:
                         capabilities=(
                             "focus_mode_lifecycle_hook",
                             "dry_run_telemetry",
+                            "deterministic_reminder_policy",
                         ),
                         metadata=dict(service_status or {}),
                     ),
@@ -98,6 +99,8 @@ class RuntimeBuilderFeaturesMixin:
                         "desk_presence_decision",
                         "phone_distraction_decision",
                         "dry_run_telemetry",
+                        "deterministic_reminder_policy",
+                        "notification_flow_delivery_gate",
                     ),
                     metadata=dict(service_status or {}),
                 ),
