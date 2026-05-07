@@ -48,7 +48,8 @@ class FocusVisionConfig:
     warning_cooldown_seconds: float = 60.0
     max_warnings_per_session: int = 5
     telemetry_path: str = "var/data/focus_vision_sentinel.jsonl"
-    latest_observation_force_refresh: bool = True
+    latest_observation_force_refresh: bool = False
+    max_observation_age_seconds: float = 8.0
     pan_tilt_scan_enabled: bool = False
 
     @classmethod
@@ -71,6 +72,7 @@ class FocusVisionConfig:
             max_warnings_per_session=_as_int(payload.get("max_warnings_per_session"), defaults.max_warnings_per_session),
             telemetry_path=str(payload.get("telemetry_path") or defaults.telemetry_path),
             latest_observation_force_refresh=_as_bool(payload.get("latest_observation_force_refresh"), defaults.latest_observation_force_refresh),
+            max_observation_age_seconds=_as_float(payload.get("max_observation_age_seconds"), defaults.max_observation_age_seconds, minimum=0.0),
             pan_tilt_scan_enabled=_as_bool(payload.get("pan_tilt_scan_enabled"), defaults.pan_tilt_scan_enabled),
         )
 
@@ -88,6 +90,7 @@ class FocusVisionConfig:
             "max_warnings_per_session": self.max_warnings_per_session,
             "telemetry_path": self.telemetry_path,
             "latest_observation_force_refresh": self.latest_observation_force_refresh,
+            "max_observation_age_seconds": self.max_observation_age_seconds,
             "pan_tilt_scan_enabled": self.pan_tilt_scan_enabled,
         }
 

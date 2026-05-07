@@ -49,6 +49,8 @@ class FocusVisionSentinelService:
     _last_result: FocusVisionTickResult | None = field(default=None, init=False)
     _last_error: str | None = field(default=None, init=False)
     _last_delivery_error: str | None = field(default=None, init=False)
+    _last_observation_age_seconds: float | None = field(default=None, init=False)
+    _last_observation_stale: bool = field(default=False, init=False)
     _delivered_reminder_count: int = field(default=0, init=False)
 
     def __post_init__(self) -> None:
@@ -102,7 +104,7 @@ class FocusVisionSentinelService:
     def tick(self, *, now: float | None = None) -> FocusVisionTickResult:
         current_time = float(now if now is not None else time.monotonic())
         try:
-            observation = self._latest_observation()
+            observation = self._latest_observation_for_decision(current_time=current_time)
             decision = self.decision_engine.decide(observation, observed_at=current_time)
             snapshot = self.state_machine.update(decision)
             assert self.reminder_policy is not None
@@ -138,6 +140,10 @@ class FocusVisionSentinelService:
                 "dry_run": self.config.dry_run,
                 "last_error": self._last_error,
                 "last_delivery_error": self._last_delivery_error,
+                "latest_observation_force_refresh": self.config.latest_observation_force_refresh,
+                "max_observation_age_seconds": self.config.max_observation_age_seconds,
+                "last_observation_age_seconds": self._last_observation_age_seconds,
+                "last_observation_stale": self._last_observation_stale,
                 "delivered_reminder_count": self._delivered_reminder_count,
                 "reminder_handler_attached": self.reminder_handler is not None,
                 "last_result": None if self._last_result is None else self._last_result.to_dict(),
@@ -173,11 +179,40 @@ class FocusVisionSentinelService:
             with self._lock:
                 self._running = False
 
+    def _latest_observation_for_decision(self, *, current_time: float):
+        observation = self._latest_observation()
+        observation_age = self._observation_age_seconds(observation, current_time=current_time)
+        stale = self._is_observation_stale(observation_age)
+        self._last_observation_age_seconds = observation_age
+        self._last_observation_stale = stale
+        if stale:
+            return None
+        return observation
+
     def _latest_observation(self):
         method = getattr(self.vision_backend, "latest_observation", None)
         if not callable(method):
             return None
         return method(force_refresh=self.config.latest_observation_force_refresh)
+
+    @staticmethod
+    def _observation_age_seconds(observation, *, current_time: float) -> float | None:
+        if observation is None:
+            return None
+        try:
+            captured_at = float(getattr(observation, "captured_at", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return None
+        if captured_at <= 0.0:
+            return None
+        return round(max(0.0, current_time - captured_at), 3)
+
+    def _is_observation_stale(self, observation_age_seconds: float | None) -> bool:
+        if observation_age_seconds is None:
+            return False
+        if self.config.max_observation_age_seconds <= 0.0:
+            return False
+        return observation_age_seconds > self.config.max_observation_age_seconds
 
     def _write_telemetry(self, result: FocusVisionTickResult, *, current_time: float) -> None:
         if self.telemetry is None:
@@ -189,6 +224,9 @@ class FocusVisionSentinelService:
                 "language": self._language,
                 "dry_run": self.config.dry_run,
                 "last_error": self._last_error,
+                "latest_observation_force_refresh": self.config.latest_observation_force_refresh,
+                "observation_age_seconds": self._last_observation_age_seconds,
+                "observation_stale": self._last_observation_stale,
                 **result.to_dict(),
             }
         )

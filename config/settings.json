@@ -474,7 +474,8 @@
     "warning_cooldown_seconds": 60.0,
     "max_warnings_per_session": 5,
     "telemetry_path": "var/data/focus_vision_sentinel.jsonl",
-    "latest_observation_force_refresh": true,
+    "latest_observation_force_refresh": false,
+    "max_observation_age_seconds": 8.0,
     "pan_tilt_scan_enabled": false
   },
   "pan_tilt": {

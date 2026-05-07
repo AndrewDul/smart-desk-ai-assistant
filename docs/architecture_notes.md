@@ -16148,3 +16148,38 @@ Optional scenario checks:
 ### Next step
 
 Use the analyzer output after a real desk/absence/phone test to tune Focus Vision thresholds and workspace zones before enabling spoken PL/EN reminders.
+
+## 2026-05-07 — Focus Vision Sentinel Sprint 6 responsive cached-observation ticks
+
+### Summary
+
+Focus Vision Sentinel now reads the latest cached vision observation by default instead of forcing a fresh camera/perception refresh on every sentinel tick. This keeps the Focus Mode monitoring loop responsive and aligned with the product target that reminder decisions should be available within roughly 3 seconds after a stable condition threshold is crossed.
+
+### Architecture changes
+
+- `focus_vision.latest_observation_force_refresh` now defaults to `false` for Focus Vision.
+- Added `focus_vision.max_observation_age_seconds` with a default of `8.0` seconds.
+- `FocusVisionSentinelService` now records observation freshness in telemetry:
+  - `latest_observation_force_refresh`,
+  - `observation_age_seconds`,
+  - `observation_stale`.
+- Time stabilization now uses the sentinel tick clock, not the camera frame timestamp, so cached observations can still produce timely stable-state durations while the camera pipeline updates asynchronously.
+- If the cached observation becomes older than the configured max age, the sentinel treats it as `no_observation` instead of trusting stale evidence.
+- `scripts/analyze_focus_vision_telemetry.py` now reports force-refresh and stale-observation counts.
+
+### Safety boundaries
+
+- Voice warnings remain controlled by `focus_vision.voice_warnings_enabled`.
+- Dry-run can remain enabled for observation-only validation.
+- Pan-tilt scanning remains disabled and is not part of this sprint.
+- Mobile-base movement remains disabled.
+
+### Validation target
+
+Run:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/features/focus_vision tests/scripts/test_analyze_focus_vision_telemetry.py tests/vision/unit/runtime/test_focus_vision_focus_mode_hooks.py tests/vision/unit/runtime/test_focus_vision_builder_integration.py tests/vision/unit/runtime/test_ai_broker_focus_hooks.py tests/vision/unit/runtime/test_ai_broker_service.py tests/vision/unit/behavior/test_pipeline.py tests/vision/unit/behavior/phone_usage/test_interpreter.py
+
+### Next step
+
+Run another Focus Mode dry-run session and analyze `var/data/focus_vision_sentinel.jsonl`. The expected improvement is a lower `max_gap_seconds`, ideally near the configured 1-second interval and below the 3-second warning threshold.

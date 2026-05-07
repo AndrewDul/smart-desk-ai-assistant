@@ -18,8 +18,6 @@ class FocusVisionDecisionEngine:
     def decide(self, observation: VisionObservation | None, *, observed_at: float | None = None) -> FocusVisionDecision:
         evidence = self.reader.read(observation)
         timestamp = float(observed_at if observed_at is not None else time.monotonic())
-        if evidence.captured_at > 0.0:
-            timestamp = evidence.captured_at
 
         if observation is None or not evidence.detected:
             return FocusVisionDecision(FocusVisionState.NO_OBSERVATION, 0.0, ("no_vision_observation",), timestamp, evidence)

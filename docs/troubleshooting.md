@@ -5130,3 +5130,39 @@ Run a dedicated phone scenario: start Focus Mode, sit at the desk, hold the phon
 During this sprint dry-run should remain true. Re-check safe settings before continuing:
 
     python3 scripts/check_focus_vision_dry_run_readiness.py
+
+## 2026-05-07 — Focus Vision Sprint 6 telemetry cadence and stale-observation notes
+
+### Status
+
+A previous real Focus Mode dry-run produced correct states (`on_task`, `absent`, and `phone_distraction`) but showed a largest telemetry gap of about 5.35 seconds. That is too slow for the target Focus Mode UX, where reminder decisions should be ready within roughly 3 seconds after a stable threshold is crossed.
+
+### Root cause direction
+
+Focus Vision was forcing a fresh latest observation on every sentinel tick. In the real camera pipeline, this can block behind camera/perception cadence and stretch the sentinel telemetry interval even though `focus_vision.observation_interval_seconds=1.0`.
+
+### Sprint 6 fix
+
+Expected settings after Sprint 6:
+
+- `focus_vision.latest_observation_force_refresh=false`,
+- `focus_vision.max_observation_age_seconds=8.0`,
+- `focus_vision.dry_run=true` during validation,
+- `focus_vision.voice_warnings_enabled=false` until spoken-warning validation,
+- `focus_vision.pan_tilt_scan_enabled=false`.
+
+### Validation commands
+
+Run a fresh Focus Mode dry-run and then inspect:
+
+    python3 scripts/analyze_focus_vision_telemetry.py --require-records --require-state absent --require-state phone_distraction
+
+If `max_gap_seconds` is still above `3.0`, check whether telemetry contains:
+
+- `latest_observation_force_refresh_values` with `true`,
+- `observation_stale_values` with `true`,
+- runtime errors in `last_error`.
+
+### If stale observations appear
+
+If `observation_stale=true` appears often, the camera/perception backend is not updating observations fast enough for Focus Mode. Keep voice warnings disabled and inspect camera/perception cadence before enabling spoken reminders.

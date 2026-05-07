@@ -36,12 +36,16 @@ def _record(
     reminder: dict[str, object] | None = None,
     reminder_delivered: bool = False,
     last_error: str | None = None,
+    latest_observation_force_refresh: bool = False,
+    observation_stale: bool = False,
     evidence: dict[str, object] | None = None,
 ) -> dict[str, object]:
     return {
         "created_at": created_at,
         "dry_run": dry_run,
         "last_error": last_error,
+        "latest_observation_force_refresh": latest_observation_force_refresh,
+        "observation_stale": observation_stale,
         "reminder": reminder,
         "reminder_delivered": reminder_delivered,
         "snapshot": {
@@ -95,6 +99,8 @@ def test_analyzer_summarizes_states_reminders_and_evidence(tmp_path: Path) -> No
         "phone_distraction": 10.0,
     }
     assert payload["reminder_candidate_counts"] == {"absence": 1, "phone_distraction": 1}
+    assert payload["latest_observation_force_refresh_values"] == {"false": 3}
+    assert payload["observation_stale_values"] == {"false": 3}
     assert payload["evidence_true_counts"] == {
         "desk_activity_active": 1,
         "phone_usage_active": 1,
@@ -150,3 +156,27 @@ def test_analyzer_warns_about_invalid_lines_and_large_gaps(tmp_path: Path) -> No
     assert analysis.ok is True
     assert any("invalid JSONL" in warning for warning in analysis.warnings)
     assert any("Largest telemetry gap" in warning for warning in analysis.warnings)
+
+
+def test_analyzer_warns_about_force_refresh_and_stale_observations(tmp_path: Path) -> None:
+    module = _load_script_module()
+    telemetry_path = tmp_path / "focus_vision.jsonl"
+    _write_jsonl(
+        telemetry_path,
+        [
+            _record(
+                created_at=1.0,
+                state="on_task",
+                latest_observation_force_refresh=True,
+                observation_stale=True,
+            )
+        ],
+    )
+
+    analysis = module.analyze_focus_vision_telemetry(telemetry_path, require_records=True)
+    payload = analysis.to_dict()
+
+    assert payload["latest_observation_force_refresh_values"] == {"true": 1}
+    assert payload["observation_stale_values"] == {"true": 1}
+    assert any("latest_observation_force_refresh=true" in warning for warning in payload["warnings"])
+    assert any("stale observations" in warning for warning in payload["warnings"])

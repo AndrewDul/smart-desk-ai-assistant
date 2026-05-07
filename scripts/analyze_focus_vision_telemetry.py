@@ -26,6 +26,16 @@ class FocusVisionTelemetryRecord:
         return value if isinstance(value, bool) else None
 
     @property
+    def latest_observation_force_refresh(self) -> bool | None:
+        value = self.payload.get("latest_observation_force_refresh")
+        return value if isinstance(value, bool) else None
+
+    @property
+    def observation_stale(self) -> bool | None:
+        value = self.payload.get("observation_stale")
+        return value if isinstance(value, bool) else None
+
+    @property
     def state(self) -> str:
         snapshot = _nested_dict(self.payload, "snapshot")
         state = str(snapshot.get("current_state") or "").strip()
@@ -97,6 +107,8 @@ class FocusVisionTelemetryAnalysis:
     reminder_delivery_error_count: int
     runtime_error_count: int
     dry_run_values: dict[str, int]
+    latest_observation_force_refresh_values: dict[str, int]
+    observation_stale_values: dict[str, int]
     reason_counts: dict[str, int]
     evidence_true_counts: dict[str, int]
     warnings: list[str] = field(default_factory=list)
@@ -124,6 +136,8 @@ class FocusVisionTelemetryAnalysis:
             "reminder_delivery_error_count": self.reminder_delivery_error_count,
             "runtime_error_count": self.runtime_error_count,
             "dry_run_values": self.dry_run_values,
+            "latest_observation_force_refresh_values": self.latest_observation_force_refresh_values,
+            "observation_stale_values": self.observation_stale_values,
             "reason_counts": self.reason_counts,
             "evidence_true_counts": self.evidence_true_counts,
             "warnings": self.warnings,
@@ -181,7 +195,7 @@ def _max_gap(timestamps: list[float]) -> float:
     return max(max(0.0, later - earlier) for earlier, later in zip(timestamps, timestamps[1:]))
 
 
-def _dry_run_label(value: bool | None) -> str:
+def _bool_label(value: bool | None) -> str:
     if value is True:
         return "true"
     if value is False:
@@ -220,7 +234,9 @@ def analyze_focus_vision_telemetry(
     state_counts = Counter(record.state for record in records)
     reminder_counts = Counter(record.reminder_kind for record in records if record.reminder_kind is not None)
     reason_counts = Counter(reason for record in records for reason in record.decision_reasons)
-    dry_run_values = Counter(_dry_run_label(record.dry_run) for record in records)
+    dry_run_values = Counter(_bool_label(record.dry_run) for record in records)
+    force_refresh_values = Counter(_bool_label(record.latest_observation_force_refresh) for record in records)
+    observation_stale_values = Counter(_bool_label(record.observation_stale) for record in records)
     max_stable: dict[str, float] = defaultdict(float)
 
     for record in records:
@@ -247,6 +263,8 @@ def analyze_focus_vision_telemetry(
         reminder_delivery_error_count=sum(1 for record in records if record.reminder_delivery_error),
         runtime_error_count=sum(1 for record in records if record.last_error),
         dry_run_values=_counter_dict(dry_run_values),
+        latest_observation_force_refresh_values=_counter_dict(force_refresh_values),
+        observation_stale_values=_counter_dict(observation_stale_values),
         reason_counts=_counter_dict(reason_counts),
         evidence_true_counts=_collect_evidence_true_counts(records),
     )
@@ -263,6 +281,10 @@ def analyze_focus_vision_telemetry(
         unexpected = "false" if expected_dry_run else "true"
         if dry_run_values.get(unexpected, 0) > 0:
             analysis.failures.append(f"Unexpected dry_run={unexpected} records were found.")
+    if force_refresh_values.get("true", 0) > 0:
+        analysis.warnings.append("Some records used latest_observation_force_refresh=true; Sprint 6 should use cached latest observations for responsive ticks.")
+    if observation_stale_values.get("true", 0) > 0:
+        analysis.warnings.append("Some records used stale observations; inspect camera/perception update cadence.")
     if max_expected_gap_seconds > 0 and max_gap > max_expected_gap_seconds:
         analysis.warnings.append(
             f"Largest telemetry gap is {max_gap:.2f}s; expected at most {max_expected_gap_seconds:.2f}s."

@@ -80,14 +80,15 @@ def test_tick_writes_telemetry_and_returns_reminder_candidate(tmp_path) -> None:
     service.reminder_policy.start_session(started_at=0.0)
 
     first = service.tick(now=20.0)
-    backend.observation = _phone_observation(captured_at=22.0)
+    # Keep the same cached observation timestamp. Sprint 6 stabilizes state
+    # using the service tick clock, not by waiting for a fresh camera frame.
     second = service.tick(now=22.0)
 
     assert first.snapshot is not None
     assert first.snapshot.current_state == FocusVisionState.PHONE_DISTRACTION
     assert second.reminder is not None
     assert second.reminder.dry_run is True
-    assert backend.calls == [True, True]
+    assert backend.calls == [False, False]
 
     lines = telemetry_path.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2
@@ -115,7 +116,6 @@ def test_tick_delivers_reminder_when_voice_warnings_are_enabled(tmp_path) -> Non
     service.reminder_policy.start_session(started_at=0.0)
 
     service.tick(now=20.0)
-    backend.observation = _phone_observation(captured_at=22.0)
     result = service.tick(now=22.0)
 
     assert result.reminder is not None
@@ -157,3 +157,52 @@ def test_tick_records_missing_handler_when_voice_warning_delivery_is_active(tmp_
     assert result.reminder_delivered is False
     assert result.reminder_delivery_error == "no_reminder_handler"
     assert service.status()["last_delivery_error"] == "no_reminder_handler"
+
+
+def test_tick_marks_stale_cached_observation_as_no_observation(tmp_path) -> None:
+    telemetry_path = tmp_path / "focus_vision_stale.jsonl"
+    backend = _VisionBackend(_phone_observation(captured_at=10.0))
+    service = FocusVisionSentinelService(
+        vision_backend=backend,
+        config=FocusVisionConfig(
+            enabled=True,
+            dry_run=True,
+            latest_observation_force_refresh=False,
+            max_observation_age_seconds=5.0,
+            telemetry_path=str(telemetry_path),
+        ),
+    )
+
+    result = service.tick(now=18.0)
+
+    assert result.snapshot is not None
+    assert result.snapshot.current_state == FocusVisionState.NO_OBSERVATION
+    assert backend.calls == [False]
+    status = service.status()
+    assert status["last_observation_age_seconds"] == 8.0
+    assert status["last_observation_stale"] is True
+
+    event = json.loads(telemetry_path.read_text(encoding="utf-8").splitlines()[-1])
+    assert event["observation_age_seconds"] == 8.0
+    assert event["observation_stale"] is True
+    assert event["latest_observation_force_refresh"] is False
+
+
+def test_tick_can_disable_stale_guard_for_legacy_backends(tmp_path) -> None:
+    backend = _VisionBackend(_phone_observation(captured_at=10.0))
+    service = FocusVisionSentinelService(
+        vision_backend=backend,
+        config=FocusVisionConfig(
+            enabled=True,
+            dry_run=True,
+            latest_observation_force_refresh=False,
+            max_observation_age_seconds=0.0,
+            telemetry_path=str(tmp_path / "focus_vision_no_stale_guard.jsonl"),
+        ),
+    )
+
+    result = service.tick(now=100.0)
+
+    assert result.snapshot is not None
+    assert result.snapshot.current_state == FocusVisionState.PHONE_DISTRACTION
+    assert service.status()["last_observation_stale"] is False
