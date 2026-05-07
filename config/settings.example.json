@@ -349,19 +349,24 @@
   },
   "focus_vision": {
     "enabled": false,
-    "dry_run": true,
-    "voice_warnings_enabled": false,
+    "dry_run": false,
+    "voice_warnings_enabled": true,
     "visual_warnings_enabled": true,
     "observation_interval_seconds": 1.0,
-    "startup_grace_seconds": 10.0,
+    "startup_grace_seconds": 5.0,
     "absence_warning_after_seconds": 25.0,
-    "phone_warning_after_seconds": 10.0,
+    "phone_warning_after_seconds": 6.0,
     "warning_cooldown_seconds": 60.0,
     "max_warnings_per_session": 5,
     "telemetry_path": "var/data/focus_vision_sentinel.jsonl",
     "latest_observation_force_refresh": false,
     "max_observation_age_seconds": 8.0,
-    "pan_tilt_scan_enabled": false
+    "pan_tilt_scan_enabled": false,
+    "cache_miss_force_refresh_enabled": true,
+    "cache_miss_force_refresh_cooldown_seconds": 2.0,
+    "enabled_reminder_kinds": [
+      "phone_distraction"
+    ]
   },
   "pan_tilt": {
     "enabled": true,

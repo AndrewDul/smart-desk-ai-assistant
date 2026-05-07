@@ -5166,3 +5166,138 @@ If `max_gap_seconds` is still above `3.0`, check whether telemetry contains:
 ### If stale observations appear
 
 If `observation_stale=true` appears often, the camera/perception backend is not updating observations fast enough for Focus Mode. Keep voice warnings disabled and inspect camera/perception cadence before enabling spoken reminders.
+
+## 2026-05-07 — Focus Vision Sprint 6B cached mode shows only no_observation
+
+### Symptom
+
+After Sprint 6, `scripts/analyze_focus_vision_telemetry.py` may show only `no_observation` records while `max_gap_seconds` is around 1 second.
+
+### Cause
+
+Sprint 6 changed Focus Vision to read cached observations with `latest_observation_force_refresh=false`. This made the tick loop responsive, but on some runtime paths no cached `VisionObservation` exists until the backend is forced to run at least once.
+
+### Fix
+
+Sprint 6B adds a hybrid refresh policy:
+
+- keep the normal tick path cached and fast,
+- when the cached observation is missing, schedule a background force refresh,
+- when the cached observation is stale, schedule a background force refresh,
+- keep writing telemetry every tick while refresh is running.
+
+### Expected telemetry after fix
+
+Expected signs:
+
+- `latest_observation_force_refresh=false`,
+- `cache_miss_force_refresh_enabled=true`,
+- `last_force_refresh_returned_observation=true` after startup or stale recovery,
+- `observation_source` eventually becomes `backend_cached` or `service_forced_cache`,
+- states return from `no_observation` to `on_task`, `absent`, or `phone_distraction`.
+
+### If it still stays no_observation
+
+Run:
+
+    python3 scripts/check_focus_vision_dry_run_readiness.py
+    python3 scripts/analyze_focus_vision_telemetry.py --require-records
+
+Then inspect whether `last_force_refresh_error` is non-null in the telemetry.
+
+## 2026-05-07 — Focus Vision Sprint 7A phone-only voice readiness
+
+### Expected settings
+
+Sprint 7A expects:
+
+- `focus_vision.enabled=true`,
+- `focus_vision.dry_run=false`,
+- `focus_vision.voice_warnings_enabled=true`,
+- `focus_vision.enabled_reminder_kinds=["phone_distraction"]`,
+- `focus_vision.pan_tilt_scan_enabled=false`.
+
+Check with:
+
+    python3 scripts/check_focus_vision_voice_readiness.py
+
+### If NeXa speaks about absence in Sprint 7A
+
+This is not expected. Stop runtime and check:
+
+    python3 scripts/check_focus_vision_voice_readiness.py
+
+`enabled_reminder_kinds` must not contain `absence` unless the next absence-voice sprint explicitly enables it.
+
+### If NeXa does not speak when phone distraction is stable
+
+Check telemetry:
+
+    python3 scripts/analyze_focus_vision_telemetry.py --require-records --require-state phone_distraction
+
+Then verify:
+
+- `phone_distraction` is stable for at least `focus_vision.phone_warning_after_seconds`,
+- `dry_run=false`,
+- `voice_warnings_enabled=true`,
+- `enabled_reminder_kinds` includes `phone_distraction`,
+- `reminder_delivery_error_count` is 0.
+
+## 2026-05-07 — Focus Vision phone detected but no spoken warning
+
+### Symptom
+
+Telemetry shows many records like:
+
+    "state": "phone_distraction"
+    "phone_usage_active": true
+    "phone_usage_active_seconds": 42.825
+    "reminder": null
+
+### Cause
+
+Sprint 7A originally required `snapshot.stable_seconds >= focus_vision.phone_warning_after_seconds`. In real runtime, stale observations or short state resets can keep `stable_seconds` below 10 seconds even when the lower-level phone behavior session remains active for much longer.
+
+### Fix
+
+Sprint 7B allows phone reminders to use `phone_usage_active_seconds` as a fallback duration. This means a real phone usage session can trigger a reminder even if the high-level state machine briefly resets.
+
+### Expected result
+
+After holding the phone in a visible normal-use position during Focus Mode, telemetry should eventually contain:
+
+    "reminder": {"kind": "phone_distraction", ...}
+
+If voice delivery succeeds, it should also show:
+
+    "reminder_delivered": true
+
+If a reminder appears but delivery fails, inspect `reminder_delivery_error` and the async notification/TTS path.
+
+## 2026-05-07 — Focus Vision phone warning delivered but felt too late
+
+### Symptom
+
+Focus Vision successfully detects `phone_distraction` and `reminder_delivered=true`, but the user hears the warning later than desired.
+
+### Observed evidence
+
+The successful Sprint 7B real test produced a spoken phone reminder with:
+
+- `reminder_candidate_counts.phone_distraction=1`,
+- `reminder_delivered_count=1`,
+- `reminder_delivery_error_count=0`,
+- `phone_usage_active_seconds=16.508`.
+
+### Cause
+
+The spoken reminder timing is measured from behavior-level `phone_usage_active_seconds`, not from the first moment when the user physically picks up the phone. Some frames can show `object:cell phone` while the behavior layer still classifies the user as `on_task`.
+
+### Adjustment
+
+Sprint 7C lowers:
+
+- `focus_vision.phone_warning_after_seconds` to `6.0`,
+- `focus_vision.startup_grace_seconds` to `5.0`.
+
+This keeps the warning conservative but should make the real user-facing warning appear closer to 15–20 seconds of visible phone use.

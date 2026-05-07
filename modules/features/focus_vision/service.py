@@ -51,6 +51,14 @@ class FocusVisionSentinelService:
     _last_delivery_error: str | None = field(default=None, init=False)
     _last_observation_age_seconds: float | None = field(default=None, init=False)
     _last_observation_stale: bool = field(default=False, init=False)
+    _last_observation_source: str = field(default="none", init=False)
+    _last_forced_observation: Any = field(default=None, init=False)
+    _force_refresh_in_progress: bool = field(default=False, init=False)
+    _last_force_refresh_started_at: float | None = field(default=None, init=False)
+    _last_force_refresh_finished_at: float | None = field(default=None, init=False)
+    _last_force_refresh_reason: str | None = field(default=None, init=False)
+    _last_force_refresh_error: str | None = field(default=None, init=False)
+    _last_force_refresh_returned_observation: bool = field(default=False, init=False)
     _delivered_reminder_count: int = field(default=0, init=False)
 
     def __post_init__(self) -> None:
@@ -77,6 +85,11 @@ class FocusVisionSentinelService:
             self._language = self._normalize_language(language)
             self._stop_event.clear()
             self.state_machine.reset()
+            self._last_forced_observation = None
+            self._last_observation_source = "none"
+            self._last_force_refresh_error = None
+            self._last_force_refresh_reason = None
+            self._last_force_refresh_returned_observation = False
             assert self.reminder_policy is not None
             self.reminder_policy.start_session(started_at=time.monotonic())
             self._thread = threading.Thread(
@@ -141,15 +154,23 @@ class FocusVisionSentinelService:
                 "last_error": self._last_error,
                 "last_delivery_error": self._last_delivery_error,
                 "latest_observation_force_refresh": self.config.latest_observation_force_refresh,
+                "cache_miss_force_refresh_enabled": self.config.cache_miss_force_refresh_enabled,
+                "cache_miss_force_refresh_cooldown_seconds": self.config.cache_miss_force_refresh_cooldown_seconds,
                 "max_observation_age_seconds": self.config.max_observation_age_seconds,
                 "last_observation_age_seconds": self._last_observation_age_seconds,
                 "last_observation_stale": self._last_observation_stale,
+                "last_observation_source": self._last_observation_source,
+                "force_refresh_in_progress": self._force_refresh_in_progress,
+                "last_force_refresh_started_at": self._last_force_refresh_started_at,
+                "last_force_refresh_finished_at": self._last_force_refresh_finished_at,
+                "last_force_refresh_reason": self._last_force_refresh_reason,
+                "last_force_refresh_error": self._last_force_refresh_error,
+                "last_force_refresh_returned_observation": self._last_force_refresh_returned_observation,
                 "delivered_reminder_count": self._delivered_reminder_count,
                 "reminder_handler_attached": self.reminder_handler is not None,
                 "last_result": None if self._last_result is None else self._last_result.to_dict(),
                 "policy": policy_status,
             }
-
 
     def _deliver_reminder(self, reminder: FocusVisionReminder) -> tuple[bool, str | None]:
         if reminder.dry_run:
@@ -181,19 +202,92 @@ class FocusVisionSentinelService:
 
     def _latest_observation_for_decision(self, *, current_time: float):
         observation = self._latest_observation()
+        if observation is None:
+            self._last_observation_age_seconds = None
+            self._last_observation_stale = False
+            self._schedule_force_refresh(current_time=current_time, reason="missing_observation")
+            return None
+
         observation_age = self._observation_age_seconds(observation, current_time=current_time)
         stale = self._is_observation_stale(observation_age)
         self._last_observation_age_seconds = observation_age
         self._last_observation_stale = stale
         if stale:
+            self._schedule_force_refresh(current_time=current_time, reason="stale_observation")
             return None
         return observation
 
     def _latest_observation(self):
         method = getattr(self.vision_backend, "latest_observation", None)
         if not callable(method):
+            self._last_observation_source = "missing_backend_method"
             return None
-        return method(force_refresh=self.config.latest_observation_force_refresh)
+
+        observation = method(force_refresh=self.config.latest_observation_force_refresh)
+        if observation is not None:
+            self._last_observation_source = "backend_forced" if self.config.latest_observation_force_refresh else "backend_cached"
+            return observation
+
+        with self._lock:
+            forced_observation = self._last_forced_observation
+        if forced_observation is not None:
+            self._last_observation_source = "service_forced_cache"
+            return forced_observation
+
+        self._last_observation_source = "none"
+        return None
+
+    def _schedule_force_refresh(self, *, current_time: float, reason: str) -> bool:
+        if not self.config.cache_miss_force_refresh_enabled:
+            return False
+
+        with self._lock:
+            if self._force_refresh_in_progress:
+                return False
+            if self._last_force_refresh_started_at is not None:
+                elapsed = max(0.0, current_time - self._last_force_refresh_started_at)
+                if elapsed < self.config.cache_miss_force_refresh_cooldown_seconds:
+                    return False
+
+            self._force_refresh_in_progress = True
+            self._last_force_refresh_started_at = current_time
+            self._last_force_refresh_reason = reason
+            self._last_force_refresh_error = None
+            self._last_force_refresh_returned_observation = False
+
+        thread = threading.Thread(
+            target=self._run_force_refresh,
+            name="nexa-focus-vision-force-refresh",
+            daemon=True,
+            args=(reason,),
+        )
+        thread.start()
+        return True
+
+    def _run_force_refresh(self, reason: str) -> None:
+        finished_at = time.monotonic()
+        returned_observation = False
+        error_text: str | None = None
+        observation = None
+        try:
+            method = getattr(self.vision_backend, "latest_observation", None)
+            if not callable(method):
+                error_text = "missing_backend_method"
+            else:
+                observation = method(force_refresh=True)
+                returned_observation = observation is not None
+        except Exception as error:
+            error_text = f"{error.__class__.__name__}: {error}"
+        finally:
+            finished_at = time.monotonic()
+            with self._lock:
+                if observation is not None:
+                    self._last_forced_observation = observation
+                self._force_refresh_in_progress = False
+                self._last_force_refresh_finished_at = finished_at
+                self._last_force_refresh_reason = reason
+                self._last_force_refresh_error = error_text
+                self._last_force_refresh_returned_observation = returned_observation
 
     @staticmethod
     def _observation_age_seconds(observation, *, current_time: float) -> float | None:
@@ -225,6 +319,12 @@ class FocusVisionSentinelService:
                 "dry_run": self.config.dry_run,
                 "last_error": self._last_error,
                 "latest_observation_force_refresh": self.config.latest_observation_force_refresh,
+                "cache_miss_force_refresh_enabled": self.config.cache_miss_force_refresh_enabled,
+                "force_refresh_in_progress": self._force_refresh_in_progress,
+                "last_force_refresh_reason": self._last_force_refresh_reason,
+                "last_force_refresh_error": self._last_force_refresh_error,
+                "last_force_refresh_returned_observation": self._last_force_refresh_returned_observation,
+                "observation_source": self._last_observation_source,
                 "observation_age_seconds": self._last_observation_age_seconds,
                 "observation_stale": self._last_observation_stale,
                 **result.to_dict(),

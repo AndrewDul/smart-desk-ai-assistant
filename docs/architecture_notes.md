@@ -16183,3 +16183,105 @@ Run:
 ### Next step
 
 Run another Focus Mode dry-run session and analyze `var/data/focus_vision_sentinel.jsonl`. The expected improvement is a lower `max_gap_seconds`, ideally near the configured 1-second interval and below the 3-second warning threshold.
+
+## 2026-05-07 — Focus Vision Sentinel Sprint 6B hybrid observation refresh
+
+### Summary
+
+Added a hybrid Focus Vision observation refresh policy after Sprint 6 showed fast telemetry ticks but only `no_observation` records when cached observations were unavailable at Focus Mode startup.
+
+### Architecture changes
+
+- Focus Vision keeps `latest_observation_force_refresh=false` for the normal hot path, so the sentinel loop remains responsive.
+- When the cached backend observation is missing, Focus Vision schedules `latest_observation(force_refresh=true)` in a daemon refresh thread.
+- When a cached observation is stale, Focus Vision schedules the same refresh path.
+- The tick loop continues writing telemetry instead of blocking on camera/perception refresh.
+- Added service-level forced-observation cache reuse so the next tick can use the refreshed observation even if the backend does not expose it immediately through the cached path.
+- Added telemetry fields:
+  - `cache_miss_force_refresh_enabled`,
+  - `force_refresh_in_progress`,
+  - `last_force_refresh_reason`,
+  - `last_force_refresh_error`,
+  - `last_force_refresh_returned_observation`,
+  - `observation_source`.
+
+### Safety boundaries
+
+- Voice warnings remain disabled.
+- Dry-run remains enabled.
+- Pan-tilt scanning remains disabled.
+- Mobile-base movement remains disabled.
+- Refresh only affects camera/perception observation acquisition.
+
+### Next step
+
+Run Focus Mode again and confirm telemetry keeps `max_gap_seconds` near 1 second while restoring `on_task`, `absent`, and `phone_distraction` observations.
+
+## 2026-05-07 — Focus Vision Sentinel Sprint 7A phone-only spoken warnings
+
+### Summary
+
+Enabled controlled spoken Focus Vision warnings for phone distraction only. This moves Focus Vision from dry-run telemetry into a limited active voice path while keeping absence reminders disabled until longer real-world absence telemetry is validated.
+
+### Architecture changes
+
+- Added `focus_vision.enabled_reminder_kinds` to gate which Focus Vision reminder kinds may be produced by the reminder policy.
+- Active settings now use:
+  - `focus_vision.enabled=true`,
+  - `focus_vision.dry_run=false`,
+  - `focus_vision.voice_warnings_enabled=true`,
+  - `focus_vision.enabled_reminder_kinds=["phone_distraction"]`,
+  - `focus_vision.pan_tilt_scan_enabled=false`.
+- The existing Focus Vision reminder handler continues routing messages through the async notification flow instead of calling TTS directly.
+- Absence remains a detected state in telemetry, but it is not allowed to produce spoken reminders in Sprint 7A.
+- Added `scripts/check_focus_vision_voice_readiness.py` to verify the Sprint 7A safety gates before runtime testing.
+
+### Safety boundaries
+
+- Pan-tilt scanning remains disabled.
+- Mobile-base movement remains disabled.
+- No LLM is used for Focus Vision warnings.
+- Spoken reminder text remains deterministic and language-aware based on Focus Mode language.
+- Sprint 7A allows only phone-distraction speech; absence speech requires a later sprint.
+
+## 2026-05-07 — Focus Vision Sprint 7B phone reminder duration fallback
+
+### Summary
+
+Real Sprint 7A voice readiness confirmed `voice_warnings_enabled=true`, `dry_run=false`, and `enabled_reminder_kinds=["phone_distraction"]`. Runtime telemetry also confirmed repeated `phone_distraction` states with `phone_usage_active_seconds` above 40 seconds, but no reminder was produced because the stabilized high-level state kept resetting before `phone_warning_after_seconds` was reached.
+
+### Architecture change
+
+`FocusVisionReminderPolicy` now treats phone reminders differently from absence reminders:
+
+- absence reminders still require the high-level `absent` state to stay stable for `absence_warning_after_seconds`,
+- phone reminders can use the stronger behavior-session signal `decision.evidence.phone_usage_active_seconds` as a fallback when the high-level `phone_distraction` state stability resets because of stale/missing observations,
+- the effective phone duration is `max(snapshot.stable_seconds, phone_usage_active_seconds)`.
+
+This preserves conservative absence handling while allowing real phone-distraction warnings when the lower-level phone behavior session is stable.
+
+### Safety boundaries
+
+- Reminder kind filtering still applies through `focus_vision.enabled_reminder_kinds`.
+- Sprint 7 scope remains phone-only spoken warnings.
+- Pan-tilt scanning remains disabled.
+- Mobile-base movement remains disabled.
+- LLM is not used for these reminders.
+
+## 2026-05-07 — Focus Vision Sprint 7C phone warning timing calibration
+
+### Summary
+
+Calibrated Focus Vision spoken phone warnings after the first successful real `phone_distraction` delivery test. The system delivered a spoken reminder successfully, but the perceived delay was longer than desired because phone-use behavior became active later than the user's first visible phone hold.
+
+### Changes
+
+- `focus_vision.phone_warning_after_seconds` changed from `10.0` to `6.0`.
+- `focus_vision.startup_grace_seconds` changed from `10.0` to `5.0`.
+- Voice warnings remain enabled only for `phone_distraction`.
+- `focus_vision.pan_tilt_scan_enabled` remains `false`.
+- Mobile-base movement remains disabled.
+
+### Rationale
+
+The previous runtime test showed `reminder_delivered=true` with `phone_usage_active_seconds=16.508`. Lowering the policy threshold compensates for camera/perception activation delay so the user-facing warning should happen closer to the desired 15–20 seconds of holding the phone.

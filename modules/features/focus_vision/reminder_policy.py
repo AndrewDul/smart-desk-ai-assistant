@@ -49,6 +49,8 @@ class FocusVisionReminderPolicy:
         reminder_kind = self._kind_for_snapshot(snapshot)
         if reminder_kind is None:
             return None
+        if not self._reminder_kind_enabled(reminder_kind):
+            return None
         if not self._stable_long_enough(snapshot, reminder_kind):
             return None
         if not self._cooldown_elapsed(reminder_kind, current_time):
@@ -70,6 +72,7 @@ class FocusVisionReminderPolicy:
         return {
             "session_started_at": self.session_started_at,
             "warning_count": self._warning_count,
+            "enabled_reminder_kinds": list(self.config.enabled_reminder_kinds),
             "last_reminder_at_by_kind": {
                 kind.value: value for kind, value in self._last_reminder_at_by_kind.items()
             },
@@ -88,12 +91,28 @@ class FocusVisionReminderPolicy:
             return FocusVisionReminderKind.PHONE_DISTRACTION
         return None
 
+    def _reminder_kind_enabled(self, kind: FocusVisionReminderKind) -> bool:
+        enabled = {str(value).strip() for value in self.config.enabled_reminder_kinds}
+        return kind.value in enabled
+
     def _stable_long_enough(self, snapshot: FocusVisionStateSnapshot, kind: FocusVisionReminderKind) -> bool:
         if kind == FocusVisionReminderKind.ABSENCE:
             threshold = self.config.absence_warning_after_seconds
-        else:
-            threshold = self.config.phone_warning_after_seconds
-        return snapshot.stable_seconds >= threshold
+            return snapshot.stable_seconds >= threshold
+
+        threshold = self.config.phone_warning_after_seconds
+        phone_usage_seconds = self._phone_usage_active_seconds(snapshot)
+        effective_seconds = max(snapshot.stable_seconds, phone_usage_seconds)
+        return effective_seconds >= threshold
+
+    @staticmethod
+    def _phone_usage_active_seconds(snapshot: FocusVisionStateSnapshot) -> float:
+        evidence = getattr(getattr(snapshot, "decision", None), "evidence", None)
+        value = getattr(evidence, "phone_usage_active_seconds", 0.0)
+        try:
+            return max(0.0, float(value or 0.0))
+        except (TypeError, ValueError):
+            return 0.0
 
     def _cooldown_elapsed(self, kind: FocusVisionReminderKind, now: float) -> bool:
         last = self._last_reminder_at_by_kind.get(kind)

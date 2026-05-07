@@ -33,6 +33,20 @@ def _as_int(value: Any, default: int, *, minimum: int = 0) -> int:
     return max(minimum, result)
 
 
+def _as_string_tuple(value: Any, default: tuple[str, ...]) -> tuple[str, ...]:
+    if value is None:
+        return default
+    if isinstance(value, str):
+        items = [item.strip() for item in value.split(",")]
+    elif isinstance(value, (list, tuple, set)):
+        items = [str(item).strip() for item in value]
+    else:
+        return default
+
+    normalized = tuple(item for item in items if item)
+    return normalized or default
+
+
 @dataclass(frozen=True, slots=True)
 class FocusVisionConfig:
     """Configuration for focus-mode vision monitoring."""
@@ -47,8 +61,11 @@ class FocusVisionConfig:
     phone_warning_after_seconds: float = 10.0
     warning_cooldown_seconds: float = 60.0
     max_warnings_per_session: int = 5
+    enabled_reminder_kinds: tuple[str, ...] = ("absence", "phone_distraction")
     telemetry_path: str = "var/data/focus_vision_sentinel.jsonl"
     latest_observation_force_refresh: bool = False
+    cache_miss_force_refresh_enabled: bool = True
+    cache_miss_force_refresh_cooldown_seconds: float = 2.0
     max_observation_age_seconds: float = 8.0
     pan_tilt_scan_enabled: bool = False
 
@@ -70,8 +87,11 @@ class FocusVisionConfig:
             phone_warning_after_seconds=_as_float(payload.get("phone_warning_after_seconds"), defaults.phone_warning_after_seconds),
             warning_cooldown_seconds=_as_float(payload.get("warning_cooldown_seconds"), defaults.warning_cooldown_seconds),
             max_warnings_per_session=_as_int(payload.get("max_warnings_per_session"), defaults.max_warnings_per_session),
+            enabled_reminder_kinds=_as_string_tuple(payload.get("enabled_reminder_kinds"), defaults.enabled_reminder_kinds),
             telemetry_path=str(payload.get("telemetry_path") or defaults.telemetry_path),
             latest_observation_force_refresh=_as_bool(payload.get("latest_observation_force_refresh"), defaults.latest_observation_force_refresh),
+            cache_miss_force_refresh_enabled=_as_bool(payload.get("cache_miss_force_refresh_enabled"), defaults.cache_miss_force_refresh_enabled),
+            cache_miss_force_refresh_cooldown_seconds=_as_float(payload.get("cache_miss_force_refresh_cooldown_seconds"), defaults.cache_miss_force_refresh_cooldown_seconds, minimum=0.0),
             max_observation_age_seconds=_as_float(payload.get("max_observation_age_seconds"), defaults.max_observation_age_seconds, minimum=0.0),
             pan_tilt_scan_enabled=_as_bool(payload.get("pan_tilt_scan_enabled"), defaults.pan_tilt_scan_enabled),
         )
@@ -88,8 +108,11 @@ class FocusVisionConfig:
             "phone_warning_after_seconds": self.phone_warning_after_seconds,
             "warning_cooldown_seconds": self.warning_cooldown_seconds,
             "max_warnings_per_session": self.max_warnings_per_session,
+            "enabled_reminder_kinds": list(self.enabled_reminder_kinds),
             "telemetry_path": self.telemetry_path,
             "latest_observation_force_refresh": self.latest_observation_force_refresh,
+            "cache_miss_force_refresh_enabled": self.cache_miss_force_refresh_enabled,
+            "cache_miss_force_refresh_cooldown_seconds": self.cache_miss_force_refresh_cooldown_seconds,
             "max_observation_age_seconds": self.max_observation_age_seconds,
             "pan_tilt_scan_enabled": self.pan_tilt_scan_enabled,
         }

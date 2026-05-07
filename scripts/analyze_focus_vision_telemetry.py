@@ -36,6 +36,16 @@ class FocusVisionTelemetryRecord:
         return value if isinstance(value, bool) else None
 
     @property
+    def last_force_refresh_returned_observation(self) -> bool | None:
+        value = self.payload.get("last_force_refresh_returned_observation")
+        return value if isinstance(value, bool) else None
+
+    @property
+    def observation_source(self) -> str:
+        value = str(self.payload.get("observation_source") or "").strip()
+        return value or "unknown"
+
+    @property
     def state(self) -> str:
         snapshot = _nested_dict(self.payload, "snapshot")
         state = str(snapshot.get("current_state") or "").strip()
@@ -109,6 +119,8 @@ class FocusVisionTelemetryAnalysis:
     dry_run_values: dict[str, int]
     latest_observation_force_refresh_values: dict[str, int]
     observation_stale_values: dict[str, int]
+    last_force_refresh_returned_observation_values: dict[str, int]
+    observation_source_counts: dict[str, int]
     reason_counts: dict[str, int]
     evidence_true_counts: dict[str, int]
     warnings: list[str] = field(default_factory=list)
@@ -138,6 +150,8 @@ class FocusVisionTelemetryAnalysis:
             "dry_run_values": self.dry_run_values,
             "latest_observation_force_refresh_values": self.latest_observation_force_refresh_values,
             "observation_stale_values": self.observation_stale_values,
+            "last_force_refresh_returned_observation_values": self.last_force_refresh_returned_observation_values,
+            "observation_source_counts": self.observation_source_counts,
             "reason_counts": self.reason_counts,
             "evidence_true_counts": self.evidence_true_counts,
             "warnings": self.warnings,
@@ -237,6 +251,8 @@ def analyze_focus_vision_telemetry(
     dry_run_values = Counter(_bool_label(record.dry_run) for record in records)
     force_refresh_values = Counter(_bool_label(record.latest_observation_force_refresh) for record in records)
     observation_stale_values = Counter(_bool_label(record.observation_stale) for record in records)
+    force_refresh_returned_values = Counter(_bool_label(record.last_force_refresh_returned_observation) for record in records)
+    observation_source_counts = Counter(record.observation_source for record in records)
     max_stable: dict[str, float] = defaultdict(float)
 
     for record in records:
@@ -265,6 +281,8 @@ def analyze_focus_vision_telemetry(
         dry_run_values=_counter_dict(dry_run_values),
         latest_observation_force_refresh_values=_counter_dict(force_refresh_values),
         observation_stale_values=_counter_dict(observation_stale_values),
+        last_force_refresh_returned_observation_values=_counter_dict(force_refresh_returned_values),
+        observation_source_counts=_counter_dict(observation_source_counts),
         reason_counts=_counter_dict(reason_counts),
         evidence_true_counts=_collect_evidence_true_counts(records),
     )

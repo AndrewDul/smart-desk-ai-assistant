@@ -34,7 +34,7 @@ class _VisionBackend:
         return self.observation
 
 
-def _phone_observation(captured_at: float) -> VisionObservation:
+def _phone_observation(captured_at: float, *, phone_usage_active_seconds: float = 0.0) -> VisionObservation:
     return VisionObservation(
         detected=True,
         user_present=True,
@@ -56,7 +56,7 @@ def _phone_observation(captured_at: float) -> VisionObservation:
                 "presence": _session(True, 20.0),
                 "desk_activity": _session(True, 20.0),
                 "computer_work": _session(False, 0.0),
-                "phone_usage": _session(True, 20.0),
+                "phone_usage": _session(True, phone_usage_active_seconds),
                 "study_activity": _session(False, 0.0),
             },
         },
@@ -177,7 +177,8 @@ def test_tick_marks_stale_cached_observation_as_no_observation(tmp_path) -> None
 
     assert result.snapshot is not None
     assert result.snapshot.current_state == FocusVisionState.NO_OBSERVATION
-    assert backend.calls == [False]
+    assert backend.calls[0] is False
+    assert True in backend.calls
     status = service.status()
     assert status["last_observation_age_seconds"] == 8.0
     assert status["last_observation_stale"] is True
@@ -206,3 +207,82 @@ def test_tick_can_disable_stale_guard_for_legacy_backends(tmp_path) -> None:
     assert result.snapshot is not None
     assert result.snapshot.current_state == FocusVisionState.PHONE_DISTRACTION
     assert service.status()["last_observation_stale"] is False
+
+
+class _CacheMissVisionBackend:
+    def __init__(self, forced_observation: VisionObservation | None) -> None:
+        self.forced_observation = forced_observation
+        self.calls: list[bool] = []
+
+    def latest_observation(self, *, force_refresh: bool = True):
+        self.calls.append(force_refresh)
+        if force_refresh:
+            return self.forced_observation
+        return None
+
+
+def _wait_until(condition, *, timeout: float = 1.0) -> bool:
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if condition():
+            return True
+        time.sleep(0.01)
+    return condition()
+
+
+def test_tick_schedules_background_force_refresh_after_cache_miss(tmp_path) -> None:
+    telemetry_path = tmp_path / "focus_vision_hybrid_refresh.jsonl"
+    backend = _CacheMissVisionBackend(_phone_observation(captured_at=20.0))
+    service = FocusVisionSentinelService(
+        vision_backend=backend,
+        config=FocusVisionConfig(
+            enabled=True,
+            dry_run=True,
+            latest_observation_force_refresh=False,
+            cache_miss_force_refresh_enabled=True,
+            cache_miss_force_refresh_cooldown_seconds=0.0,
+            max_observation_age_seconds=10.0,
+            telemetry_path=str(telemetry_path),
+        ),
+    )
+
+    first = service.tick(now=20.0)
+    assert first.snapshot is not None
+    assert first.snapshot.current_state == FocusVisionState.NO_OBSERVATION
+
+    assert _wait_until(lambda: service.status()["last_force_refresh_returned_observation"] is True)
+    second = service.tick(now=21.0)
+
+    assert second.snapshot is not None
+    assert second.snapshot.current_state == FocusVisionState.PHONE_DISTRACTION
+    assert backend.calls[0] is False
+    assert True in backend.calls
+
+    events = [json.loads(line) for line in telemetry_path.read_text(encoding="utf-8").splitlines()]
+    assert events[-1]["observation_source"] == "service_forced_cache"
+    assert events[-1]["last_force_refresh_returned_observation"] is True
+    assert events[-1]["latest_observation_force_refresh"] is False
+
+
+def test_tick_respects_cache_miss_force_refresh_cooldown(tmp_path) -> None:
+    backend = _CacheMissVisionBackend(None)
+    service = FocusVisionSentinelService(
+        vision_backend=backend,
+        config=FocusVisionConfig(
+            enabled=True,
+            dry_run=True,
+            latest_observation_force_refresh=False,
+            cache_miss_force_refresh_enabled=True,
+            cache_miss_force_refresh_cooldown_seconds=10.0,
+            telemetry_path=str(tmp_path / "focus_vision_hybrid_refresh_cooldown.jsonl"),
+        ),
+    )
+
+    service.tick(now=100.0)
+    assert _wait_until(lambda: service.status()["force_refresh_in_progress"] is False)
+    first_force_count = backend.calls.count(True)
+
+    service.tick(now=101.0)
+    assert backend.calls.count(True) == first_force_count

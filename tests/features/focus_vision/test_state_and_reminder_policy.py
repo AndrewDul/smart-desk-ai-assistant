@@ -78,3 +78,65 @@ def test_reminder_policy_respects_cooldown() -> None:
 
     assert first is not None
     assert second is None
+
+def test_reminder_policy_can_enable_only_phone_distraction_reminders() -> None:
+    config = FocusVisionConfig(
+        startup_grace_seconds=0.0,
+        absence_warning_after_seconds=5.0,
+        phone_warning_after_seconds=2.0,
+        enabled_reminder_kinds=("phone_distraction",),
+    )
+    policy = FocusVisionReminderPolicy(config=config)
+    policy.start_session(started_at=0.0)
+
+    absent_machine = FocusVisionStateMachine()
+    absent_machine.update(_decision(FocusVisionState.ABSENT, 10.0))
+    absent_snapshot = absent_machine.update(_decision(FocusVisionState.ABSENT, 20.0))
+
+    phone_machine = FocusVisionStateMachine()
+    phone_machine.update(_decision(FocusVisionState.PHONE_DISTRACTION, 30.0))
+    phone_snapshot = phone_machine.update(_decision(FocusVisionState.PHONE_DISTRACTION, 34.0))
+
+    assert policy.evaluate(absent_snapshot, language="en", now=20.0) is None
+
+    reminder = policy.evaluate(phone_snapshot, language="en", now=34.0)
+    assert reminder is not None
+    assert reminder.kind == FocusVisionReminderKind.PHONE_DISTRACTION
+    assert "Put the phone down" in reminder.text
+
+
+
+def test_reminder_policy_uses_phone_session_duration_when_state_stability_resets() -> None:
+    config = FocusVisionConfig(
+        startup_grace_seconds=0.0,
+        phone_warning_after_seconds=10.0,
+        enabled_reminder_kinds=("phone_distraction",),
+    )
+    policy = FocusVisionReminderPolicy(config=config)
+    policy.start_session(started_at=0.0)
+    machine = FocusVisionStateMachine()
+    snapshot = machine.update(
+        FocusVisionDecision(
+            state=FocusVisionState.PHONE_DISTRACTION,
+            confidence=1.0,
+            reasons=("phone_usage_active", "phone_usage_session_active"),
+            observed_at=12030.0,
+            evidence=FocusVisionEvidence(
+                detected=True,
+                phone_usage_active=True,
+                phone_usage_confidence=1.0,
+                phone_usage_active_seconds=42.825,
+                captured_at=12030.0,
+                labels=("object:cell phone", "behavior:phone_usage"),
+            ),
+        )
+    )
+
+    assert snapshot.stable_seconds == 0.0
+
+    reminder = policy.evaluate(snapshot, language="en", now=12030.0)
+
+    assert reminder is not None
+    assert reminder.kind == FocusVisionReminderKind.PHONE_DISTRACTION
+    assert reminder.dry_run == (config.dry_run or not config.voice_warnings_enabled)
+    assert "Put the phone down" in reminder.text
