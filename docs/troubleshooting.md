@@ -5301,3 +5301,80 @@ Sprint 7C lowers:
 - `focus_vision.startup_grace_seconds` to `5.0`.
 
 This keeps the warning conservative but should make the real user-facing warning appear closer to 15–20 seconds of visible phone use.
+
+## 2026-05-07 — Focus Vision absent warning requires observation age above 10 seconds
+
+### Symptom
+
+The user wants NeXa to warn after 10 seconds away from the desk, but telemetry previously showed `max_absent_stable_seconds` around 7.5 seconds.
+
+### Cause
+
+The Focus Vision observation was becoming stale around 8 seconds, causing the state to reset to `no_observation` before the 10-second absence warning could fire.
+
+### Adjustment
+
+Sprint 8 sets:
+
+- `focus_vision.absence_warning_after_seconds=10.0`,
+- `focus_vision.max_observation_age_seconds=14.0`,
+- `focus_vision.enabled_reminder_kinds=["phone_distraction", "absent"]`.
+
+### Expected behavior
+
+When Focus Mode is active and the user leaves the desk, NeXa should speak an absence warning after about 10 seconds of stable `absent` state, while phone warnings continue to work.
+
+## 2026-05-07 — Focus Vision absent labels still include person and face while state is absent
+
+### Symptom
+
+The absence calibration analyzer can show `state=absent` while object-level labels still include values such as:
+
+- `object:person`
+- `person_in_desk_zone`
+- `face_detected`
+- `face_in_engagement_zone`
+
+### Interpretation
+
+The final Focus Vision state is produced by the behavior/session layer, not only by raw object labels. In the observed calibration run, `absent` stayed stable for more than 10 seconds, so spoken absent reminders can be tested. However, object/face-zone calibration still needs improvement later.
+
+### Current decision
+
+Spoken `absent` reminders are re-enabled with a 10-second threshold, but pan-tilt and mobile-base movement remain disabled.
+
+## 2026-05-07 - Focus Vision absence reminder and wake-word reliability debugging
+
+Symptoms observed:
+- Focus Mode started, but desk absence did not always produce a spoken reminder.
+- At one point the wake word was detected rarely.
+- Runtime logs showed occasional `FasterWhisper audio callback status: input overflow`.
+- A run with logging initially showed only early ONNX warnings and no wake/focus activity because the runtime had not progressed into a useful interaction during that capture.
+
+Findings:
+- The Focus Vision readiness gate passed when `--allow-absence-voice` was used.
+- `enabled_reminder_kinds` had to use the canonical value `absence`, not the legacy/incorrect value `absent`.
+- Regression coverage was added so the legacy `absent` alias is accepted defensively, but runtime settings now store the canonical `absence` value.
+- Focus Vision telemetry confirmed whether the system was in `absent`, `on_task`, `uncertain`, or `no_observation`.
+- When no absence reminder was produced, telemetry showed that the system still believed presence/desk activity was active.
+- Wake-word reliability improved after restarting the user audio stack and verifying the reSpeaker capture device.
+
+Useful commands:
+- Check Focus Vision voice readiness:
+  `python3 scripts/check_focus_vision_voice_readiness.py --allow-absence-voice`
+- Analyze Focus Vision telemetry:
+  `python3 scripts/analyze_focus_vision_telemetry.py --require-records --allow-non-dry-run --max-gap-seconds 30`
+- Analyze absence calibration:
+  `python3 scripts/analyze_focus_vision_absence_calibration.py`
+- Restart user audio stack:
+  `systemctl --user restart pipewire pipewire-pulse wireplumber`
+- Verify ALSA capture device:
+  `arecord -l`
+- Record direct reSpeaker test:
+  `arecord -D plughw:3,0 -f S16_LE -r 16000 -c 2 -d 4 var/tmp/respeaker_direct_test.wav`
+
+Resolution:
+- `focus_vision.enabled_reminder_kinds` is now set to `phone_distraction` and `absence`.
+- Focus Vision phone and absence voice warnings were validated in real runtime.
+- Wake word recovered after audio stack restart and device verification.
+- Latency/reaction-time tuning is deferred to a separate sprint.

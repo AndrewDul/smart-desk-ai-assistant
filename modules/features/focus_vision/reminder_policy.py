@@ -92,7 +92,7 @@ class FocusVisionReminderPolicy:
         return None
 
     def _reminder_kind_enabled(self, kind: FocusVisionReminderKind) -> bool:
-        enabled = {str(value).strip() for value in self.config.enabled_reminder_kinds}
+        enabled = {_normalize_reminder_kind(value) for value in self.config.enabled_reminder_kinds}
         return kind.value in enabled
 
     def _stable_long_enough(self, snapshot: FocusVisionStateSnapshot, kind: FocusVisionReminderKind) -> bool:
@@ -133,6 +133,19 @@ class FocusVisionReminderPolicy:
     @staticmethod
     def _normalize_language(language: str) -> str:
         return "pl" if str(language or "").lower().startswith("pl") else "en"
+
+
+
+def _normalize_reminder_kind(value: str) -> str:
+    normalized = str(value or "").strip().lower().replace("-", "_")
+    aliases = {
+        "absent": "absence",
+        "away": "absence",
+        "desk_absence": "absence",
+        "phone": "phone_distraction",
+        "phone_usage": "phone_distraction",
+    }
+    return aliases.get(normalized, normalized)
 
 
 __all__ = ["FocusVisionReminderPolicy"]

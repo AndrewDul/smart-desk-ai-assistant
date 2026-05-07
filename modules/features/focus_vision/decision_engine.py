@@ -28,8 +28,17 @@ class FocusVisionDecisionEngine:
         if self._is_on_task(evidence):
             return FocusVisionDecision(FocusVisionState.ON_TASK, self._on_task_confidence(evidence), self._on_task_reasons(evidence), timestamp, evidence)
 
+        if self._has_clear_face_presence(evidence) and evidence.presence_active:
+            return FocusVisionDecision(
+                FocusVisionState.UNCERTAIN,
+                0.4,
+                ("active_face_presence_blocks_absence",),
+                timestamp,
+                evidence,
+            )
+
         if self._is_absent(evidence):
-            return FocusVisionDecision(FocusVisionState.ABSENT, 0.75, ("no_presence_or_desk_activity",), timestamp, evidence)
+            return FocusVisionDecision(FocusVisionState.ABSENT, 0.75, self._absence_reasons(evidence), timestamp, evidence)
 
         return FocusVisionDecision(FocusVisionState.UNCERTAIN, 0.35, ("mixed_or_low_confidence_focus_evidence",), timestamp, evidence)
 
@@ -51,7 +60,32 @@ class FocusVisionDecisionEngine:
 
     @staticmethod
     def _is_absent(evidence: FocusVisionEvidence) -> bool:
-        return not evidence.presence_active and not evidence.desk_activity_active
+        if evidence.presence_active:
+            return False
+        if evidence.phone_usage_active:
+            return False
+        return not evidence.study_activity_active and not evidence.computer_work_active
+
+    @staticmethod
+    def _has_clear_face_presence(evidence: FocusVisionEvidence) -> bool:
+        labels = set(evidence.labels)
+        if "face_in_engagement_zone" in labels:
+            return True
+        if "face_detected" in labels and evidence.presence_confidence >= 0.5:
+            return True
+        return False
+
+    @staticmethod
+    def _absence_reasons(evidence: FocusVisionEvidence) -> tuple[str, ...]:
+        labels = set(evidence.labels)
+        reasons = ["no_active_presence"]
+        if not evidence.desk_activity_active:
+            reasons.append("no_desk_activity")
+        if "face_detected" not in labels and "face_in_engagement_zone" not in labels:
+            reasons.append("no_face_visible")
+        if "person_in_desk_zone" in labels or "object:person" in labels:
+            reasons.append("person_label_ignored_without_face")
+        return tuple(reasons)
 
     @staticmethod
     def _phone_reasons(evidence: FocusVisionEvidence) -> tuple[str, ...]:

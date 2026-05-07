@@ -106,6 +106,25 @@ def test_reminder_policy_can_enable_only_phone_distraction_reminders() -> None:
 
 
 
+def test_reminder_policy_accepts_absent_alias_for_absence_reminders() -> None:
+    config = FocusVisionConfig(
+        startup_grace_seconds=0.0,
+        absence_warning_after_seconds=5.0,
+        enabled_reminder_kinds=("absent",),
+    )
+    policy = FocusVisionReminderPolicy(config=config)
+    policy.start_session(started_at=0.0)
+    machine = FocusVisionStateMachine()
+    machine.update(_decision(FocusVisionState.ABSENT, 10.0))
+    snapshot = machine.update(_decision(FocusVisionState.ABSENT, 16.0))
+
+    reminder = policy.evaluate(snapshot, language="en", now=16.0)
+
+    assert reminder is not None
+    assert reminder.kind == FocusVisionReminderKind.ABSENCE
+    assert "Come back to your desk" in reminder.text
+
+
 def test_reminder_policy_uses_phone_session_duration_when_state_stability_resets() -> None:
     config = FocusVisionConfig(
         startup_grace_seconds=0.0,

@@ -47,6 +47,28 @@ def _as_string_tuple(value: Any, default: tuple[str, ...]) -> tuple[str, ...]:
     return normalized or default
 
 
+def _normalize_reminder_kind(value: str) -> str:
+    normalized = str(value or "").strip().lower().replace("-", "_")
+    aliases = {
+        "absent": "absence",
+        "away": "absence",
+        "desk_absence": "absence",
+        "phone": "phone_distraction",
+        "phone_usage": "phone_distraction",
+    }
+    return aliases.get(normalized, normalized)
+
+
+def _as_reminder_kind_tuple(value: Any, default: tuple[str, ...]) -> tuple[str, ...]:
+    raw_items = _as_string_tuple(value, default)
+    normalized: list[str] = []
+    for item in raw_items:
+        reminder_kind = _normalize_reminder_kind(item)
+        if reminder_kind and reminder_kind not in normalized:
+            normalized.append(reminder_kind)
+    return tuple(normalized) or default
+
+
 @dataclass(frozen=True, slots=True)
 class FocusVisionConfig:
     """Configuration for focus-mode vision monitoring."""
@@ -87,7 +109,7 @@ class FocusVisionConfig:
             phone_warning_after_seconds=_as_float(payload.get("phone_warning_after_seconds"), defaults.phone_warning_after_seconds),
             warning_cooldown_seconds=_as_float(payload.get("warning_cooldown_seconds"), defaults.warning_cooldown_seconds),
             max_warnings_per_session=_as_int(payload.get("max_warnings_per_session"), defaults.max_warnings_per_session),
-            enabled_reminder_kinds=_as_string_tuple(payload.get("enabled_reminder_kinds"), defaults.enabled_reminder_kinds),
+            enabled_reminder_kinds=_as_reminder_kind_tuple(payload.get("enabled_reminder_kinds"), defaults.enabled_reminder_kinds),
             telemetry_path=str(payload.get("telemetry_path") or defaults.telemetry_path),
             latest_observation_force_refresh=_as_bool(payload.get("latest_observation_force_refresh"), defaults.latest_observation_force_refresh),
             cache_miss_force_refresh_enabled=_as_bool(payload.get("cache_miss_force_refresh_enabled"), defaults.cache_miss_force_refresh_enabled),

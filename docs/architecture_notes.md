@@ -16285,3 +16285,75 @@ Calibrated Focus Vision spoken phone warnings after the first successful real `p
 ### Rationale
 
 The previous runtime test showed `reminder_delivered=true` with `phone_usage_active_seconds=16.508`. Lowering the policy threshold compensates for camera/perception activation delay so the user-facing warning should happen closer to the desired 15–20 seconds of holding the phone.
+
+## 2026-05-07 — Focus Vision Sprint 8 spoken absent warning after 10 seconds
+
+### Summary
+
+Enabled spoken Focus Vision warnings for desk absence after the user requested a 10-second absence threshold.
+
+### Changes
+
+- `focus_vision.enabled_reminder_kinds` now includes both `phone_distraction` and `absent`.
+- `focus_vision.absence_warning_after_seconds` is set to `10.0`.
+- `focus_vision.max_observation_age_seconds` is set to `14.0` so the 10-second absence threshold can survive the current camera/perception refresh cadence.
+- `focus_vision.voice_warnings_enabled` remains `true`.
+- `focus_vision.dry_run` remains `false`.
+- `focus_vision.pan_tilt_scan_enabled` remains `false`.
+
+### Safety
+
+This sprint only enables spoken warnings. It does not enable pan-tilt movement, scan behavior, or mobile-base movement.
+
+## 2026-05-07 — Focus Vision Sprint 8B re-enable spoken absent warnings after calibration
+
+### Summary
+
+Re-enabled spoken Focus Vision `absent` reminders after calibration confirmed that the `absent` state can stay stable for more than the requested 10-second threshold.
+
+### Evidence
+
+The absence calibration analyzer reported:
+
+- `max_stable_absent_seconds >= 10`
+- one observed absent run above 13 seconds
+- phone warnings still remained active and delivered successfully in earlier Sprint 7 tests
+
+### Runtime settings
+
+- `focus_vision.enabled_reminder_kinds=["phone_distraction", "absent"]`
+- `focus_vision.absence_warning_after_seconds=10.0`
+- `focus_vision.phone_warning_after_seconds=6.0`
+- `focus_vision.max_observation_age_seconds=14.0`
+- `focus_vision.voice_warnings_enabled=true`
+- `focus_vision.dry_run=false`
+- `focus_vision.pan_tilt_scan_enabled=false`
+
+### Safety
+
+This sprint enables spoken reminders only. It does not enable pan-tilt scanning, pan-tilt tracking, or mobile-base movement.
+
+## 2026-05-07 - Focus Vision Sprint 7B: spoken absence and phone-distraction reminders are runtime-capable
+
+Focus Vision is now confirmed in a real runtime path for Focus Mode with camera-backed spoken reminders.
+
+Completed runtime behavior:
+- Focus Mode starts through the normal voice flow.
+- Focus Vision Sentinel starts with Focus Mode.
+- Phone usage during Focus Mode can produce a spoken reminder.
+- Desk absence during Focus Mode can produce a spoken reminder.
+- The active spoken reminder kinds are canonicalized as `phone_distraction` and `absence`.
+- The readiness gate supports the explicit Sprint 7B mode through `scripts/check_focus_vision_voice_readiness.py --allow-absence-voice`.
+- Runtime telemetry is written to `var/data/focus_vision_sentinel.jsonl`.
+- `scripts/analyze_focus_vision_telemetry.py` and `scripts/analyze_focus_vision_absence_calibration.py` were used to validate observed states, reminder candidates, delivered reminders, stale observation behavior, and absence calibration.
+
+Important constraints:
+- `focus_vision.pan_tilt_scan_enabled` remains disabled.
+- This sprint does not enable pan-tilt scanning, face tracking motion, or mobile-base movement.
+- Reaction-time and latency tuning are intentionally deferred to a later sprint to preserve the currently working runtime state.
+- Focus Vision remains a decision/reminder layer; motor movement must stay behind separate safety-gated tracking and actuator layers.
+
+Current validated result:
+- Wake word works again after the audio stack was refreshed.
+- Focus Mode can detect and speak for both absence and phone distraction.
+- The remaining `FasterWhisper audio callback status: input overflow` occurrences are noted but not treated as a blocker for this sprint.

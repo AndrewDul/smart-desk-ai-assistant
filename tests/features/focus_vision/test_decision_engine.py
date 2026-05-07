@@ -30,6 +30,7 @@ def _observation(
     phone: bool,
     study: bool,
     captured_at: float = 10.0,
+    labels: tuple[str, ...] = (),
 ) -> VisionObservation:
     return VisionObservation(
         detected=True,
@@ -40,6 +41,7 @@ def _observation(
         studying_likely=study,
         confidence=0.9,
         captured_at=captured_at,
+        labels=labels,
         metadata={
             "behavior": {
                 "presence": _signal(presence, 0.9),
@@ -91,6 +93,71 @@ def test_decision_reports_absent_when_presence_and_desk_are_inactive() -> None:
     decision = FocusVisionDecisionEngine().decide(observation)
 
     assert decision.state == FocusVisionState.ABSENT
+
+
+def test_decision_does_not_let_face_label_block_absent_without_active_presence() -> None:
+    observation = _observation(
+        presence=False,
+        desk=False,
+        computer=False,
+        phone=False,
+        study=False,
+        labels=("object:person", "person_in_desk_zone", "face_in_engagement_zone", "face_detected"),
+    )
+
+    decision = FocusVisionDecisionEngine().decide(observation)
+
+    assert decision.state == FocusVisionState.ABSENT
+    assert "no_active_presence" in decision.reasons
+
+
+def test_decision_reports_absent_when_only_person_label_remains_without_face() -> None:
+    observation = _observation(
+        presence=False,
+        desk=False,
+        computer=False,
+        phone=False,
+        study=False,
+        labels=("object:person", "person_in_desk_zone"),
+    )
+
+    decision = FocusVisionDecisionEngine().decide(observation)
+
+    assert decision.state == FocusVisionState.ABSENT
+    assert "person_label_ignored_without_face" in decision.reasons
+
+
+def test_decision_reports_absent_when_desk_activity_exists_but_no_face_or_presence() -> None:
+    observation = _observation(
+        presence=False,
+        desk=True,
+        computer=False,
+        phone=False,
+        study=False,
+        labels=("person_in_desk_zone",),
+    )
+
+    decision = FocusVisionDecisionEngine().decide(observation)
+
+    assert decision.state == FocusVisionState.ABSENT
+    assert "no_active_presence" in decision.reasons
+
+
+
+def test_decision_blocks_absent_only_when_face_and_active_presence_exist() -> None:
+    observation = _observation(
+        presence=True,
+        desk=False,
+        computer=False,
+        phone=False,
+        study=False,
+        labels=("face_in_engagement_zone", "face_detected"),
+    )
+
+    decision = FocusVisionDecisionEngine().decide(observation)
+
+    assert decision.state == FocusVisionState.UNCERTAIN
+    assert "active_face_presence_blocks_absence" in decision.reasons
 
 
 def test_decision_reports_uncertain_for_mixed_low_focus_evidence() -> None:

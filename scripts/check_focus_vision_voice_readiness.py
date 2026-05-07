@@ -9,6 +9,7 @@ from typing import Any
 
 DEFAULT_SETTINGS_PATH = Path("config/settings.json")
 SAFE_ALLOWED_SPOKEN_KINDS = {"phone_distraction"}
+ABSENCE_ALLOWED_SPOKEN_KINDS = {"phone_distraction", "absence"}
 
 
 def _as_bool(value: Any) -> bool:
@@ -26,7 +27,19 @@ def _as_list(value: Any) -> list[str]:
         items = value
     else:
         return []
-    return [str(item).strip() for item in items if str(item).strip()]
+    return [_normalize_reminder_kind(str(item).strip()) for item in items if str(item).strip()]
+
+
+def _normalize_reminder_kind(value: str) -> str:
+    normalized = str(value or "").strip().lower().replace("-", "_")
+    aliases = {
+        "absent": "absence",
+        "away": "absence",
+        "desk_absence": "absence",
+        "phone": "phone_distraction",
+        "phone_usage": "phone_distraction",
+    }
+    return aliases.get(normalized, normalized)
 
 
 def _load_settings(path: Path) -> dict[str, Any]:
@@ -66,9 +79,10 @@ def inspect_focus_vision_voice_readiness(
     if "absence" in enabled_kind_set and not allow_absence_voice:
         failures.append("focus_vision.enabled_reminder_kinds must not include absence during Sprint 7A.")
 
-    unexpected = sorted(enabled_kind_set - SAFE_ALLOWED_SPOKEN_KINDS)
-    if unexpected and not allow_absence_voice:
-        warnings.append(f"Unexpected spoken reminder kinds for Sprint 7A: {unexpected}")
+    allowed_kinds = ABSENCE_ALLOWED_SPOKEN_KINDS if allow_absence_voice else SAFE_ALLOWED_SPOKEN_KINDS
+    unexpected = sorted(enabled_kind_set - allowed_kinds)
+    if unexpected:
+        warnings.append(f"Unexpected spoken reminder kinds: {unexpected}")
 
     return {
         "ok": not failures,
@@ -80,7 +94,7 @@ def inspect_focus_vision_voice_readiness(
             "pan_tilt_scan_enabled": pan_tilt_scan_enabled,
             "enabled_reminder_kinds": enabled_reminder_kinds,
         },
-        "sprint_scope": "phone_distraction_voice_only",
+        "sprint_scope": "phone_distraction_and_absence_voice" if allow_absence_voice else "phone_distraction_voice_only",
         "failures": failures,
         "warnings": warnings,
     }
