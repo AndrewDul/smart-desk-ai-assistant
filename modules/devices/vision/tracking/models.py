@@ -69,6 +69,12 @@ class TrackingPolicyConfig:
     limit_margin_degrees: float = 1.0
     base_yaw_assist_edge_threshold: float = 0.42
     mobile_assist_edge_threshold: float | None = None
+    min_target_confidence: float = 0.0
+    min_face_area_norm: float = 0.0
+    min_person_area_norm: float = 0.0
+    target_activation_hits: int = 1
+    target_smoothing_alpha: float = 1.0
+    max_target_jump_norm: float = 1.0
 
     def __post_init__(self) -> None:
         if self.mobile_assist_edge_threshold is not None:
@@ -77,6 +83,12 @@ class TrackingPolicyConfig:
                 "base_yaw_assist_edge_threshold",
                 max(0.0, min(0.5, float(self.mobile_assist_edge_threshold))),
             )
+        object.__setattr__(self, "min_target_confidence", _clamp(self.min_target_confidence, 0.0, 1.0))
+        object.__setattr__(self, "min_face_area_norm", _clamp(self.min_face_area_norm, 0.0, 1.0))
+        object.__setattr__(self, "min_person_area_norm", _clamp(self.min_person_area_norm, 0.0, 1.0))
+        object.__setattr__(self, "target_activation_hits", max(1, int(self.target_activation_hits)))
+        object.__setattr__(self, "target_smoothing_alpha", _clamp(self.target_smoothing_alpha, 0.0, 1.0))
+        object.__setattr__(self, "max_target_jump_norm", _clamp(self.max_target_jump_norm, 0.0, 1.0))
 
     @classmethod
     def from_mapping(cls, payload: dict[str, Any] | None) -> "TrackingPolicyConfig":
@@ -94,6 +106,12 @@ class TrackingPolicyConfig:
             max_step_degrees=max(0.1, float(data.get("max_step_degrees", 2.0))),
             limit_margin_degrees=max(0.0, float(data.get("limit_margin_degrees", 1.0))),
             base_yaw_assist_edge_threshold=max(0.0, min(0.5, float(base_threshold))),
+            min_target_confidence=max(0.0, min(1.0, float(data.get("min_target_confidence", 0.0)))),
+            min_face_area_norm=max(0.0, min(1.0, float(data.get("min_face_area_norm", 0.0)))),
+            min_person_area_norm=max(0.0, min(1.0, float(data.get("min_person_area_norm", 0.0)))),
+            target_activation_hits=max(1, int(data.get("target_activation_hits", 1))),
+            target_smoothing_alpha=max(0.0, min(1.0, float(data.get("target_smoothing_alpha", 1.0)))),
+            max_target_jump_norm=max(0.0, min(1.0, float(data.get("max_target_jump_norm", 1.0)))),
         )
 
 

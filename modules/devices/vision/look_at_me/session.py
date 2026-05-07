@@ -290,9 +290,6 @@ class LookAtMeSession:
 
     def _run(self) -> None:
         period = 1.0 / self._target_fps
-        # NEXA_LOOK_AT_ME_WORKER_DEBUG_V1
-        import sys as _wdbg_sys
-        _wdbg_sys.stderr.write('[LOOK_AT_ME_WORKER] _run ENTERED\n'); _wdbg_sys.stderr.flush()
         last_scan_at = 0.0
 
         try:
@@ -340,11 +337,8 @@ class LookAtMeSession:
                 self._status.active = False
 
     def _tick(self, *, now: float, last_scan_at: float) -> None:
-        import sys as _tdbg_sys
-        _tdbg_sys.stderr.write(f'[LOOK_AT_ME_WORKER] _tick t={now:.3f}\n'); _tdbg_sys.stderr.flush()
         """One frame of work: read observation, decide, move."""
         observation = self._latest_observation()
-        _tdbg_sys.stderr.write(f'[LOOK_AT_ME_WORKER] _latest_observation returned: {type(observation).__name__ if observation else None}\n'); _tdbg_sys.stderr.flush()
 
         face_box = _extract_face_box(observation)
         if face_box is not None:

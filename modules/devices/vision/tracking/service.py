@@ -179,6 +179,11 @@ class VisionTrackingService:
         }
 
     def _latest_observation(self, *, force_refresh: bool) -> VisionObservation | None:
+        if bool(self._config.get("prefer_face_only_observation", False)):
+            tracking_method = getattr(self._vision_backend, "latest_tracking_observation", None)
+            if callable(tracking_method):
+                return tracking_method(force_refresh=force_refresh)
+
         method = getattr(self._vision_backend, "latest_observation", None)
         if not callable(method):
             return None

@@ -38,6 +38,12 @@ def _build_opencv_haar_face_detector(config: VisionRuntimeConfig) -> OpenCvHaarF
         min_area_ratio=config.face_detector_min_area_ratio,
         use_clahe=config.face_detector_use_clahe,
         roi_enabled=config.face_detector_roi_enabled,
+        scale_width=config.face_detector_scale_width,
+        scale_factor=config.face_detector_scale_factor,
+        min_neighbors=config.face_detector_min_neighbors,
+        profile_sweep_enabled=config.face_detector_profile_sweep_enabled,
+        equalized_variant_enabled=config.face_detector_equalized_variant_enabled,
+        min_size_px=config.face_detector_min_size_px,
     )
 
 

@@ -20,13 +20,16 @@ class OpenCvHaarFaceDetector:
     use_clahe: bool = True
     roi_enabled: bool = True
     roi_bounds: tuple[float, float, float, float] = (0.15, 0.05, 0.85, 0.78)
+    scale_width: int = 0
     scale_factor: float = 1.1
     min_neighbors: int = 5
     profile_sweep_enabled: bool = True
+    equalized_variant_enabled: bool = True
+    min_size_px: int = 24
     cascade: Any | None = field(default=None, repr=False)
 
     def detect_faces(self, packet: FramePacket) -> tuple[FaceDetection, ...]:
-        gray, x_offset, y_offset = self._prepare_gray_frame(packet)
+        gray, x_offset, y_offset, x_scale, y_scale = self._prepare_gray_frame(packet)
         cascade = self._get_cascade()
 
         frame_area = max(1, int(packet.width) * int(packet.height))
@@ -38,6 +41,7 @@ class OpenCvHaarFaceDetector:
                     gray_image,
                     scaleFactor=scale_factor,
                     minNeighbors=min_neighbors,
+                    minSize=(self.min_size_px, self.min_size_px),
                 )
 
                 for x, y, width, height in faces:
@@ -46,6 +50,8 @@ class OpenCvHaarFaceDetector:
                         frame_area=frame_area,
                         x_offset=x_offset,
                         y_offset=y_offset,
+                        x_scale=x_scale,
+                        y_scale=y_scale,
                         x=int(x),
                         y=int(y),
                         width=int(width),
@@ -76,6 +82,8 @@ class OpenCvHaarFaceDetector:
         frame_area: int,
         x_offset: int,
         y_offset: int,
+        x_scale: float,
+        y_scale: float,
         x: int,
         y: int,
         width: int,
@@ -88,10 +96,10 @@ class OpenCvHaarFaceDetector:
         if width <= 0 or height <= 0:
             return None
 
-        left = x_offset + x
-        top = y_offset + y
-        right = left + width
-        bottom = top + height
+        left = x_offset + int(round(float(x) * x_scale))
+        top = y_offset + int(round(float(y) * y_scale))
+        right = left + int(round(float(width) * x_scale))
+        bottom = top + int(round(float(height) * y_scale))
 
         left = max(0, min(packet.width - 1, left))
         top = max(0, min(packet.height - 1, top))
@@ -116,6 +124,8 @@ class OpenCvHaarFaceDetector:
                 "gray_variant": gray_label,
                 "scale_factor": scale_factor,
                 "min_neighbors": min_neighbors,
+                "scale_width": self.scale_width,
+                "profile_sweep_enabled": self.profile_sweep_enabled,
             },
         )
 
@@ -159,9 +169,7 @@ class OpenCvHaarFaceDetector:
         if self.profile_sweep_enabled:
             profiles.extend(
                 [
-                    ("sweep_1.05_4", 1.05, 4),
-                    ("sweep_1.05_3", 1.05, 3),
-                    ("sweep_1.03_3", 1.03, 3),
+                    ("sweep_1.08_4", 1.08, 4),
                     ("sweep_1.10_3", 1.10, 3),
                 ]
             )
@@ -179,6 +187,9 @@ class OpenCvHaarFaceDetector:
 
     def _gray_variants(self, gray: Any) -> tuple[tuple[str, Any], ...]:
         variants: list[tuple[str, Any]] = [("prepared", gray)]
+
+        if not self.equalized_variant_enabled:
+            return tuple(variants)
 
         try:
             import cv2
@@ -210,13 +221,25 @@ class OpenCvHaarFaceDetector:
             x_offset = 0
             y_offset = 0
 
+        original_height, original_width = bgr.shape[:2]
+        x_scale = 1.0
+        y_scale = 1.0
+
+        target_width = int(self.scale_width)
+        if target_width > 0 and original_width > target_width:
+            scale = target_width / float(original_width)
+            target_height = max(1, int(round(original_height * scale)))
+            bgr = cv2.resize(bgr, (target_width, target_height), interpolation=cv2.INTER_AREA)
+            x_scale = original_width / float(target_width)
+            y_scale = original_height / float(target_height)
+
         gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
 
         if self.use_clahe:
             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
             gray = clahe.apply(gray)
 
-        return gray, x_offset, y_offset
+        return gray, x_offset, y_offset, x_scale, y_scale
 
     def _estimate_confidence(self, area_ratio: float, frame_height: int, face_height: int) -> float:
         height_ratio = face_height / max(1, frame_height)

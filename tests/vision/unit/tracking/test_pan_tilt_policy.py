@@ -114,3 +114,85 @@ def test_disabled_policy_returns_no_motion_plan() -> None:
     assert plan.has_target is True
     assert plan.movement_requested() is False
     assert plan.reason == "tracking_disabled"
+
+
+
+def test_policy_requires_stable_target_hits_before_movement() -> None:
+    policy = PanTiltTrackingPolicy(
+        config=TrackingPolicyConfig(target_activation_hits=2, max_target_jump_norm=0.3)
+    )
+    limits = TrackingSafeLimits(pan_min_degrees=-20.0, pan_max_degrees=20.0)
+    target = TrackingTarget(
+        target_type="face",
+        confidence=0.9,
+        box={"x": 80, "y": 60, "width": 50, "height": 50},
+        center_x_norm=0.7,
+        center_y_norm=0.5,
+        area_norm=0.05,
+        source_index=0,
+    )
+
+    first = policy.plan_for_target(
+        target,
+        current_pan_degrees=0.0,
+        current_tilt_degrees=0.0,
+        safe_limits=limits,
+    )
+    second = policy.plan_for_target(
+        target,
+        current_pan_degrees=0.0,
+        current_tilt_degrees=0.0,
+        safe_limits=limits,
+    )
+
+    assert first.has_target is False
+    assert first.reason == "target_waiting_for_stability"
+    assert second.has_target is True
+    assert second.reason == "recenter_target"
+    assert second.pan_delta_degrees > 0.0
+
+
+def test_policy_smooths_locked_target_before_planning_delta() -> None:
+    policy = PanTiltTrackingPolicy(
+        config=TrackingPolicyConfig(
+            target_activation_hits=1,
+            target_smoothing_alpha=0.5,
+            max_target_jump_norm=0.5,
+        )
+    )
+    limits = TrackingSafeLimits(pan_min_degrees=-20.0, pan_max_degrees=20.0)
+    first_target = TrackingTarget(
+        target_type="face",
+        confidence=0.9,
+        box={"x": 80, "y": 60, "width": 50, "height": 50},
+        center_x_norm=0.6,
+        center_y_norm=0.5,
+        area_norm=0.05,
+        source_index=0,
+    )
+    second_target = TrackingTarget(
+        target_type="face",
+        confidence=0.9,
+        box={"x": 100, "y": 60, "width": 50, "height": 50},
+        center_x_norm=0.8,
+        center_y_norm=0.5,
+        area_norm=0.05,
+        source_index=0,
+    )
+
+    policy.plan_for_target(
+        first_target,
+        current_pan_degrees=0.0,
+        current_tilt_degrees=0.0,
+        safe_limits=limits,
+    )
+    plan = policy.plan_for_target(
+        second_target,
+        current_pan_degrees=0.0,
+        current_tilt_degrees=0.0,
+        safe_limits=limits,
+    )
+
+    assert plan.has_target is True
+    assert plan.target is not None
+    assert round(plan.target.center_x_norm, 2) == 0.7

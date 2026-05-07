@@ -16357,3 +16357,25 @@ Current validated result:
 - Wake word works again after the audio stack was refreshed.
 - Focus Mode can detect and speak for both absence and phone distraction.
 - The remaining `FasterWhisper audio callback status: input overflow` occurrences are noted but not treated as a blocker for this sprint.
+
+## 2026-05-07 - Look-at-me smooth face tracking and full-range wave search
+
+Improved the active look-at-me / face tracking runtime path in `modules/runtime/builder/look_at_me_mixin.py`.
+
+Key runtime changes:
+- Separated real `LookAtMeSession` runtime status from `VisionTrackingService` plan status.
+- `var/data/look_at_me_tracking_status.json` now represents the real look-at-me runtime iteration.
+- `var/data/look_at_me_tracking_plan_status.json` is reserved for the tracking plan status.
+- Added full-edge no-face search pattern across calibrated pan/X limits, approximately `-89.67` to `+89.67`.
+- Tilt/Y search is upper-only: it starts from center, climbs by rows, and never searches below center.
+- Added virtual pan/tilt search state so the full-range sweep continues even when Waveshare telemetry is unavailable or stale.
+- Kept face tracking movement separate from search movement: tracking uses smaller, smoother corrections; search can use larger pan steps.
+- Reduced false face locks by tightening OpenCV Haar detection and reducing stale/template target holding.
+
+Validation:
+- Relevant look-at-me/tracking tests passed: `28 passed`.
+- Runtime status confirmed `event: look_at_me_runtime_iteration`, `source: LookAtMeSession`, `search_active: True`, and `search_pattern: full_edge_wave_sweep_x_first_upper_only`.
+- Runtime search status confirmed a 30 degree pan step, for example `current: -59.67 70.0` and `target: -29.67 70.0`.
+
+Hardware note:
+- Physical full-range validation is still deferred until the dedicated pan-tilt/servo battery is fully charged.

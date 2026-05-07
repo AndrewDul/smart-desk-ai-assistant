@@ -42,6 +42,12 @@ class VisionRuntimeConfig:
     face_detector_min_area_ratio: float
     face_detector_use_clahe: bool
     face_detector_roi_enabled: bool
+    face_detector_scale_width: int
+    face_detector_scale_factor: float
+    face_detector_min_neighbors: int
+    face_detector_profile_sweep_enabled: bool
+    face_detector_equalized_variant_enabled: bool
+    face_detector_min_size_px: int
     object_detection_enabled: bool
     object_detector_backend: str
     object_detector_hailo_hef_path: str
@@ -106,6 +112,12 @@ class VisionRuntimeConfig:
             face_detector_min_area_ratio=_clamp_float(payload.get("face_detector_min_area_ratio", 0.002), 0.0, 1.0),
             face_detector_use_clahe=bool(payload.get("face_detector_use_clahe", True)),
             face_detector_roi_enabled=bool(payload.get("face_detector_roi_enabled", True)),
+            face_detector_scale_width=max(0, int(payload.get("face_detector_scale_width", 0))),
+            face_detector_scale_factor=max(1.01, float(payload.get("face_detector_scale_factor", 1.1))),
+            face_detector_min_neighbors=max(1, int(payload.get("face_detector_min_neighbors", 5))),
+            face_detector_profile_sweep_enabled=bool(payload.get("face_detector_profile_sweep_enabled", True)),
+            face_detector_equalized_variant_enabled=bool(payload.get("face_detector_equalized_variant_enabled", True)),
+            face_detector_min_size_px=max(12, int(payload.get("face_detector_min_size_px", 24))),
             object_detection_enabled=bool(payload.get("object_detection_enabled", False)),
             object_detector_backend=str(payload.get("object_detector_backend", "null") or "null").strip().lower(),
             object_detector_hailo_hef_path=str(payload.get("object_detector_hailo_hef_path", "/usr/share/hailo-models/yolov11m_h10.hef") or "").strip(),

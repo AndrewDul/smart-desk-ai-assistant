@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from modules.runtime.contracts import VisionObservation
 
 from .models import TrackingMotionPlan, TrackingPolicyConfig, TrackingSafeLimits, TrackingTarget
@@ -14,13 +16,19 @@ def _clamp_step(value: float, max_step: float) -> float:
     return value
 
 
+def _target_distance(first: TrackingTarget, second: TrackingTarget) -> float:
+    return abs(first.center_x_norm - second.center_x_norm) + abs(
+        first.center_y_norm - second.center_y_norm
+    )
+
+
 class PanTiltTrackingPolicy:
     """
-    Convert a selected face/person target into a safe pan/tilt dry-run movement plan.
+    Convert a selected face/person target into a safe pan/tilt movement plan.
 
-    The policy is intentionally pure and non-blocking: it does not read frames,
-    does not run inference, never talks to hardware, and only marks required
-    yaw-only base assist when pan-tilt reaches or approaches its pan limit.
+    The policy stays non-blocking and never talks to hardware. It also keeps a
+    small in-memory target lock so one-frame Haar false positives do not jerk
+    the pan/tilt head away from the real user.
     """
 
     def __init__(
@@ -31,6 +39,9 @@ class PanTiltTrackingPolicy:
     ) -> None:
         self._config = config or TrackingPolicyConfig()
         self._selector = selector or TrackingTargetSelector()
+        self._locked_target: TrackingTarget | None = None
+        self._candidate_target: TrackingTarget | None = None
+        self._candidate_hits = 0
 
     def plan_from_observation(
         self,
@@ -67,7 +78,8 @@ class PanTiltTrackingPolicy:
                 reason="tracking_disabled",
             )
 
-        if target is None:
+        stable_target, stable_reason, stable_diagnostics = self._stabilize_target(target)
+        if stable_target is None:
             return TrackingMotionPlan(
                 has_target=False,
                 target=None,
@@ -75,11 +87,12 @@ class PanTiltTrackingPolicy:
                 desired_tilt_degrees=float(current_tilt_degrees),
                 clamped_pan_degrees=safe_limits.clamp_pan(current_pan_degrees),
                 clamped_tilt_degrees=safe_limits.clamp_tilt(current_tilt_degrees),
-                reason="no_target",
+                reason=stable_reason,
+                diagnostics=stable_diagnostics,
             )
 
-        offset_x = target.center_x_norm - 0.5
-        offset_y = target.center_y_norm - 0.5
+        offset_x = stable_target.center_x_norm - 0.5
+        offset_y = stable_target.center_y_norm - 0.5
 
         raw_pan_delta = 0.0
         raw_tilt_delta = 0.0
@@ -124,7 +137,7 @@ class PanTiltTrackingPolicy:
 
         return TrackingMotionPlan(
             has_target=True,
-            target=target,
+            target=stable_target,
             pan_delta_degrees=round(clamped_pan - float(current_pan_degrees), 4),
             tilt_delta_degrees=round(clamped_tilt - float(current_tilt_degrees), 4),
             desired_pan_degrees=round(desired_pan, 4),
@@ -147,8 +160,87 @@ class PanTiltTrackingPolicy:
                 "dead_zone_x": self._config.dead_zone_x,
                 "dead_zone_y": self._config.dead_zone_y,
                 "base_yaw_assist_edge_threshold": self._config.base_yaw_assist_edge_threshold,
+                **stable_diagnostics,
             },
         )
+
+    def _stabilize_target(
+        self,
+        target: TrackingTarget | None,
+    ) -> tuple[TrackingTarget | None, str, dict[str, object]]:
+        if target is None:
+            self._candidate_target = None
+            self._candidate_hits = 0
+            self._locked_target = None
+            return None, "no_target", {"target_lock": "cleared"}
+
+        if target.confidence < self._config.min_target_confidence:
+            return None, "target_confidence_below_threshold", {
+                "target_confidence": round(target.confidence, 4),
+                "min_target_confidence": self._config.min_target_confidence,
+            }
+
+        min_area = (
+            self._config.min_face_area_norm
+            if target.target_type == "face"
+            else self._config.min_person_area_norm
+        )
+        if target.area_norm < min_area:
+            return None, "target_area_below_threshold", {
+                "target_area_norm": round(target.area_norm, 4),
+                "min_target_area_norm": min_area,
+                "target_type": target.target_type,
+            }
+
+        locked = self._locked_target
+        if locked is not None:
+            distance = _target_distance(target, locked)
+            if distance <= self._config.max_target_jump_norm:
+                alpha = self._config.target_smoothing_alpha
+                smoothed = replace(
+                    target,
+                    center_x_norm=(locked.center_x_norm * (1.0 - alpha)) + (target.center_x_norm * alpha),
+                    center_y_norm=(locked.center_y_norm * (1.0 - alpha)) + (target.center_y_norm * alpha),
+                )
+                self._locked_target = smoothed
+                self._candidate_target = None
+                self._candidate_hits = 0
+                return smoothed, "target_locked", {
+                    "target_lock": "locked",
+                    "target_distance_norm": round(distance, 4),
+                    "target_smoothing_alpha": alpha,
+                }
+
+            self._candidate_target = target
+            self._candidate_hits = 1
+            return locked, "target_jump_rejected_using_previous_lock", {
+                "target_lock": "jump_rejected",
+                "target_distance_norm": round(distance, 4),
+                "max_target_jump_norm": self._config.max_target_jump_norm,
+            }
+
+        candidate = self._candidate_target
+        if candidate is None or _target_distance(target, candidate) > self._config.max_target_jump_norm:
+            self._candidate_target = target
+            self._candidate_hits = 1
+        else:
+            self._candidate_target = target
+            self._candidate_hits += 1
+
+        if self._candidate_hits < self._config.target_activation_hits:
+            return None, "target_waiting_for_stability", {
+                "target_lock": "candidate",
+                "candidate_hits": self._candidate_hits,
+                "target_activation_hits": self._config.target_activation_hits,
+            }
+
+        self._locked_target = target
+        self._candidate_target = None
+        self._candidate_hits = 0
+        return target, "target_locked", {
+            "target_lock": "activated",
+            "target_activation_hits": self._config.target_activation_hits,
+        }
 
 
 def _base_yaw_direction_from_offset(offset_x: float) -> str:

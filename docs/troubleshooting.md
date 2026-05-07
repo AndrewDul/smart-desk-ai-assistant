@@ -5378,3 +5378,32 @@ Resolution:
 - Focus Vision phone and absence voice warnings were validated in real runtime.
 - Wake word recovered after audio stack restart and device verification.
 - Latency/reaction-time tuning is deferred to a separate sprint.
+
+## 2026-05-07 - Look-at-me tracking/search debugging notes
+
+Symptoms observed:
+- `look at me` was recognized, but pan-tilt did not visibly search or track.
+- Runtime status initially did not show the real search state because the tracking plan status was overwriting the look-at-me runtime status.
+- Search appeared too narrow because it depended on pan/tilt telemetry that can be unavailable or stale.
+- OpenCV Haar sometimes produced false face targets, preventing no-face search from starting.
+- Pan-tilt hardware movement was also affected by a discharged dedicated servo battery.
+
+Root causes:
+- Shared status path between `VisionTrackingService` and `LookAtMeSession`.
+- Missing reliable runtime iteration status for look-at-me search.
+- Search state depended too much on backend telemetry.
+- Servo battery was discharged, so physical movement could appear weak or absent even when commands were accepted.
+
+Resolution:
+- Separated `LookAtMeSession` runtime status from `VisionTrackingService` plan status.
+- Added real runtime iteration status with `event: look_at_me_runtime_iteration`.
+- Added full-edge wave sweep search for no-face state.
+- Added virtual search pan/tilt state to avoid depending on stale or missing hardware telemetry.
+- Tightened face detection and target activation to reduce false locks.
+- Preserved safety gates and calibrated pan-tilt limits.
+
+Useful checks:
+- Validate JSON: `python3 -m json.tool config/settings.json >/dev/null && echo JSON_OK`.
+- Check runtime status file: `var/data/look_at_me_tracking_status.json`.
+- Expected runtime status: `event: look_at_me_runtime_iteration`, `source: LookAtMeSession`, `search_active: True`, `search_pattern: full_edge_wave_sweep_x_first_upper_only`.
+- After charging the servo battery, run `scripts/run_vision_tracking_single_pan_tilt_step.py` as the hardware sanity check.

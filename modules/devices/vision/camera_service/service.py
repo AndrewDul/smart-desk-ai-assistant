@@ -12,6 +12,7 @@ from modules.devices.vision.config import VisionRuntimeConfig
 from modules.devices.vision.diagnostics import build_diagnostics_snapshot
 from modules.devices.vision.fusion import build_vision_observation
 from modules.devices.vision.perception import PerceptionPipeline
+from modules.devices.vision.perception.models import PerceptionSnapshot
 from modules.devices.vision.sessions import VisionSessionTracker
 from modules.devices.vision.stabilization import BehaviorStabilizer
 from modules.runtime.contracts import VisionObservation
@@ -169,6 +170,32 @@ class CameraService:
                 self._worker.start()
             return self._worker.latest_frame()
 
+    def latest_tracking_observation(self, *, force_refresh: bool = True) -> VisionObservation | None:
+        """Return a lightweight face-only observation for real-time tracking.
+
+        The normal latest_observation() path runs people, face, object, behavior,
+        stabilization, session and diagnostics work. Look-at-me only needs face
+        boxes, so this path keeps tracking responsive and reduces CPU pressure
+        on the wake-word audio callback.
+        """
+        with self._pipeline_lock:
+            if self._closed:
+                return self._last_observation
+
+            if self._worker is not None:
+                if not self._worker.is_running:
+                    self._worker.start()
+                    LOGGER.info("CameraService: continuous capture started lazily for tracking.")
+                return self._tracking_observation_from_worker()
+
+            try:
+                packet = self._reader.read_frame()
+                return self._run_face_only_tracking_pipeline(packet)
+            except Exception as error:
+                self._last_error = f"{error.__class__.__name__}: {error}"
+                LOGGER.warning("Vision tracking capture failed. %s", self._last_error)
+                return self._last_observation
+
     def status(self) -> dict[str, Any]:
         with self._pipeline_lock:
             last = self._last_observation
@@ -298,10 +325,66 @@ class CameraService:
             LOGGER.warning("Vision pipeline failed on buffered frame. %s", self._last_error)
             return self._last_observation
 
+    def _tracking_observation_from_worker(self) -> VisionObservation | None:
+        """Run only face detection on the latest buffered frame."""
+        packet = self._worker.latest_frame()
+
+        if packet is None:
+            deadline = time.monotonic() + _FIRST_FRAME_WAIT_SECONDS
+            while time.monotonic() < deadline:
+                time.sleep(_FIRST_FRAME_POLL_INTERVAL)
+                packet = self._worker.latest_frame()
+                if packet is not None:
+                    break
+
+        if packet is None:
+            self._last_error = "No frame available from continuous capture worker."
+            LOGGER.warning("CameraService: %s", self._last_error)
+            return self._last_observation
+
+        try:
+            return self._run_face_only_tracking_pipeline(packet)
+        except Exception as error:
+            self._last_error = f"{error.__class__.__name__}: {error}"
+            LOGGER.warning("Vision tracking pipeline failed on buffered frame. %s", self._last_error)
+            return self._last_observation
+
     def _capture_once_locked(self) -> VisionObservation:
         """On-demand synchronous capture path."""
         packet = self._reader.read_frame()
         return self._run_pipeline(packet)
+
+    def _run_face_only_tracking_pipeline(self, packet: FramePacket) -> VisionObservation:
+        """Run the minimum perception needed by pan-tilt face tracking."""
+        faces = tuple(self._perception.face_detector.detect_faces(packet))
+        perception = PerceptionSnapshot(
+            frame_width=packet.width,
+            frame_height=packet.height,
+            faces=faces,
+            metadata={
+                "people_count": 0,
+                "face_count": len(faces),
+                "object_count": 0,
+                "detectors": {
+                    "people": "skipped_for_tracking",
+                    "face": str(getattr(self._perception.face_detector, "backend_label", type(self._perception.face_detector).__name__.lower())),
+                    "objects": "skipped_for_tracking",
+                    "scene": "skipped_for_tracking",
+                },
+            },
+        )
+        observation = build_vision_observation(packet=packet, perception=perception)
+        observation.metadata["tracking_fast_path"] = {
+            "enabled": True,
+            "face_count": len(faces),
+            "skipped_people_detector": True,
+            "skipped_object_detector": True,
+            "skipped_behavior_pipeline": True,
+            "skipped_diagnostics": True,
+        }
+        self._last_observation = observation
+        self._last_error = None
+        return observation
 
     def _run_pipeline(self, packet: FramePacket) -> VisionObservation:
         """Run perception → behavior → stabilize → sessions → build observation."""
