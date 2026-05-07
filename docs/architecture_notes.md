@@ -16379,3 +16379,29 @@ Validation:
 
 Hardware note:
 - Physical full-range validation is still deferred until the dedicated pan-tilt/servo battery is fully charged.
+
+## 2026-05-07 - NeXa Drive Runtime Sprint 1: mobile base USB STOP-only smoke test
+
+Started the NeXa Drive Runtime path for the Waveshare UGV02 / 6x4 Off-Road UGV Kit with ESP32 driver connected to Raspberry Pi over USB serial.
+
+Key decisions:
+- Added the mobile base as a separate device area under `modules/devices/mobile_base` instead of mixing drive logic into Voice Runtime, Vision Runtime, `look at me`, or `main.py`.
+- Kept Sprint 1 limited to connection detection, serial open/write/read, and STOP-only smoke testing.
+- Did not enable autonomous movement, manual drive mode, voice drive mode, or look-at-me yaw assist in this sprint.
+- Preserved disabled-by-default movement behavior: hardware access requires explicit CLI intent and `CONFIRM_NEXA_MOBILE_BASE_TEST=RUN`.
+
+Runtime/safety behavior:
+- `scripts/mobile_base_usb_smoke_test.py --dry-run` prints the planned STOP sequence without opening hardware serial.
+- `scripts/mobile_base_usb_smoke_test.py --list-ports` reports candidate USB/serial ports, including stable `/dev/serial/by-id/*` entries when available.
+- Hardware smoke mode sends only zero-velocity STOP commands using the current Waveshare ROS-style JSON-line profile: `{"T":13,"X":0.0,"Z":0.0}`.
+- The first hardware smoke test was run with `--send-stop-only` and returned ESP32 telemetry/status frames while wheel velocity fields stayed at zero.
+
+Validated result:
+- `python -m pytest -q tests/devices/mobile_base` passed: `15 passed`.
+- `python scripts/mobile_base_usb_smoke_test.py --dry-run` completed successfully.
+- `python scripts/mobile_base_usb_smoke_test.py --list-ports` detected the UGV02 ESP32 serial adapter at `/dev/serial/by-id/usb-1a86_USB_Single_Serial_5A36029146-if00`, resolving to `/dev/ttyACM0`.
+- STOP-only hardware smoke completed successfully with `CONFIRM_NEXA_MOBILE_BASE_TEST=RUN` on `/dev/ttyACM0`.
+
+Next step:
+- Sprint 2 should add a real `MobileBaseService` / controller layer with central safety policy, fake transport tests, dead-man timeout/watchdog, and guaranteed STOP on close/error before any manual drive mode is enabled.
+
