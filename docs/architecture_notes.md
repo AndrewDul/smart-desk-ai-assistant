@@ -16111,3 +16111,40 @@ Run:
 ### Next step
 
 Run a real Focus Mode dry-run observation on the Raspberry Pi and inspect `var/data/focus_vision_sentinel.jsonl`. The next sprint should use that telemetry to tune desk/phone thresholds before enabling spoken warnings.
+
+## 2026-05-07 — Focus Vision Sprint 5 telemetry analysis tooling
+
+### Summary
+
+Added a dedicated Focus Vision telemetry analyzer so Focus Mode dry-run sessions can be evaluated from `var/data/focus_vision_sentinel.jsonl` before spoken warnings are enabled.
+
+### Architecture changes
+
+- Added `scripts/analyze_focus_vision_telemetry.py`.
+- The analyzer reads the existing Focus Vision Sentinel JSONL stream and reports:
+  - observed Focus Vision states,
+  - maximum stable time per state,
+  - reminder candidate counts,
+  - dry-run safety values,
+  - runtime errors and delivery errors,
+  - evidence activity counters for presence, desk activity, computer work, phone usage, and study activity.
+- The analyzer is intentionally read-only. It does not change runtime settings, does not speak, does not move pan-tilt, and does not move the mobile base.
+- This keeps Sprint 5 focused on real observation quality and threshold tuning before enabling voice warnings.
+
+### Validation target
+
+Run:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/scripts/test_analyze_focus_vision_telemetry.py
+
+Then after a real Focus Mode dry-run session:
+
+    python3 scripts/analyze_focus_vision_telemetry.py --require-records
+
+Optional scenario checks:
+
+    python3 scripts/analyze_focus_vision_telemetry.py --require-records --require-state absent --require-state phone_distraction
+
+### Next step
+
+Use the analyzer output after a real desk/absence/phone test to tune Focus Vision thresholds and workspace zones before enabling spoken PL/EN reminders.

@@ -5085,3 +5085,48 @@ This is not expected. Stop runtime and verify:
     python3 scripts/check_focus_vision_dry_run_readiness.py
 
 The script should fail if `focus_vision.pan_tilt_scan_enabled=true`. Pan-tilt movement is not part of Sprint 4.
+
+## 2026-05-07 — Focus Vision Sprint 5 telemetry analyzer troubleshooting
+
+### Status
+
+Sprint 5 adds telemetry analysis only. It should not change runtime behaviour.
+
+### Basic command
+
+Run after a Focus Mode dry-run session:
+
+    python3 scripts/analyze_focus_vision_telemetry.py --require-records
+
+### If the analyzer says no records were found
+
+Check:
+
+    ls -la var/data/focus_vision_sentinel.jsonl
+    tail -n 20 var/data/focus_vision_sentinel.jsonl
+    python3 scripts/check_focus_vision_dry_run_readiness.py
+
+Likely causes:
+
+1. Focus Mode was not started.
+2. Runtime was not restarted after enabling `focus_vision.enabled=true`.
+3. The vision backend did not attach to the runtime builder.
+4. The telemetry path was changed in `config/settings.json`.
+
+### If all states are `no_observation`
+
+This means the Focus Vision service is running, but it is not receiving usable `VisionObservation` data. Check camera/perception runtime readiness before tuning thresholds.
+
+### If `absent` never appears
+
+Run a dedicated absence scenario: start Focus Mode, leave the desk for at least 30 seconds, then analyze telemetry again.
+
+### If `phone_distraction` never appears
+
+Run a dedicated phone scenario: start Focus Mode, sit at the desk, hold the phone in normal use position for 10-15 seconds, then analyze telemetry again. If the state still does not appear, tune phone detection evidence and workspace zones before enabling spoken reminders.
+
+### If dry-run is false
+
+During this sprint dry-run should remain true. Re-check safe settings before continuing:
+
+    python3 scripts/check_focus_vision_dry_run_readiness.py
