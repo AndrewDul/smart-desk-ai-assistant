@@ -463,7 +463,7 @@
     }
   },
   "focus_vision": {
-    "enabled": false,
+    "enabled": true,
     "dry_run": true,
     "voice_warnings_enabled": false,
     "visual_warnings_enabled": true,

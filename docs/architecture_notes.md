@@ -16072,3 +16072,42 @@ Result: 40 passed.
 ### Next step
 
 Sprint 4 should add a controlled Focus Vision enablement and telemetry observation path. The next validation should run Focus Mode with Focus Vision enabled in dry-run mode, then inspect `var/data/focus_vision_sentinel.jsonl` while testing desk presence and phone-distraction scenarios. Voice warnings should stay disabled until telemetry proves the decisions are stable enough.
+
+
+## 2026-05-06 — Focus Vision Sentinel Sprint 4 dry-run telemetry enablement
+
+### Summary
+
+Enabled Focus Vision dry-run observation in `config/settings.json` so Focus Mode can now start the Focus Vision Sentinel background loop and write real telemetry while the user tests desk presence and phone-distraction scenarios.
+
+### Architecture changes
+
+- Runtime config now enables Focus Vision observation for the local active settings file:
+  - `focus_vision.enabled=true`,
+  - `focus_vision.dry_run=true`,
+  - `focus_vision.voice_warnings_enabled=false`,
+  - `focus_vision.pan_tilt_scan_enabled=false`.
+- Focus Mode lifecycle from Sprint 2 now becomes active in dry-run mode:
+  - Focus timer start starts the sentinel loop,
+  - Focus timer stop or finish stops the sentinel loop,
+  - every tick reads the existing `VisionObservation` contract through the vision backend,
+  - decisions and reminder candidates are written to `var/data/focus_vision_sentinel.jsonl`.
+- Added `scripts/check_focus_vision_dry_run_readiness.py` to verify the Sprint 4 safety gates and summarize telemetry after a real Focus Mode run.
+
+### Safety and runtime boundaries
+
+- Voice warnings remain disabled.
+- Dry-run remains enabled, so reminder candidates are telemetry-only.
+- Pan-tilt scanning remains disabled.
+- Mobile-base movement remains disabled.
+- The helper script fails if voice warnings or pan-tilt scan are accidentally enabled during Sprint 4.
+
+### Validation target
+
+Run:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/features/focus_vision tests/scripts/test_check_focus_vision_dry_run_readiness.py tests/vision/unit/runtime/test_focus_vision_focus_mode_hooks.py tests/vision/unit/runtime/test_focus_vision_builder_integration.py tests/vision/unit/runtime/test_ai_broker_focus_hooks.py tests/vision/unit/runtime/test_ai_broker_service.py tests/vision/unit/behavior/test_pipeline.py tests/vision/unit/behavior/phone_usage/test_interpreter.py
+
+### Next step
+
+Run a real Focus Mode dry-run observation on the Raspberry Pi and inspect `var/data/focus_vision_sentinel.jsonl`. The next sprint should use that telemetry to tune desk/phone thresholds before enabling spoken warnings.

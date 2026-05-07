@@ -5032,3 +5032,56 @@ Check these in order:
    - `reminder_delivery_error`.
 
 Do not enable pan-tilt scanning for Focus Vision yet.
+
+
+## 2026-05-06 — Focus Vision Sprint 4 dry-run telemetry observation notes
+
+### Status
+
+Sprint 4 intentionally enables Focus Vision only in dry-run telemetry mode. It should not speak, move pan-tilt, or move the mobile base.
+
+### Required safe settings
+
+Expected Sprint 4 settings:
+
+- `focus_vision.enabled=true`,
+- `focus_vision.dry_run=true`,
+- `focus_vision.voice_warnings_enabled=false`,
+- `focus_vision.pan_tilt_scan_enabled=false`.
+
+Check them with:
+
+    python3 scripts/check_focus_vision_dry_run_readiness.py
+
+### If no telemetry appears
+
+Check these in order:
+
+1. Confirm Focus Mode was actually started, not break mode.
+2. Confirm `focus_vision.enabled=true` in `config/settings.json`.
+3. Confirm the runtime was restarted after applying the config change.
+4. Confirm the vision backend is available in runtime builder status.
+5. Inspect the telemetry path:
+
+       ls -la var/data/focus_vision_sentinel.jsonl
+       tail -n 20 var/data/focus_vision_sentinel.jsonl
+
+6. Run the readiness script with telemetry required after a Focus Mode session:
+
+       python3 scripts/check_focus_vision_dry_run_readiness.py --require-telemetry
+
+### If NeXa speaks during Sprint 4
+
+This is not expected. Immediately stop runtime and verify:
+
+    python3 scripts/check_focus_vision_dry_run_readiness.py
+
+The script should fail if `focus_vision.voice_warnings_enabled=true` or if dry-run was disabled.
+
+### If pan-tilt moves during Sprint 4
+
+This is not expected. Stop runtime and verify:
+
+    python3 scripts/check_focus_vision_dry_run_readiness.py
+
+The script should fail if `focus_vision.pan_tilt_scan_enabled=true`. Pan-tilt movement is not part of Sprint 4.
