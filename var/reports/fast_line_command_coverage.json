@@ -1,0 +1,770 @@
+{
+  "generated_at_utc": "2026-05-13T20:48:19+00:00",
+  "summary": {
+    "checked": 33,
+    "target_fast_line": 17,
+    "ready": 26,
+    "partial": 7,
+    "missing": 0
+  },
+  "records": [
+    {
+      "intent": "assistant.help",
+      "target_fast_line": true,
+      "description": "Speak help.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 7,
+      "en_phrase_count": 11,
+      "sample_pl_aliases": [
+        "pomoc",
+        "pomóż mi",
+        "pokaż pomoc",
+        "pokaż komendy",
+        "lista komend"
+      ],
+      "sample_en_aliases": [
+        "help",
+        "help me",
+        "show help",
+        "so help",
+        "show commands"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "help",
+      "tool_name": "system.help"
+    },
+    {
+      "intent": "assistant.identity",
+      "target_fast_line": true,
+      "description": "Speak identity.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 3,
+      "en_phrase_count": 1,
+      "sample_pl_aliases": [
+        "jak się nazywasz",
+        "jak się nazywaś",
+        "jak masz na imię"
+      ],
+      "sample_en_aliases": [
+        "what is your name"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "introduce_self",
+      "tool_name": "assistant.introduce"
+    },
+    {
+      "intent": "mobile_base.drive_mode",
+      "target_fast_line": true,
+      "description": "Enter safety-gated drive mode.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 9,
+      "en_phrase_count": 12,
+      "sample_pl_aliases": [
+        "sterowanie baza",
+        "tryb sterowania",
+        "tryb jazdy",
+        "uruchom tryb sterowania",
+        "tryp sterowania"
+      ],
+      "sample_en_aliases": [
+        "drive mode",
+        "dive mode",
+        "start drive mode",
+        "manual drive mode",
+        "manual drive"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "drive_mode_start",
+      "tool_name": "mobile_base.drive_mode"
+    },
+    {
+      "intent": "mobile_base.stop",
+      "target_fast_line": true,
+      "description": "Stop mobile base.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 5,
+      "en_phrase_count": 5,
+      "sample_pl_aliases": [
+        "zatrzymaj bazę",
+        "zatrzymaj jazdę",
+        "awaryjny stop bazy",
+        "stop baza",
+        "stój baza"
+      ],
+      "sample_en_aliases": [
+        "stop base",
+        "stop mobile base",
+        "stop driving",
+        "emergency stop base",
+        "halt mobile base"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "drive_mode_stop",
+      "tool_name": "mobile_base.stop"
+    },
+    {
+      "intent": "system.battery",
+      "target_fast_line": true,
+      "description": "Speak battery level.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 2,
+      "en_phrase_count": 2,
+      "sample_pl_aliases": [
+        "jaka jest twoja bateria",
+        "czy jesteś zmęczona"
+      ],
+      "sample_en_aliases": [
+        "battery",
+        "what is your battery"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "show_battery",
+      "tool_name": "system.battery"
+    },
+    {
+      "intent": "system.current_date",
+      "target_fast_line": true,
+      "description": "Speak current date.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 2,
+      "en_phrase_count": 1,
+      "sample_pl_aliases": [
+        "jaka jest data",
+        "dzisiejsza data"
+      ],
+      "sample_en_aliases": [
+        "what is today's date"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "show_date",
+      "tool_name": "clock.date"
+    },
+    {
+      "intent": "system.current_time",
+      "target_fast_line": true,
+      "description": "Speak current time.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 3,
+      "en_phrase_count": 3,
+      "sample_pl_aliases": [
+        "która godzina",
+        "która jest godzina",
+        "jaki jest czas"
+      ],
+      "sample_en_aliases": [
+        "what time is it",
+        "what time it is",
+        "more time is it"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "ask_time",
+      "tool_name": "clock.time"
+    },
+    {
+      "intent": "system.temperature",
+      "target_fast_line": true,
+      "description": "Speak system temperature.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 2,
+      "en_phrase_count": 2,
+      "sample_pl_aliases": [
+        "jaka jest twoja temperatura",
+        "czy jest ci za gorąco"
+      ],
+      "sample_en_aliases": [
+        "temperature",
+        "what is your temperature"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "show_temperature",
+      "tool_name": "system.temperature"
+    },
+    {
+      "intent": "visual_shell.look_at_user",
+      "target_fast_line": true,
+      "description": "Look at user.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 4,
+      "en_phrase_count": 4,
+      "sample_pl_aliases": [
+        "popatrz na mnie",
+        "patrz na mnie",
+        "spójrz na mnie",
+        "śledź moją twarz"
+      ],
+      "sample_en_aliases": [
+        "look at me",
+        "look at me now",
+        "start looking at me",
+        "track my face"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "look_at_user",
+      "tool_name": "visual_shell.look_at_user"
+    },
+    {
+      "intent": "visual_shell.return_to_idle",
+      "target_fast_line": true,
+      "description": "Return to idle cloud.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 5,
+      "en_phrase_count": 5,
+      "sample_pl_aliases": [
+        "wróć do chmury",
+        "przestań na mnie patrzeć",
+        "nie patrz na mnie",
+        "przestań mnie śledzić",
+        "zatrzymaj śledzenie twarzy"
+      ],
+      "sample_en_aliases": [
+        "return to idle",
+        "go idle",
+        "stop look at me",
+        "stop looking at me",
+        "stop tracking me"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "return_to_idle",
+      "tool_name": "visual_shell.return_to_idle"
+    },
+    {
+      "intent": "visual_shell.show_battery",
+      "target_fast_line": true,
+      "description": "Show battery glyph.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 2,
+      "en_phrase_count": 4,
+      "sample_pl_aliases": [
+        "pokaż baterię",
+        "bateria"
+      ],
+      "sample_en_aliases": [
+        "show battery",
+        "battery level",
+        "display battery",
+        "show battery status"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "show_battery",
+      "tool_name": "visual_shell.show_battery"
+    },
+    {
+      "intent": "visual_shell.show_date",
+      "target_fast_line": true,
+      "description": "Show date glyph.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 1,
+      "en_phrase_count": 3,
+      "sample_pl_aliases": [
+        "pokaż datę"
+      ],
+      "sample_en_aliases": [
+        "show date",
+        "show the date",
+        "display date"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "show_visual_date",
+      "tool_name": "visual_shell.show_date"
+    },
+    {
+      "intent": "visual_shell.show_desktop",
+      "target_fast_line": true,
+      "description": "Show desktop.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 8,
+      "en_phrase_count": 5,
+      "sample_pl_aliases": [
+        "pokaż pulpit",
+        "pokaż pulpid",
+        "pokaż pulbit",
+        "pokaż ikony",
+        "zdejmij shell"
+      ],
+      "sample_en_aliases": [
+        "show desktop",
+        "show icons",
+        "hide shell",
+        "give me access to linux",
+        "let me see the desktop"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "show_desktop",
+      "tool_name": "visual_shell.show_desktop"
+    },
+    {
+      "intent": "visual_shell.show_face",
+      "target_fast_line": true,
+      "description": "Show face/self.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 4,
+      "en_phrase_count": 4,
+      "sample_pl_aliases": [
+        "pokaż się",
+        "pokaż siebie",
+        "pokaż twarz",
+        "twarz"
+      ],
+      "sample_en_aliases": [
+        "show yourself",
+        "show face",
+        "face",
+        "your face"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "show_face_contour",
+      "tool_name": "visual_shell.show_face"
+    },
+    {
+      "intent": "visual_shell.show_shell",
+      "target_fast_line": true,
+      "description": "Hide desktop / return to shell.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 4,
+      "en_phrase_count": 3,
+      "sample_pl_aliases": [
+        "wróć do shell",
+        "pokaż shell",
+        "ukryj pulpit",
+        "schowaj pulpit"
+      ],
+      "sample_en_aliases": [
+        "show shell",
+        "hide desktop",
+        "go back to assistant"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "show_shell",
+      "tool_name": "visual_shell.show_shell"
+    },
+    {
+      "intent": "visual_shell.show_temperature",
+      "target_fast_line": true,
+      "description": "Show temperature glyph.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 2,
+      "en_phrase_count": 3,
+      "sample_pl_aliases": [
+        "pokaż temperaturę",
+        "temperatura"
+      ],
+      "sample_en_aliases": [
+        "show temperature",
+        "display temperature",
+        "show current temperature"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "show_temperature",
+      "tool_name": "visual_shell.show_temperature"
+    },
+    {
+      "intent": "visual_shell.show_time",
+      "target_fast_line": true,
+      "description": "Show time glyph.",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 2,
+      "en_phrase_count": 3,
+      "sample_pl_aliases": [
+        "pokaż czas",
+        "pokaż godzinę"
+      ],
+      "sample_en_aliases": [
+        "show time",
+        "show the time",
+        "display time"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "show_visual_time",
+      "tool_name": "visual_shell.show_time"
+    },
+    {
+      "intent": "feedback.off",
+      "target_fast_line": false,
+      "description": "",
+      "status": "PARTIAL",
+      "reason": "missing: runtime allowlist",
+      "pl_phrase_count": 4,
+      "en_phrase_count": 13,
+      "sample_pl_aliases": [
+        "feedback zamknij",
+        "zamknij feedback",
+        "feedback wyłącz",
+        "wyłącz feedback"
+      ],
+      "sample_en_aliases": [
+        "feedback off",
+        "feedback of",
+        "feed back off",
+        "feed back of",
+        "feed the back off"
+      ],
+      "allowlisted": false,
+      "has_execution_spec": true,
+      "legacy_action": "feedback_off",
+      "tool_name": "feedback.off"
+    },
+    {
+      "intent": "feedback.on",
+      "target_fast_line": false,
+      "description": "",
+      "status": "PARTIAL",
+      "reason": "missing: runtime allowlist",
+      "pl_phrase_count": 5,
+      "en_phrase_count": 8,
+      "sample_pl_aliases": [
+        "feedback uruchom",
+        "uruchom feedback",
+        "tryb feedback",
+        "feedback włącz",
+        "włącz feedback"
+      ],
+      "sample_en_aliases": [
+        "feedback on",
+        "feed back on",
+        "feed the back on",
+        "feedback own",
+        "feed back own"
+      ],
+      "allowlisted": false,
+      "has_execution_spec": true,
+      "legacy_action": "feedback_on",
+      "tool_name": "feedback.on"
+    },
+    {
+      "intent": "memory.recall",
+      "target_fast_line": false,
+      "description": "",
+      "status": "PARTIAL",
+      "reason": "missing: runtime allowlist",
+      "pl_phrase_count": 3,
+      "en_phrase_count": 3,
+      "sample_pl_aliases": [
+        "gdzie jest",
+        "gdzie są",
+        "czy pamiętasz"
+      ],
+      "sample_en_aliases": [
+        "where is",
+        "where are",
+        "do you remember"
+      ],
+      "allowlisted": false,
+      "has_execution_spec": true,
+      "legacy_action": "memory_recall",
+      "tool_name": "memory.recall"
+    },
+    {
+      "intent": "system.exit",
+      "target_fast_line": false,
+      "description": "",
+      "status": "PARTIAL",
+      "reason": "missing: runtime allowlist, execution spec",
+      "pl_phrase_count": 5,
+      "en_phrase_count": 6,
+      "sample_pl_aliases": [
+        "zamknij asystenta",
+        "zamknij nexa",
+        "idź spać",
+        "odpocznij",
+        "wyłącz asystenta"
+      ],
+      "sample_en_aliases": [
+        "exit",
+        "exit assistant",
+        "close assistant",
+        "close nexa",
+        "go to sleep"
+      ],
+      "allowlisted": false,
+      "has_execution_spec": false,
+      "legacy_action": "",
+      "tool_name": ""
+    },
+    {
+      "intent": "visual_shell.show_eyes",
+      "target_fast_line": false,
+      "description": "",
+      "status": "PARTIAL",
+      "reason": "missing: PL aliases, EN aliases",
+      "pl_phrase_count": 0,
+      "en_phrase_count": 0,
+      "sample_pl_aliases": [],
+      "sample_en_aliases": [],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "show_eyes",
+      "tool_name": "visual_shell.show_eyes"
+    },
+    {
+      "intent": "visual_shell.show_self",
+      "target_fast_line": false,
+      "description": "",
+      "status": "PARTIAL",
+      "reason": "missing: PL aliases, EN aliases",
+      "pl_phrase_count": 0,
+      "en_phrase_count": 0,
+      "sample_pl_aliases": [],
+      "sample_en_aliases": [],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "show_self",
+      "tool_name": "visual_shell.show_self"
+    },
+    {
+      "intent": "visual_shell.start_scanning",
+      "target_fast_line": false,
+      "description": "",
+      "status": "PARTIAL",
+      "reason": "missing: PL aliases, EN aliases",
+      "pl_phrase_count": 0,
+      "en_phrase_count": 0,
+      "sample_pl_aliases": [],
+      "sample_en_aliases": [],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "start_scanning",
+      "tool_name": "visual_shell.start_scanning"
+    },
+    {
+      "intent": "break.start",
+      "target_fast_line": false,
+      "description": "",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 3,
+      "en_phrase_count": 3,
+      "sample_pl_aliases": [
+        "przerwa",
+        "odpoczynek",
+        "czas na przerwę"
+      ],
+      "sample_en_aliases": [
+        "break mode",
+        "start break mode",
+        "take a break"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "break_start",
+      "tool_name": "break.start"
+    },
+    {
+      "intent": "break.stop",
+      "target_fast_line": false,
+      "description": "",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 1,
+      "en_phrase_count": 1,
+      "sample_pl_aliases": [
+        "zatrzymaj przerwę"
+      ],
+      "sample_en_aliases": [
+        "stop break mode"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "timer_stop",
+      "tool_name": "break.stop"
+    },
+    {
+      "intent": "focus.offer",
+      "target_fast_line": false,
+      "description": "",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 1,
+      "en_phrase_count": 2,
+      "sample_pl_aliases": [
+        "chcę się pouczyć"
+      ],
+      "sample_en_aliases": [
+        "i want to study",
+        "study time"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "focus_offer",
+      "tool_name": "focus.offer"
+    },
+    {
+      "intent": "focus.start",
+      "target_fast_line": false,
+      "description": "",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 3,
+      "en_phrase_count": 3,
+      "sample_pl_aliases": [
+        "włącz focus mode",
+        "włącz tryb skupienia",
+        "tryb skupienia"
+      ],
+      "sample_en_aliases": [
+        "start focus mode",
+        "focus mode",
+        "start focus mode for five minutes"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "focus_start",
+      "tool_name": "focus.start"
+    },
+    {
+      "intent": "focus.stop",
+      "target_fast_line": false,
+      "description": "",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 2,
+      "en_phrase_count": 1,
+      "sample_pl_aliases": [
+        "zatrzymaj focus mode",
+        "wyłącz tryb skupienia"
+      ],
+      "sample_en_aliases": [
+        "stop focus mode"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "timer_stop",
+      "tool_name": "focus.stop"
+    },
+    {
+      "intent": "memory.guided_start",
+      "target_fast_line": false,
+      "description": "",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 2,
+      "en_phrase_count": 4,
+      "sample_pl_aliases": [
+        "zapamiętaj coś",
+        "zapamiętaj to"
+      ],
+      "sample_en_aliases": [
+        "remember something",
+        "remember this",
+        "remember that",
+        "remember it"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "memory_store",
+      "tool_name": "memory.guided_start"
+    },
+    {
+      "intent": "memory.list",
+      "target_fast_line": false,
+      "description": "",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 4,
+      "en_phrase_count": 4,
+      "sample_pl_aliases": [
+        "pokaż pamięć",
+        "co pamiętasz",
+        "co zapamiętałaś",
+        "co zapamietalas"
+      ],
+      "sample_en_aliases": [
+        "memory list",
+        "show memory",
+        "what do you remember",
+        "show what you remember"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "memory_list",
+      "tool_name": "memory.list"
+    },
+    {
+      "intent": "reminder.guided_start",
+      "target_fast_line": false,
+      "description": "",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 6,
+      "en_phrase_count": 13,
+      "sample_pl_aliases": [
+        "przypomnij mi",
+        "przypomnij mi coś",
+        "ustaw przypomnienie",
+        "dodaj przypomnienie",
+        "stwórz przypomnienie"
+      ],
+      "sample_en_aliases": [
+        "set reminder",
+        "set a reminder",
+        "set the reminder",
+        "set the reminders",
+        "add reminder"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "reminder_create",
+      "tool_name": "reminder.guided_start"
+    },
+    {
+      "intent": "reminder.time_answer",
+      "target_fast_line": false,
+      "description": "",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 42,
+      "en_phrase_count": 40,
+      "sample_pl_aliases": [
+        "jedna sekunda",
+        "za jedna sekunda",
+        "dwie sekundy",
+        "za dwie sekundy",
+        "trzy sekundy"
+      ],
+      "sample_en_aliases": [
+        "one second",
+        "in one second",
+        "two seconds",
+        "in two seconds",
+        "three seconds"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "reminder_time_answer",
+      "tool_name": "reminder.time_answer"
+    }
+  ]
+}

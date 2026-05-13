@@ -8,6 +8,11 @@ _MOBILE_BASE_INTENTS = {
         domain=CommandIntentDomain.MOBILE_BASE,
         action="drive_mode_start",
     ),
+    "mobile_base.stop": CommandIntentDefinition(
+        key="mobile_base.stop",
+        domain=CommandIntentDomain.MOBILE_BASE,
+        action="drive_mode_stop",
+    ),
 }
 
 def get_mobile_base_intent_definition(intent_key: str) -> CommandIntentDefinition | None:

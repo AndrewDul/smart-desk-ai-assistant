@@ -5444,3 +5444,72 @@ Focused validation passed:
 Result:
 
     50 passed
+
+## 2026-05-13 - Final Polish Sprint 2: fast-line and drive-mode compatibility issues
+
+### Issue 1: malformed runtime allowlist JSON
+
+During the mobile_base.stop fast-line patch, mobile_base.stop was inserted after mobile_base.drive_mode without a comma in config/settings.json and config/settings.example.json.
+
+Resolution:
+
+The allowlist JSON was corrected and validated with:
+
+- python3 -m json.tool config/settings.json
+- python3 -m json.tool config/settings.example.json
+
+### Issue 2: resolver test used wrong API shape
+
+A test initially called resolver.resolve("mobile_base.stop"), but CommandIntentResolver.resolve() expects a CommandRecognitionResult.
+
+Resolution:
+
+The test was changed to resolve grammar.match("zatrzymaj bazę").
+
+### Issue 3: supported intent expectation missed mobile_base.stop
+
+RuntimeCandidateExecutionPlanBuilder.supported_intents included mobile_base.stop, but the expected tuple in the test had not been updated.
+
+Resolution:
+
+mobile_base.stop was added to the expected supported-intents list.
+
+### Issue 4: Drive Mode API drift
+
+The wider mobile-base and drive-mode test suite exposed API drift from earlier Drive Mode work.
+
+Missing or incompatible items included:
+
+- MobileBaseCommandError
+- build_stop_sequence
+- DryRunSerialTransport
+- MobileBaseSafetyError
+- DriveModeAction
+- CONFIRM_TEST_ENV_VAR
+- _build_controller
+
+Resolution:
+
+Compatibility APIs and exports were restored across mobile-base command, transport, safety, controller, keyboard mapping, drive service, launcher, and script modules.
+
+### Issue 5: patch generation failure from embedded HTML
+
+A large patch attempt failed because embedded HTML broke the Python patch string.
+
+Resolution:
+
+The patch was split into smaller compatibility-focused steps instead of rewriting the entire web panel in one embedded string.
+
+### Final validation
+
+Passed:
+
+- python -m pytest -q tests/devices/mobile_base tests/runtime/drive_mode
+- python -m pytest -q tests/devices/audio/command_asr/test_command_grammar.py tests/core/command_intents/test_command_intent_resolver.py tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+- python scripts/audit_fast_line_command_coverage.py
+
+Final fast-line audit result:
+
+- ready=26
+- partial=7
+- missing=0

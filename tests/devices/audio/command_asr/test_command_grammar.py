@@ -454,6 +454,26 @@ def test_default_grammar_recognizes_mobile_base_drive_mode_aliases() -> None:
     assert "tryb sterowania" in grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)
 
 
+def test_default_grammar_recognizes_mobile_base_stop_aliases() -> None:
+    grammar = build_default_command_grammar()
+
+    english = grammar.match("stop mobile base")
+    assert english.is_match
+    assert english.intent_key == "mobile_base.stop"
+    assert english.language == CommandLanguage.ENGLISH
+
+    polish = grammar.match("zatrzymaj bazę")
+    assert polish.is_match
+    assert polish.intent_key == "mobile_base.stop"
+    assert polish.language == CommandLanguage.POLISH
+
+    assert "stop mobile base" in grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH)
+    assert "zatrzymaj bazę" in grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)
+
+    bare_stop = grammar.match("stop")
+    assert bare_stop.intent_key != "mobile_base.stop"
+
+
 def test_default_grammar_recognizes_mobile_base_drive_mode_asr_recovery_aliases() -> None:
     grammar = build_default_command_grammar()
 

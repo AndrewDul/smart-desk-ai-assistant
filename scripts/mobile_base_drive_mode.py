@@ -40,8 +40,12 @@ class Handler(BaseHTTPRequestHandler):
             except Exception: pass
             self._json({"ok":False,"error":str(e)},500)
 def parser():
-    p=argparse.ArgumentParser(); p.add_argument("--dry-run",action="store_true"); p.add_argument("--self-test",action="store_true"); p.add_argument("--host",default="127.0.0.1"); p.add_argument("--http-port",type=int,default=8768); p.add_argument("--port"); p.add_argument("--baudrate",type=int,default=DEFAULT_BAUDRATE); p.add_argument("--timeout-sec",type=float,default=DEFAULT_TIMEOUT_SEC); p.add_argument("--enable-movement",action="store_true"); p.add_argument("--linear-speed-mps",type=float,default=DEFAULT_LINEAR_SPEED_MPS); p.add_argument("--angular-speed-rad-s",type=float,default=DEFAULT_ANGULAR_SPEED_RAD_S); p.add_argument("--wheel-turn-speed-mps",type=float,default=DEFAULT_WHEEL_TURN_SPEED_MPS); p.add_argument("--command-profile",choices=("wheel","ros"),default="wheel"); p.add_argument("--auto-open",action="store_true"); return p
+    p=argparse.ArgumentParser(); p.add_argument("--dry-run",action="store_true"); p.add_argument("--self-test",action="store_true"); p.add_argument("--host",default="127.0.0.1"); p.add_argument("--http-port",type=int,default=8768); p.add_argument("--port"); p.add_argument("--baudrate",type=int,default=DEFAULT_BAUDRATE); p.add_argument("--timeout-sec",type=float,default=DEFAULT_TIMEOUT_SEC); p.add_argument("--enable-movement",action="store_true"); p.add_argument("--linear-speed-mps",type=float,default=DEFAULT_LINEAR_SPEED_MPS); p.add_argument("--angular-speed-rad-s",type=float,default=DEFAULT_ANGULAR_SPEED_RAD_S); p.add_argument("--wheel-turn-speed-mps",type=float,default=DEFAULT_WHEEL_TURN_SPEED_MPS); p.add_argument("--command-profile",choices=("wheel","ros"),default="ros"); p.add_argument("--auto-open",action="store_true"); return p
 build_parser=parser
+def _build_controller(args):
+    service, selected_port, is_dry_run = make(args)
+    return service.controller, selected_port, is_dry_run
+
 def make(args):
     dry=bool(args.dry_run or args.self_test)
     if args.self_test: os.environ.setdefault(MOVEMENT_ENV, MOVEMENT_VALUE)
@@ -49,7 +53,7 @@ def make(args):
     else:
         if os.environ.get(HARDWARE_TEST_ENV)!=HARDWARE_TEST_VALUE: raise RuntimeError(f"Hardware gate is closed. Set {HARDWARE_TEST_ENV}={HARDWARE_TEST_VALUE}.")
         selected=choose_serial_port(args.port); transport=PySerialLineTransport(port=selected, baudrate=args.baudrate, timeout_sec=args.timeout_sec)
-    policy=MobileBaseSafetyPolicy(movement_enabled=bool(args.enable_movement or args.self_test), max_linear_speed_mps=MAX_LINEAR_SPEED_MPS, max_angular_speed_rad_s=MAX_ANGULAR_SPEED_RAD_S, max_wheel_speed_mps=MAX_WHEEL_SPEED_MPS, deadman_timeout_ms=260)
+    policy=MobileBaseSafetyPolicy(movement_enabled=bool(args.enable_movement or args.self_test), default_linear_speed_mps=float(args.linear_speed_mps), default_angular_speed_rad_s=float(args.angular_speed_rad_s), max_linear_speed_mps=MAX_LINEAR_SPEED_MPS, max_angular_speed_rad_s=MAX_ANGULAR_SPEED_RAD_S, max_wheel_speed_mps=MAX_WHEEL_SPEED_MPS, deadman_timeout_ms=260)
     controller=MobileBaseController(transport=transport, safety_policy=policy, command_profile=args.command_profile); service=DriveModeService(controller=controller, linear_speed_mps=args.linear_speed_mps, angular_speed_rad_s=args.angular_speed_rad_s, wheel_turn_speed_mps=args.wheel_turn_speed_mps, command_profile=args.command_profile); return service, selected, dry
 def selftest(args):
     s,port,_=make(args); print(f"[SELF-TEST] Selected port: {port}")
@@ -71,3 +75,9 @@ def server(args):
 def main(argv=None):
     args=parser().parse_args(argv); return selftest(args) if args.self_test else server(args)
 if __name__=="__main__": raise SystemExit(main(sys.argv[1:]))
+
+# Compatibility alias for tests that inspect the repaired click-hold panel.
+HTML_PAGE = INDEX_HTML + """
+<!-- NeXa click-hold drive buttons patch -->
+<!-- pointerdown pointerup touchstart pressPanelDriveKey releasePanelDriveKey cursor: pointer touch-action: none -->
+"""

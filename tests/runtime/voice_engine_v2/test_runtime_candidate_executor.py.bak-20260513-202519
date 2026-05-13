@@ -113,30 +113,13 @@ def test_runtime_candidate_executor_builds_system_fast_line_routes() -> None:
     builder = RuntimeCandidateExecutionPlanBuilder()
 
     cases = [
-        (
-            "what is your battery",
-            CommandLanguage.ENGLISH,
-            "system.battery",
-            "show_battery",
-            "system.battery",
-        ),
-        (
-            "what is your temperature",
-            CommandLanguage.ENGLISH,
-            "system.temperature",
-            "show_temperature",
-            "system.temperature",
-        ),
-        (
-            "what is today's date",
-            CommandLanguage.ENGLISH,
-            "system.current_date",
-            "show_date",
-            "clock.date",
-        ),
+        ("system.battery", CommandLanguage.ENGLISH, "show_battery", "system.battery"),
+        ("system.temperature", CommandLanguage.ENGLISH, "show_temperature", "system.temperature"),
+        ("system.current_date", CommandLanguage.ENGLISH, "show_date", "clock.date"),
     ]
 
-    for transcript, language, intent_key, legacy_action, tool_name in cases:
+    for intent_key, language, legacy_action, tool_name in cases:
+        transcript = _first_transcript_for_intent(intent_key, language)
         turn = _turn_result(transcript, language=language)
 
         plan = builder.build_plan(
@@ -235,7 +218,6 @@ def test_runtime_candidate_executor_rejects_exit_even_if_recognized() -> None:
         "memory.list",
         "memory.recall",
         "mobile_base.drive_mode",
-        "mobile_base.stop",
         "reminder.guided_start",
         "reminder.time_answer",
         "system.battery",

@@ -70,6 +70,21 @@ class RuntimeCandidateExecutionPlanBuilder:
                 legacy_action="ask_time",
                 tool_name="clock.time",
             ),
+            "system.current_date": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="system.current_date",
+                legacy_action="show_date",
+                tool_name="clock.date",
+            ),
+            "system.temperature": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="system.temperature",
+                legacy_action="show_temperature",
+                tool_name="system.temperature",
+            ),
+            "system.battery": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="system.battery",
+                legacy_action="show_battery",
+                tool_name="system.battery",
+            ),
             "visual_shell.show_desktop": RuntimeCandidateActionSpec(
                 voice_engine_intent_key="visual_shell.show_desktop",
                 legacy_action="show_desktop",
@@ -184,6 +199,11 @@ class RuntimeCandidateExecutionPlanBuilder:
                 voice_engine_intent_key="mobile_base.drive_mode",
                 legacy_action="drive_mode_start",
                 tool_name="mobile_base.drive_mode",
+            ),
+            "mobile_base.stop": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="mobile_base.stop",
+                legacy_action="drive_mode_stop",
+                tool_name="mobile_base.stop",
             ),
               "memory.guided_start": RuntimeCandidateActionSpec(
                   voice_engine_intent_key="memory.guided_start",

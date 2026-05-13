@@ -16437,3 +16437,80 @@ Result:
 Next step:
 Build a fast-line command coverage audit that checks each deterministic command across:
 grammar -> canonical intent -> allowlist -> runtime execution spec -> ActionFlow handler -> spoken response/cache policy.
+
+## 2026-05-13 - Final Polish Sprint 2: Fast-line command coverage completion and mobile-base stop safety route
+
+### Summary
+
+Final Polish Sprint 2 completed the target fast-line command coverage for deterministic built-in commands.
+
+Validated result:
+
+- ready=26
+- partial=7
+- missing=0
+- no target fast-line gaps detected
+
+### Completed fast-line targets
+
+The following target commands are now covered by grammar, runtime allowlist, and runtime execution specs:
+
+- assistant.help
+- assistant.identity
+- system.current_time
+- system.current_date
+- system.temperature
+- system.battery
+- visual_shell.show_desktop
+- visual_shell.show_shell
+- visual_shell.show_face
+- visual_shell.look_at_user
+- visual_shell.return_to_idle
+- visual_shell.show_temperature
+- visual_shell.show_battery
+- visual_shell.show_time
+- visual_shell.show_date
+- mobile_base.drive_mode
+- mobile_base.stop
+
+### System command split
+
+Short display-style phrases such as "show battery", "battery", "show temperature", and "temperature" route to Visual Shell display/glyph actions.
+
+Report-style questions such as "what is your battery", "what is your temperature", and "what is today's date" route to system fast-line actions.
+
+### Mobile-base stop safety route
+
+mobile_base.stop was added as a fast-line safety command with Polish and English aliases, including:
+
+- stop mobile base
+- stop driving
+- emergency stop base
+- zatrzymaj bazę
+- zatrzymaj jazdę
+- awaryjny stop bazy
+
+The bare word "stop" is intentionally not mapped to mobile_base.stop to avoid collisions with speech interruption, timers, focus/break stop commands, and other generic stop intents.
+
+The voice route for mobile_base.stop does not open a second hardware serial connection from the main voice runtime. It sends an HTTP request to the active Drive Mode local server using the same path as the panel STOP/Space control:
+
+POST http://127.0.0.1:8768/api/key
+{"key":"space","event":"down"}
+
+### Validation
+
+Passed:
+
+- python -m pytest -q tests/devices/mobile_base tests/runtime/drive_mode
+- python -m pytest -q tests/devices/audio/command_asr/test_command_grammar.py tests/core/command_intents/test_command_intent_resolver.py tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+- python scripts/audit_fast_line_command_coverage.py
+
+Final audit result:
+
+- ready=26
+- partial=7
+- missing=0
+
+### Next step
+
+Run a real runtime smoke test and verify that selected fast-line commands bypass LLM routing and respond naturally through Piper within the target latency window.

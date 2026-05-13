@@ -144,14 +144,19 @@ def main(argv: list[str] | None = None) -> int:
         _send_stop_dry_run(stop_repeat=max(1, int(args.stop_repeat)))
         return 0
 
-    selected_port = _choose_port(args.port)
-    _send_stop_hardware(
-        port=selected_port,
-        baudrate=int(args.baudrate),
-        timeout_sec=float(args.timeout_sec),
-        stop_repeat=max(1, int(args.stop_repeat)),
-        read_seconds=max(0.0, float(args.read_seconds)),
-    )
+    try:
+        selected_port = _choose_port(args.port)
+        _send_stop_hardware(
+            port=selected_port,
+            baudrate=int(args.baudrate),
+            timeout_sec=float(args.timeout_sec),
+            stop_repeat=max(1, int(args.stop_repeat)),
+            read_seconds=max(0.0, float(args.read_seconds)),
+        )
+    except SystemExit as error:
+        print(str(error))
+        return int(error.code) if isinstance(error.code, int) else 2
+
     return 0
 
 

@@ -171,6 +171,9 @@
     "runtime_candidate_intent_allowlist": [
       "assistant.identity",
       "system.current_time",
+      "system.current_date",
+      "system.temperature",
+      "system.battery",
       "visual_shell.show_desktop",
       "visual_shell.show_shell",
       "assistant.help",
@@ -193,7 +196,8 @@
       "focus.stop",
       "break.start",
       "break.stop",
-      "mobile_base.drive_mode"
+      "mobile_base.drive_mode",
+      "mobile_base.stop"
     ],
     "runtime_candidate_log_path": "var/data/voice_engine_v2_runtime_candidates.jsonl",
     "pre_stt_shadow_enabled": false,
