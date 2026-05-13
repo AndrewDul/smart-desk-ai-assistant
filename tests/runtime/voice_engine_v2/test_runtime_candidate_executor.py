@@ -11,6 +11,7 @@ _RUNTIME_CANDIDATE_ALLOWLIST = [
     "assistant.identity",
     "memory.guided_start",
     "memory.list",
+    "mobile_base.drive_mode",
     "system.current_time",
     "visual_shell.show_desktop",
     "visual_shell.show_shell",
@@ -171,6 +172,7 @@ def test_runtime_candidate_executor_rejects_exit_even_if_recognized() -> None:
         "memory.guided_start",
         "memory.list",
         "memory.recall",
+        "mobile_base.drive_mode",
         "reminder.guided_start",
         "reminder.time_answer",
         "system.current_time",
@@ -338,3 +340,28 @@ def test_runtime_candidate_executor_builds_feedback_mode_routes() -> None:
         assert plan.route_decision.metadata["voice_engine_intent_key"] == intent_key
         assert plan.route_decision.metadata["legacy_action"] == legacy_action
         assert plan.route_decision.metadata["llm_prevented"] is True
+
+
+
+def test_runtime_candidate_executor_builds_mobile_base_drive_mode_route() -> None:
+    builder = RuntimeCandidateExecutionPlanBuilder()
+    turn = _turn_result("drive mode", language=CommandLanguage.ENGLISH)
+    plan = builder.build_plan(turn_result=turn, transcript="drive mode", metadata={"source": "unit_test"})
+    assert plan is not None
+    assert plan.route_decision.kind == RouteKind.ACTION
+    assert plan.route_decision.primary_intent == "drive_mode_start"
+    assert plan.route_decision.tool_invocations[0].tool_name == "mobile_base.drive_mode"
+    assert plan.route_decision.metadata["voice_engine_intent_key"] == "mobile_base.drive_mode"
+    assert plan.route_decision.metadata["legacy_action"] == "drive_mode_start"
+    assert plan.route_decision.metadata["llm_prevented"] is True
+
+
+def test_runtime_candidate_executor_builds_polish_mobile_base_drive_mode_route() -> None:
+    builder = RuntimeCandidateExecutionPlanBuilder()
+    turn = _turn_result("tryb sterowania", language=CommandLanguage.POLISH)
+    plan = builder.build_plan(turn_result=turn, transcript="tryb sterowania", metadata={"source": "unit_test"})
+    assert plan is not None
+    assert plan.route_decision.language == "pl"
+    assert plan.route_decision.primary_intent == "drive_mode_start"
+    assert plan.route_decision.tool_invocations[0].tool_name == "mobile_base.drive_mode"
+    assert plan.route_decision.metadata["voice_engine_intent_key"] == "mobile_base.drive_mode"

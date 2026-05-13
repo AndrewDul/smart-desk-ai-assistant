@@ -1,0 +1,778 @@
+diff --git a/modules/runtime/drive_mode/__init__.py b/modules/runtime/drive_mode/__init__.py
+new file mode 100644
+index 0000000..fac9b59
+--- /dev/null
++++ b/modules/runtime/drive_mode/__init__.py
+@@ -0,0 +1,11 @@
++from __future__ import annotations
++
++from .drive_mode_service import DriveModeEventResult, DriveModeService
++from .keyboard_mapping import DriveModeAction, map_keyboard_event
++
++__all__ = [
++    "DriveModeAction",
++    "DriveModeEventResult",
++    "DriveModeService",
++    "map_keyboard_event",
++]
+diff --git a/modules/runtime/drive_mode/drive_mode_service.py b/modules/runtime/drive_mode/drive_mode_service.py
+new file mode 100644
+index 0000000..80a1fed
+--- /dev/null
++++ b/modules/runtime/drive_mode/drive_mode_service.py
+@@ -0,0 +1,188 @@
++from __future__ import annotations
++
++from dataclasses import dataclass
++from typing import Any, Protocol
++
++from .keyboard_mapping import DriveModeAction, MOTION_ACTIONS, map_keyboard_event
++
++
++class DriveController(Protocol):
++    """Controller subset required by manual drive mode."""
++
++    def drive_forward(self, *, speed_mps: float | None = None) -> str:
++        ...
++
++    def drive_backward(self, *, speed_mps: float | None = None) -> str:
++        ...
++
++    def rotate_left(self, *, speed_rad_s: float | None = None) -> str:
++        ...
++
++    def rotate_right(self, *, speed_rad_s: float | None = None) -> str:
++        ...
++
++    def stop(self, *, reason: str = "stop") -> list[str]:
++        ...
++
++    def check_deadman(self, *, now_monotonic: float | None = None) -> bool:
++        ...
++
++
++@dataclass(frozen=True, slots=True)
++class DriveModeEventResult:
++    """Result returned after handling one drive-mode input event."""
++
++    ok: bool
++    action: DriveModeAction
++    event: str
++    command: str | None = None
++    stopped: bool = False
++    exit_requested: bool = False
++    deadman_stop: bool = False
++    error: str | None = None
++
++    def as_dict(self) -> dict[str, Any]:
++        return {
++            "ok": self.ok,
++            "action": self.action.value,
++            "event": self.event,
++            "command": self.command,
++            "stopped": self.stopped,
++            "exit_requested": self.exit_requested,
++            "deadman_stop": self.deadman_stop,
++            "error": self.error,
++        }
++
++
++class DriveModeService:
++    """
++    Manual drive-mode coordinator.
++
++    Browser keydown events refresh the active movement command. Browser keyup,
++    Space, Escape, controller errors and the dead-man watchdog all route through
++    STOP before the script exits or accepts the next command.
++    """
++
++    def __init__(
++        self,
++        *,
++        controller: DriveController,
++        linear_speed_mps: float | None = None,
++        angular_speed_rad_s: float | None = None,
++    ) -> None:
++        self.controller = controller
++        self.linear_speed_mps = linear_speed_mps
++        self.angular_speed_rad_s = angular_speed_rad_s
++        self.active_action: DriveModeAction | None = None
++        self.exit_requested = False
++
++    def handle_keyboard_event(self, *, event: str, key: str) -> DriveModeEventResult:
++        """Handle one keydown/keyup event from the local drive panel."""
++
++        normalized_event = str(event or "").strip().lower()
++        action = map_keyboard_event(key)
++
++        if action is DriveModeAction.UNKNOWN:
++            return DriveModeEventResult(ok=False, action=action, event=normalized_event, error="unknown_key")
++        if normalized_event not in {"down", "up"}:
++            return DriveModeEventResult(ok=False, action=action, event=normalized_event, error="unknown_event")
++
++        if normalized_event == "up":
++            return self._handle_key_up(action=action, event=normalized_event)
++        return self._handle_key_down(action=action, event=normalized_event)
++
++    def _handle_key_down(self, *, action: DriveModeAction, event: str) -> DriveModeEventResult:
++        if action is DriveModeAction.EMERGENCY_STOP:
++            self.active_action = None
++            self.controller.stop(reason="drive_mode_emergency_stop")
++            return DriveModeEventResult(ok=True, action=action, event=event, stopped=True)
++
++        if action is DriveModeAction.EXIT:
++            self.active_action = None
++            self.exit_requested = True
++            self.controller.stop(reason="drive_mode_exit")
++            return DriveModeEventResult(
++                ok=True,
++                action=action,
++                event=event,
++                stopped=True,
++                exit_requested=True,
++            )
++
++        if action in MOTION_ACTIONS:
++            try:
++                command = self._send_motion(action)
++            except Exception as error:
++                self.active_action = None
++                self._best_effort_stop(reason="drive_mode_motion_error")
++                return DriveModeEventResult(
++                    ok=False,
++                    action=action,
++                    event=event,
++                    stopped=True,
++                    error=str(error),
++                )
++            self.active_action = action
++            return DriveModeEventResult(ok=True, action=action, event=event, command=command)
++
++        return DriveModeEventResult(ok=False, action=action, event=event, error="unsupported_action")
++
++    def _handle_key_up(self, *, action: DriveModeAction, event: str) -> DriveModeEventResult:
++        if action in MOTION_ACTIONS and self.active_action is action:
++            self.active_action = None
++            self.controller.stop(reason="drive_mode_key_release")
++            return DriveModeEventResult(ok=True, action=action, event=event, stopped=True)
++
++        if action is DriveModeAction.EMERGENCY_STOP:
++            return DriveModeEventResult(ok=True, action=action, event=event)
++
++        if action is DriveModeAction.EXIT:
++            return DriveModeEventResult(ok=True, action=action, event=event, exit_requested=self.exit_requested)
++
++        return DriveModeEventResult(ok=True, action=action, event=event)
++
++    def _send_motion(self, action: DriveModeAction) -> str:
++        if action is DriveModeAction.FORWARD:
++            return self.controller.drive_forward(speed_mps=self.linear_speed_mps)
++        if action is DriveModeAction.BACKWARD:
++            return self.controller.drive_backward(speed_mps=self.linear_speed_mps)
++        if action is DriveModeAction.ROTATE_LEFT:
++            return self.controller.rotate_left(speed_rad_s=self.angular_speed_rad_s)
++        if action is DriveModeAction.ROTATE_RIGHT:
++            return self.controller.rotate_right(speed_rad_s=self.angular_speed_rad_s)
++        raise ValueError(f"Unsupported motion action: {action.value}")
++
++    def check_deadman(self, *, now_monotonic: float | None = None) -> DriveModeEventResult:
++        """Run one watchdog tick and report whether it sent STOP."""
++
++        sent_stop = self.controller.check_deadman(now_monotonic=now_monotonic)
++        if sent_stop:
++            previous_action = self.active_action or DriveModeAction.EMERGENCY_STOP
++            self.active_action = None
++            return DriveModeEventResult(
++                ok=True,
++                action=previous_action,
++                event="deadman",
++                stopped=True,
++                deadman_stop=True,
++            )
++        return DriveModeEventResult(ok=True, action=DriveModeAction.UNKNOWN, event="deadman")
++
++    def stop_all(self, *, reason: str = "drive_mode_stop_all") -> DriveModeEventResult:
++        self.active_action = None
++        self.controller.stop(reason=reason)
++        return DriveModeEventResult(
++            ok=True,
++            action=DriveModeAction.EMERGENCY_STOP,
++            event="stop_all",
++            stopped=True,
++        )
++
++    def _best_effort_stop(self, *, reason: str) -> None:
++        try:
++            self.controller.stop(reason=reason)
++        except Exception:
++            pass
++
++
++__all__ = ["DriveController", "DriveModeEventResult", "DriveModeService"]
+diff --git a/modules/runtime/drive_mode/keyboard_mapping.py b/modules/runtime/drive_mode/keyboard_mapping.py
+new file mode 100644
+index 0000000..28b3f73
+--- /dev/null
++++ b/modules/runtime/drive_mode/keyboard_mapping.py
+@@ -0,0 +1,63 @@
++from __future__ import annotations
++
++from enum import Enum
++
++
++class DriveModeAction(str, Enum):
++    """High-level manual drive actions produced by keyboard input."""
++
++    FORWARD = "forward"
++    BACKWARD = "backward"
++    ROTATE_LEFT = "rotate_left"
++    ROTATE_RIGHT = "rotate_right"
++    EMERGENCY_STOP = "emergency_stop"
++    EXIT = "exit"
++    UNKNOWN = "unknown"
++
++
++_KEY_ALIASES: dict[str, DriveModeAction] = {
++    "w": DriveModeAction.FORWARD,
++    "arrowup": DriveModeAction.FORWARD,
++    "s": DriveModeAction.BACKWARD,
++    "arrowdown": DriveModeAction.BACKWARD,
++    "a": DriveModeAction.ROTATE_LEFT,
++    "arrowleft": DriveModeAction.ROTATE_LEFT,
++    "d": DriveModeAction.ROTATE_RIGHT,
++    "arrowright": DriveModeAction.ROTATE_RIGHT,
++    " ": DriveModeAction.EMERGENCY_STOP,
++    "space": DriveModeAction.EMERGENCY_STOP,
++    "spacebar": DriveModeAction.EMERGENCY_STOP,
++    "escape": DriveModeAction.EXIT,
++    "esc": DriveModeAction.EXIT,
++}
++
++
++MOTION_ACTIONS = frozenset(
++    {
++        DriveModeAction.FORWARD,
++        DriveModeAction.BACKWARD,
++        DriveModeAction.ROTATE_LEFT,
++        DriveModeAction.ROTATE_RIGHT,
++    }
++)
++
++
++def normalize_key(raw_key: str) -> str:
++    """Normalize browser and terminal key names to one stable representation."""
++
++    raw = str(raw_key or "")
++    if raw == " ":
++        return " "
++    key = raw.strip()
++    if len(key) == 1:
++        return key.lower()
++    return key.replace(" ", "").lower()
++
++
++def map_keyboard_event(raw_key: str) -> DriveModeAction:
++    """Map a raw keyboard key to a drive action."""
++
++    return _KEY_ALIASES.get(normalize_key(raw_key), DriveModeAction.UNKNOWN)
++
++
++__all__ = ["DriveModeAction", "MOTION_ACTIONS", "map_keyboard_event", "normalize_key"]
+diff --git a/scripts/mobile_base_drive_mode.py b/scripts/mobile_base_drive_mode.py
+new file mode 100755
+index 0000000..7238fbf
+--- /dev/null
++++ b/scripts/mobile_base_drive_mode.py
+@@ -0,0 +1,340 @@
++#!/usr/bin/env python3
++from __future__ import annotations
++
++import argparse
++import json
++import os
++import signal
++import sys
++import threading
++import time
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++from pathlib import Path
++from typing import Any
++
++PROJECT_ROOT = Path(__file__).resolve().parents[1]
++if str(PROJECT_ROOT) not in sys.path:
++    sys.path.insert(0, str(PROJECT_ROOT))
++
++from modules.devices.mobile_base import (  # noqa: E402
++    DEFAULT_BAUDRATE,
++    DEFAULT_TIMEOUT_SEC,
++    DEFAULT_MOVEMENT_CONFIRM_ENV,
++    DEFAULT_MOVEMENT_CONFIRM_VALUE,
++    DryRunSerialTransport,
++    MobileBaseController,
++    MobileBaseSafetyPolicy,
++    PySerialLineTransport,
++    choose_serial_port,
++)
++from modules.runtime.drive_mode import DriveModeService  # noqa: E402
++
++
++CONFIRM_TEST_ENV_VAR = "CONFIRM_NEXA_MOBILE_BASE_TEST"
++CONFIRM_TEST_ENV_VALUE = "RUN"
++DEFAULT_HTTP_HOST = "127.0.0.1"
++DEFAULT_HTTP_PORT = 8768
++
++
++HTML_PAGE = """<!doctype html>
++<html lang="en">
++<head>
++  <meta charset="utf-8">
++  <meta name="viewport" content="width=device-width, initial-scale=1">
++  <title>NeXa Drive Mode</title>
++  <style>
++    :root { color-scheme: dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; }
++    body { margin: 0; min-height: 100vh; background: #0b0d12; color: #f4f7fb; display: grid; place-items: center; }
++    main { width: min(720px, calc(100vw - 32px)); padding: 28px; border: 1px solid #252b36; border-radius: 24px; background: #111722; box-shadow: 0 24px 80px rgba(0,0,0,.45); }
++    h1 { margin: 0 0 10px; font-size: 28px; }
++    p { color: #aeb8c8; line-height: 1.55; }
++    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 24px 0; }
++    .key { border: 1px solid #334052; border-radius: 18px; padding: 22px 10px; text-align: center; background: #182131; font-size: 24px; font-weight: 750; user-select: none; }
++    .key.active { outline: 3px solid #8ab4ff; }
++    .empty { visibility: hidden; }
++    button { width: 100%; border: 0; border-radius: 18px; padding: 18px; font-size: 18px; font-weight: 800; color: white; background: #9b1c31; cursor: pointer; }
++    code { color: #d8e4ff; }
++    pre { min-height: 90px; max-height: 180px; overflow: auto; padding: 16px; border-radius: 16px; background: #080b10; color: #c8d6ea; }
++  </style>
++</head>
++<body>
++  <main>
++    <h1>NeXa Drive Mode</h1>
++    <p>Use <code>W/A/S/D</code> or arrow keys. Release the key to STOP. <code>Space</code> sends emergency STOP. <code>Esc</code> stops and asks the server to exit drive mode.</p>
++    <div class="grid">
++      <div class="empty"></div><div class="key" data-key="w">W</div><div class="empty"></div>
++      <div class="key" data-key="a">A</div><div class="key" data-key="s">S</div><div class="key" data-key="d">D</div>
++    </div>
++    <button id="stop">EMERGENCY STOP</button>
++    <p id="status">Status: ready</p>
++    <pre id="log"></pre>
++  </main>
++<script>
++const pressed = new Set();
++const activeByKey = {"w":"w", "a":"a", "s":"s", "d":"d", "ArrowUp":"w", "ArrowLeft":"a", "ArrowDown":"s", "ArrowRight":"d"};
++const log = document.getElementById("log");
++const statusBox = document.getElementById("status");
++function append(message) {
++  const time = new Date().toLocaleTimeString();
++  log.textContent = `[${time}] ${message}\n` + log.textContent;
++}
++async function send(event, key) {
++  const response = await fetch('/api/key', {
++    method: 'POST',
++    headers: {'Content-Type': 'application/json'},
++    body: JSON.stringify({event, key})
++  });
++  const data = await response.json();
++  statusBox.textContent = `Status: ${data.ok ? 'ok' : 'error'} ${data.action || ''}`;
++  append(JSON.stringify(data));
++  return data;
++}
++function mark(key, active) {
++  const mapped = activeByKey[key] || key.toLowerCase();
++  const node = document.querySelector(`[data-key="${mapped}"]`);
++  if (node) node.classList.toggle('active', active);
++}
++document.addEventListener('keydown', async (event) => {
++  if (["w", "a", "s", "d", " ", "Escape", "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"].includes(event.key)) {
++    event.preventDefault();
++  }
++  if (event.key === ' ') {
++    await send('down', 'space');
++    return;
++  }
++  if (event.key === 'Escape') {
++    await send('down', 'escape');
++    return;
++  }
++  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
++  if (!pressed.has(key)) pressed.add(key);
++  mark(key, true);
++  if (["w", "a", "s", "d", "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"].includes(key)) {
++    await send('down', key);
++  }
++});
++document.addEventListener('keyup', async (event) => {
++  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
++  pressed.delete(key);
++  mark(key, false);
++  if (["w", "a", "s", "d", "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"].includes(key)) {
++    await send('up', key);
++  }
++});
++setInterval(() => {
++  for (const key of pressed) {
++    if (["w", "a", "s", "d", "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"].includes(key)) {
++      send('down', key).catch(() => {});
++    }
++  }
++}, 90);
++document.getElementById('stop').addEventListener('click', () => send('down', 'space'));
++window.addEventListener('blur', () => send('down', 'space').catch(() => {}));
++append('Drive panel loaded. Keep wheels raised for hardware tests.');
++</script>
++</body>
++</html>
++"""
++
++
++class DriveModeHTTPServer(ThreadingHTTPServer):
++    service: DriveModeService
++    should_exit: threading.Event
++
++
++def _json_response(handler: BaseHTTPRequestHandler, payload: dict[str, Any], *, status: int = 200) -> None:
++    encoded = json.dumps(payload, separators=(",", ":")).encode("utf-8")
++    handler.send_response(status)
++    handler.send_header("Content-Type", "application/json")
++    handler.send_header("Content-Length", str(len(encoded)))
++    handler.end_headers()
++    handler.wfile.write(encoded)
++
++
++class DriveModeRequestHandler(BaseHTTPRequestHandler):
++    server: DriveModeHTTPServer
++
++    def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
++        return
++
++    def do_GET(self) -> None:  # noqa: N802
++        if self.path == "/" or self.path.startswith("/?"):
++            encoded = HTML_PAGE.encode("utf-8")
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html; charset=utf-8")
++            self.send_header("Content-Length", str(len(encoded)))
++            self.end_headers()
++            self.wfile.write(encoded)
++            return
++        if self.path == "/api/status":
++            _json_response(self, {"ok": True, "exit_requested": self.server.service.exit_requested})
++            return
++        self.send_error(404)
++
++    def do_POST(self) -> None:  # noqa: N802
++        if self.path == "/api/stop":
++            result = self.server.service.stop_all(reason="drive_mode_http_stop")
++            _json_response(self, result.as_dict())
++            return
++        if self.path != "/api/key":
++            self.send_error(404)
++            return
++        try:
++            length = int(self.headers.get("Content-Length", "0"))
++            payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
++            result = self.server.service.handle_keyboard_event(
++                event=str(payload.get("event", "")),
++                key=str(payload.get("key", "")),
++            )
++        except Exception as error:
++            _json_response(self, {"ok": False, "error": str(error)}, status=400)
++            return
++        if result.exit_requested:
++            self.server.should_exit.set()
++        status = 200 if result.ok else 400
++        _json_response(self, result.as_dict(), status=status)
++
++
++def build_parser() -> argparse.ArgumentParser:
++    parser = argparse.ArgumentParser(description="Run a safe local web drive panel for NeXa mobile base.")
++    parser.add_argument("--dry-run", action="store_true", help="Use in-memory transport instead of hardware serial.")
++    parser.add_argument("--self-test", action="store_true", help="Run a dry-run command path check and exit.")
++    parser.add_argument("--port", type=str, default=None, help="Serial device path.")
++    parser.add_argument("--baudrate", type=int, default=DEFAULT_BAUDRATE)
++    parser.add_argument("--timeout-sec", type=float, default=DEFAULT_TIMEOUT_SEC)
++    parser.add_argument("--host", type=str, default=DEFAULT_HTTP_HOST)
++    parser.add_argument("--http-port", type=int, default=DEFAULT_HTTP_PORT)
++    parser.add_argument("--stop-repeat", type=int, default=3)
++    parser.add_argument("--linear-speed-mps", type=float, default=0.04)
++    parser.add_argument("--angular-speed-rad-s", type=float, default=0.18)
++    parser.add_argument("--deadman-timeout-ms", type=int, default=250)
++    parser.add_argument("--enable-movement", action="store_true", help="Allow non-zero movement after env gates pass.")
++    return parser
++
++
++def _test_gate_is_open() -> bool:
++    return os.environ.get(CONFIRM_TEST_ENV_VAR) == CONFIRM_TEST_ENV_VALUE
++
++
++def _build_controller(args: argparse.Namespace) -> tuple[MobileBaseController, str, bool]:
++    if args.dry_run or args.self_test:
++        selected_port = args.port or "dry-run:auto"
++        transport = DryRunSerialTransport()
++        is_dry_run = True
++    else:
++        if not _test_gate_is_open():
++            raise RuntimeError(
++                f"Hardware gate is closed. Set {CONFIRM_TEST_ENV_VAR}={CONFIRM_TEST_ENV_VALUE} "
++                "before opening real serial."
++            )
++        selected_port = choose_serial_port(explicit_port=args.port)
++        transport = PySerialLineTransport(
++            port=selected_port,
++            baudrate=int(args.baudrate),
++            timeout_sec=float(args.timeout_sec),
++        )
++        is_dry_run = False
++
++    safety_policy = MobileBaseSafetyPolicy(
++        movement_enabled=bool(args.enable_movement or args.self_test),
++        require_movement_confirm_env=not bool(args.self_test),
++        default_linear_speed_mps=float(args.linear_speed_mps),
++        default_angular_speed_rad_s=float(args.angular_speed_rad_s),
++        max_linear_speed_mps=max(0.01, abs(float(args.linear_speed_mps))),
++        max_angular_speed_rad_s=max(0.01, abs(float(args.angular_speed_rad_s))),
++        deadman_timeout_ms=int(args.deadman_timeout_ms),
++    )
++    controller = MobileBaseController(
++        transport=transport,
++        safety_policy=safety_policy,
++        stop_repeat=int(args.stop_repeat),
++    )
++    return controller, selected_port, is_dry_run
++
++
++def _run_self_test(args: argparse.Namespace) -> int:
++    controller, selected_port, _is_dry_run = _build_controller(args)
++    service = DriveModeService(controller=controller)
++    controller.open()
++    try:
++        print(f"[SELF-TEST] Selected port: {selected_port}")
++        print(service.handle_keyboard_event(event="down", key="w").as_dict())
++        print(service.handle_keyboard_event(event="up", key="w").as_dict())
++        print(service.handle_keyboard_event(event="down", key="space").as_dict())
++        print("[OK] Drive mode self-test completed.")
++        return 0
++    finally:
++        controller.close()
++
++
++def main(argv: list[str] | None = None) -> int:
++    args = build_parser().parse_args(argv)
++    if args.self_test:
++        args.dry_run = True
++        return _run_self_test(args)
++
++    try:
++        controller, selected_port, is_dry_run = _build_controller(args)
++    except Exception as error:
++        print(f"[ERROR] {error}")
++        return 2
++
++    print("[INFO] NeXa mobile base drive mode starting.")
++    print(f"[INFO] Selected port: {selected_port}")
++    print(f"[INFO] Mode: {'dry-run' if is_dry_run else 'hardware'}")
++    print(f"[INFO] Movement enabled flag: {bool(args.enable_movement)}")
++    print(f"[INFO] Movement env gate: {DEFAULT_MOVEMENT_CONFIRM_ENV}={DEFAULT_MOVEMENT_CONFIRM_VALUE}")
++
++    if not is_dry_run and not args.enable_movement:
++        print("[INFO] Hardware serial may open, but non-zero movement is blocked without --enable-movement.")
++    if not is_dry_run and args.enable_movement:
++        print("[WARN] Hardware movement is enabled. Keep wheels raised and keep the web panel focused.")
++
++    service = DriveModeService(controller=controller)
++    stop_event = threading.Event()
++
++    def _handle_signal(_signum: int, _frame: object) -> None:
++        stop_event.set()
++
++    signal.signal(signal.SIGINT, _handle_signal)
++    signal.signal(signal.SIGTERM, _handle_signal)
++
++    try:
++        controller.open()
++        service.stop_all(reason="drive_mode_start_stop")
++        server = DriveModeHTTPServer((str(args.host), int(args.http_port)), DriveModeRequestHandler)
++        server.service = service
++        server.should_exit = threading.Event()
++        thread = threading.Thread(target=server.serve_forever, daemon=True)
++        thread.start()
++        print(f"[OK] Open this on the Raspberry Pi: http://{args.host}:{int(args.http_port)}/")
++        print("[INFO] Press Ctrl+C in this terminal for final STOP and exit.")
++        while not stop_event.is_set() and not server.should_exit.is_set() and not service.exit_requested:
++            result = service.check_deadman()
++            if result.deadman_stop:
++                print("[WATCHDOG] Dead-man STOP sent.")
++            time.sleep(0.05)
++        server.shutdown()
++        thread.join(timeout=2.0)
++        service.stop_all(reason="drive_mode_shutdown")
++        print("[OK] Drive mode stopped safely.")
++        return 0
++    except PermissionError:
++        print("[ERROR] Permission denied when opening the serial port.")
++        return 3
++    except Exception as error:
++        print(f"[ERROR] {error}")
++        try:
++            service.stop_all(reason="drive_mode_exception")
++        except Exception:
++            pass
++        return 4
++    finally:
++        try:
++            controller.close()
++        except Exception:
++            pass
++
++
++if __name__ == "__main__":
++    raise SystemExit(main(sys.argv[1:]))
+diff --git a/tests/runtime/drive_mode/test_drive_mode_keyboard_mapping.py b/tests/runtime/drive_mode/test_drive_mode_keyboard_mapping.py
+new file mode 100644
+index 0000000..eba1410
+--- /dev/null
++++ b/tests/runtime/drive_mode/test_drive_mode_keyboard_mapping.py
+@@ -0,0 +1,32 @@
++from __future__ import annotations
++
++from modules.runtime.drive_mode.keyboard_mapping import DriveModeAction, map_keyboard_event, normalize_key
++
++
++def test_maps_wasd_keys_to_motion_actions() -> None:
++    assert map_keyboard_event("w") is DriveModeAction.FORWARD
++    assert map_keyboard_event("S") is DriveModeAction.BACKWARD
++    assert map_keyboard_event("a") is DriveModeAction.ROTATE_LEFT
++    assert map_keyboard_event("D") is DriveModeAction.ROTATE_RIGHT
++
++
++def test_maps_arrow_keys_to_motion_actions() -> None:
++    assert map_keyboard_event("ArrowUp") is DriveModeAction.FORWARD
++    assert map_keyboard_event("ArrowDown") is DriveModeAction.BACKWARD
++    assert map_keyboard_event("ArrowLeft") is DriveModeAction.ROTATE_LEFT
++    assert map_keyboard_event("ArrowRight") is DriveModeAction.ROTATE_RIGHT
++
++
++def test_maps_stop_and_exit_keys() -> None:
++    assert map_keyboard_event(" ") is DriveModeAction.EMERGENCY_STOP
++    assert map_keyboard_event("Space") is DriveModeAction.EMERGENCY_STOP
++    assert map_keyboard_event("Escape") is DriveModeAction.EXIT
++    assert map_keyboard_event("Esc") is DriveModeAction.EXIT
++
++
++def test_unknown_key_is_safe_unknown_action() -> None:
++    assert map_keyboard_event("q") is DriveModeAction.UNKNOWN
++
++
++def test_normalize_key_removes_browser_spacing() -> None:
++    assert normalize_key("Arrow Up") == "arrowup"
+diff --git a/tests/runtime/drive_mode/test_drive_mode_service.py b/tests/runtime/drive_mode/test_drive_mode_service.py
+new file mode 100644
+index 0000000..a195592
+--- /dev/null
++++ b/tests/runtime/drive_mode/test_drive_mode_service.py
+@@ -0,0 +1,84 @@
++from __future__ import annotations
++
++from modules.devices.mobile_base import DryRunSerialTransport, MobileBaseController, MobileBaseSafetyPolicy
++from modules.runtime.drive_mode import DriveModeAction, DriveModeService
++
++
++def _build_service() -> tuple[DriveModeService, DryRunSerialTransport, MobileBaseController]:
++    transport = DryRunSerialTransport()
++    controller = MobileBaseController(
++        transport=transport,
++        safety_policy=MobileBaseSafetyPolicy(
++            movement_enabled=True,
++            require_movement_confirm_env=False,
++            deadman_timeout_ms=50,
++        ),
++        stop_repeat=1,
++        stop_interval_sec=0.0,
++    )
++    controller.open()
++    return DriveModeService(controller=controller), transport, controller
++
++
++def test_keydown_sends_motion_and_keyup_sends_stop() -> None:
++    service, transport, controller = _build_service()
++    try:
++        result = service.handle_keyboard_event(event="down", key="w")
++        assert result.ok is True
++        assert result.action is DriveModeAction.FORWARD
++        assert result.command == '{"T":13,"X":0.04,"Z":0.0}'
++
++        release = service.handle_keyboard_event(event="up", key="w")
++        assert release.ok is True
++        assert release.stopped is True
++        assert transport.written_lines[-1] == '{"T":13,"X":0.0,"Z":0.0}\n'
++    finally:
++        controller.close()
++
++
++def test_space_sends_emergency_stop() -> None:
++    service, transport, controller = _build_service()
++    try:
++        result = service.handle_keyboard_event(event="down", key="space")
++        assert result.ok is True
++        assert result.stopped is True
++        assert transport.written_lines[-1] == '{"T":13,"X":0.0,"Z":0.0}\n'
++    finally:
++        controller.close()
++
++
++def test_escape_sends_stop_and_requests_exit() -> None:
++    service, _transport, controller = _build_service()
++    try:
++        result = service.handle_keyboard_event(event="down", key="Escape")
++        assert result.ok is True
++        assert result.stopped is True
++        assert result.exit_requested is True
++        assert service.exit_requested is True
++    finally:
++        controller.close()
++
++
++def test_deadman_stop_after_motion_timeout() -> None:
++    service, transport, controller = _build_service()
++    try:
++        service.handle_keyboard_event(event="down", key="d")
++        assert transport.written_lines[-1] == '{"T":13,"X":0.0,"Z":-0.18}\n'
++
++        sent = service.check_deadman(now_monotonic=controller._last_motion_monotonic + 0.060)
++        assert sent.deadman_stop is True
++        assert sent.stopped is True
++        assert transport.written_lines[-1] == '{"T":13,"X":0.0,"Z":0.0}\n'
++    finally:
++        controller.close()
++
++
++def test_unknown_key_does_not_move() -> None:
++    service, transport, controller = _build_service()
++    try:
++        result = service.handle_keyboard_event(event="down", key="q")
++        assert result.ok is False
++        assert result.error == "unknown_key"
++        assert transport.written_lines == []
++    finally:
++        controller.close()
+diff --git a/tests/runtime/drive_mode/test_mobile_base_drive_mode_script.py b/tests/runtime/drive_mode/test_mobile_base_drive_mode_script.py
+new file mode 100644
+index 0000000..3fe414e
+--- /dev/null
++++ b/tests/runtime/drive_mode/test_mobile_base_drive_mode_script.py
+@@ -0,0 +1,18 @@
++from __future__ import annotations
++
++from scripts.mobile_base_drive_mode import build_parser, main
++
++
++def test_drive_mode_parser_defaults_to_localhost() -> None:
++    args = build_parser().parse_args([])
++    assert args.host == "127.0.0.1"
++    assert args.http_port == 8768
++    assert args.enable_movement is False
++
++
++def test_drive_mode_self_test_runs_without_hardware(capsys) -> None:
++    exit_code = main(["--self-test"])
++    captured = capsys.readouterr()
++
++    assert exit_code == 0
++    assert "[OK] Drive mode self-test completed." in captured.out

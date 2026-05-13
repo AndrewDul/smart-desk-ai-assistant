@@ -1,0 +1,528 @@
+--- a/scripts/repair_nexa_drive_mode_final.py
++++ b/scripts/repair_nexa_drive_mode_final.py
+@@ -0,0 +1,525 @@
++#!/usr/bin/env python3
++from __future__ import annotations
++
++import importlib.util
++import sys
++import textwrap
++from pathlib import Path
++
++PROJECT_ROOT = Path(__file__).resolve().parents[1]
++if str(PROJECT_ROOT) not in sys.path:
++    sys.path.insert(0, str(PROJECT_ROOT))
++
++
++def write(rel_path: str, content: str) -> None:
++    path = PROJECT_ROOT / rel_path
++    path.parent.mkdir(parents=True, exist_ok=True)
++    path.write_text(textwrap.dedent(content).lstrip("\n").rstrip() + "\n", encoding="utf-8")
++    print(f"[REPAIR] wrote {rel_path}")
++
++
++def patch_file(rel_path: str, checks: list[tuple[str, str, str]]) -> None:
++    path = PROJECT_ROOT / rel_path
++    text = path.read_text(encoding="utf-8")
++    original = text
++    for present, needle, replacement in checks:
++        if present in text:
++            continue
++        if needle not in text:
++            raise RuntimeError(f"Cannot patch {rel_path}; missing needle: {needle!r}")
++        text = text.replace(needle, replacement, 1)
++    if text != original:
++        path.write_text(text, encoding="utf-8")
++        print(f"[REPAIR] patched {rel_path}")
++    else:
++        print(f"[REPAIR] checked {rel_path}")
++
++
++def main() -> None:
++    patch_file("modules/core/command_intents/intent.py", [
++        ("MOBILE_BASE = \"mobile_base\"", "    SYSTEM = \"system\"\n", "    SYSTEM = \"system\"\n    MOBILE_BASE = \"mobile_base\"\n"),
++    ])
++
++    write("modules/core/command_intents/mobile_base_intents.py", '''
++        from __future__ import annotations
++
++        from modules.core.command_intents.intent import CommandIntentDefinition, CommandIntentDomain
++
++        _MOBILE_BASE_INTENTS = {
++            "mobile_base.drive_mode": CommandIntentDefinition(
++                key="mobile_base.drive_mode",
++                domain=CommandIntentDomain.MOBILE_BASE,
++                action="drive_mode_start",
++            ),
++        }
++
++        def get_mobile_base_intent_definition(intent_key: str) -> CommandIntentDefinition | None:
++            return _MOBILE_BASE_INTENTS.get(str(intent_key or "").strip())
++    ''')
++
++    write("modules/devices/mobile_base/commands.py", '''
++        from __future__ import annotations
++
++        import json
++        from typing import Any, Mapping
++
++        def _round(value: float) -> float:
++            return round(float(value), 3)
++
++        def build_ros_velocity_command(*, linear_x_mps: float, angular_z_rad_s: float) -> dict[str, float | int]:
++            return {"T": 13, "X": _round(linear_x_mps), "Z": _round(angular_z_rad_s)}
++
++        def build_wheel_velocity_command(*, left_mps: float, right_mps: float) -> dict[str, float | int]:
++            return {"T": 1, "L": _round(left_mps), "R": _round(right_mps)}
++
++        def build_stop_command(*, command_profile: str = "ros") -> dict[str, float | int]:
++            profile = str(command_profile or "ros").strip().lower()
++            if profile == "wheel":
++                return build_wheel_velocity_command(left_mps=0.0, right_mps=0.0)
++            if profile == "pwm":
++                return {"T": 11, "L": 0, "R": 0}
++            return build_ros_velocity_command(linear_x_mps=0.0, angular_z_rad_s=0.0)
++
++        def serialize_json_line(command: Mapping[str, Any]) -> str:
++            return json.dumps(dict(command), separators=(",", ":")) + "\\n"
++    ''')
++
++    write("modules/devices/mobile_base/serial_transport.py", '''
++        from __future__ import annotations
++
++        import glob
++        import os
++        import time
++        from dataclasses import dataclass
++
++        DEFAULT_BAUDRATE = 115200
++        DEFAULT_TIMEOUT_SEC = 0.2
++
++        @dataclass(frozen=True, slots=True)
++        class SerialPortCandidate:
++            device: str
++            real_path: str
++            description: str = "n/a"
++            source: str = "unknown"
++
++        def list_serial_ports() -> list[SerialPortCandidate]:
++            candidates: list[SerialPortCandidate] = []
++            seen: set[str] = set()
++            for pattern in ("/dev/serial/by-id/*", "/dev/ttyACM*", "/dev/ttyUSB*"):
++                for device in sorted(glob.glob(pattern)):
++                    real = os.path.realpath(device)
++                    key = real or device
++                    if key in seen:
++                        continue
++                    seen.add(key)
++                    candidates.append(SerialPortCandidate(device=device, real_path=real, source=f"glob:{pattern}"))
++            try:
++                from serial.tools import list_ports  # type: ignore
++                for item in list_ports.comports():
++                    real = os.path.realpath(str(item.device))
++                    key = real or str(item.device)
++                    if key in seen:
++                        continue
++                    seen.add(key)
++                    candidates.append(SerialPortCandidate(device=str(item.device), real_path=real, description=str(item.description or "n/a"), source="pyserial"))
++            except Exception:
++                pass
++            return candidates
++
++        def choose_serial_port(port: str | None) -> str:
++            requested = str(port or "").strip()
++            if requested and requested != "auto":
++                return requested
++            candidates = list_serial_ports()
++            if len(candidates) == 1:
++                return candidates[0].device
++            if not candidates:
++                raise RuntimeError("No serial ports detected. Connect the mobile base or pass --port.")
++            details = ", ".join(c.device for c in candidates)
++            raise RuntimeError(f"Multiple serial ports detected ({details}). Pass --port explicitly.")
++
++        class DryRunSerialTransport:
++            def __init__(self) -> None:
++                self.lines: list[str] = []
++                self.is_open = False
++            def open(self) -> None:
++                self.is_open = True
++            def write_line(self, line: str) -> None:
++                self.lines.append(line.rstrip("\\n"))
++                print("[DRY-RUN]", line.strip())
++            def read_lines(self, duration_sec: float = 0.0) -> list[str]:
++                return []
++            def close(self) -> None:
++                self.is_open = False
++
++        class PySerialLineTransport:
++            def __init__(self, *, port: str, baudrate: int = DEFAULT_BAUDRATE, timeout_sec: float = DEFAULT_TIMEOUT_SEC) -> None:
++                self.port = port
++                self.baudrate = int(baudrate)
++                self.timeout_sec = float(timeout_sec)
++                self._serial = None
++            def open(self) -> None:
++                if self._serial is not None:
++                    return
++                import serial  # type: ignore
++                self._serial = serial.Serial(self.port, baudrate=self.baudrate, timeout=self.timeout_sec)
++            def write_line(self, line: str) -> None:
++                self.open()
++                assert self._serial is not None
++                print("[WRITE]", line.strip())
++                self._serial.write(line.encode("utf-8"))
++                self._serial.flush()
++            def read_lines(self, duration_sec: float = 0.0) -> list[str]:
++                self.open()
++                assert self._serial is not None
++                deadline = time.monotonic() + max(0.0, float(duration_sec))
++                lines: list[str] = []
++                while time.monotonic() < deadline:
++                    raw = self._serial.readline()
++                    if not raw:
++                        continue
++                    line = raw.decode("utf-8", errors="replace").strip()
++                    if line:
++                        print("[READ]", line)
++                        lines.append(line)
++                return lines
++            def close(self) -> None:
++                if self._serial is not None:
++                    self._serial.close()
++                    self._serial = None
++    ''')
++
++    write("modules/devices/mobile_base/__init__.py", '''
++        from __future__ import annotations
++
++        from .controller import MobileBaseController
++        from .safety import MobileBaseSafetyError, MobileBaseSafetyPolicy
++
++        __all__ = ["MobileBaseController", "MobileBaseSafetyError", "MobileBaseSafetyPolicy"]
++    ''')
++
++    write("modules/devices/mobile_base/safety.py", '''
++        from __future__ import annotations
++
++        import os
++        import time
++        from dataclasses import dataclass
++        from typing import Mapping
++
++        DEFAULT_MOVEMENT_CONFIRM_ENV = "CONFIRM_NEXA_MOBILE_BASE_MOVE"
++        DEFAULT_MOVEMENT_CONFIRM_VALUE = "RUN"
++
++        class MobileBaseSafetyError(RuntimeError):
++            pass
++
++        def is_zero_velocity(command: Mapping[str, object]) -> bool:
++            command_type = int(command.get("T", -1) or -1)
++            if command_type == 13:
++                return float(command.get("X", 0.0) or 0.0) == 0.0 and float(command.get("Z", 0.0) or 0.0) == 0.0
++            if command_type == 1:
++                return float(command.get("L", 0.0) or 0.0) == 0.0 and float(command.get("R", 0.0) or 0.0) == 0.0
++            if command_type == 11:
++                return int(command.get("L", 0) or 0) == 0 and int(command.get("R", 0) or 0) == 0
++            return False
++
++        @dataclass(slots=True)
++        class MobileBaseSafetyPolicy:
++            movement_enabled: bool = False
++            movement_confirm_env: str = DEFAULT_MOVEMENT_CONFIRM_ENV
++            movement_confirm_value: str = DEFAULT_MOVEMENT_CONFIRM_VALUE
++            max_linear_speed_mps: float = 0.30
++            max_angular_speed_rad_s: float = 0.90
++            max_wheel_speed_mps: float = 0.35
++            max_pwm: int = 180
++            deadman_timeout_ms: int = 260
++
++            def movement_gate_open(self) -> bool:
++                return os.environ.get(self.movement_confirm_env) == self.movement_confirm_value
++
++            def assert_command_allowed(self, command: Mapping[str, object]) -> None:
++                if is_zero_velocity(command):
++                    return
++                if not self.movement_enabled:
++                    raise MobileBaseSafetyError("Mobile base movement is disabled by safety policy.")
++                if not self.movement_gate_open():
++                    raise MobileBaseSafetyError(f"Mobile base movement env gate is closed. Set {self.movement_confirm_env}={self.movement_confirm_value}.")
++
++            def clamp_linear(self, value: float) -> float:
++                limit = abs(float(self.max_linear_speed_mps)); return max(-limit, min(limit, float(value)))
++            def clamp_angular(self, value: float) -> float:
++                limit = abs(float(self.max_angular_speed_rad_s)); return max(-limit, min(limit, float(value)))
++            def clamp_wheel(self, value: float) -> float:
++                limit = abs(float(self.max_wheel_speed_mps)); return max(-limit, min(limit, float(value)))
++            def clamp_pwm(self, value: int) -> int:
++                limit = abs(int(self.max_pwm)); return max(-limit, min(limit, int(value)))
++            def deadman_expired(self, *, last_motion_monotonic: float | None) -> bool:
++                if last_motion_monotonic is None:
++                    return False
++                return (time.monotonic() - float(last_motion_monotonic)) >= max(0.001, self.deadman_timeout_ms / 1000.0)
++    ''')
++
++    write("modules/devices/mobile_base/controller.py", '''
++        from __future__ import annotations
++
++        import time
++        from typing import Protocol
++        from modules.devices.mobile_base.commands import build_ros_velocity_command, build_stop_command, build_wheel_velocity_command, serialize_json_line
++        from modules.devices.mobile_base.safety import MobileBaseSafetyPolicy, is_zero_velocity
++
++        class LineTransport(Protocol):
++            def open(self) -> None: ...
++            def write_line(self, line: str) -> None: ...
++            def read_available_lines(self, *, duration_sec: float = 0.0) -> list[str]: ...
++            def close(self) -> None: ...
++
++        class MobileBaseController:
++            def __init__(self, *, transport: LineTransport, safety_policy: MobileBaseSafetyPolicy | None = None, command_profile: str = "wheel") -> None:
++                self.transport = transport; self.safety_policy = safety_policy or MobileBaseSafetyPolicy(); self.command_profile = str(command_profile or "wheel").strip().lower(); self._opened = False; self._last_motion_monotonic = None; self.sent_commands = []
++            def open(self) -> None:
++                if not self._opened:
++                    self.transport.open(); self._opened = True
++            def close(self) -> None:
++                try:
++                    if self._opened: self.stop(repeat=3)
++                finally:
++                    self.transport.close(); self._opened = False
++            def __enter__(self): self.open(); return self
++            def __exit__(self, exc_type, exc, tb): self.close()
++            def _send(self, command: dict[str, int | float]) -> dict[str, int | float]:
++                self.safety_policy.assert_command_allowed(command); self.open(); self.transport.write_line(serialize_json_line(command)); self.sent_commands.append(command); self._last_motion_monotonic = None if is_zero_velocity(command) else time.monotonic(); return command
++            def stop(self, *, repeat: int = 1) -> None:
++                for _ in range(max(1, int(repeat))): self._send(build_stop_command(command_profile=self.command_profile))
++            def drive_ros(self, *, linear_x_mps: float, angular_z_rad_s: float): return self._send(build_ros_velocity_command(linear_x_mps=self.safety_policy.clamp_linear(linear_x_mps), angular_z_rad_s=self.safety_policy.clamp_angular(angular_z_rad_s)))
++            def drive_wheel(self, *, left_mps: float, right_mps: float): return self._send(build_wheel_velocity_command(left_mps=self.safety_policy.clamp_wheel(left_mps), right_mps=self.safety_policy.clamp_wheel(right_mps)))
++            def drive_pwm(self, *, left_pwm: int, right_pwm: int): return self._send({"T": 11, "L": self.safety_policy.clamp_pwm(left_pwm), "R": self.safety_policy.clamp_pwm(right_pwm)})
++            def check_deadman(self) -> bool:
++                if self.safety_policy.deadman_expired(last_motion_monotonic=self._last_motion_monotonic): self.stop(repeat=2); return True
++                return False
++    ''')
++
++    write("modules/runtime/drive_mode/keyboard_mapping.py", '''
++        from __future__ import annotations
++        def normalize_key(key: str) -> str:
++            if key == " ": return "space"
++            value = str(key or "").strip().lower().replace(" ", "")
++            return {"arrowup": "w", "arrowdown": "s", "arrowleft": "a", "arrowright": "d", "esc": "escape", "spacebar": "space"}.get(value, value)
++        def action_from_key_event(key: str) -> str:
++            return {"w":"forward","s":"backward","a":"rotate_left","d":"rotate_right","space":"emergency_stop","escape":"exit"}.get(normalize_key(key), "unknown")
++        def action_from_active_keys(keys) -> str:
++            active = {normalize_key(key) for key in keys if normalize_key(key)}
++            if "escape" in active: return "exit"
++            if "space" in active: return "emergency_stop"
++            f,b,l,r = "w" in active, "s" in active, "a" in active, "d" in active
++            if f and not b:
++                if l and not r: return "forward_left"
++                if r and not l: return "forward_right"
++                return "forward"
++            if b and not f:
++                if l and not r: return "backward_left"
++                if r and not l: return "backward_right"
++                return "backward"
++            if l and not r: return "rotate_left"
++            if r and not l: return "rotate_right"
++            return "stop"
++    ''')
++
++    write("modules/runtime/drive_mode/drive_mode_service.py", '''
++        from __future__ import annotations
++        from dataclasses import dataclass
++        from typing import Any
++        from modules.devices.mobile_base.controller import MobileBaseController
++        from modules.devices.mobile_base.safety import MobileBaseSafetyError
++        from modules.runtime.drive_mode.keyboard_mapping import action_from_active_keys, action_from_key_event
++        @dataclass(frozen=True, slots=True)
++        class DriveModeStatus:
++            ok: bool; action: str; event: str; command: dict[str, int | float] | None = None; stopped: bool = False; exit_requested: bool = False; deadman_stop: bool = False; error: str | None = None
++            def as_dict(self) -> dict[str, Any]: return {"ok":self.ok,"action":self.action,"event":self.event,"command":self.command,"stopped":self.stopped,"exit_requested":self.exit_requested,"deadman_stop":self.deadman_stop,"error":self.error}
++        class DriveModeService:
++            def __init__(self, *, controller: MobileBaseController, linear_speed_mps: float = 0.18, angular_speed_rad_s: float = 0.65, wheel_turn_speed_mps: float = 0.26, command_profile: str = "wheel", pwm_drive: int = 135, pwm_turn: int = 150) -> None:
++                self.controller=controller; self.linear_speed_mps=float(linear_speed_mps); self.angular_speed_rad_s=float(angular_speed_rad_s); self.wheel_turn_speed_mps=float(wheel_turn_speed_mps); self.command_profile=str(command_profile or "wheel").strip().lower(); self.pwm_drive=int(pwm_drive); self.pwm_turn=int(pwm_turn); self.exit_requested=False
++            def process_key_event(self, *, key: str, event: str) -> DriveModeStatus:
++                action=action_from_key_event(key)
++                if str(event).lower()=="up" and action not in {"exit","emergency_stop"}: return self.stop(event="up", action=action)
++                return self.process_action(action=action, event=str(event or "down"))
++            def process_active_keys(self, *, keys: list[str], event: str="state") -> DriveModeStatus: return self.process_action(action=action_from_active_keys(keys), event=event)
++            def process_action(self, *, action: str, event: str="state") -> DriveModeStatus:
++                action=str(action or "stop").strip().lower()
++                if action in {"","unknown","stop"}: return self.stop(event=event, action=action or "stop")
++                if action=="emergency_stop": return self.stop(event=event, action=action)
++                if action=="exit": self.exit_requested=True; status=self.stop(event=event, action=action); return DriveModeStatus(True,"exit",event,stopped=True,exit_requested=True,error=status.error)
++                try: return DriveModeStatus(True, action, event, command=self._send_motion(action))
++                except MobileBaseSafetyError as error: self.controller.stop(repeat=1); return DriveModeStatus(False, action, event, stopped=True, error=str(error))
++            def stop(self, *, event: str="state", action: str="stop") -> DriveModeStatus: self.controller.stop(repeat=1); return DriveModeStatus(True, action, event, stopped=True)
++            def check_deadman(self):
++                if self.controller.check_deadman(): return DriveModeStatus(True,"deadman_stop","deadman",stopped=True,deadman_stop=True)
++                return None
++            def _send_motion(self, action: str):
++                if self.command_profile=="ros": return self._send_ros(action)
++                return self._send_wheel(action)
++            def _send_ros(self, action: str):
++                x,z={"forward":(self.linear_speed_mps,0.0),"backward":(-self.linear_speed_mps,0.0),"rotate_left":(0.0,self.angular_speed_rad_s),"rotate_right":(0.0,-self.angular_speed_rad_s),"forward_left":(self.linear_speed_mps,self.angular_speed_rad_s),"forward_right":(self.linear_speed_mps,-self.angular_speed_rad_s),"backward_left":(-self.linear_speed_mps,-self.angular_speed_rad_s),"backward_right":(-self.linear_speed_mps,self.angular_speed_rad_s)}.get(action,(0.0,0.0)); return self.controller.drive_ros(linear_x_mps=x, angular_z_rad_s=z)
++            def _send_wheel(self, action: str):
++                drive=self.linear_speed_mps; turn=self.wheel_turn_speed_mps; soft=min(abs(turn), max(abs(drive)*0.55,0.08)); left,right={"forward":(drive,drive),"backward":(-drive,-drive),"rotate_left":(-turn,turn),"rotate_right":(turn,-turn),"forward_left":(max(0.0,drive-soft),drive),"forward_right":(drive,max(0.0,drive-soft)),"backward_left":(min(0.0,-drive+soft),-drive),"backward_right":(-drive,min(0.0,-drive+soft))}.get(action,(0.0,0.0)); return self.controller.drive_wheel(left_mps=left, right_mps=right)
++    ''')
++
++    write("modules/runtime/drive_mode/__init__.py", '''
++        from __future__ import annotations
++        from .drive_mode_service import DriveModeService, DriveModeStatus
++        from .keyboard_mapping import action_from_active_keys, action_from_key_event, normalize_key
++        __all__ = ["DriveModeService", "DriveModeStatus", "action_from_active_keys", "action_from_key_event", "normalize_key"]
++    ''')
++
++    write("modules/runtime/drive_mode/voice_launcher.py", '''
++        from __future__ import annotations
++        import os, subprocess, sys
++        from dataclasses import dataclass
++        from pathlib import Path
++        @dataclass(frozen=True, slots=True)
++        class DriveModeLaunchResult:
++            ok: bool; url: str; dry_run: bool; movement_enabled: bool; command_profile: str; pid: int | None = None; error: str | None = None
++        def launch_drive_mode_from_environment(*, project_root: Path | None = None) -> DriveModeLaunchResult:
++            root=Path(project_root or Path(__file__).resolve().parents[3]); host=os.environ.get("NEXA_DRIVE_MODE_HOST","127.0.0.1"); port=int(os.environ.get("NEXA_DRIVE_MODE_HTTP_PORT","8768")); dry=os.environ.get("NEXA_DRIVE_MODE_DRY_RUN")=="1"; move=os.environ.get("NEXA_DRIVE_MODE_ENABLE_MOVEMENT")=="1"; profile=os.environ.get("NEXA_DRIVE_MODE_COMMAND_PROFILE","wheel").strip().lower() or "wheel"
++            if os.environ.get("NEXA_DRIVE_MODE_FORCE_RESTART","1") != "0":
++                subprocess.run(["pkill","-f","scripts/mobile_base_drive_mode.py"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False); subprocess.run(["fuser","-k",f"{port}/tcp"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
++            args=[sys.executable, str(root/"scripts/mobile_base_drive_mode.py"), "--host", host, "--http-port", str(port), "--command-profile", profile, "--linear-speed-mps", os.environ.get("NEXA_DRIVE_MODE_LINEAR_SPEED_MPS","0.18"), "--angular-speed-rad-s", os.environ.get("NEXA_DRIVE_MODE_ANGULAR_SPEED_RAD_S","0.65"), "--wheel-turn-speed-mps", os.environ.get("NEXA_DRIVE_MODE_WHEEL_TURN_SPEED_MPS","0.26")]
++            if dry: args.append("--dry-run")
++            else: args += ["--port", os.environ.get("NEXA_MOBILE_BASE_SERIAL_PORT","auto")]
++            if move: args.append("--enable-movement")
++            if os.environ.get("NEXA_DRIVE_MODE_AUTO_OPEN","1")=="1": args.append("--auto-open")
++            log=root/"var/log/mobile_base_drive_mode_voice.log"; log.parent.mkdir(parents=True, exist_ok=True)
++            try: proc=subprocess.Popen(args, cwd=str(root), stdout=log.open("a", encoding="utf-8"), stderr=subprocess.STDOUT, start_new_session=True)
++            except Exception as error: return DriveModeLaunchResult(False, f"http://{host}:{port}/", dry, move, profile, error=str(error))
++            return DriveModeLaunchResult(True, f"http://{host}:{port}/", dry, move, profile, pid=proc.pid)
++    ''')
++
++    write("modules/core/flows/action_flow/drive_mode_actions_mixin.py", '''
++        from __future__ import annotations
++        from typing import Any
++        from modules.runtime.drive_mode.voice_launcher import launch_drive_mode_from_environment
++        from .models import ResolvedAction, SkillRequest, SkillResult
++        class ActionDriveModeActionsMixin:
++            def _handle_drive_mode_start(self, *, route: Any, language: str, payload: dict[str, Any], resolved: ResolvedAction, request: SkillRequest | None = None) -> SkillResult:
++                del route, payload, request
++                result=launch_drive_mode_from_environment(); lang=self.assistant._normalize_lang(language)
++                spoken=self._localized(lang, "Tryb sterowania bazą jest aktywny. Użyj W, A, S, D. Spacja zatrzymuje. Escape wychodzi.", "Drive mode is active. Use W, A, S, D. Space stops. Escape exits.") if result.ok else self._localized(lang, "Nie mogę uruchomić trybu sterowania bazą.", "I cannot start drive mode.")
++                delivered=self._deliver_simple_action_response(language=lang, action="drive_mode_start", spoken_text=spoken, display_title="DRIVE MODE", display_lines=self._display_lines(spoken), extra_metadata={"url":result.url,"pid":result.pid,"dry_run":result.dry_run,"movement_enabled":result.movement_enabled,"command_profile":result.command_profile,"error":result.error,"resolved_source":resolved.source})
++                return SkillResult(action="drive_mode_start", handled=True, response_delivered=bool(delivered), status="drive_mode_started" if result.ok else "drive_mode_start_failed", metadata={"url":result.url,"pid":result.pid,"dry_run":result.dry_run,"movement_enabled":result.movement_enabled,"command_profile":result.command_profile,"error":result.error})
++    ''')
++
++    write("scripts/mobile_base_drive_mode.py", '''
++        #!/usr/bin/env python3
++        from __future__ import annotations
++        import argparse, json, os, subprocess, sys, threading
++        from http.server import BaseHTTPRequestHandler, HTTPServer
++        from pathlib import Path
++        from typing import Any
++        from urllib.parse import urlparse
++        PROJECT_ROOT=Path(__file__).resolve().parents[1]
++        if str(PROJECT_ROOT) not in sys.path: sys.path.insert(0, str(PROJECT_ROOT))
++        from modules.devices.mobile_base.controller import MobileBaseController
++        from modules.devices.mobile_base.safety import MobileBaseSafetyPolicy
++        from modules.devices.mobile_base.serial_transport import DEFAULT_BAUDRATE, DEFAULT_TIMEOUT_SEC, DryRunSerialTransport, PySerialLineTransport, choose_serial_port
++        from modules.runtime.drive_mode.drive_mode_service import DriveModeService
++        HARDWARE_TEST_ENV="CONFIRM_NEXA_MOBILE_BASE_TEST"; HARDWARE_TEST_VALUE="RUN"; MOVEMENT_ENV="CONFIRM_NEXA_MOBILE_BASE_MOVE"; MOVEMENT_VALUE="RUN"
++        DEFAULT_LINEAR_SPEED_MPS=0.18; DEFAULT_ANGULAR_SPEED_RAD_S=0.65; DEFAULT_WHEEL_TURN_SPEED_MPS=0.26; MAX_LINEAR_SPEED_MPS=0.30; MAX_ANGULAR_SPEED_RAD_S=0.90; MAX_WHEEL_SPEED_MPS=0.35
++        INDEX_HTML=r''' + "'''" + r'''
++        <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NeXa Drive Mode</title><style>body{margin:0;background:#08090d;color:#f6efe3;font-family:system-ui;display:grid;place-items:center;min-height:100vh}main{width:min(760px,calc(100vw - 28px));padding:24px;border-radius:28px;background:#151821}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}button{min-height:82px;border-radius:22px;font-size:26px;font-weight:800;color:white;background:#252b36;border:1px solid #555;touch-action:none}button.active{outline:4px solid #f2c56d}.stop{background:#7b2121}.exit{background:#333947}.status,.log{margin-top:14px;padding:12px;border-radius:14px;background:#08090d}.log{height:220px;overflow:auto;font:12px monospace;white-space:pre-wrap}</style></head><body><main tabindex="0" id="root"><h1>NeXa Drive Mode</h1><p>Use keyboard W/A/S/D or click/touch and hold buttons. Release stops. Space emergency stop. Esc exits.</p><div class="grid"><span></span><button data-key="w">W</button><span></span><button data-key="a">A</button><button class="stop" data-key="space">STOP</button><button data-key="d">D</button><span></span><button data-key="s">S</button><button class="exit" data-key="escape">Esc</button></div><div class="status" id="status">loading</div><div class="log" id="log"></div></main><script>
++        const root=document.getElementById('root'),statusEl=document.getElementById('status'),logEl=document.getElementById('log'),activeKeys=new Set();let inFlight=false,pending=false,exitRequested=false,last='';function norm(k){if(k===' ')return'space';k=String(k||'').toLowerCase().replace(/\s+/g,'');return {arrowup:'w',arrowdown:'s',arrowleft:'a',arrowright:'d',esc:'escape',spacebar:'space'}[k]||k}function render(){document.querySelectorAll('button[data-key]').forEach(b=>b.classList.toggle('active',activeKeys.has(norm(b.dataset.key))))}function log(p){const l=`[${new Date().toLocaleTimeString()}] ${JSON.stringify(p)}`;if(l===last)return;last=l;logEl.textContent=(l+'\n'+logEl.textContent).split('\n').slice(0,120).join('\n')}async function sendState(e='state'){if(exitRequested)return;if(inFlight){pending=true;return}inFlight=true;pending=false;render();try{const r=await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event:e,keys:[...activeKeys]})});const p=await r.json();statusEl.textContent=`Status: ${p.ok?'ok':'blocked'} ${p.action||''}`;log(p);if(p.exit_requested)exitRequested=true}catch(err){statusEl.textContent='error '+err}finally{inFlight=false;if(pending)setTimeout(()=>sendState('state'),0)}}async function sendKey(k,e){try{const r=await fetch('/api/key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k,event:e})});const p=await r.json();statusEl.textContent=`Status: ${p.ok?'ok':'blocked'} ${p.action||''}`;log(p);if(p.exit_requested)exitRequested=true}catch(err){statusEl.textContent='error '+err}}function down(k){k=norm(k);if(k==='space'||k==='escape'){activeKeys.clear();sendKey(k,'down');render();return}if(!['w','a','s','d'].includes(k))return;if(!activeKeys.has(k)){activeKeys.add(k);sendState('down')}}function up(k){k=norm(k);if(!['w','a','s','d'].includes(k))return;if(activeKeys.delete(k))sendState('up')}window.addEventListener('keydown',e=>{const k=norm(e.key);if(['w','a','s','d','space','escape'].includes(k)||e.key.startsWith('Arrow'))e.preventDefault();if(e.repeat&&k!=='space'&&k!=='escape')return;down(e.key)},{capture:true});window.addEventListener('keyup',e=>{const k=norm(e.key);if(['w','a','s','d','space','escape'].includes(k)||e.key.startsWith('Arrow'))e.preventDefault();up(e.key)},{capture:true});window.addEventListener('blur',()=>{if(activeKeys.size){activeKeys.clear();sendKey('space','down');render()}});document.querySelectorAll('button[data-key]').forEach(b=>{const k=norm(b.dataset.key);b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture?.(e.pointerId);down(k)});for(const ev of ['pointerup','pointercancel','pointerleave'])b.addEventListener(ev,e=>{e.preventDefault();up(k)});b.addEventListener('contextmenu',e=>e.preventDefault())});setInterval(()=>{if(activeKeys.size&&!exitRequested)sendState('state')},90);fetch('/api/status').then(r=>r.json()).then(p=>{statusEl.textContent=`ready ${p.command_profile} movement=${p.movement_enabled}`;log({loaded:true,...p});root.focus()});
++        </script></body></html>
++        ''' + "'''" + r'''
++        class Handler(BaseHTTPRequestHandler):
++            service: DriveModeService; selected_port: str; dry_run: bool; movement_enabled: bool; linear_speed_mps: float; angular_speed_rad_s: float; command_profile: str; wheel_turn_speed_mps: float
++            def log_message(self,*a): return
++            def _json(self,p,status=200):
++                d=json.dumps(p,separators=(",",":")).encode(); self.send_response(status); self.send_header("Content-Type","application/json"); self.send_header("Content-Length",str(len(d))); self.send_header("Cache-Control","no-store"); self.end_headers(); self.wfile.write(d)
++            def _read(self):
++                n=int(self.headers.get("Content-Length","0") or 0); return json.loads(self.rfile.read(n).decode()) if n else {}
++            def do_GET(self):
++                if urlparse(self.path).path=="/api/status": self._json({"ok":True,"exit_requested":self.service.exit_requested,"selected_port":self.selected_port,"dry_run":self.dry_run,"movement_enabled":self.movement_enabled,"linear_speed_mps":self.linear_speed_mps,"angular_speed_rad_s":self.angular_speed_rad_s,"command_profile":self.command_profile,"wheel_turn_speed_mps":self.wheel_turn_speed_mps}); return
++                d=INDEX_HTML.encode(); self.send_response(200); self.send_header("Content-Type","text/html; charset=utf-8"); self.send_header("Content-Length",str(len(d))); self.send_header("Cache-Control","no-store"); self.end_headers(); self.wfile.write(d)
++            def do_POST(self):
++                try:
++                    p=self._read(); path=urlparse(self.path).path
++                    if path=="/api/key": s=self.service.process_key_event(key=str(p.get("key","")), event=str(p.get("event","down")))
++                    elif path=="/api/state": keys=p.get("keys", []); s=self.service.process_active_keys(keys=[str(k) for k in keys] if isinstance(keys,list) else [], event=str(p.get("event","state")))
++                    else: self._json({"ok":False,"error":"not_found"},404); return
++                    self._json(s.as_dict())
++                except Exception as e:
++                    try: self.service.stop(event="error", action="emergency_stop")
++                    except Exception: pass
++                    self._json({"ok":False,"error":str(e)},500)
++        def parser():
++            p=argparse.ArgumentParser(); p.add_argument("--dry-run",action="store_true"); p.add_argument("--self-test",action="store_true"); p.add_argument("--host",default="127.0.0.1"); p.add_argument("--http-port",type=int,default=8768); p.add_argument("--port"); p.add_argument("--baudrate",type=int,default=DEFAULT_BAUDRATE); p.add_argument("--timeout-sec",type=float,default=DEFAULT_TIMEOUT_SEC); p.add_argument("--enable-movement",action="store_true"); p.add_argument("--linear-speed-mps",type=float,default=DEFAULT_LINEAR_SPEED_MPS); p.add_argument("--angular-speed-rad-s",type=float,default=DEFAULT_ANGULAR_SPEED_RAD_S); p.add_argument("--wheel-turn-speed-mps",type=float,default=DEFAULT_WHEEL_TURN_SPEED_MPS); p.add_argument("--command-profile",choices=("wheel","ros"),default="wheel"); p.add_argument("--auto-open",action="store_true"); return p
++        build_parser=parser
++        def make(args):
++            dry=bool(args.dry_run or args.self_test)
++            if args.self_test: os.environ.setdefault(MOVEMENT_ENV, MOVEMENT_VALUE)
++            if dry: selected=args.port or "dry-run:auto"; transport=DryRunSerialTransport()
++            else:
++                if os.environ.get(HARDWARE_TEST_ENV)!=HARDWARE_TEST_VALUE: raise RuntimeError(f"Hardware gate is closed. Set {HARDWARE_TEST_ENV}={HARDWARE_TEST_VALUE}.")
++                selected=choose_serial_port(explicit_port=args.port); transport=PySerialLineTransport(port=selected, baudrate=args.baudrate, timeout_sec=args.timeout_sec)
++            policy=MobileBaseSafetyPolicy(movement_enabled=bool(args.enable_movement or args.self_test), max_linear_speed_mps=MAX_LINEAR_SPEED_MPS, max_angular_speed_rad_s=MAX_ANGULAR_SPEED_RAD_S, max_wheel_speed_mps=MAX_WHEEL_SPEED_MPS, deadman_timeout_ms=260)
++            controller=MobileBaseController(transport=transport, safety_policy=policy, command_profile=args.command_profile); service=DriveModeService(controller=controller, linear_speed_mps=args.linear_speed_mps, angular_speed_rad_s=args.angular_speed_rad_s, wheel_turn_speed_mps=args.wheel_turn_speed_mps, command_profile=args.command_profile); return service, selected, dry
++        def selftest(args):
++            s,port,_=make(args); print(f"[SELF-TEST] Selected port: {port}")
++            with s.controller:
++                for p in [s.process_active_keys(keys=["w"],event="state").as_dict(),s.process_active_keys(keys=[],event="state").as_dict(),s.process_key_event(key="space",event="down").as_dict(),s.process_active_keys(keys=["w","a"],event="state").as_dict()]:
++                    if isinstance(p.get("command"),dict): p["command"]=json.dumps(p["command"],separators=(",",":"))
++                    print(p)
++            print("[OK] Drive mode self-test completed."); return 0
++        def server(args):
++            service, selected, dry=make(args); service.controller.open(); Handler.service=service; Handler.selected_port=selected; Handler.dry_run=dry; Handler.movement_enabled=bool(args.enable_movement); Handler.linear_speed_mps=args.linear_speed_mps; Handler.angular_speed_rad_s=args.angular_speed_rad_s; Handler.command_profile=args.command_profile; Handler.wheel_turn_speed_mps=args.wheel_turn_speed_mps; stop=threading.Event()
++            def dead():
++                while not stop.wait(0.04): service.check_deadman()
++            threading.Thread(target=dead,daemon=True).start(); http=HTTPServer((args.host,args.http_port),Handler); url=f"http://{args.host}:{args.http_port}/"; print("[INFO] NeXa mobile base drive mode starting."); print(f"[INFO] Selected port: {selected}"); print(f"[INFO] Mode: {'dry-run' if dry else 'hardware'}"); print(f"[INFO] Movement enabled flag: {bool(args.enable_movement)}"); print(f"[INFO] Command profile: {args.command_profile}"); print(f"[OK] Open this on the Raspberry Pi: {url}");
++            if args.auto_open: subprocess.Popen(["xdg-open",url],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
++            try: http.serve_forever(0.05)
++            except KeyboardInterrupt: pass
++            finally: stop.set(); service.stop(event="shutdown",action="emergency_stop"); service.controller.close(); http.server_close(); print("[OK] Drive mode stopped safely.")
++            return 0
++        def main(argv=None):
++            args=parser().parse_args(argv); return selftest(args) if args.self_test else server(args)
++        if __name__=="__main__": raise SystemExit(main(sys.argv[1:]))
++    ''')
++
++    patch_file("modules/core/command_intents/command_intent_resolver.py", [
++        ("mobile_base_intents", "from modules.core.command_intents.system_intents import (\n", "from modules.core.command_intents.mobile_base_intents import (\n    get_mobile_base_intent_definition,\n)\nfrom modules.core.command_intents.system_intents import (\n"),
++        ("get_mobile_base_intent_definition(intent_key)", "get_visual_shell_intent_definition(intent_key)\n            or get_system_intent_definition(intent_key)", "get_visual_shell_intent_definition(intent_key)\n            or get_mobile_base_intent_definition(intent_key)\n            or get_system_intent_definition(intent_key)"),
++    ])
++    patch_file("modules/core/flows/action_flow/orchestrator.py", [
++        ("ActionDriveModeActionsMixin", "from .memory_actions_mixin import ActionMemoryActionsMixin\n", "from .drive_mode_actions_mixin import ActionDriveModeActionsMixin\nfrom .memory_actions_mixin import ActionMemoryActionsMixin\n"),
++        ("ActionDriveModeActionsMixin,", "    ActionResponseHelpersMixin,\n", "    ActionResponseHelpersMixin,\n    ActionDriveModeActionsMixin,\n"),
++        ("\"mobile_base.drive_mode\": \"drive_mode_start\"", "        \"visual_shell.show_date\": \"show_visual_date\",\n", "        \"visual_shell.show_date\": \"show_visual_date\",\n        \"mobile_base.drive_mode\": \"drive_mode_start\",\n"),
++        ("\"drive_mode_start\",", "        \"break_start\",\n", "        \"break_start\",\n        \"drive_mode_start\",\n"),
++    ])
++    if 'CommandPhrase("mobile_base.drive_mode", "drive mode"' not in (PROJECT_ROOT / "modules/devices/audio/command_asr/command_grammar.py").read_text(encoding="utf-8"):
++        patch_file("modules/devices/audio/command_asr/command_grammar.py", [("mobile_base.drive_mode", "        CommandPhrase(\n            \"assistant.help\",\n", "        CommandPhrase(\"mobile_base.drive_mode\", \"drive mode\", CommandLanguage.ENGLISH, tags=(\"mobile_base\", \"drive_mode\")),\n        CommandPhrase(\"mobile_base.drive_mode\", \"tryb sterowania\", CommandLanguage.POLISH, tags=(\"mobile_base\", \"drive_mode\")),\n        CommandPhrase(\"mobile_base.drive_mode\", \"tryp sterowania\", CommandLanguage.POLISH, tags=(\"mobile_base\", \"drive_mode\", \"stt_recovery\")),\n\n        CommandPhrase(\n            \"assistant.help\",\n")])
++    grammar_path = PROJECT_ROOT / "modules/devices/audio/command_asr/command_grammar.py"
++    grammar_text = grammar_path.read_text(encoding="utf-8")
++    anchor = '        CommandPhrase("mobile_base.drive_mode", "drive mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode")),\n'
++    extra_aliases = [
++        '        CommandPhrase("mobile_base.drive_mode", "dive mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),\n',
++        '        CommandPhrase("mobile_base.drive_mode", "dry mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),\n',
++        '        CommandPhrase("mobile_base.drive_mode", "drie moe", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),\n',
++        '        CommandPhrase("mobile_base.drive_mode", "drive moe", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),\n',
++        '        CommandPhrase("mobile_base.drive_mode", "tryb jazdy", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),\n',
++        '        CommandPhrase("mobile_base.drive_mode", "sterowanie bazą", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),\n',
++        '        CommandPhrase("mobile_base.drive_mode", "sterowanie baza", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode", "ascii")),\n',
++    ]
++    if anchor not in grammar_text:
++        raise RuntimeError("Cannot extend mobile_base.drive_mode aliases; anchor missing")
++    missing = [line for line in extra_aliases if line.strip() not in grammar_text]
++    if missing:
++        grammar_text = grammar_text.replace(anchor, anchor + "".join(missing), 1)
++        grammar_path.write_text(grammar_text, encoding="utf-8")
++        print("[REPAIR] extended mobile_base.drive_mode grammar aliases")
++
++    import modules.runtime.drive_mode  # noqa: F401
++    spec = importlib.util.spec_from_file_location("mobile_base_drive_mode_check", PROJECT_ROOT / "scripts/mobile_base_drive_mode.py")
++    module = importlib.util.module_from_spec(spec); assert spec and spec.loader; spec.loader.exec_module(module)
++    assert module.build_parser().parse_args([]).command_profile == "wheel"
++    assert "pointerdown" in module.INDEX_HTML
++    print("[REPAIR OK] NeXa Drive Mode voice + keyboard runtime is consistent.")
++
++if __name__ == "__main__":
++    main()

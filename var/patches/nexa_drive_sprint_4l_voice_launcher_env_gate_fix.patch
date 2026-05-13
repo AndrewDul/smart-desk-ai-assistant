@@ -1,0 +1,256 @@
+diff --git a/scripts/repair_nexa_drive_mode_voice_launcher_env.py b/scripts/repair_nexa_drive_mode_voice_launcher_env.py
+new file mode 100755
+index 0000000..1111111
+--- /dev/null
++++ b/scripts/repair_nexa_drive_mode_voice_launcher_env.py
++#!/usr/bin/env python3
++"""Repair NeXa Drive Mode voice launcher environment propagation.
++
++This repair is intentionally small and focused:
++- voice-triggered drive mode must pass hardware test/movement gates to the
++  child web-panel process only when the main runtime was explicitly started
++  with NEXA_DRIVE_MODE_ENABLE_MOVEMENT=1;
++- the launched panel must use the requested command profile, speed settings,
++  serial port, and auto-open behaviour;
++- startup returns failure when the panel process exits immediately, instead of
++  pretending that drive mode is active.
++"""
++
++from __future__ import annotations
++
++import os
++import subprocess
++import sys
++import textwrap
++from pathlib import Path
++
++PROJECT_ROOT = Path(__file__).resolve().parents[1]
++VOICE_LAUNCHER_PATH = PROJECT_ROOT / "modules" / "runtime" / "drive_mode" / "voice_launcher.py"
++DRIVE_MODE_SCRIPT_PATH = PROJECT_ROOT / "scripts" / "mobile_base_drive_mode.py"
++
++VOICE_LAUNCHER_CONTENT = r'''
++from __future__ import annotations
++
++import os
++import subprocess
++import sys
++import time
++import urllib.error
++import urllib.request
++from dataclasses import dataclass
++from pathlib import Path
++
++
++DEFAULT_HOST = "127.0.0.1"
++DEFAULT_HTTP_PORT = 8768
++DEFAULT_COMMAND_PROFILE = "wheel"
++DEFAULT_LINEAR_SPEED_MPS = "0.18"
++DEFAULT_ANGULAR_SPEED_RAD_S = "0.65"
++DEFAULT_WHEEL_TURN_SPEED_MPS = "0.26"
++DEFAULT_SERIAL_PORT = "/dev/serial/by-id/usb-1a86_USB_Single_Serial_5A36029146-if00"
++
++HARDWARE_TEST_ENV = "CONFIRM_NEXA_MOBILE_BASE_TEST"
++HARDWARE_MOVE_ENV = "CONFIRM_NEXA_MOBILE_BASE_MOVE"
++HARDWARE_GATE_VALUE = "RUN"
++MOVE_REQUEST_ENV = "NEXA_DRIVE_MODE_ENABLE_MOVEMENT"
++
++
++@dataclass(frozen=True, slots=True)
++class DriveModeLaunchResult:
++    ok: bool
++    url: str
++    dry_run: bool
++    movement_enabled: bool
++    command_profile: str
++    pid: int | None = None
++    error: str | None = None
++
++
++def _truthy(value: str | None) -> bool:
++    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on", "run"}
++
++
++def _safe_float_env(name: str, default: str) -> str:
++    value = os.environ.get(name, default)
++    try:
++        return f"{float(value):.3f}"
++    except (TypeError, ValueError):
++        return default
++
++
++def _run_best_effort(command: list[str]) -> None:
++    subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
++
++
++def _stop_existing_drive_panel(http_port: int) -> None:
++    _run_best_effort(["pkill", "-f", "scripts/mobile_base_drive_mode.py"])
++    _run_best_effort(["fuser", "-k", f"{http_port}/tcp"])
++
++
++def _append_log(log_path: Path, message: str) -> None:
++    log_path.parent.mkdir(parents=True, exist_ok=True)
++    with log_path.open("a", encoding="utf-8") as handle:
++        handle.write(message.rstrip() + "\n")
++
++
++def _wait_for_panel(url: str, process: subprocess.Popen[object], log_path: Path, timeout_sec: float = 2.0) -> str | None:
++    status_url = url.rstrip("/") + "/api/status"
++    deadline = time.monotonic() + max(0.2, timeout_sec)
++
++    while time.monotonic() < deadline:
++        code = process.poll()
++        if code is not None:
++            return f"drive panel exited during startup with code {code}; check {log_path}"
++        try:
++            with urllib.request.urlopen(status_url, timeout=0.2) as response:
++                if 200 <= int(response.status) < 300:
++                    return None
++        except (OSError, urllib.error.URLError):
++            time.sleep(0.08)
++
++    if process.poll() is not None:
++        return f"drive panel exited during startup with code {process.returncode}; check {log_path}"
++    return None
++
++
++def launch_drive_mode_from_environment(*, project_root: Path | None = None) -> DriveModeLaunchResult:
++    root = Path(project_root or Path(__file__).resolve().parents[3]).resolve()
++    script_path = root / "scripts" / "mobile_base_drive_mode.py"
++    host = os.environ.get("NEXA_DRIVE_MODE_HOST", DEFAULT_HOST)
++    http_port = int(os.environ.get("NEXA_DRIVE_MODE_HTTP_PORT", str(DEFAULT_HTTP_PORT)))
++    url = f"http://{host}:{http_port}/"
++
++    dry_run = _truthy(os.environ.get("NEXA_DRIVE_MODE_DRY_RUN"))
++    movement_requested = _truthy(os.environ.get(MOVE_REQUEST_ENV))
++    command_profile = os.environ.get("NEXA_DRIVE_MODE_COMMAND_PROFILE", DEFAULT_COMMAND_PROFILE).strip().lower() or DEFAULT_COMMAND_PROFILE
++    if command_profile not in {"wheel", "ros", "pwm"}:
++        command_profile = DEFAULT_COMMAND_PROFILE
++
++    if _truthy(os.environ.get("NEXA_DRIVE_MODE_FORCE_RESTART", "1")):
++        _stop_existing_drive_panel(http_port)
++
++    child_env = os.environ.copy()
++    child_env["PYTHONPATH"] = f"{root}{os.pathsep}" + child_env.get("PYTHONPATH", "")
++
++    args = [
++        sys.executable,
++        str(script_path),
++        "--host",
++        host,
++        "--http-port",
++        str(http_port),
++        "--command-profile",
++        command_profile,
++        "--linear-speed-mps",
++        _safe_float_env("NEXA_DRIVE_MODE_LINEAR_SPEED_MPS", DEFAULT_LINEAR_SPEED_MPS),
++        "--angular-speed-rad-s",
++        _safe_float_env("NEXA_DRIVE_MODE_ANGULAR_SPEED_RAD_S", DEFAULT_ANGULAR_SPEED_RAD_S),
++        "--wheel-turn-speed-mps",
++        _safe_float_env("NEXA_DRIVE_MODE_WHEEL_TURN_SPEED_MPS", DEFAULT_WHEEL_TURN_SPEED_MPS),
++    ]
++
++    if dry_run:
++        args.append("--dry-run")
++        child_env.pop(HARDWARE_TEST_ENV, None)
++        child_env.pop(HARDWARE_MOVE_ENV, None)
++        child_env.pop(MOVE_REQUEST_ENV, None)
++        movement_enabled = False
++    else:
++        serial_port = os.environ.get("NEXA_MOBILE_BASE_SERIAL_PORT", DEFAULT_SERIAL_PORT).strip() or DEFAULT_SERIAL_PORT
++        args += ["--port", serial_port]
++        child_env[HARDWARE_TEST_ENV] = HARDWARE_GATE_VALUE
++        if movement_requested:
++            child_env[HARDWARE_MOVE_ENV] = HARDWARE_GATE_VALUE
++            child_env[MOVE_REQUEST_ENV] = "1"
++            args.append("--enable-movement")
++            movement_enabled = True
++        else:
++            child_env.pop(HARDWARE_MOVE_ENV, None)
++            child_env.pop(MOVE_REQUEST_ENV, None)
++            movement_enabled = False
++
++    if _truthy(os.environ.get("NEXA_DRIVE_MODE_AUTO_OPEN", "1")):
++        args.append("--auto-open")
++
++    log_path = root / "var" / "log" / "mobile_base_drive_mode_voice.log"
++    log_path.parent.mkdir(parents=True, exist_ok=True)
++
++    _append_log(log_path, "\n[VOICE-LAUNCH] Starting drive mode panel")
++    _append_log(log_path, "[VOICE-LAUNCH] Command: " + " ".join(args))
++    _append_log(
++        log_path,
++        "[VOICE-LAUNCH] dry_run="
++        f"{dry_run} movement_requested={movement_requested} movement_enabled={movement_enabled} "
++        f"command_profile={command_profile} hardware_test_gate={child_env.get(HARDWARE_TEST_ENV)!r} "
++        f"movement_gate={child_env.get(HARDWARE_MOVE_ENV)!r}",
++    )
++
++    try:
++        stdout_handle = log_path.open("a", encoding="utf-8")
++        process = subprocess.Popen(
++            args,
++            cwd=str(root),
++            env=child_env,
++            stdout=stdout_handle,
++            stderr=subprocess.STDOUT,
++            start_new_session=True,
++        )
++    except Exception as error:
++        return DriveModeLaunchResult(False, url, dry_run, movement_enabled, command_profile, error=str(error))
++
++    startup_error = _wait_for_panel(url, process, log_path)
++    if startup_error is not None:
++        return DriveModeLaunchResult(False, url, dry_run, movement_enabled, command_profile, pid=process.pid, error=startup_error)
++
++    if _truthy(os.environ.get("NEXA_DRIVE_MODE_AUTO_OPEN", "1")):
++        _append_log(log_path, f"[VOICE-LAUNCH] Auto-opening panel: {url}")
++
++    return DriveModeLaunchResult(True, url, dry_run, movement_enabled, command_profile, pid=process.pid)
++'''
++
++
++def write_voice_launcher() -> None:
++    VOICE_LAUNCHER_PATH.parent.mkdir(parents=True, exist_ok=True)
++    VOICE_LAUNCHER_PATH.write_text(textwrap.dedent(VOICE_LAUNCHER_CONTENT).lstrip("\n"), encoding="utf-8")
++    print(f"[REPAIR] wrote {VOICE_LAUNCHER_PATH.relative_to(PROJECT_ROOT)}")
++
++
++def patch_drive_mode_script() -> None:
++    if not DRIVE_MODE_SCRIPT_PATH.exists():
++        print("[WARN] scripts/mobile_base_drive_mode.py not found; skipping compatibility patch.")
++        return
++
++    text = DRIVE_MODE_SCRIPT_PATH.read_text(encoding="utf-8")
++    original = text
++
++    text = text.replace("choose_serial_port(explicit_port=args.port)", "choose_serial_port(args.port)")
++
++    if "BrokenPipeError" not in text and "handler.wfile.write(encoded)" in text:
++        text = text.replace(
++            "handler.wfile.write(encoded)",
++            "\n    try:\n        handler.wfile.write(encoded)\n    except BrokenPipeError:\n        return",
++            1,
++        )
++
++    if text != original:
++        DRIVE_MODE_SCRIPT_PATH.write_text(text, encoding="utf-8")
++        print(f"[REPAIR] patched {DRIVE_MODE_SCRIPT_PATH.relative_to(PROJECT_ROOT)}")
++    else:
++        print(f"[REPAIR] checked {DRIVE_MODE_SCRIPT_PATH.relative_to(PROJECT_ROOT)}")
++
++
++def smoke_check() -> None:
++    sys.path.insert(0, str(PROJECT_ROOT))
++    from modules.runtime.drive_mode.voice_launcher import launch_drive_mode_from_environment  # noqa: F401
++
++    print("[REPAIR OK] Drive mode voice launcher now propagates hardware gates to the panel process.")
++
++
++def main() -> None:
++    write_voice_launcher()
++    patch_drive_mode_script()
++    smoke_check()
++
++
++if __name__ == "__main__":
++    main()

@@ -137,7 +137,8 @@
       "focus.offer",
       "focus.stop",
       "break.start",
-      "break.stop"
+      "break.stop",
+      "mobile_base.drive_mode"
     ],
     "runtime_candidate_log_path": "var/data/voice_engine_v2_runtime_candidates.jsonl",
     "pre_stt_shadow_enabled": false,

@@ -1,0 +1,101 @@
+diff --git a/scripts/mobile_base_drive_mode.py b/scripts/mobile_base_drive_mode.py
+index 7238fbf..0fb9bb6 100755
+--- a/scripts/mobile_base_drive_mode.py
++++ b/scripts/mobile_base_drive_mode.py
+@@ -34,6 +34,10 @@ CONFIRM_TEST_ENV_VAR = "CONFIRM_NEXA_MOBILE_BASE_TEST"
+ CONFIRM_TEST_ENV_VALUE = "RUN"
+ DEFAULT_HTTP_HOST = "127.0.0.1"
+ DEFAULT_HTTP_PORT = 8768
++DEFAULT_LINEAR_SPEED_MPS = 0.15
++DEFAULT_ANGULAR_SPEED_RAD_S = 0.30
++MAX_LINEAR_SPEED_MPS = 0.20
++MAX_ANGULAR_SPEED_RAD_S = 0.45
+ 
+ 
+ HTML_PAGE = """<!doctype html>
+@@ -205,8 +209,8 @@ def build_parser() -> argparse.ArgumentParser:
+     parser.add_argument("--host", type=str, default=DEFAULT_HTTP_HOST)
+     parser.add_argument("--http-port", type=int, default=DEFAULT_HTTP_PORT)
+     parser.add_argument("--stop-repeat", type=int, default=3)
+-    parser.add_argument("--linear-speed-mps", type=float, default=0.04)
+-    parser.add_argument("--angular-speed-rad-s", type=float, default=0.18)
++    parser.add_argument("--linear-speed-mps", type=float, default=DEFAULT_LINEAR_SPEED_MPS)
++    parser.add_argument("--angular-speed-rad-s", type=float, default=DEFAULT_ANGULAR_SPEED_RAD_S)
+     parser.add_argument("--deadman-timeout-ms", type=int, default=250)
+     parser.add_argument("--enable-movement", action="store_true", help="Allow non-zero movement after env gates pass.")
+     return parser
+@@ -240,8 +244,8 @@ def _build_controller(args: argparse.Namespace) -> tuple[MobileBaseController, s
+         require_movement_confirm_env=not bool(args.self_test),
+         default_linear_speed_mps=float(args.linear_speed_mps),
+         default_angular_speed_rad_s=float(args.angular_speed_rad_s),
+-        max_linear_speed_mps=max(0.01, abs(float(args.linear_speed_mps))),
+-        max_angular_speed_rad_s=max(0.01, abs(float(args.angular_speed_rad_s))),
++        max_linear_speed_mps=MAX_LINEAR_SPEED_MPS,
++        max_angular_speed_rad_s=MAX_ANGULAR_SPEED_RAD_S,
+         deadman_timeout_ms=int(args.deadman_timeout_ms),
+     )
+     controller = MobileBaseController(
+@@ -284,6 +288,8 @@ def main(argv: list[str] | None = None) -> int:
+     print(f"[INFO] Mode: {'dry-run' if is_dry_run else 'hardware'}")
+     print(f"[INFO] Movement enabled flag: {bool(args.enable_movement)}")
+     print(f"[INFO] Movement env gate: {DEFAULT_MOVEMENT_CONFIRM_ENV}={DEFAULT_MOVEMENT_CONFIRM_VALUE}")
++    print(f"[INFO] Linear speed request: {float(args.linear_speed_mps):.3f} m/s, cap: {MAX_LINEAR_SPEED_MPS:.3f} m/s")
++    print(f"[INFO] Angular speed request: {float(args.angular_speed_rad_s):.3f} rad/s, cap: {MAX_ANGULAR_SPEED_RAD_S:.3f} rad/s")
+ 
+     if not is_dry_run and not args.enable_movement:
+         print("[INFO] Hardware serial may open, but non-zero movement is blocked without --enable-movement.")
+diff --git a/tests/runtime/drive_mode/test_mobile_base_drive_mode_script.py b/tests/runtime/drive_mode/test_mobile_base_drive_mode_script.py
+index 3fe414e..fca6bb9 100644
+--- a/tests/runtime/drive_mode/test_mobile_base_drive_mode_script.py
++++ b/tests/runtime/drive_mode/test_mobile_base_drive_mode_script.py
+@@ -1,6 +1,15 @@
+ from __future__ import annotations
+ 
+-from scripts.mobile_base_drive_mode import build_parser, main
++from scripts.mobile_base_drive_mode import (
++    DEFAULT_ANGULAR_SPEED_RAD_S,
++    DEFAULT_LINEAR_SPEED_MPS,
++    MAX_ANGULAR_SPEED_RAD_S,
++    MAX_LINEAR_SPEED_MPS,
++    _build_controller,
++    build_parser,
++    main,
++)
++from modules.runtime.drive_mode import DriveModeService
+ 
+ 
+ def test_drive_mode_parser_defaults_to_localhost() -> None:
+@@ -8,6 +17,8 @@ def test_drive_mode_parser_defaults_to_localhost() -> None:
+     assert args.host == "127.0.0.1"
+     assert args.http_port == 8768
+     assert args.enable_movement is False
++    assert args.linear_speed_mps == DEFAULT_LINEAR_SPEED_MPS
++    assert args.angular_speed_rad_s == DEFAULT_ANGULAR_SPEED_RAD_S
+ 
+ 
+ def test_drive_mode_self_test_runs_without_hardware(capsys) -> None:
+@@ -16,3 +27,24 @@ def test_drive_mode_self_test_runs_without_hardware(capsys) -> None:
+ 
+     assert exit_code == 0
+     assert "[OK] Drive mode self-test completed." in captured.out
++
++
++def test_drive_mode_clamps_cli_speed_requests_to_hard_caps() -> None:
++    args = build_parser().parse_args([
++        "--self-test",
++        "--linear-speed-mps",
++        "0.99",
++        "--angular-speed-rad-s",
++        "0.99",
++    ])
++    controller, _selected_port, _is_dry_run = _build_controller(args)
++    service = DriveModeService(controller=controller)
++    controller.open()
++    try:
++        forward = service.handle_keyboard_event(event="down", key="w")
++        assert forward.command == f'{{"T":13,"X":{MAX_LINEAR_SPEED_MPS},"Z":0.0}}'
++
++        rotate = service.handle_keyboard_event(event="down", key="a")
++        assert rotate.command == f'{{"T":13,"X":0.0,"Z":{MAX_ANGULAR_SPEED_RAD_S}}}'
++    finally:
++        controller.close()

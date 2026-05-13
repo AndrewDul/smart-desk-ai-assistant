@@ -1,9 +1,29 @@
 from __future__ import annotations
 
+import os
+
 from modules.runtime.contracts import RuntimeBackendStatus, SpeechInputBackend, WakeGateBackend
 
 from .fallbacks import NullWakeGate
 from .wake_gate import CompatibilityWakeGate
+
+
+def _strict_real_wake_gate_required() -> bool:
+    return str(os.environ.get("NEXA_REQUIRE_REAL_WAKE_GATE", "") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+        "run",
+    }
+
+
+def _raise_if_strict_real_wake_gate_required(detail: str) -> None:
+    if _strict_real_wake_gate_required():
+        raise RuntimeError(
+            "A real wake-word gate is required for this runtime, but NeXa would use "
+            f"developer text/compatibility wake mode. {detail}"
+        )
 
 
 class RuntimeBuilderWakeGateMixin:
@@ -21,6 +41,9 @@ class RuntimeBuilderWakeGateMixin:
         if hasattr(voice_input, "listen_for_wake_phrase"):
             class_name = voice_input.__class__.__name__.lower()
             if "textinput" in class_name:
+                _raise_if_strict_real_wake_gate_required(
+                    "voice_input selected the TextInput wake backend."
+                )
                 return (
                     voice_input,  # type: ignore[return-value]
                     RuntimeBackendStatus(
@@ -35,6 +58,9 @@ class RuntimeBuilderWakeGateMixin:
                 )
 
         if not bool(config.get("enabled", True)):
+            _raise_if_strict_real_wake_gate_required(
+                "voice_input.enabled is false, so wake gate is disabled."
+            )
             return (
                 NullWakeGate(),
                 RuntimeBackendStatus(
@@ -50,6 +76,9 @@ class RuntimeBuilderWakeGateMixin:
 
         engine = str(config.get("wake_engine", "openwakeword")).strip().lower()
         if engine in {"off", "none", "disabled"}:
+            _raise_if_strict_real_wake_gate_required(
+                f"wake_engine is '{engine}'."
+            )
             return (
                 NullWakeGate(),
                 RuntimeBackendStatus(
@@ -67,6 +96,12 @@ class RuntimeBuilderWakeGateMixin:
         prefer_dedicated_gate = bool(config.get("wake_prefer_dedicated_gate", False))
 
         if single_capture_mode and bool(voice_input_status.ok) and not prefer_dedicated_gate:
+            _raise_if_strict_real_wake_gate_required(
+                "wake_prefer_dedicated_gate is false, so compatibility wake would be used."
+            )
+            _raise_if_strict_real_wake_gate_required(
+                f"Unsupported wake engine '{engine}'."
+            )
             compatibility_gate = CompatibilityWakeGate(voice_input)
             return (
                 compatibility_gate,
@@ -143,6 +178,9 @@ class RuntimeBuilderWakeGateMixin:
 
         except Exception as error:
             if bool(voice_input_status.ok):
+                _raise_if_strict_real_wake_gate_required(
+                    f"Wake gate backend '{engine}' failed: {error}"
+                )
                 compatibility_gate = CompatibilityWakeGate(voice_input)
                 return (
                     compatibility_gate,

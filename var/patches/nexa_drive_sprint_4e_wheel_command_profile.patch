@@ -1,0 +1,385 @@
+--- a/modules/devices/mobile_base/commands.py	2026-05-08 19:17:21.699192056 +0000
++++ b/modules/devices/mobile_base/commands.py	2026-05-08 19:13:46.529123122 +0000
+@@ -6,6 +6,8 @@
+ 
+ 
+ ROS_VELOCITY_COMMAND_TYPE = 13
++WHEEL_VELOCITY_COMMAND_TYPE = 1
++
+ 
+ 
+ class MobileBaseCommandError(ValueError):
+@@ -39,13 +41,32 @@
+     }
+ 
+ 
+-def build_stop_command() -> dict[str, int | float]:
++def build_wheel_velocity_command(
++    *,
++    left_mps: float,
++    right_mps: float,
++) -> dict[str, int | float]:
++    """Build a Waveshare direct left/right wheel velocity command."""
++
++    return {
++        "T": WHEEL_VELOCITY_COMMAND_TYPE,
++        "L": round(_safe_float(left_mps, field_name="left_mps"), 4),
++        "R": round(_safe_float(right_mps, field_name="right_mps"), 4),
++    }
++
++
++def build_stop_command(*, command_profile: str = "ros") -> dict[str, int | float]:
+     """Build a zero-velocity chassis command used as STOP."""
+ 
+-    return build_ros_velocity_command(linear_x_mps=0.0, angular_z_rad_s=0.0)
++    profile = str(command_profile or "ros").strip().lower()
++    if profile == "wheel":
++        return build_wheel_velocity_command(left_mps=0.0, right_mps=0.0)
++    if profile == "ros":
++        return build_ros_velocity_command(linear_x_mps=0.0, angular_z_rad_s=0.0)
++    raise MobileBaseCommandError(f"Unsupported command profile: {command_profile}")
+ 
+ 
+-def build_stop_sequence(*, repeat: int = 3) -> list[dict[str, int | float]]:
++def build_stop_sequence(*, repeat: int = 3, command_profile: str = "ros") -> list[dict[str, int | float]]:
+     """
+     Build a repeated STOP sequence.
+ 
+@@ -57,7 +78,7 @@
+         raise MobileBaseCommandError("repeat must be at least 1")
+     if int(repeat) > 10:
+         raise MobileBaseCommandError("repeat must not be greater than 10")
+-    return [build_stop_command() for _ in range(int(repeat))]
++    return [build_stop_command(command_profile=command_profile) for _ in range(int(repeat))]
+ 
+ 
+ def serialize_json_line(command: dict[str, Any]) -> str:
+@@ -73,7 +94,9 @@
+ __all__ = [
+     "MobileBaseCommandError",
+     "ROS_VELOCITY_COMMAND_TYPE",
++    "WHEEL_VELOCITY_COMMAND_TYPE",
+     "build_ros_velocity_command",
++    "build_wheel_velocity_command",
+     "build_stop_command",
+     "build_stop_sequence",
+     "serialize_json_line",
+--- a/modules/devices/mobile_base/__init__.py	2026-05-08 19:17:21.719956075 +0000
++++ b/modules/devices/mobile_base/__init__.py	2026-05-08 19:13:55.710000404 +0000
+@@ -3,6 +3,7 @@
+ from .commands import (
+     MobileBaseCommandError,
+     build_ros_velocity_command,
++    build_wheel_velocity_command,
+     build_stop_command,
+     build_stop_sequence,
+     serialize_json_line,
+@@ -39,6 +40,7 @@
+     "PySerialLineTransport",
+     "SerialPortCandidate",
+     "build_ros_velocity_command",
++    "build_wheel_velocity_command",
+     "build_stop_command",
+     "build_stop_sequence",
+     "choose_serial_port",
+--- a/modules/devices/mobile_base/controller.py	2026-05-08 19:17:26.034412676 +0000
++++ b/modules/devices/mobile_base/controller.py	2026-05-08 19:14:30.095890857 +0000
+@@ -3,7 +3,13 @@
+ import time
+ from typing import Protocol
+ 
+-from .commands import build_ros_velocity_command, build_stop_sequence, serialize_json_line
++from .commands import (
++    MobileBaseCommandError,
++    build_ros_velocity_command,
++    build_stop_sequence,
++    build_wheel_velocity_command,
++    serialize_json_line,
++)
+ from .safety import MobileBaseSafetyPolicy, is_zero_velocity
+ 
+ 
+@@ -38,11 +44,15 @@
+         safety_policy: MobileBaseSafetyPolicy | None = None,
+         stop_repeat: int = 3,
+         stop_interval_sec: float = 0.04,
++        command_profile: str = "ros",
++        wheel_turn_speed_mps: float = 0.12,
+     ) -> None:
+         self.transport = transport
+         self.safety_policy = safety_policy or MobileBaseSafetyPolicy()
+         self.stop_repeat = int(stop_repeat)
+         self.stop_interval_sec = max(0.0, float(stop_interval_sec))
++        self.command_profile = _normalize_command_profile(command_profile)
++        self.wheel_turn_speed_mps = max(0.0, float(wheel_turn_speed_mps))
+         self._opened = False
+         self._last_motion_monotonic: float | None = None
+         self._deadman_stop_sent = False
+@@ -71,7 +81,7 @@
+         del reason
+         self.safety_policy.assert_stop_is_allowed()
+         written_lines: list[str] = []
+-        for command in build_stop_sequence(repeat=self.stop_repeat):
++        for command in build_stop_sequence(repeat=self.stop_repeat, command_profile=self.command_profile):
+             line = serialize_json_line(command)
+             self.transport.write_line(line)
+             written_lines.append(line.rstrip("\n"))
+@@ -93,7 +103,7 @@
+             linear_x_mps=linear_x_mps,
+             angular_z_rad_s=angular_z_rad_s,
+         )
+-        command = build_ros_velocity_command(
++        command = self._build_profile_velocity_command(
+             linear_x_mps=linear,
+             angular_z_rad_s=angular,
+         )
+@@ -108,6 +118,45 @@
+             self._deadman_stop_sent = False
+         return line.rstrip("\n")
+ 
++
++    def _build_profile_velocity_command(
++        self,
++        *,
++        linear_x_mps: float,
++        angular_z_rad_s: float,
++    ) -> dict[str, int | float]:
++        if self.command_profile == "ros":
++            return build_ros_velocity_command(
++                linear_x_mps=linear_x_mps,
++                angular_z_rad_s=angular_z_rad_s,
++            )
++        if self.command_profile == "wheel":
++            left_mps, right_mps = self._wheel_speeds_from_velocity(
++                linear_x_mps=linear_x_mps,
++                angular_z_rad_s=angular_z_rad_s,
++            )
++            return build_wheel_velocity_command(left_mps=left_mps, right_mps=right_mps)
++        raise MobileBaseCommandError(f"Unsupported command profile: {self.command_profile}")
++
++    def _wheel_speeds_from_velocity(self, *, linear_x_mps: float, angular_z_rad_s: float) -> tuple[float, float]:
++        if is_zero_velocity(linear_x_mps=linear_x_mps, angular_z_rad_s=angular_z_rad_s):
++            return 0.0, 0.0
++        turn_component = 0.0
++        if abs(float(angular_z_rad_s)) >= 1e-9:
++            turn_component = self._wheel_turn_component(angular_z_rad_s=angular_z_rad_s)
++        left = self.safety_policy.clamp_linear_speed(float(linear_x_mps) - turn_component)
++        right = self.safety_policy.clamp_linear_speed(float(linear_x_mps) + turn_component)
++        return left, right
++
++    def _wheel_turn_component(self, *, angular_z_rad_s: float) -> float:
++        sign = 1.0 if float(angular_z_rad_s) > 0.0 else -1.0
++        configured = self.wheel_turn_speed_mps
++        if configured <= 0.0:
++            configured = abs(float(angular_z_rad_s)) * 0.4
++        configured = max(0.04, configured)
++        configured = min(abs(float(self.safety_policy.max_linear_speed_mps)), configured)
++        return sign * configured
++
+     def drive_forward(self, *, speed_mps: float | None = None) -> str:
+         speed = self.safety_policy.default_linear_speed_mps if speed_mps is None else speed_mps
+         return self.send_velocity(linear_x_mps=abs(float(speed)), angular_z_rad_s=0.0)
+@@ -152,4 +201,11 @@
+         self.close()
+ 
+ 
++def _normalize_command_profile(value: str) -> str:
++    profile = str(value or "ros").strip().lower()
++    if profile not in {"ros", "wheel"}:
++        raise MobileBaseCommandError(f"Unsupported command profile: {value}")
++    return profile
++
++
+ __all__ = ["LineTransport", "MobileBaseController"]
+--- a/scripts/mobile_base_drive_mode.py	2026-05-08 19:17:26.573294515 +0000
++++ b/scripts/mobile_base_drive_mode.py	2026-05-08 19:14:53.199808021 +0000
+@@ -38,6 +38,8 @@
+ DEFAULT_ANGULAR_SPEED_RAD_S = 0.30
+ MAX_LINEAR_SPEED_MPS = 0.20
+ MAX_ANGULAR_SPEED_RAD_S = 0.45
++DEFAULT_COMMAND_PROFILE = "ros"
++DEFAULT_WHEEL_TURN_SPEED_MPS = 0.12
+ 
+ 
+ HTML_PAGE = """<!doctype html>
+@@ -153,6 +155,8 @@
+     movement_enabled: bool
+     linear_speed_mps: float
+     angular_speed_rad_s: float
++    command_profile: str
++    wheel_turn_speed_mps: float
+ 
+ 
+ def _json_response(handler: BaseHTTPRequestHandler, payload: dict[str, Any], *, status: int = 200) -> None:
+@@ -188,6 +192,8 @@
+                 "movement_enabled": self.server.movement_enabled,
+                 "linear_speed_mps": self.server.linear_speed_mps,
+                 "angular_speed_rad_s": self.server.angular_speed_rad_s,
++                "command_profile": self.server.command_profile,
++                "wheel_turn_speed_mps": self.server.wheel_turn_speed_mps,
+             })
+             return
+         self.send_error(404)
+@@ -236,6 +242,8 @@
+     parser.add_argument("--stop-repeat", type=int, default=3)
+     parser.add_argument("--linear-speed-mps", type=float, default=DEFAULT_LINEAR_SPEED_MPS)
+     parser.add_argument("--angular-speed-rad-s", type=float, default=DEFAULT_ANGULAR_SPEED_RAD_S)
++    parser.add_argument("--command-profile", choices=["ros", "wheel"], default=DEFAULT_COMMAND_PROFILE)
++    parser.add_argument("--wheel-turn-speed-mps", type=float, default=DEFAULT_WHEEL_TURN_SPEED_MPS)
+     parser.add_argument("--deadman-timeout-ms", type=int, default=250)
+     parser.add_argument("--enable-movement", action="store_true", help="Allow non-zero movement after env gates pass.")
+     return parser
+@@ -277,6 +285,8 @@
+         transport=transport,
+         safety_policy=safety_policy,
+         stop_repeat=int(args.stop_repeat),
++        command_profile=str(args.command_profile),
++        wheel_turn_speed_mps=float(args.wheel_turn_speed_mps),
+     )
+     return controller, selected_port, is_dry_run
+ 
+@@ -321,6 +331,8 @@
+     print(f"[INFO] Hardware test env current value: {os.environ.get(CONFIRM_TEST_ENV_VAR)!r}")
+     print(f"[INFO] Linear speed request: {float(args.linear_speed_mps):.3f} m/s, cap: {MAX_LINEAR_SPEED_MPS:.3f} m/s")
+     print(f"[INFO] Angular speed request: {float(args.angular_speed_rad_s):.3f} rad/s, cap: {MAX_ANGULAR_SPEED_RAD_S:.3f} rad/s")
++    print(f"[INFO] Command profile: {str(args.command_profile)}")
++    print(f"[INFO] Wheel turn speed request: {float(args.wheel_turn_speed_mps):.3f} m/s")
+ 
+     if not is_dry_run and not args.enable_movement:
+         print("[INFO] Hardware serial may open, but non-zero movement is blocked without --enable-movement.")
+@@ -351,6 +363,8 @@
+         server.movement_enabled = bool(args.enable_movement)
+         server.linear_speed_mps = float(args.linear_speed_mps)
+         server.angular_speed_rad_s = float(args.angular_speed_rad_s)
++        server.command_profile = str(args.command_profile)
++        server.wheel_turn_speed_mps = float(args.wheel_turn_speed_mps)
+         thread = threading.Thread(target=server.serve_forever, daemon=True)
+         thread.start()
+         print(f"[OK] Open this on the Raspberry Pi: http://{args.host}:{int(args.http_port)}/")
+--- a/modules/runtime/drive_mode/voice_launcher.py	2026-05-08 19:17:26.573160403 +0000
++++ b/modules/runtime/drive_mode/voice_launcher.py	2026-05-08 19:15:08.600951986 +0000
+@@ -28,6 +28,8 @@
+ DRIVE_MODE_LINEAR_SPEED_ENV = "NEXA_DRIVE_MODE_LINEAR_SPEED_MPS"
+ DRIVE_MODE_ANGULAR_SPEED_ENV = "NEXA_DRIVE_MODE_ANGULAR_SPEED_RAD_S"
+ DRIVE_MODE_LOG_PATH_ENV = "NEXA_DRIVE_MODE_LOG_PATH"
++DRIVE_MODE_COMMAND_PROFILE_ENV = "NEXA_DRIVE_MODE_COMMAND_PROFILE"
++DRIVE_MODE_WHEEL_TURN_SPEED_ENV = "NEXA_DRIVE_MODE_WHEEL_TURN_SPEED_MPS"
+ DRIVE_MODE_AUTO_OPEN_ENV = "NEXA_DRIVE_MODE_AUTO_OPEN"
+ DRIVE_MODE_FORCE_RESTART_ENV = "NEXA_DRIVE_MODE_FORCE_RESTART"
+ 
+@@ -45,6 +47,8 @@
+     movement_requested: bool = False
+     linear_speed_mps: float = 0.15
+     angular_speed_rad_s: float = 0.30
++    command_profile: str = "ros"
++    wheel_turn_speed_mps: float = 0.12
+     log_path: Path | None = None
+     auto_open: bool = True
+     force_restart: bool = True
+@@ -120,6 +124,8 @@
+         movement_requested=movement_requested,
+         linear_speed_mps=_safe_float(source.get(DRIVE_MODE_LINEAR_SPEED_ENV), 0.15),
+         angular_speed_rad_s=_safe_float(source.get(DRIVE_MODE_ANGULAR_SPEED_ENV), 0.30),
++        command_profile=str(source.get(DRIVE_MODE_COMMAND_PROFILE_ENV, "ros") or "ros").strip().lower(),
++        wheel_turn_speed_mps=_safe_float(source.get(DRIVE_MODE_WHEEL_TURN_SPEED_ENV), 0.12),
+         log_path=log_path,
+         auto_open=not _is_falsey(source.get(DRIVE_MODE_AUTO_OPEN_ENV)),
+         force_restart=not _is_falsey(source.get(DRIVE_MODE_FORCE_RESTART_ENV, "1")),
+@@ -141,6 +147,10 @@
+         f"{float(config.linear_speed_mps):.3f}",
+         "--angular-speed-rad-s",
+         f"{float(config.angular_speed_rad_s):.3f}",
++        "--command-profile",
++        str(config.command_profile),
++        "--wheel-turn-speed-mps",
++        f"{float(config.wheel_turn_speed_mps):.3f}",
+     ]
+     if config.dry_run:
+         command.append("--dry-run")
+--- a/tests/devices/mobile_base/test_mobile_base_commands.py	2026-05-08 19:17:21.700490709 +0000
++++ b/tests/devices/mobile_base/test_mobile_base_commands.py	2026-05-08 19:16:26.108573422 +0000
+@@ -5,6 +5,7 @@
+ from modules.devices.mobile_base.commands import (
+     MobileBaseCommandError,
+     build_ros_velocity_command,
++    build_wheel_velocity_command,
+     build_stop_command,
+     build_stop_sequence,
+     serialize_json_line,
+@@ -38,3 +39,15 @@
+ 
+ def test_serialize_json_line_is_compact_and_newline_terminated() -> None:
+     assert serialize_json_line(build_stop_command()) == '{"T":13,"X":0.0,"Z":0.0}\n'
++
++
++def test_build_wheel_velocity_command_uses_left_right_velocity() -> None:
++    assert build_wheel_velocity_command(left_mps=-0.12, right_mps=0.12) == {"T": 1, "L": -0.12, "R": 0.12}
++
++
++def test_wheel_stop_profile_uses_left_right_zero_velocity() -> None:
++    assert build_stop_command(command_profile="wheel") == {"T": 1, "L": 0.0, "R": 0.0}
++    assert build_stop_sequence(repeat=2, command_profile="wheel") == [
++        {"T": 1, "L": 0.0, "R": 0.0},
++        {"T": 1, "L": 0.0, "R": 0.0},
++    ]
+--- a/tests/devices/mobile_base/test_mobile_base_controller.py	2026-05-08 19:17:26.038518308 +0000
++++ b/tests/devices/mobile_base/test_mobile_base_controller.py	2026-05-08 19:15:24.699020702 +0000
+@@ -95,3 +95,26 @@
+ 
+     assert left == '{"T":13,"X":0.0,"Z":0.25}'
+     assert right == '{"T":13,"X":0.0,"Z":-0.25}'
++
++
++def test_controller_wheel_profile_sends_direct_left_right_commands(monkeypatch: pytest.MonkeyPatch) -> None:
++    monkeypatch.setenv("CONFIRM_NEXA_MOBILE_BASE_MOVE", "RUN")
++    transport = DryRunSerialTransport()
++    policy = MobileBaseSafetyPolicy(movement_enabled=True, max_linear_speed_mps=0.20, max_angular_speed_rad_s=0.45)
++    controller = MobileBaseController(
++        transport=transport,
++        safety_policy=policy,
++        stop_repeat=1,
++        stop_interval_sec=0.0,
++        command_profile="wheel",
++        wheel_turn_speed_mps=0.12,
++    )
++    controller.open()
++
++    forward = controller.drive_forward(speed_mps=0.15)
++    left = controller.rotate_left(speed_rad_s=0.30)
++    stop = controller.stop(reason="test")
++
++    assert forward == '{"T":1,"L":0.15,"R":0.15}'
++    assert left == '{"T":1,"L":-0.12,"R":0.12}'
++    assert stop == ['{"T":1,"L":0.0,"R":0.0}']
+--- a/tests/runtime/drive_mode/test_drive_mode_service.py	2026-05-08 19:17:26.040534201 +0000
++++ b/tests/runtime/drive_mode/test_drive_mode_service.py	2026-05-08 19:15:24.699564045 +0000
+@@ -99,3 +99,29 @@
+         assert transport.written_lines[-1] == '{"T":13,"X":0.0,"Z":0.0}\n'
+     finally:
+         controller.close()
++
++
++def test_pressed_key_state_uses_wheel_profile_when_configured() -> None:
++    transport = DryRunSerialTransport()
++    controller = MobileBaseController(
++        transport=transport,
++        safety_policy=MobileBaseSafetyPolicy(
++            movement_enabled=True,
++            require_movement_confirm_env=False,
++            max_linear_speed_mps=0.20,
++            max_angular_speed_rad_s=0.45,
++        ),
++        stop_repeat=1,
++        stop_interval_sec=0.0,
++        command_profile="wheel",
++        wheel_turn_speed_mps=0.12,
++    )
++    controller.open()
++    try:
++        service = DriveModeService(controller=controller, linear_speed_mps=0.15, angular_speed_rad_s=0.30)
++        result = service.handle_pressed_keys(keys=["w", "a"])
++        assert result.ok is True
++        assert result.action is DriveModeAction.FORWARD_LEFT
++        assert result.command == '{"T":1,"L":0.03,"R":0.2}'
++    finally:
++        controller.close()

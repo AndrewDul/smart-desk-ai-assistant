@@ -6,7 +6,8 @@ from collections import deque
 from typing import Any, Callable
 
 import numpy as np
-import sounddevice as sd
+
+from modules.devices.audio.input.shared.arecord_pcm_stream import open_input_stream
 
 
 class FasterWhisperCaptureMixin:
@@ -641,7 +642,7 @@ class FasterWhisperCaptureMixin:
     def _ensure_stream_open(self) -> None:
         if self._stream is not None:
             return
-        stream = sd.InputStream(
+        stream = open_input_stream(
             samplerate=self.sample_rate,
             blocksize=self.blocksize,
             device=self.device,

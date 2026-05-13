@@ -14,6 +14,7 @@ from modules.runtime.contracts import (
 from modules.shared.logging.logger import get_logger
 
 from .executors import MemorySkillExecutor, ReminderSkillExecutor, TimerSkillExecutor
+from .drive_mode_actions_mixin import ActionDriveModeActionsMixin
 from .memory_actions_mixin import ActionMemoryActionsMixin
 from .models import ResolvedAction, SkillRequest, SkillResult
 from .pan_tilt_actions_mixin import ActionPanTiltActionsMixin
@@ -30,6 +31,7 @@ LOGGER = get_logger(__name__)
 class ActionFlowOrchestrator(
     ActionResolverMixin,
     ActionResponseHelpersMixin,
+    ActionDriveModeActionsMixin,
     ActionSystemActionsMixin,
     ActionMemoryActionsMixin,
     ActionReminderActionsMixin,
@@ -87,6 +89,7 @@ class ActionFlowOrchestrator(
         "focus.stop": "timer_stop",
         "break.start": "break_start",
         "break.stop": "timer_stop",
+        "mobile_base.drive_mode": "drive_mode_start",
         "pan_tilt.look": "look_direction",
         "system.exit": "exit",
         "system.shutdown": "shutdown",
@@ -126,6 +129,7 @@ class ActionFlowOrchestrator(
         "focus_start",
         "focus_offer",
         "break_start",
+        "drive_mode_start",
         "look_direction",
         "exit",
         "shutdown",
@@ -173,6 +177,7 @@ class ActionFlowOrchestrator(
         "focus_start": ("uruchomienie skupienia", "start focus mode"),
         "focus_offer": ("propozycja skupienia", "offer focus mode"),
         "break_start": ("uruchomienie odpoczynku", "start break mode"),
+        "drive_mode_start": ("tryb sterowania bazą", "mobile base drive mode"),
         "look_direction": ("ruch głowicy", "move camera head"),
         "exit": ("zamknięcie asystenta", "close the assistant"),
         "shutdown": ("wyłączenie systemu", "shut down the system"),

@@ -1,0 +1,651 @@
+diff --git a/modules/devices/mobile_base/__init__.py b/modules/devices/mobile_base/__init__.py
+index 4e9a5aa..bc6b0d8 100644
+--- a/modules/devices/mobile_base/__init__.py
++++ b/modules/devices/mobile_base/__init__.py
+@@ -7,6 +7,14 @@ from .commands import (
+     build_stop_sequence,
+     serialize_json_line,
+ )
++from .controller import LineTransport, MobileBaseController
++from .safety import (
++    DEFAULT_MOVEMENT_CONFIRM_ENV,
++    DEFAULT_MOVEMENT_CONFIRM_VALUE,
++    MobileBaseSafetyError,
++    MobileBaseSafetyPolicy,
++    is_zero_velocity,
++)
+ from .serial_transport import (
+     DEFAULT_BAUDRATE,
+     DEFAULT_TIMEOUT_SEC,
+@@ -19,9 +27,15 @@ from .serial_transport import (
+ 
+ __all__ = [
+     "DEFAULT_BAUDRATE",
++    "DEFAULT_MOVEMENT_CONFIRM_ENV",
++    "DEFAULT_MOVEMENT_CONFIRM_VALUE",
+     "DEFAULT_TIMEOUT_SEC",
+     "DryRunSerialTransport",
++    "LineTransport",
+     "MobileBaseCommandError",
++    "MobileBaseController",
++    "MobileBaseSafetyError",
++    "MobileBaseSafetyPolicy",
+     "PySerialLineTransport",
+     "SerialPortCandidate",
+     "build_ros_velocity_command",
+@@ -29,5 +43,6 @@ __all__ = [
+     "build_stop_sequence",
+     "choose_serial_port",
+     "detect_serial_ports",
++    "is_zero_velocity",
+     "serialize_json_line",
+ ]
+diff --git a/modules/devices/mobile_base/controller.py b/modules/devices/mobile_base/controller.py
+new file mode 100644
+index 0000000..b7f4331
+--- /dev/null
++++ b/modules/devices/mobile_base/controller.py
+@@ -0,0 +1,155 @@
++from __future__ import annotations
++
++import time
++from typing import Protocol
++
++from .commands import build_ros_velocity_command, build_stop_sequence, serialize_json_line
++from .safety import MobileBaseSafetyPolicy, is_zero_velocity
++
++
++class LineTransport(Protocol):
++    """Minimal line-oriented transport used by the mobile base controller."""
++
++    def open(self) -> None:
++        ...
++
++    def write_line(self, line: str) -> None:
++        ...
++
++    def read_available_lines(self, *, duration_sec: float = 0.0) -> list[str]:
++        ...
++
++    def close(self) -> None:
++        ...
++
++
++class MobileBaseController:
++    """
++    Safe high-level controller for the Waveshare mobile base.
++
++    The controller does not discover ports and does not know runtime policy. It
++    only converts approved high-level actions into line-based JSON commands.
++    """
++
++    def __init__(
++        self,
++        *,
++        transport: LineTransport,
++        safety_policy: MobileBaseSafetyPolicy | None = None,
++        stop_repeat: int = 3,
++        stop_interval_sec: float = 0.04,
++    ) -> None:
++        self.transport = transport
++        self.safety_policy = safety_policy or MobileBaseSafetyPolicy()
++        self.stop_repeat = int(stop_repeat)
++        self.stop_interval_sec = max(0.0, float(stop_interval_sec))
++        self._opened = False
++        self._last_motion_monotonic: float | None = None
++        self._deadman_stop_sent = False
++
++    @property
++    def opened(self) -> bool:
++        return self._opened
++
++    def open(self) -> None:
++        self.transport.open()
++        self._opened = True
++
++    def close(self) -> None:
++        if self._opened:
++            try:
++                self.stop(reason="controller_close")
++            finally:
++                self.transport.close()
++                self._opened = False
++        else:
++            self.transport.close()
++
++    def stop(self, *, reason: str = "stop") -> list[str]:
++        """Send a repeated STOP sequence. STOP is always allowed."""
++
++        del reason
++        self.safety_policy.assert_stop_is_allowed()
++        written_lines: list[str] = []
++        for command in build_stop_sequence(repeat=self.stop_repeat):
++            line = serialize_json_line(command)
++            self.transport.write_line(line)
++            written_lines.append(line.rstrip("\n"))
++            if self.stop_interval_sec > 0.0:
++                time.sleep(self.stop_interval_sec)
++        self._last_motion_monotonic = None
++        self._deadman_stop_sent = False
++        return written_lines
++
++    def send_velocity(
++        self,
++        *,
++        linear_x_mps: float,
++        angular_z_rad_s: float,
++    ) -> str:
++        """Validate, clamp and send one velocity command."""
++
++        linear, angular = self.safety_policy.validate_velocity_request(
++            linear_x_mps=linear_x_mps,
++            angular_z_rad_s=angular_z_rad_s,
++        )
++        command = build_ros_velocity_command(
++            linear_x_mps=linear,
++            angular_z_rad_s=angular,
++        )
++        line = serialize_json_line(command)
++        self.transport.write_line(line)
++
++        if is_zero_velocity(linear_x_mps=linear, angular_z_rad_s=angular):
++            self._last_motion_monotonic = None
++            self._deadman_stop_sent = False
++        else:
++            self._last_motion_monotonic = time.monotonic()
++            self._deadman_stop_sent = False
++        return line.rstrip("\n")
++
++    def drive_forward(self, *, speed_mps: float | None = None) -> str:
++        speed = self.safety_policy.default_linear_speed_mps if speed_mps is None else speed_mps
++        return self.send_velocity(linear_x_mps=abs(float(speed)), angular_z_rad_s=0.0)
++
++    def drive_backward(self, *, speed_mps: float | None = None) -> str:
++        speed = self.safety_policy.default_linear_speed_mps if speed_mps is None else speed_mps
++        return self.send_velocity(linear_x_mps=-abs(float(speed)), angular_z_rad_s=0.0)
++
++    def rotate_left(self, *, speed_rad_s: float | None = None) -> str:
++        speed = self.safety_policy.default_angular_speed_rad_s if speed_rad_s is None else speed_rad_s
++        return self.send_velocity(linear_x_mps=0.0, angular_z_rad_s=abs(float(speed)))
++
++    def rotate_right(self, *, speed_rad_s: float | None = None) -> str:
++        speed = self.safety_policy.default_angular_speed_rad_s if speed_rad_s is None else speed_rad_s
++        return self.send_velocity(linear_x_mps=0.0, angular_z_rad_s=-abs(float(speed)))
++
++    def check_deadman(self, *, now_monotonic: float | None = None) -> bool:
++        """
++        Send STOP when a movement command is not refreshed in time.
++
++        Returns true when this call sent a watchdog STOP.
++        """
++
++        if self._last_motion_monotonic is None or self._deadman_stop_sent:
++            return False
++        now = time.monotonic() if now_monotonic is None else float(now_monotonic)
++        elapsed_ms = (now - self._last_motion_monotonic) * 1000.0
++        if elapsed_ms < float(self.safety_policy.deadman_timeout_ms):
++            return False
++        self.stop(reason="deadman_timeout")
++        self._deadman_stop_sent = True
++        return True
++
++    def read_available_lines(self, *, duration_sec: float = 0.0) -> list[str]:
++        return self.transport.read_available_lines(duration_sec=duration_sec)
++
++    def __enter__(self) -> "MobileBaseController":
++        self.open()
++        return self
++
++    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
++        self.close()
++
++
++__all__ = ["LineTransport", "MobileBaseController"]
+diff --git a/modules/devices/mobile_base/safety.py b/modules/devices/mobile_base/safety.py
+new file mode 100644
+index 0000000..9f330b9
+--- /dev/null
++++ b/modules/devices/mobile_base/safety.py
+@@ -0,0 +1,120 @@
++from __future__ import annotations
++
++import math
++import os
++from dataclasses import dataclass
++
++
++DEFAULT_MOVEMENT_CONFIRM_ENV = "CONFIRM_NEXA_MOBILE_BASE_MOVE"
++DEFAULT_MOVEMENT_CONFIRM_VALUE = "RUN"
++
++
++class MobileBaseSafetyError(RuntimeError):
++    """Raised when a requested mobile base movement is not allowed safely."""
++
++
++@dataclass(frozen=True, slots=True)
++class MobileBaseSafetyPolicy:
++    """
++    Central safety policy for mobile base movement commands.
++
++    STOP commands are always allowed. Any non-zero movement command is blocked
++    unless movement_enabled is true and the optional environment gate is open.
++    """
++
++    movement_enabled: bool = False
++    require_movement_confirm_env: bool = True
++    movement_confirm_env: str = DEFAULT_MOVEMENT_CONFIRM_ENV
++    movement_confirm_value: str = DEFAULT_MOVEMENT_CONFIRM_VALUE
++    default_linear_speed_mps: float = 0.04
++    default_angular_speed_rad_s: float = 0.18
++    max_linear_speed_mps: float = 0.08
++    max_angular_speed_rad_s: float = 0.25
++    max_command_duration_ms: int = 350
++    deadman_timeout_ms: int = 250
++
++    def assert_stop_is_allowed(self) -> None:
++        """STOP is always allowed and intentionally has no hardware gate."""
++
++    def assert_movement_is_allowed(self) -> None:
++        """Validate all gates required for non-zero movement."""
++
++        if not self.movement_enabled:
++            raise MobileBaseSafetyError("Mobile base movement is disabled by safety policy.")
++        if self.require_movement_confirm_env:
++            actual_value = os.environ.get(self.movement_confirm_env)
++            if actual_value != self.movement_confirm_value:
++                raise MobileBaseSafetyError(
++                    "Mobile base movement gate is closed. "
++                    f"Set {self.movement_confirm_env}={self.movement_confirm_value} only for a controlled test."
++                )
++
++    def clamp_linear_speed(self, value: float) -> float:
++        """Clamp linear speed to the configured symmetric safety range."""
++
++        return _clamp_float(
++            value,
++            lower=-abs(self.max_linear_speed_mps),
++            upper=abs(self.max_linear_speed_mps),
++            field_name="linear_x_mps",
++        )
++
++    def clamp_angular_speed(self, value: float) -> float:
++        """Clamp angular speed to the configured symmetric safety range."""
++
++        return _clamp_float(
++            value,
++            lower=-abs(self.max_angular_speed_rad_s),
++            upper=abs(self.max_angular_speed_rad_s),
++            field_name="angular_z_rad_s",
++        )
++
++    def clamp_duration_ms(self, value: int | float) -> int:
++        """Clamp a requested movement duration to the configured maximum."""
++
++        duration = int(value)
++        if duration < 0:
++            raise MobileBaseSafetyError("duration_ms must not be negative")
++        return min(duration, int(self.max_command_duration_ms))
++
++    def validate_velocity_request(
++        self,
++        *,
++        linear_x_mps: float,
++        angular_z_rad_s: float,
++    ) -> tuple[float, float]:
++        """
++        Validate and clamp a velocity request.
++
++        A zero velocity request is treated as STOP and is always allowed.
++        """
++
++        linear = self.clamp_linear_speed(linear_x_mps)
++        angular = self.clamp_angular_speed(angular_z_rad_s)
++        if is_zero_velocity(linear_x_mps=linear, angular_z_rad_s=angular):
++            self.assert_stop_is_allowed()
++            return 0.0, 0.0
++        self.assert_movement_is_allowed()
++        return linear, angular
++
++
++def is_zero_velocity(*, linear_x_mps: float, angular_z_rad_s: float) -> bool:
++    """Return true when a velocity request is effectively STOP."""
++
++    return abs(float(linear_x_mps)) < 1e-9 and abs(float(angular_z_rad_s)) < 1e-9
++
++
++def _clamp_float(value: float, *, lower: float, upper: float, field_name: str) -> float:
++    number = float(value)
++    if not math.isfinite(number):
++        raise MobileBaseSafetyError(f"{field_name} must be finite")
++    return max(float(lower), min(float(upper), number))
++
++
++__all__ = [
++    "DEFAULT_MOVEMENT_CONFIRM_ENV",
++    "DEFAULT_MOVEMENT_CONFIRM_VALUE",
++    "MobileBaseSafetyError",
++    "MobileBaseSafetyPolicy",
++    "is_zero_velocity",
++]
+diff --git a/scripts/mobile_base_stop.py b/scripts/mobile_base_stop.py
+new file mode 100755
+index 0000000..0f4b527
+--- /dev/null
++++ b/scripts/mobile_base_stop.py
+@@ -0,0 +1,106 @@
++#!/usr/bin/env python3
++from __future__ import annotations
++
++import argparse
++import os
++import sys
++from pathlib import Path
++
++PROJECT_ROOT = Path(__file__).resolve().parents[1]
++if str(PROJECT_ROOT) not in sys.path:
++    sys.path.insert(0, str(PROJECT_ROOT))
++
++from modules.devices.mobile_base import (  # noqa: E402
++    DEFAULT_BAUDRATE,
++    DEFAULT_TIMEOUT_SEC,
++    DryRunSerialTransport,
++    MobileBaseController,
++    MobileBaseSafetyPolicy,
++    PySerialLineTransport,
++    choose_serial_port,
++)
++
++
++CONFIRM_ENV_VAR = "CONFIRM_NEXA_MOBILE_BASE_TEST"
++CONFIRM_ENV_VALUE = "RUN"
++
++
++def _hardware_gate_is_open() -> bool:
++    return os.environ.get(CONFIRM_ENV_VAR) == CONFIRM_ENV_VALUE
++
++
++def build_parser() -> argparse.ArgumentParser:
++    parser = argparse.ArgumentParser(
++        description="Send a safe STOP sequence through the NeXa mobile base controller."
++    )
++    parser.add_argument("--dry-run", action="store_true", help="Do not open hardware serial.")
++    parser.add_argument("--port", type=str, default=None, help="Serial device path.")
++    parser.add_argument("--baudrate", type=int, default=DEFAULT_BAUDRATE)
++    parser.add_argument("--timeout-sec", type=float, default=DEFAULT_TIMEOUT_SEC)
++    parser.add_argument("--read-seconds", type=float, default=0.2)
++    parser.add_argument("--stop-repeat", type=int, default=3)
++    return parser
++
++
++def main(argv: list[str] | None = None) -> int:
++    args = build_parser().parse_args(argv)
++
++    if args.dry_run:
++        selected_port = args.port or "dry-run:auto"
++        transport = DryRunSerialTransport()
++        print("[DRY-RUN] STOP will be sent to the in-memory transport only.")
++    else:
++        if not _hardware_gate_is_open():
++            print(
++                f"[ERROR] Hardware gate is closed. Set {CONFIRM_ENV_VAR}={CONFIRM_ENV_VALUE} "
++                "to send STOP to real hardware."
++            )
++            return 2
++        selected_port = choose_serial_port(explicit_port=args.port)
++        transport = PySerialLineTransport(
++            port=selected_port,
++            baudrate=int(args.baudrate),
++            timeout_sec=float(args.timeout_sec),
++        )
++
++    print(f"[INFO] Selected port: {selected_port}")
++    print("[INFO] Command: STOP only")
++
++    controller = MobileBaseController(
++        transport=transport,
++        safety_policy=MobileBaseSafetyPolicy(movement_enabled=False),
++        stop_repeat=int(args.stop_repeat),
++    )
++
++    try:
++        controller.open()
++        written_lines = controller.stop(reason="manual_stop_script")
++        for line in written_lines:
++            prefix = "[DRY-RUN]" if args.dry_run else "[WRITE]"
++            print(f"{prefix} {line}")
++        for response in controller.read_available_lines(duration_sec=max(0.0, float(args.read_seconds))):
++            print(f"[READ] {response}")
++        print("[OK] Mobile base STOP completed.")
++        return 0
++    except PermissionError:
++        print("[ERROR] Permission denied when opening the serial port.")
++        return 3
++    except KeyboardInterrupt:
++        print("[WARN] Interrupted. Attempting final STOP before closing.")
++        try:
++            controller.stop(reason="keyboard_interrupt")
++        except Exception:
++            pass
++        return 130
++    except Exception as error:
++        print(f"[ERROR] {error}")
++        return 4
++    finally:
++        try:
++            controller.close()
++        except Exception:
++            pass
++
++
++if __name__ == "__main__":
++    raise SystemExit(main(sys.argv[1:]))
+diff --git a/tests/devices/mobile_base/test_mobile_base_controller.py b/tests/devices/mobile_base/test_mobile_base_controller.py
+new file mode 100644
+index 0000000..1801237
+--- /dev/null
++++ b/tests/devices/mobile_base/test_mobile_base_controller.py
+@@ -0,0 +1,97 @@
++from __future__ import annotations
++
++import pytest
++
++from modules.devices.mobile_base import DryRunSerialTransport, MobileBaseController, MobileBaseSafetyError, MobileBaseSafetyPolicy
++
++
++def _payloads(transport: DryRunSerialTransport) -> list[str]:
++    return [line.strip() for line in transport.written_lines]
++
++
++def test_controller_stop_sends_repeated_zero_velocity_commands() -> None:
++    transport = DryRunSerialTransport()
++    controller = MobileBaseController(transport=transport, stop_repeat=2, stop_interval_sec=0.0)
++
++    controller.open()
++    written = controller.stop(reason="test")
++
++    assert written == ['{"T":13,"X":0.0,"Z":0.0}', '{"T":13,"X":0.0,"Z":0.0}']
++    assert _payloads(transport) == written
++
++
++def test_controller_context_sends_stop_before_close() -> None:
++    transport = DryRunSerialTransport()
++
++    with MobileBaseController(transport=transport, stop_repeat=1, stop_interval_sec=0.0):
++        assert transport.opened is True
++
++    assert transport.closed is True
++    assert _payloads(transport) == ['{"T":13,"X":0.0,"Z":0.0}']
++
++
++def test_controller_blocks_movement_by_default() -> None:
++    transport = DryRunSerialTransport()
++    controller = MobileBaseController(transport=transport, stop_interval_sec=0.0)
++    controller.open()
++
++    with pytest.raises(MobileBaseSafetyError, match="disabled"):
++        controller.drive_forward()
++
++    assert _payloads(transport) == []
++
++
++def test_controller_allows_small_movement_when_policy_and_env_gate_are_open(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    monkeypatch.setenv("CONFIRM_NEXA_MOBILE_BASE_MOVE", "RUN")
++    transport = DryRunSerialTransport()
++    policy = MobileBaseSafetyPolicy(movement_enabled=True, max_linear_speed_mps=0.08)
++    controller = MobileBaseController(
++        transport=transport,
++        safety_policy=policy,
++        stop_repeat=1,
++        stop_interval_sec=0.0,
++    )
++    controller.open()
++
++    line = controller.drive_forward(speed_mps=1.0)
++
++    assert line == '{"T":13,"X":0.08,"Z":0.0}'
++    assert _payloads(transport) == ['{"T":13,"X":0.08,"Z":0.0}']
++
++
++def test_controller_deadman_sends_stop_after_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
++    monkeypatch.setenv("CONFIRM_NEXA_MOBILE_BASE_MOVE", "RUN")
++    transport = DryRunSerialTransport()
++    policy = MobileBaseSafetyPolicy(movement_enabled=True, deadman_timeout_ms=250)
++    controller = MobileBaseController(
++        transport=transport,
++        safety_policy=policy,
++        stop_repeat=1,
++        stop_interval_sec=0.0,
++    )
++    controller.open()
++    controller.drive_forward(speed_mps=0.02)
++
++    assert controller.check_deadman(now_monotonic=controller._last_motion_monotonic + 0.1) is False
++    assert controller.check_deadman(now_monotonic=controller._last_motion_monotonic + 0.3) is True
++
++    assert _payloads(transport) == [
++        '{"T":13,"X":0.02,"Z":0.0}',
++        '{"T":13,"X":0.0,"Z":0.0}',
++    ]
++
++
++def test_controller_rotate_uses_angular_velocity_only(monkeypatch: pytest.MonkeyPatch) -> None:
++    monkeypatch.setenv("CONFIRM_NEXA_MOBILE_BASE_MOVE", "RUN")
++    transport = DryRunSerialTransport()
++    policy = MobileBaseSafetyPolicy(movement_enabled=True, max_angular_speed_rad_s=0.25)
++    controller = MobileBaseController(transport=transport, safety_policy=policy, stop_interval_sec=0.0)
++    controller.open()
++
++    left = controller.rotate_left(speed_rad_s=0.5)
++    right = controller.rotate_right(speed_rad_s=0.5)
++
++    assert left == '{"T":13,"X":0.0,"Z":0.25}'
++    assert right == '{"T":13,"X":0.0,"Z":-0.25}'
+diff --git a/tests/devices/mobile_base/test_mobile_base_safety.py b/tests/devices/mobile_base/test_mobile_base_safety.py
+new file mode 100644
+index 0000000..d441509
+--- /dev/null
++++ b/tests/devices/mobile_base/test_mobile_base_safety.py
+@@ -0,0 +1,73 @@
++from __future__ import annotations
++
++import pytest
++
++from modules.devices.mobile_base.safety import (
++    DEFAULT_MOVEMENT_CONFIRM_ENV,
++    DEFAULT_MOVEMENT_CONFIRM_VALUE,
++    MobileBaseSafetyError,
++    MobileBaseSafetyPolicy,
++    is_zero_velocity,
++)
++
++
++def test_stop_velocity_is_allowed_when_movement_disabled() -> None:
++    policy = MobileBaseSafetyPolicy(movement_enabled=False)
++
++    assert policy.validate_velocity_request(linear_x_mps=0.0, angular_z_rad_s=0.0) == (0.0, 0.0)
++
++
++def test_non_zero_movement_is_blocked_by_default() -> None:
++    policy = MobileBaseSafetyPolicy(movement_enabled=False)
++
++    with pytest.raises(MobileBaseSafetyError, match="disabled"):
++        policy.validate_velocity_request(linear_x_mps=0.02, angular_z_rad_s=0.0)
++
++
++def test_non_zero_movement_requires_environment_gate(monkeypatch: pytest.MonkeyPatch) -> None:
++    policy = MobileBaseSafetyPolicy(movement_enabled=True, require_movement_confirm_env=True)
++    monkeypatch.delenv(DEFAULT_MOVEMENT_CONFIRM_ENV, raising=False)
++
++    with pytest.raises(MobileBaseSafetyError, match="gate is closed"):
++        policy.validate_velocity_request(linear_x_mps=0.02, angular_z_rad_s=0.0)
++
++    monkeypatch.setenv(DEFAULT_MOVEMENT_CONFIRM_ENV, DEFAULT_MOVEMENT_CONFIRM_VALUE)
++
++    assert policy.validate_velocity_request(linear_x_mps=0.02, angular_z_rad_s=0.0) == (0.02, 0.0)
++
++
++def test_speed_is_clamped_when_movement_is_allowed(monkeypatch: pytest.MonkeyPatch) -> None:
++    monkeypatch.setenv(DEFAULT_MOVEMENT_CONFIRM_ENV, DEFAULT_MOVEMENT_CONFIRM_VALUE)
++    policy = MobileBaseSafetyPolicy(
++        movement_enabled=True,
++        max_linear_speed_mps=0.08,
++        max_angular_speed_rad_s=0.25,
++    )
++
++    assert policy.validate_velocity_request(linear_x_mps=1.0, angular_z_rad_s=-1.0) == (0.08, -0.25)
++
++
++def test_invalid_speed_is_rejected() -> None:
++    policy = MobileBaseSafetyPolicy(movement_enabled=False)
++
++    with pytest.raises(MobileBaseSafetyError, match="finite"):
++        policy.validate_velocity_request(linear_x_mps=float("nan"), angular_z_rad_s=0.0)
++
++
++def test_duration_is_clamped() -> None:
++    policy = MobileBaseSafetyPolicy(max_command_duration_ms=350)
++
++    assert policy.clamp_duration_ms(1000) == 350
++    assert policy.clamp_duration_ms(20) == 20
++
++
++def test_negative_duration_is_rejected() -> None:
++    policy = MobileBaseSafetyPolicy()
++
++    with pytest.raises(MobileBaseSafetyError, match="negative"):
++        policy.clamp_duration_ms(-1)
++
++
++def test_zero_velocity_helper() -> None:
++    assert is_zero_velocity(linear_x_mps=0.0, angular_z_rad_s=0.0) is True
++    assert is_zero_velocity(linear_x_mps=0.01, angular_z_rad_s=0.0) is False
+diff --git a/tests/devices/mobile_base/test_mobile_base_stop_script.py b/tests/devices/mobile_base/test_mobile_base_stop_script.py
+new file mode 100644
+index 0000000..fc334c3
+--- /dev/null
++++ b/tests/devices/mobile_base/test_mobile_base_stop_script.py
+@@ -0,0 +1,22 @@
++from __future__ import annotations
++
++from scripts import mobile_base_stop
++
++
++def test_stop_script_dry_run(capsys) -> None:
++    exit_code = mobile_base_stop.main(["--dry-run", "--stop-repeat", "1"])
++
++    captured = capsys.readouterr()
++    assert exit_code == 0
++    assert '[DRY-RUN] {"T":13,"X":0.0,"Z":0.0}' in captured.out
++    assert "[OK] Mobile base STOP completed." in captured.out
++
++
++def test_stop_script_refuses_hardware_without_env_gate(monkeypatch, capsys) -> None:
++    monkeypatch.delenv("CONFIRM_NEXA_MOBILE_BASE_TEST", raising=False)
++
++    exit_code = mobile_base_stop.main(["--port", "/dev/ttyACM0"])
++
++    captured = capsys.readouterr()
++    assert exit_code == 2
++    assert "Hardware gate is closed" in captured.out

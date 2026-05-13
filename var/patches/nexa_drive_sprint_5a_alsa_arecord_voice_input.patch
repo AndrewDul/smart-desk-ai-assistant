@@ -1,0 +1,544 @@
+--- a/modules/devices/audio/input/faster_whisper/backend/capture_mixin.py	2026-04-29 17:08:57.000000000 +0000
++++ b/modules/devices/audio/input/faster_whisper/backend/capture_mixin.py	2026-05-09 11:41:21.278072186 +0000
+@@ -6,7 +6,8 @@
+ from typing import Any, Callable
+ 
+ import numpy as np
+-import sounddevice as sd
++
++from modules.devices.audio.input.shared.arecord_pcm_stream import open_input_stream
+ 
+ 
+ class FasterWhisperCaptureMixin:
+@@ -641,7 +642,7 @@
+     def _ensure_stream_open(self) -> None:
+         if self._stream is not None:
+             return
+-        stream = sd.InputStream(
++        stream = open_input_stream(
+             samplerate=self.sample_rate,
+             blocksize=self.blocksize,
+             device=self.device,
+--- a/modules/devices/audio/input/shared/__init__.py	2026-04-10 19:48:31.000000000 +0000
++++ b/modules/devices/audio/input/shared/__init__.py	2026-05-09 11:41:21.276990510 +0000
+@@ -1,7 +1,25 @@
+-from .device_selector import InputDeviceSelection, resolve_input_device_selection, resolve_supported_input_sample_rate
++from .arecord_pcm_stream import (
++    ArecordInputCandidate,
++    ArecordInputStream,
++    detect_preferred_arecord_input,
++    is_arecord_device,
++    open_input_stream,
++    unwrap_arecord_device,
++)
++from .device_selector import (
++    InputDeviceSelection,
++    resolve_input_device_selection,
++    resolve_supported_input_sample_rate,
++)
+ 
+ __all__ = [
++    "ArecordInputCandidate",
++    "ArecordInputStream",
+     "InputDeviceSelection",
++    "detect_preferred_arecord_input",
++    "is_arecord_device",
++    "open_input_stream",
+     "resolve_input_device_selection",
+     "resolve_supported_input_sample_rate",
+-]
+\ No newline at end of file
++    "unwrap_arecord_device",
++]
+--- a/modules/devices/audio/input/shared/arecord_pcm_stream.py	1970-01-01 00:00:00.000000000 +0000
++++ b/modules/devices/audio/input/shared/arecord_pcm_stream.py	2026-05-09 11:40:55.675755071 +0000
+@@ -0,0 +1,295 @@
++from __future__ import annotations
++
++import queue
++import re
++import shutil
++import subprocess
++import threading
++from dataclasses import dataclass
++from typing import Any, Callable
++
++import numpy as np
++
++
++_ALSA_DEVICE_PREFIX = "alsa:"
++
++
++@dataclass(slots=True)
++class ArecordInputCandidate:
++    """ALSA capture device selected from arecord output."""
++
++    device: str
++    name: str
++    default_sample_rate: int
++    summary: str
++
++
++def is_arecord_device(device: object) -> bool:
++    """Return True when a runtime device is an ALSA arecord-backed device."""
++
++    return isinstance(device, str) and device.startswith(_ALSA_DEVICE_PREFIX)
++
++
++def unwrap_arecord_device(device: str) -> str:
++    """Strip the internal ALSA marker from a device name."""
++
++    return device[len(_ALSA_DEVICE_PREFIX) :] if device.startswith(_ALSA_DEVICE_PREFIX) else device
++
++
++def detect_preferred_arecord_input(
++    preferred_name: str | None = None,
++) -> ArecordInputCandidate | None:
++    """Detect a capture device using arecord when PortAudio reports no inputs.
++
++    This fallback is intentionally narrow: it only uses ALSA capture devices
++    listed by arecord and prefers names matching the configured microphone.
++    """
++
++    if shutil.which("arecord") is None:
++        return None
++
++    try:
++        result = subprocess.run(
++            ["arecord", "-l"],
++            check=False,
++            capture_output=True,
++            text=True,
++            timeout=3.0,
++        )
++    except Exception:
++        return None
++
++    output = (result.stdout or "") + "\n" + (result.stderr or "")
++    candidates = _parse_arecord_capture_devices(output)
++    if not candidates:
++        return None
++
++    wanted = str(preferred_name or "").strip().lower()
++    if wanted:
++        for candidate in candidates:
++            if wanted in candidate.name.lower():
++                return candidate
++
++    preferred_keywords = ("xvf3800", "respeaker", "mic", "microphone", "array", "usb")
++    for keyword in preferred_keywords:
++        for candidate in candidates:
++            if keyword in candidate.name.lower():
++                return candidate
++
++    return candidates[0]
++
++
++def _parse_arecord_capture_devices(output: str) -> list[ArecordInputCandidate]:
++    candidates: list[ArecordInputCandidate] = []
++    summary_parts: list[str] = []
++    pattern = re.compile(
++        r"^card\s+(?P<card_index>\d+):\s+(?P<card_id>[^\s]+)\s+\[(?P<card_name>[^\]]+)\],\s+"
++        r"device\s+(?P<device_index>\d+):\s+(?P<device_name>[^\[]+)(?:\[(?P<device_label>[^\]]+)\])?",
++        re.IGNORECASE,
++    )
++
++    for raw_line in output.splitlines():
++        line = raw_line.strip()
++        match = pattern.match(line)
++        if match is None:
++            continue
++
++        card_id = match.group("card_id").strip()
++        card_name = match.group("card_name").strip()
++        device_index = match.group("device_index").strip()
++        device_name = match.group("device_name").strip().rstrip(",")
++        alsa_pcm = f"plughw:CARD={card_id},DEV={device_index}"
++        display_name = f"{card_name}, {device_name}".strip().strip(",")
++        device = f"{_ALSA_DEVICE_PREFIX}{alsa_pcm}"
++        summary_parts.append(f"{display_name} ({alsa_pcm})")
++        candidates.append(
++            ArecordInputCandidate(
++                device=device,
++                name=display_name,
++                default_sample_rate=16000,
++                summary="; ".join(summary_parts),
++            )
++        )
++
++    final_summary = "; ".join(summary_parts) if summary_parts else "none"
++    return [
++        ArecordInputCandidate(
++            device=candidate.device,
++            name=candidate.name,
++            default_sample_rate=candidate.default_sample_rate,
++            summary=final_summary,
++        )
++        for candidate in candidates
++    ]
++
++
++class ArecordInputStream:
++    """Small InputStream-compatible wrapper around arecord raw PCM capture."""
++
++    def __init__(
++        self,
++        *,
++        samplerate: int,
++        blocksize: int,
++        device: str,
++        channels: int,
++        dtype: str,
++        callback: Callable[[np.ndarray, int, dict[str, float], str], None],
++    ) -> None:
++        if dtype != "int16":
++            raise ValueError("ArecordInputStream currently supports dtype='int16' only.")
++        self.samplerate = max(1, int(samplerate))
++        self.blocksize = max(1, int(blocksize))
++        self.device = unwrap_arecord_device(str(device))
++        self.channels = max(1, int(channels))
++        self.dtype = dtype
++        self.callback = callback
++        self._process: subprocess.Popen[bytes] | None = None
++        self._thread: threading.Thread | None = None
++        self._stop_event = threading.Event()
++        self._errors: queue.Queue[str] = queue.Queue(maxsize=4)
++
++    def start(self) -> None:
++        if self._process is not None:
++            return
++        command = [
++            "arecord",
++            "-q",
++            "-D",
++            self.device,
++            "-f",
++            "S16_LE",
++            "-r",
++            str(self.samplerate),
++            "-c",
++            str(self.channels),
++            "-t",
++            "raw",
++            "-",
++        ]
++        self._stop_event.clear()
++        self._process = subprocess.Popen(
++            command,
++            stdout=subprocess.PIPE,
++            stderr=subprocess.PIPE,
++        )
++        self._thread = threading.Thread(
++            target=self._reader_loop,
++            name="nexa-arecord-input-stream",
++            daemon=True,
++        )
++        self._thread.start()
++
++    def stop(self) -> None:
++        self._stop_event.set()
++        process = self._process
++        self._process = None
++        if process is not None:
++            try:
++                process.terminate()
++                process.wait(timeout=1.0)
++            except Exception:
++                try:
++                    process.kill()
++                except Exception:
++                    pass
++        thread = self._thread
++        self._thread = None
++        if thread is not None and thread.is_alive():
++            thread.join(timeout=1.0)
++
++    def close(self) -> None:
++        self.stop()
++
++    def _reader_loop(self) -> None:
++        process = self._process
++        if process is None or process.stdout is None:
++            return
++
++        bytes_per_frame = 2 * self.channels
++        chunk_size = self.blocksize * bytes_per_frame
++
++        while not self._stop_event.is_set():
++            try:
++                chunk = process.stdout.read(chunk_size)
++            except Exception as error:
++                self._record_error(f"read_failed:{type(error).__name__}:{error}")
++                break
++
++            if not chunk:
++                if process.poll() is not None:
++                    stderr = b""
++                    if process.stderr is not None:
++                        try:
++                            stderr = process.stderr.read() or b""
++                        except Exception:
++                            stderr = b""
++                    message = stderr.decode("utf-8", errors="replace").strip()
++                    self._record_error(message or f"arecord exited with {process.returncode}")
++                    break
++                continue
++
++            usable = len(chunk) - (len(chunk) % bytes_per_frame)
++            if usable <= 0:
++                continue
++
++            array = np.frombuffer(chunk[:usable], dtype=np.int16)
++            frames = int(array.size // self.channels)
++            if frames <= 0:
++                continue
++            array = array.reshape(frames, self.channels)
++            try:
++                self.callback(array.copy(), frames, {}, "")
++            except Exception as error:
++                self._record_error(f"callback_failed:{type(error).__name__}:{error}")
++
++    def _record_error(self, message: str) -> None:
++        if not message:
++            return
++        try:
++            self._errors.put_nowait(message)
++        except queue.Full:
++            pass
++
++
++def open_input_stream(
++    *,
++    samplerate: int,
++    blocksize: int,
++    device: int | str | None,
++    channels: int,
++    dtype: str,
++    callback: Callable[[np.ndarray, int, Any, Any], None],
++) -> Any:
++    """Open either a PortAudio stream or the ALSA arecord fallback stream."""
++
++    if is_arecord_device(device):
++        return ArecordInputStream(
++            samplerate=samplerate,
++            blocksize=blocksize,
++            device=str(device),
++            channels=channels,
++            dtype=dtype,
++            callback=callback,
++        )
++
++    import sounddevice as sd
++
++    return sd.InputStream(
++        samplerate=samplerate,
++        blocksize=blocksize,
++        device=device,
++        channels=channels,
++        dtype=dtype,
++        callback=callback,
++    )
++
++
++__all__ = [
++    "ArecordInputCandidate",
++    "ArecordInputStream",
++    "detect_preferred_arecord_input",
++    "is_arecord_device",
++    "open_input_stream",
++    "unwrap_arecord_device",
++]
+--- a/modules/devices/audio/input/shared/device_selector.py	2026-04-10 21:19:16.000000000 +0000
++++ b/modules/devices/audio/input/shared/device_selector.py	2026-05-09 11:42:37.481109578 +0000
+@@ -5,6 +5,11 @@
+ from dataclasses import dataclass
+ from typing import Any
+ 
++from modules.devices.audio.input.shared.arecord_pcm_stream import (
++    detect_preferred_arecord_input,
++    is_arecord_device,
++)
++
+ try:
+     import sounddevice as sd
+ except Exception:  # pragma: no cover - runtime dependency available on target device
+@@ -116,6 +121,18 @@
+                     summary=summary,
+                 )
+         else:
++            arecord_candidate = detect_preferred_arecord_input(device_name_contains)
++            if arecord_candidate is not None:
++                return InputDeviceSelection(
++                    device=arecord_candidate.device,
++                    name=arecord_candidate.name,
++                    default_sample_rate=arecord_candidate.default_sample_rate,
++                    reason=(
++                        "PortAudio reported no usable input channels; selected ALSA "
++                        "capture device via arecord fallback"
++                    ),
++                    available_inputs_summary=arecord_candidate.summary,
++                )
+             last_missing_reason = "No input audio devices are available."
+ 
+         if time.monotonic() >= deadline:
+@@ -173,6 +190,19 @@
+             summary=last_summary,
+         )
+ 
++    arecord_candidate = detect_preferred_arecord_input(device_name_contains)
++    if arecord_candidate is not None:
++        return InputDeviceSelection(
++            device=arecord_candidate.device,
++            name=arecord_candidate.name,
++            default_sample_rate=arecord_candidate.default_sample_rate,
++            reason=(
++                "PortAudio reported no usable input channels; selected ALSA "
++                "capture device via arecord fallback"
++            ),
++            available_inputs_summary=arecord_candidate.summary,
++        )
++
+     if timeout_seconds > 0.0:
+         raise RuntimeError(
+             f"{last_missing_reason} Waited {timeout_seconds:.1f}s for audio input discovery. "
+@@ -193,6 +223,13 @@
+     logger: logging.Logger | None = None,
+     context_label: str = "audio input",
+ ) -> int:
++    if is_arecord_device(device):
++        candidates = _build_rate_candidates(
++            preferred_sample_rate=preferred_sample_rate,
++            default_sample_rate=default_sample_rate,
++        )
++        return int(candidates[0] if candidates else 16000)
++
+     _require_sounddevice()
+     candidates = _build_rate_candidates(
+         preferred_sample_rate=preferred_sample_rate,
+--- a/modules/devices/audio/input/wake/openwakeword_gate/audio_runtime.py	2026-04-24 02:01:35.000000000 +0000
++++ b/modules/devices/audio/input/wake/openwakeword_gate/audio_runtime.py	2026-05-09 11:41:21.278366143 +0000
+@@ -6,6 +6,8 @@
+ import numpy as np
+ import sounddevice as sd
+ 
++from modules.devices.audio.input.shared.arecord_pcm_stream import open_input_stream
++
+ from .helpers import LOGGER, OpenWakeWordGateHelpers
+ 
+ 
+@@ -72,7 +74,7 @@
+         if self._stream is not None:
+             return
+ 
+-        stream = sd.InputStream(
++        stream = open_input_stream(
+             samplerate=self.input_sample_rate,
+             blocksize=self.input_blocksize,
+             device=self.device,
+--- a/modules/devices/audio/input/wake/openwakeword_gate/gate.py	2026-04-24 02:04:19.000000000 +0000
++++ b/modules/devices/audio/input/wake/openwakeword_gate/gate.py	2026-05-09 11:41:21.278602212 +0000
+@@ -6,6 +6,8 @@
+ import numpy as np
+ import sounddevice as sd
+ 
++from modules.devices.audio.input.shared.arecord_pcm_stream import is_arecord_device
++
+ from .helpers import LOGGER
+ from .listener import OpenWakeWordGateListener
+ 
+@@ -87,8 +89,20 @@
+         self.audio_coordinator = None
+         self.device = self._resolve_input_device(device_index, device_name_contains)
+ 
+-        input_info = sd.query_devices(self.device, "input")
+-        self.device_name = str(input_info["name"])
++        if is_arecord_device(self.device):
++            input_info = {
++                "name": getattr(self, "device_name", "ALSA arecord input"),
++                "default_samplerate": getattr(
++                    self,
++                    "_device_default_sample_rate",
++                    self.MODEL_SAMPLE_RATE,
++                ),
++                "max_input_channels": 1,
++            }
++        else:
++            input_info = sd.query_devices(self.device, "input")
++            self.device_name = str(input_info["name"])
++
+         self.dtype = "int16"
+         self.available_input_channels = max(1, int(input_info.get("max_input_channels", 1)))
+         # Always request a single channel from the USB capture device.
+--- a/scripts/probe_nexa_alsa_arecord_input.py	1970-01-01 00:00:00.000000000 +0000
++++ b/scripts/probe_nexa_alsa_arecord_input.py	2026-05-09 11:41:21.410119938 +0000
+@@ -0,0 +1,70 @@
++#!/usr/bin/env python3
++"""Probe ALSA arecord capture for NeXa real voice runtime."""
++
++from __future__ import annotations
++
++import argparse
++import subprocess
++import tempfile
++from pathlib import Path
++
++import numpy as np
++
++DEFAULT_DEVICE = "plughw:CARD=Array,DEV=0"
++
++
++def build_parser() -> argparse.ArgumentParser:
++    parser = argparse.ArgumentParser(description="Probe ALSA microphone capture via arecord.")
++    parser.add_argument("--device", default=DEFAULT_DEVICE)
++    parser.add_argument("--sample-rate", type=int, default=16000)
++    parser.add_argument("--channels", type=int, default=1)
++    parser.add_argument("--seconds", type=float, default=2.0)
++    return parser
++
++
++def main() -> int:
++    args = build_parser().parse_args()
++    seconds = max(0.2, float(args.seconds))
++    sample_rate = max(1, int(args.sample_rate))
++    channels = max(1, int(args.channels))
++
++    with tempfile.TemporaryDirectory() as tmp:
++        raw_path = Path(tmp) / "capture.raw"
++        command = [
++            "arecord",
++            "-q",
++            "-D",
++            str(args.device),
++            "-f",
++            "S16_LE",
++            "-r",
++            str(sample_rate),
++            "-c",
++            str(channels),
++            "-d",
++            str(int(round(seconds))),
++            "-t",
++            "raw",
++            str(raw_path),
++        ]
++        print("[PROBE]", " ".join(command))
++        result = subprocess.run(command, check=False, capture_output=True, text=True)
++        if result.returncode != 0:
++            print(result.stderr.strip())
++            return result.returncode or 1
++
++        data = np.fromfile(raw_path, dtype=np.int16)
++        if data.size <= 0:
++            print("[PROBE FAIL] Capture file is empty.")
++            return 2
++
++        peak = int(np.max(np.abs(data)))
++        rms = float(np.sqrt(np.mean(np.square(data.astype(np.float64)))))
++        print(f"[PROBE OK] samples={data.size} peak={peak} rms={rms:.2f}")
++        if peak <= 8:
++            print("[PROBE WARN] Audio is almost silent. Check mic gain or input routing.")
++        return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())

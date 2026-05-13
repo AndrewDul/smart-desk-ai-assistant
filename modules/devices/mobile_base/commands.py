@@ -1,80 +1,24 @@
 from __future__ import annotations
 
 import json
-import math
-from typing import Any
+from typing import Any, Mapping
 
+def _round(value: float) -> float:
+    return round(float(value), 3)
 
-ROS_VELOCITY_COMMAND_TYPE = 13
+def build_ros_velocity_command(*, linear_x_mps: float, angular_z_rad_s: float) -> dict[str, float | int]:
+    return {"T": 13, "X": _round(linear_x_mps), "Z": _round(angular_z_rad_s)}
 
+def build_wheel_velocity_command(*, left_mps: float, right_mps: float) -> dict[str, float | int]:
+    return {"T": 1, "L": _round(left_mps), "R": _round(right_mps)}
 
-class MobileBaseCommandError(ValueError):
-    """Raised when a mobile base command cannot be built safely."""
-
-
-def _safe_float(value: float, *, field_name: str) -> float:
-    number = float(value)
-    if not math.isfinite(number):
-        raise MobileBaseCommandError(f"{field_name} must be a finite number")
-    return number
-
-
-def build_ros_velocity_command(
-    *,
-    linear_x_mps: float,
-    angular_z_rad_s: float,
-) -> dict[str, int | float]:
-    """
-    Build a Waveshare ROS-style chassis velocity command.
-
-    The command is intentionally tiny and explicit because the first hardware
-    sprint only needs a safe STOP command. Movement commands must be added later
-    behind a dedicated safety policy and an explicit hardware gate.
-    """
-
-    return {
-        "T": ROS_VELOCITY_COMMAND_TYPE,
-        "X": round(_safe_float(linear_x_mps, field_name="linear_x_mps"), 4),
-        "Z": round(_safe_float(angular_z_rad_s, field_name="angular_z_rad_s"), 4),
-    }
-
-
-def build_stop_command() -> dict[str, int | float]:
-    """Build a zero-velocity chassis command used as STOP."""
-
+def build_stop_command(*, command_profile: str = "ros") -> dict[str, float | int]:
+    profile = str(command_profile or "ros").strip().lower()
+    if profile == "wheel":
+        return build_wheel_velocity_command(left_mps=0.0, right_mps=0.0)
+    if profile == "pwm":
+        return {"T": 11, "L": 0, "R": 0}
     return build_ros_velocity_command(linear_x_mps=0.0, angular_z_rad_s=0.0)
 
-
-def build_stop_sequence(*, repeat: int = 3) -> list[dict[str, int | float]]:
-    """
-    Build a repeated STOP sequence.
-
-    Repeating STOP makes the smoke test safer on a noisy serial link without
-    introducing any movement command.
-    """
-
-    if int(repeat) < 1:
-        raise MobileBaseCommandError("repeat must be at least 1")
-    if int(repeat) > 10:
-        raise MobileBaseCommandError("repeat must not be greater than 10")
-    return [build_stop_command() for _ in range(int(repeat))]
-
-
-def serialize_json_line(command: dict[str, Any]) -> str:
-    """Serialize a command as compact JSON with a newline terminator."""
-
-    if not isinstance(command, dict):
-        raise MobileBaseCommandError("command must be a dictionary")
-    if "T" not in command:
-        raise MobileBaseCommandError("command must contain a T command type")
-    return json.dumps(command, separators=(",", ":")) + "\n"
-
-
-__all__ = [
-    "MobileBaseCommandError",
-    "ROS_VELOCITY_COMMAND_TYPE",
-    "build_ros_velocity_command",
-    "build_stop_command",
-    "build_stop_sequence",
-    "serialize_json_line",
-]
+def serialize_json_line(command: Mapping[str, Any]) -> str:
+    return json.dumps(dict(command), separators=(",", ":")) + "\n"

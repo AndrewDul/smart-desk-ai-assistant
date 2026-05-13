@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import py_compile
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+REPLACEMENTS = (
+    (
+        "choose_serial_port(explicit_port=args.port)",
+        "choose_serial_port(args.port)",
+    ),
+    (
+        "choose_serial_port(port=args.port)",
+        "choose_serial_port(args.port)",
+    ),
+    (
+        "choose_serial_port(explicit_port=explicit_port)",
+        "choose_serial_port(explicit_port)",
+    ),
+    (
+        "choose_serial_port(port=explicit_port)",
+        "choose_serial_port(explicit_port)",
+    ),
+)
+
+
+TARGETS = (
+    "scripts/mobile_base_drive_mode.py",
+    "scripts/mobile_base_stop.py",
+    "scripts/mobile_base_drive_audit.py",
+    "scripts/mobile_base_protocol_probe.py",
+    "scripts/mobile_base_motor_unlock_probe.py",
+    "scripts/repair_nexa_drive_mode_final.py",
+    "scripts/repair_mobile_base_drive_mode_runtime.py",
+)
+
+
+def patch_file(rel_path: str) -> bool:
+    path = PROJECT_ROOT / rel_path
+    if not path.exists():
+        return False
+
+    text = path.read_text(encoding="utf-8")
+    original = text
+
+    for needle, replacement in REPLACEMENTS:
+        text = text.replace(needle, replacement)
+
+    if text != original:
+        path.write_text(text, encoding="utf-8")
+        print(f"[REPAIR] patched {rel_path}")
+        return True
+
+    print(f"[REPAIR] checked {rel_path}")
+    return False
+
+
+def assert_no_bad_call(rel_path: str) -> None:
+    path = PROJECT_ROOT / rel_path
+    if not path.exists():
+        return
+
+    text = path.read_text(encoding="utf-8")
+    bad_patterns = (
+        "choose_serial_port(explicit_port=",
+        "choose_serial_port(port=",
+    )
+    for bad in bad_patterns:
+        if bad in text:
+            raise RuntimeError(f"Unsafe choose_serial_port call remains in {rel_path}: {bad}")
+
+
+def compile_if_exists(rel_path: str) -> None:
+    path = PROJECT_ROOT / rel_path
+    if not path.exists():
+        return
+    py_compile.compile(str(path), doraise=True)
+    print(f"[REPAIR] compile ok: {rel_path}")
+
+
+def main() -> int:
+    patched_any = False
+    for rel_path in TARGETS:
+        patched_any = patch_file(rel_path) or patched_any
+

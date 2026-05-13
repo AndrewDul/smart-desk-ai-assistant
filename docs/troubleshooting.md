@@ -5407,3 +5407,40 @@ Useful checks:
 - Check runtime status file: `var/data/look_at_me_tracking_status.json`.
 - Expected runtime status: `event: look_at_me_runtime_iteration`, `source: LookAtMeSession`, `search_active: True`, `search_pattern: full_edge_wave_sweep_x_first_upper_only`.
 - After charging the servo battery, run `scripts/run_vision_tracking_single_pan_tilt_step.py` as the hardware sanity check.
+
+## 2026-05-13 - Final Polish Sprint 1: corrupt patch and outdated look-at-me grammar expectation
+
+### Symptom
+
+Applying the downloaded patch failed with:
+
+    error: corrupt patch at line 18
+
+The focused fast-line test suite also failed in:
+
+    tests/devices/audio/command_asr/test_command_grammar.py::test_default_grammar_recognizes_visual_shell_voice_control_aliases
+
+The failing assertion expected `spójrz na mnie` / `look at me` to remain disabled, but the current grammar correctly matched `visual_shell.look_at_user`.
+
+### Cause
+
+The patch file was malformed and could not be applied by `git apply`.
+
+The test expectation was also outdated compared with the current fast-line goal: look-at-user is now an active deterministic Vosk command.
+
+### Fix
+
+Updated the grammar test so that:
+- `spójrz na mnie` matches `visual_shell.look_at_user` with Polish language routing.
+- `look at me` matches `visual_shell.look_at_user` with English language routing.
+- both phrases were removed from the disabled cases list.
+
+### Validation
+
+Focused validation passed:
+
+    python -m pytest -q tests/devices/audio/command_asr/test_command_grammar.py tests/core/command_intents/test_command_intent_resolver.py tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+
+Result:
+
+    50 passed

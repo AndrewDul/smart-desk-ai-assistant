@@ -300,6 +300,8 @@ def test_default_grammar_recognizes_visual_shell_voice_control_aliases() -> None
         ("show temperature", "visual_shell.show_temperature", "en"),
         ("pokaż baterię", "visual_shell.show_battery", "pl"),
         ("show battery", "visual_shell.show_battery", "en"),
+        ("spójrz na mnie", "visual_shell.look_at_user", "pl"),
+        ("look at me", "visual_shell.look_at_user", "en"),
     ]
 
     for transcript, intent_key, language in cases:
@@ -312,8 +314,6 @@ def test_default_grammar_recognizes_visual_shell_voice_control_aliases() -> None
     disabled_cases = [
         "pokaż oczy",
         "show eyes",
-        "spójrz na mnie",
-        "look at me",
         "sprawdź pokój",
         "scan room",
         "look around",
@@ -437,3 +437,41 @@ def test_default_grammar_recognizes_feedback_asr_variants() -> None:
         assert result.status == CommandRecognitionStatus.MATCHED
         assert result.intent_key == expected_intent
         assert result.language == CommandLanguage.ENGLISH
+
+
+
+def test_default_grammar_recognizes_mobile_base_drive_mode_aliases() -> None:
+    grammar = build_default_command_grammar()
+    english = grammar.match("drive mode")
+    assert english.is_match
+    assert english.intent_key == "mobile_base.drive_mode"
+    assert english.language == CommandLanguage.ENGLISH
+    polish = grammar.match("tryb sterowania")
+    assert polish.is_match
+    assert polish.intent_key == "mobile_base.drive_mode"
+    assert polish.language == CommandLanguage.POLISH
+    assert "drive mode" in grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH)
+    assert "tryb sterowania" in grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)
+
+
+def test_default_grammar_recognizes_mobile_base_drive_mode_asr_recovery_aliases() -> None:
+    grammar = build_default_command_grammar()
+
+    cases = [
+        ("drie moe", CommandLanguage.ENGLISH),
+        ("drive moe", CommandLanguage.ENGLISH),
+        ("dry mode", CommandLanguage.ENGLISH),
+        ("tryp sterowania", CommandLanguage.POLISH),
+        ("try sterowania", CommandLanguage.POLISH),
+        ("tryb sterowanie", CommandLanguage.POLISH),
+    ]
+
+    for phrase, expected_language in cases:
+        result = grammar.match(phrase)
+
+        assert result.status == CommandRecognitionStatus.MATCHED
+        assert result.intent_key == "mobile_base.drive_mode"
+        assert result.language == expected_language
+
+    assert "drie moe" not in grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH)
+    assert "tryp sterowania" not in grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)

@@ -1,0 +1,36 @@
+[Unit]
+Description=NeXa Drive Runtime - real voice + manual mobile base control
+Documentation=file:///home/devdul/Projects/smart-desk-ai-assistant/docs/architecture_notes.md
+After=network-online.target sound.target
+Wants=network-online.target sound.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=/home/devdul/Projects/smart-desk-ai-assistant
+User=devdul
+Group=devdul
+EnvironmentFile=-/home/devdul/Projects/smart-desk-ai-assistant/config/systemd/nexa-drive.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONIOENCODING=utf-8
+Environment=NEXA_RUNTIME_MODE=systemd_drive_voice
+Environment=CONFIRM_NEXA_MOBILE_BASE_TEST=RUN
+Environment=CONFIRM_NEXA_MOBILE_BASE_MOVE=RUN
+Environment=NEXA_DRIVE_MODE_ENABLE_MOVEMENT=1
+Environment=NEXA_MOBILE_BASE_SERIAL_PORT=/dev/serial/by-id/usb-1a86_USB_Single_Serial_5A36029146-if00
+Environment=NEXA_DRIVE_MODE_COMMAND_PROFILE=wheel
+Environment=NEXA_DRIVE_MODE_LINEAR_SPEED_MPS=0.18
+Environment=NEXA_DRIVE_MODE_ANGULAR_SPEED_RAD_S=0.65
+Environment=NEXA_DRIVE_MODE_WHEEL_TURN_SPEED_MPS=0.26
+ExecStart=/home/devdul/Projects/smart-desk-ai-assistant/.venv/bin/python /home/devdul/Projects/smart-desk-ai-assistant/scripts/start_nexa_drive_voice_runtime.py --enable-movement --command-profile wheel --linear-speed-mps 0.18 --angular-speed-rad-s 0.65 --wheel-turn-speed-mps 0.26 --no-auto-open
+ExecStopPost=/bin/bash -lc 'cd /home/devdul/Projects/smart-desk-ai-assistant && CONFIRM_NEXA_MOBILE_BASE_TEST=RUN /home/devdul/Projects/smart-desk-ai-assistant/.venv/bin/python /home/devdul/Projects/smart-desk-ai-assistant/scripts/mobile_base_stop.py --port /dev/serial/by-id/usb-1a86_USB_Single_Serial_5A36029146-if00 --read-seconds 0.2 || true'
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=25
+KillSignal=SIGINT
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

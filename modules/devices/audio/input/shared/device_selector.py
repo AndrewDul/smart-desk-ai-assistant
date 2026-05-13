@@ -5,6 +5,11 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from modules.devices.audio.input.shared.arecord_pcm_stream import (
+    detect_preferred_arecord_input,
+    is_arecord_device,
+)
+
 try:
     import sounddevice as sd
 except Exception:  # pragma: no cover - runtime dependency available on target device
@@ -116,6 +121,18 @@ def resolve_input_device_selection(
                     summary=summary,
                 )
         else:
+            arecord_candidate = detect_preferred_arecord_input(device_name_contains)
+            if arecord_candidate is not None:
+                return InputDeviceSelection(
+                    device=arecord_candidate.device,
+                    name=arecord_candidate.name,
+                    default_sample_rate=arecord_candidate.default_sample_rate,
+                    reason=(
+                        "PortAudio reported no usable input channels; selected ALSA "
+                        "capture device via arecord fallback"
+                    ),
+                    available_inputs_summary=arecord_candidate.summary,
+                )
             last_missing_reason = "No input audio devices are available."
 
         if time.monotonic() >= deadline:
@@ -173,6 +190,19 @@ def resolve_input_device_selection(
             summary=last_summary,
         )
 
+    arecord_candidate = detect_preferred_arecord_input(device_name_contains)
+    if arecord_candidate is not None:
+        return InputDeviceSelection(
+            device=arecord_candidate.device,
+            name=arecord_candidate.name,
+            default_sample_rate=arecord_candidate.default_sample_rate,
+            reason=(
+                "PortAudio reported no usable input channels; selected ALSA "
+                "capture device via arecord fallback"
+            ),
+            available_inputs_summary=arecord_candidate.summary,
+        )
+
     if timeout_seconds > 0.0:
         raise RuntimeError(
             f"{last_missing_reason} Waited {timeout_seconds:.1f}s for audio input discovery. "
@@ -193,6 +223,13 @@ def resolve_supported_input_sample_rate(
     logger: logging.Logger | None = None,
     context_label: str = "audio input",
 ) -> int:
+    if is_arecord_device(device):
+        candidates = _build_rate_candidates(
+            preferred_sample_rate=preferred_sample_rate,
+            default_sample_rate=default_sample_rate,
+        )
+        return int(candidates[0] if candidates else 16000)
+
     _require_sounddevice()
     candidates = _build_rate_candidates(
         preferred_sample_rate=preferred_sample_rate,

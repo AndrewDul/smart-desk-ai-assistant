@@ -668,6 +668,32 @@ def build_default_command_grammar() -> CommandGrammar:
             tags=("visual_shell", "metric"),
         ),
 
+
+        # Mobile base manual drive mode.
+        CommandPhrase("mobile_base.drive_mode", "drive mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode")),
+        CommandPhrase("mobile_base.drive_mode", "dive mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
+        CommandPhrase("mobile_base.drive_mode", "sterowanie baza", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode", "ascii")),
+        CommandPhrase("mobile_base.drive_mode", "start drive mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode")),
+        CommandPhrase("mobile_base.drive_mode", "manual drive mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode")),
+        CommandPhrase("mobile_base.drive_mode", "manual drive", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode")),
+        CommandPhrase("mobile_base.drive_mode", "mobile base drive mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode")),
+        CommandPhrase("mobile_base.drive_mode", "nexa drive mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "vosk_exclude")),
+        CommandPhrase("mobile_base.drive_mode", "dry mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
+        CommandPhrase("mobile_base.drive_mode", "drive moe", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
+        CommandPhrase("mobile_base.drive_mode", "drie moe", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
+        CommandPhrase("mobile_base.drive_mode", "drive mo", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
+        CommandPhrase("mobile_base.drive_mode", "drive mod", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
+        CommandPhrase("mobile_base.drive_mode", "tryb sterowania", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),
+        CommandPhrase("mobile_base.drive_mode", "tryb jazdy", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),
+        CommandPhrase("mobile_base.drive_mode", "sterowanie baza", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),
+        CommandPhrase("mobile_base.drive_mode", "sterowanie bazą", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),
+        CommandPhrase("mobile_base.drive_mode", "uruchom tryb sterowania", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),
+        CommandPhrase("mobile_base.drive_mode", "tryp sterowania", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
+        CommandPhrase("mobile_base.drive_mode", "try sterowania", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
+        CommandPhrase("mobile_base.drive_mode", "tryb sterowanie", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
+        CommandPhrase("mobile_base.drive_mode", "tryb sterownia", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
+        CommandPhrase("mobile_base.drive_mode", "nexa tryb sterowania", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode", "vosk_exclude")),
+
         CommandPhrase(
             "assistant.help",
             "pomoc",

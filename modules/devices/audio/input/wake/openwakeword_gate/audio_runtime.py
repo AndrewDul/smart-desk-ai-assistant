@@ -6,6 +6,8 @@ from typing import Any
 import numpy as np
 import sounddevice as sd
 
+from modules.devices.audio.input.shared.arecord_pcm_stream import open_input_stream
+
 from .helpers import LOGGER, OpenWakeWordGateHelpers
 
 
@@ -72,7 +74,7 @@ class OpenWakeWordGateAudioRuntime(OpenWakeWordGateHelpers):
         if self._stream is not None:
             return
 
-        stream = sd.InputStream(
+        stream = open_input_stream(
             samplerate=self.input_sample_rate,
             blocksize=self.input_blocksize,
             device=self.device,

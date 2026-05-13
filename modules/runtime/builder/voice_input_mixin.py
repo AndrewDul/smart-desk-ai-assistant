@@ -1,9 +1,29 @@
 from __future__ import annotations
 
+import os
+
 from modules.runtime.contracts import RuntimeBackendStatus, SpeechInputBackend
 from modules.shared.logging.logger import get_logger
 
 LOGGER = get_logger(__name__)
+
+
+def _strict_real_voice_input_required() -> bool:
+    return str(os.environ.get("NEXA_REQUIRE_REAL_VOICE_INPUT", "") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+        "run",
+    }
+
+
+def _raise_if_strict_real_voice_input_required(detail: str) -> None:
+    if _strict_real_voice_input_required():
+        raise RuntimeError(
+            "Real voice input is required for this runtime, but NeXa would fall back "
+            f"to developer text input. {detail}"
+        )
 
 
 class RuntimeBuilderVoiceInputMixin:
@@ -21,6 +41,9 @@ class RuntimeBuilderVoiceInputMixin:
         )
 
         if not bool(config.get("enabled", True)):
+            _raise_if_strict_real_voice_input_required(
+                "voice_input.enabled is false in config."
+            )
             backend = text_input_class()
             return (
                 backend,
@@ -147,6 +170,9 @@ class RuntimeBuilderVoiceInputMixin:
                     ),
                 )
 
+            _raise_if_strict_real_voice_input_required(
+                f"Unsupported voice input engine '{engine}'."
+            )
             backend = text_input_class()
             return (
                 backend,
@@ -169,6 +195,12 @@ class RuntimeBuilderVoiceInputMixin:
                 config.get("device_index"),
                 config.get("device_name_contains"),
                 config.get("sample_rate"),
+            )
+            _raise_if_strict_real_voice_input_required(
+                f"Voice input backend '{engine}' failed with {type(error).__name__}: {error}. "
+                f"Config: device_index={config.get('device_index')}, "
+                f"device_name_contains={config.get('device_name_contains')}, "
+                f"sample_rate={config.get('sample_rate')}"
             )
             backend = text_input_class()
             return (

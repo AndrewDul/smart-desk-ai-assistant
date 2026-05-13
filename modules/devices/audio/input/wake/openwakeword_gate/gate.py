@@ -6,6 +6,8 @@ from typing import Any
 import numpy as np
 import sounddevice as sd
 
+from modules.devices.audio.input.shared.arecord_pcm_stream import is_arecord_device
+
 from .helpers import LOGGER
 from .listener import OpenWakeWordGateListener
 
@@ -87,8 +89,20 @@ class OpenWakeWordGate(OpenWakeWordGateListener):
         self.audio_coordinator = None
         self.device = self._resolve_input_device(device_index, device_name_contains)
 
-        input_info = sd.query_devices(self.device, "input")
-        self.device_name = str(input_info["name"])
+        if is_arecord_device(self.device):
+            input_info = {
+                "name": getattr(self, "device_name", "ALSA arecord input"),
+                "default_samplerate": getattr(
+                    self,
+                    "_device_default_sample_rate",
+                    self.MODEL_SAMPLE_RATE,
+                ),
+                "max_input_channels": 1,
+            }
+        else:
+            input_info = sd.query_devices(self.device, "input")
+            self.device_name = str(input_info["name"])
+
         self.dtype = "int16"
         self.available_input_channels = max(1, int(input_info.get("max_input_channels", 1)))
         # Always request a single channel from the USB capture device.

@@ -16405,3 +16405,35 @@ Validated result:
 Next step:
 - Sprint 2 should add a real `MobileBaseService` / controller layer with central safety policy, fake transport tests, dead-man timeout/watchdog, and guaranteed STOP on close/error before any manual drive mode is enabled.
 
+## 2026-05-13 - Final Polish Sprint 1: fast-line runtime import and grammar alignment
+
+Completed the first final-polish fast-line stabilization step.
+
+Verified that core runtime imports now load cleanly, including:
+- main
+- command intent resolver
+- Voice Engine v2 runtime candidate executor
+- runtime candidates
+- runtime builder core
+- ActionFlow orchestrator
+
+Confirmed that compile checks pass for modules, tests, and scripts.
+
+Aligned the Vosk command grammar test with the current fast-line behavior:
+- `spójrz na mnie` now routes to `visual_shell.look_at_user`
+- `look at me` now routes to `visual_shell.look_at_user`
+
+This keeps look-at-user as a deterministic Vosk fast-line command instead of treating it as disabled behavior.
+
+Focused validation passed:
+- `tests/devices/audio/command_asr/test_command_grammar.py`
+- `tests/core/command_intents/test_command_intent_resolver.py`
+- `tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py`
+
+Result:
+- 50 passed
+- 0 failed
+
+Next step:
+Build a fast-line command coverage audit that checks each deterministic command across:
+grammar -> canonical intent -> allowlist -> runtime execution spec -> ActionFlow handler -> spoken response/cache policy.

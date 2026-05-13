@@ -102,6 +102,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "runtime_candidate_intent_allowlist": [
             "assistant.identity",
             "system.current_time",
+            "mobile_base.drive_mode",
         ],
         "runtime_candidate_log_path": (
             "var/data/voice_engine_v2_runtime_candidates.jsonl"

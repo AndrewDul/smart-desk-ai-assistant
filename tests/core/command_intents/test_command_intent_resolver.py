@@ -111,3 +111,15 @@ def test_resolver_returns_unknown_intent_for_missing_definition() -> None:
     assert result.status == CommandIntentResolutionStatus.UNKNOWN_INTENT
     assert result.intent is None
     assert result.reason == "unknown_intent:unknown.intent"
+
+
+def test_resolver_resolves_mobile_base_drive_mode_intent() -> None:
+    grammar = build_default_command_grammar()
+    recognition = grammar.match("tryb sterowania")
+    result = CommandIntentResolver().resolve(recognition)
+    assert result.status == CommandIntentResolutionStatus.RESOLVED
+    assert result.intent is not None
+    assert result.intent.key == "mobile_base.drive_mode"
+    assert result.intent.domain == CommandIntentDomain.MOBILE_BASE
+    assert result.intent.action == "drive_mode_start"
+    assert result.intent.language == CommandLanguage.POLISH

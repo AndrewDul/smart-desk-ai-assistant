@@ -14,6 +14,7 @@ class CommandLanguage(str, Enum):
 _POLISH_DIACRITICS = set("ąćęłńóśźż")
 
 _POLISH_HINTS = {
+    "baza",
     "bateria",
     "czas",
     "data",
@@ -32,7 +33,9 @@ _POLISH_HINTS = {
     "pomoc",
     "pulpit",
     "shell",
+    "sterowania",
     "temperatura",
+    "tryb",
     "twoja",
     "ukryj",
     "wroc",
@@ -42,15 +45,19 @@ _POLISH_HINTS = {
 _ENGLISH_HINTS = {
     "battery",
     "computer",
+    "control",
     "date",
     "desktop",
+    "drive",
     "focus",
     "give",
     "help",
     "hide",
     "icons",
     "linux",
+    "manual",
     "minutes",
+    "mode",
     "name",
     "shell",
     "show",

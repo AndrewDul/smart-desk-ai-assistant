@@ -1,0 +1,54 @@
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_mod/modules/devices/audio/command_asr/command_grammar.py nexa_voice_patch_4b_mod/modules/devices/audio/command_asr/command_grammar.py
+--- nexa_voice_patch_mod/modules/devices/audio/command_asr/command_grammar.py	2026-05-08 17:54:50.203992065 +0000
++++ nexa_voice_patch_4b_mod/modules/devices/audio/command_asr/command_grammar.py	2026-05-08 18:29:56.526827025 +0000
+@@ -676,11 +676,20 @@
+         CommandPhrase("mobile_base.drive_mode", "manual drive", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode")),
+         CommandPhrase("mobile_base.drive_mode", "mobile base drive mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode")),
+         CommandPhrase("mobile_base.drive_mode", "nexa drive mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "vosk_exclude")),
++        CommandPhrase("mobile_base.drive_mode", "dry mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
++        CommandPhrase("mobile_base.drive_mode", "drive moe", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
++        CommandPhrase("mobile_base.drive_mode", "drie moe", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
++        CommandPhrase("mobile_base.drive_mode", "drive mo", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
++        CommandPhrase("mobile_base.drive_mode", "drive mod", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
+         CommandPhrase("mobile_base.drive_mode", "tryb sterowania", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),
+         CommandPhrase("mobile_base.drive_mode", "tryb jazdy", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),
+         CommandPhrase("mobile_base.drive_mode", "sterowanie baza", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),
+         CommandPhrase("mobile_base.drive_mode", "sterowanie bazą", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),
+         CommandPhrase("mobile_base.drive_mode", "uruchom tryb sterowania", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),
++        CommandPhrase("mobile_base.drive_mode", "tryp sterowania", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
++        CommandPhrase("mobile_base.drive_mode", "try sterowania", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
++        CommandPhrase("mobile_base.drive_mode", "tryb sterowanie", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
++        CommandPhrase("mobile_base.drive_mode", "tryb sterownia", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode", "stt_recovery")),
+         CommandPhrase("mobile_base.drive_mode", "nexa tryb sterowania", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode", "vosk_exclude")),
+ 
+         CommandPhrase(
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_mod/tests/devices/audio/command_asr/test_command_grammar.py nexa_voice_patch_4b_mod/tests/devices/audio/command_asr/test_command_grammar.py
+--- nexa_voice_patch_mod/tests/devices/audio/command_asr/test_command_grammar.py	2026-05-08 17:53:59.040169683 +0000
++++ nexa_voice_patch_4b_mod/tests/devices/audio/command_asr/test_command_grammar.py	2026-05-08 18:29:56.527296166 +0000
+@@ -452,3 +452,26 @@
+     assert polish.language == CommandLanguage.POLISH
+     assert "drive mode" in grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH)
+     assert "tryb sterowania" in grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)
++
++
++def test_default_grammar_recognizes_mobile_base_drive_mode_asr_recovery_aliases() -> None:
++    grammar = build_default_command_grammar()
++
++    cases = [
++        ("drie moe", CommandLanguage.ENGLISH),
++        ("drive moe", CommandLanguage.ENGLISH),
++        ("dry mode", CommandLanguage.ENGLISH),
++        ("tryp sterowania", CommandLanguage.POLISH),
++        ("try sterowania", CommandLanguage.POLISH),
++        ("tryb sterowanie", CommandLanguage.POLISH),
++    ]
++
++    for phrase, expected_language in cases:
++        result = grammar.match(phrase)
++
++        assert result.status == CommandRecognitionStatus.MATCHED
++        assert result.intent_key == "mobile_base.drive_mode"
++        assert result.language == expected_language
++
++    assert "drie moe" not in grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH)
++    assert "tryp sterowania" not in grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)

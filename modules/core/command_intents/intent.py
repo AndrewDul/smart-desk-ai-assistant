@@ -16,6 +16,7 @@ class CommandIntentDomain(str, Enum):
     ASSISTANT = "assistant"
     FOCUS = "focus"
     BREAK = "break"
+    MOBILE_BASE = "mobile_base"
 
 
 @dataclass(frozen=True, slots=True)

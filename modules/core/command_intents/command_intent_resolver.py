@@ -5,6 +5,9 @@ from modules.core.command_intents.intent import CommandIntent
 from modules.core.command_intents.intent_result import (
     CommandIntentResolutionResult,
 )
+from modules.core.command_intents.mobile_base_intents import (
+    get_mobile_base_intent_definition,
+)
 from modules.core.command_intents.system_intents import (
     get_system_intent_definition,
 )
@@ -89,5 +92,6 @@ class CommandIntentResolver:
     def _find_definition(intent_key: str):
         return (
             get_visual_shell_intent_definition(intent_key)
+            or get_mobile_base_intent_definition(intent_key)
             or get_system_intent_definition(intent_key)
         )

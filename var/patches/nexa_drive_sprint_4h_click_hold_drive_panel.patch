@@ -1,0 +1,141 @@
+--- a/scripts/mobile_base_drive_mode.py
++++ b/scripts/mobile_base_drive_mode.py
+@@ -57,7 +57,7 @@
+     h1 { margin: 0 0 10px; font-size: 28px; }
+     p { color: #aeb8c8; line-height: 1.55; }
+     .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 24px 0; }
+-    .key { border: 1px solid #334052; border-radius: 18px; padding: 22px 10px; text-align: center; background: #182131; font-size: 24px; font-weight: 750; user-select: none; }
++    .key { border: 1px solid #334052; border-radius: 18px; padding: 22px 10px; text-align: center; background: #182131; font-size: 24px; font-weight: 750; user-select: none; cursor: pointer; touch-action: none; -webkit-tap-highlight-color: transparent; }
+     .key.active { outline: 3px solid #8ab4ff; }
+     .empty { visibility: hidden; }
+     button { width: 100%; border: 0; border-radius: 18px; padding: 18px; font-size: 18px; font-weight: 800; color: white; background: #9b1c31; cursor: pointer; }
+@@ -68,7 +68,7 @@
+ <body>
+   <main>
+     <h1>NeXa Drive Mode</h1>
+-    <p>Use <code>W/A/S/D</code> or arrow keys. Release the key to STOP. <code>Space</code> sends emergency STOP. <code>Esc</code> stops and asks the server to exit drive mode.</p>
++    <p>Use <code>W/A/S/D</code>, arrow keys, or hold the on-screen buttons. Release the key/button to STOP. <code>Space</code> sends emergency STOP. <code>Esc</code> stops and asks the server to exit drive mode.</p>
+     <div class="grid">
+       <div class="empty"></div><div class="key" data-key="w">W</div><div class="empty"></div>
+       <div class="key" data-key="a">A</div><div class="key" data-key="s">S</div><div class="key" data-key="d">D</div>
+@@ -124,15 +124,40 @@
+     }
+   }
+ }
++function mapDriveKey(key) {
++  if (!key) return null;
++  if (activeByKey[key]) return activeByKey[key];
++  const lower = key.length === 1 ? key.toLowerCase() : key;
++  return activeByKey[lower] || null;
++}
+ function mark(key, active) {
+-  const mapped = activeByKey[key] || key.toLowerCase();
++  const mapped = mapDriveKey(key) || key.toLowerCase();
+   const node = document.querySelector(`[data-key="${mapped}"]`);
+   if (node) node.classList.toggle('active', active);
+ }
++async function pressDriveKey(key) {
++  const mapped = mapDriveKey(key);
++  if (!mapped) return;
++  const wasPressed = pressed.has(mapped);
++  pressed.add(mapped);
++  mark(mapped, true);
++  if (!wasPressed) {
++    await sendState();
++  }
++}
++async function releaseDriveKey(key) {
++  const mapped = mapDriveKey(key);
++  if (!mapped) return;
++  if (!pressed.has(mapped)) return;
++  pressed.delete(mapped);
++  mark(mapped, false);
++  await sendState();
++}
+ document.addEventListener('keydown', async (event) => {
+   if ([...driveKeys, " ", "Escape"].includes(event.key)) {
+     event.preventDefault();
+   }
++  if (event.repeat) return;
+   if (event.key === ' ') {
+     await send('down', 'space');
+     return;
+@@ -141,22 +166,34 @@
+     await send('down', 'escape');
+     return;
+   }
+-  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+-  if (!driveKeys.includes(key)) return;
+-  const wasPressed = pressed.has(key);
+-  pressed.add(key);
+-  mark(key, true);
+-  if (!wasPressed) {
+-    await sendState();
+-  }
++  await pressDriveKey(event.key);
+ });
+ document.addEventListener('keyup', async (event) => {
+-  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+-  if (!driveKeys.includes(key)) return;
+-  pressed.delete(key);
+-  mark(key, false);
+-  await sendState();
++  if (driveKeys.includes(event.key) || driveKeys.includes(event.key.toLowerCase())) {
++    event.preventDefault();
++  }
++  await releaseDriveKey(event.key);
+ });
++for (const node of document.querySelectorAll('.key[data-key]')) {
++  const key = node.dataset.key;
++  const start = async (event) => {
++    event.preventDefault();
++    node.setPointerCapture?.(event.pointerId);
++    await pressDriveKey(key);
++  };
++  const stop = async (event) => {
++    event.preventDefault();
++    if (event.pointerId !== undefined) node.releasePointerCapture?.(event.pointerId);
++    await releaseDriveKey(key);
++  };
++  node.addEventListener('pointerdown', start);
++  node.addEventListener('pointerup', stop);
++  node.addEventListener('pointercancel', stop);
++  node.addEventListener('pointerleave', async (event) => {
++    if (pressed.has(key)) await stop(event);
++  });
++  node.addEventListener('contextmenu', (event) => event.preventDefault());
++}
+ setInterval(() => {
+   if (pressed.size > 0) {
+     sendState({quiet: true}).catch(() => {});
+@@ -168,7 +205,7 @@
+   for (const key of Object.keys(activeByKey)) mark(key, false);
+   send('down', 'space').catch(() => {});
+ });
+-append('Drive panel loaded. Keep wheels raised for hardware tests.');
++append('Drive panel loaded. Click/hold W/A/S/D buttons or use keyboard. Keep wheels raised for hardware tests.');
+ </script>
+ </body>
+ </html>
+--- a/tests/runtime/drive_mode/test_mobile_base_drive_mode_script.py
++++ b/tests/runtime/drive_mode/test_mobile_base_drive_mode_script.py
+@@ -4,6 +4,7 @@
+     DEFAULT_ANGULAR_SPEED_RAD_S,
+     DEFAULT_LINEAR_SPEED_MPS,
+     DEFAULT_COMMAND_PROFILE,
++    HTML_PAGE,
+     MAX_ANGULAR_SPEED_RAD_S,
+     MAX_LINEAR_SPEED_MPS,
+     _build_controller,
+@@ -52,3 +53,11 @@
+         assert rotate.command == f'{{"T":13,"X":0.0,"Z":{MAX_ANGULAR_SPEED_RAD_S}}}'
+     finally:
+         controller.close()
++
++
++def test_drive_mode_web_panel_wires_click_and_touch_buttons() -> None:
++    assert "pointerdown" in HTML_PAGE
++    assert "pointerup" in HTML_PAGE
++    assert "pressDriveKey" in HTML_PAGE
++    assert "releaseDriveKey" in HTML_PAGE
++    assert "Click/hold W/A/S/D buttons" in HTML_PAGE

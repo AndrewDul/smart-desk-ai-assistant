@@ -1,0 +1,1110 @@
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/config/settings.example.json nexa_voice_patch_mod/config/settings.example.json
+--- a/config/settings.example.json	2026-05-07 12:42:26.000000000 +0000
++++ b/config/settings.example.json	2026-05-08 17:53:59.039605193 +0000
+@@ -137,7 +137,8 @@
+       "focus.offer",
+       "focus.stop",
+       "break.start",
+-      "break.stop"
++      "break.stop",
++      "mobile_base.drive_mode"
+     ],
+     "runtime_candidate_log_path": "var/data/voice_engine_v2_runtime_candidates.jsonl",
+     "pre_stt_shadow_enabled": false,
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/config/settings.json nexa_voice_patch_mod/config/settings.json
+--- a/config/settings.json	2026-05-07 21:15:11.000000000 +0000
++++ b/config/settings.json	2026-05-08 17:53:59.039224668 +0000
+@@ -192,7 +192,8 @@
+       "focus.offer",
+       "focus.stop",
+       "break.start",
+-      "break.stop"
++      "break.stop",
++      "mobile_base.drive_mode"
+     ],
+     "runtime_candidate_log_path": "var/data/voice_engine_v2_runtime_candidates.jsonl",
+     "pre_stt_shadow_enabled": false,
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/modules/core/command_intents/command_intent_resolver.py nexa_voice_patch_mod/modules/core/command_intents/command_intent_resolver.py
+--- a/modules/core/command_intents/command_intent_resolver.py	2026-04-27 10:50:54.000000000 +0000
++++ b/modules/core/command_intents/command_intent_resolver.py	2026-05-08 17:53:59.036291902 +0000
+@@ -5,6 +5,9 @@
+ from modules.core.command_intents.intent_result import (
+     CommandIntentResolutionResult,
+ )
++from modules.core.command_intents.mobile_base_intents import (
++    get_mobile_base_intent_definition,
++)
+ from modules.core.command_intents.system_intents import (
+     get_system_intent_definition,
+ )
+@@ -89,5 +92,6 @@
+     def _find_definition(intent_key: str):
+         return (
+             get_visual_shell_intent_definition(intent_key)
++            or get_mobile_base_intent_definition(intent_key)
+             or get_system_intent_definition(intent_key)
+         )
+\ No newline at end of file
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/modules/core/command_intents/intent.py nexa_voice_patch_mod/modules/core/command_intents/intent.py
+--- a/modules/core/command_intents/intent.py	2026-05-01 05:19:37.000000000 +0000
++++ b/modules/core/command_intents/intent.py	2026-05-08 17:53:59.035880614 +0000
+@@ -16,6 +16,7 @@
+     ASSISTANT = "assistant"
+     FOCUS = "focus"
+     BREAK = "break"
++    MOBILE_BASE = "mobile_base"
+ 
+ 
+ @dataclass(frozen=True, slots=True)
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/modules/core/command_intents/mobile_base_intents.py nexa_voice_patch_mod/modules/core/command_intents/mobile_base_intents.py
+--- a/modules/core/command_intents/mobile_base_intents.py	1970-01-01 00:00:00.000000000 +0000
++++ b/modules/core/command_intents/mobile_base_intents.py	2026-05-08 17:53:59.035985925 +0000
+@@ -0,0 +1,21 @@
++from __future__ import annotations
++
++from modules.core.command_intents.intent import (
++    CommandIntentDefinition,
++    CommandIntentDomain,
++)
++
++
++MOBILE_BASE_INTENT_DEFINITIONS: dict[str, CommandIntentDefinition] = {
++    "mobile_base.drive_mode": CommandIntentDefinition(
++        key="mobile_base.drive_mode",
++        domain=CommandIntentDomain.MOBILE_BASE,
++        action="drive_mode_start",
++    ),
++}
++
++
++def get_mobile_base_intent_definition(
++    intent_key: str,
++) -> CommandIntentDefinition | None:
++    return MOBILE_BASE_INTENT_DEFINITIONS.get(intent_key)
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/modules/core/flows/action_flow/drive_mode_actions_mixin.py nexa_voice_patch_mod/modules/core/flows/action_flow/drive_mode_actions_mixin.py
+--- a/modules/core/flows/action_flow/drive_mode_actions_mixin.py	1970-01-01 00:00:00.000000000 +0000
++++ b/modules/core/flows/action_flow/drive_mode_actions_mixin.py	2026-05-08 17:53:59.038265869 +0000
+@@ -0,0 +1,85 @@
++from __future__ import annotations
++
++from typing import Any
++
++from modules.runtime.drive_mode import DriveModeVoiceLauncher
++
++from .models import ResolvedAction, SkillResult
++
++
++class ActionDriveModeActionsMixin:
++    """ActionFlow handlers for safe mobile-base manual drive mode."""
++
++    def _handle_drive_mode_start(
++        self,
++        *,
++        route: Any,
++        language: str,
++        payload: dict[str, Any],
++        resolved: ResolvedAction,
++    ) -> SkillResult:
++        del route, payload
++        result = DriveModeVoiceLauncher().launch()
++        lang = self.assistant._normalize_lang(language)
++        if result.ok:
++            spoken = self._drive_mode_started_spoken(language=lang, panel_url=result.panel_url)
++            if not result.movement_enabled:
++                spoken += " " + self._localized(
++                    lang,
++                    "Ruch bazy jest nadal zablokowany przez bramkę bezpieczeństwa.",
++                    "Mobile base movement is still locked by the safety gate.",
++                )
++            delivered = self._deliver_simple_action_response(
++                language=lang,
++                action="drive_mode_start",
++                spoken_text=spoken,
++                display_title=self._localized(lang, "TRYB STEROWANIA", "DRIVE MODE"),
++                display_lines=self._localized_lines(lang, ["W A S D", "spacja = stop", "Esc = wyjscie"], ["W A S D", "space = stop", "Esc = exit"]),
++                extra_metadata={
++                    "resolved_source": getattr(resolved, "source", ""),
++                    "drive_mode_status": result.status,
++                    "panel_url": result.panel_url,
++                    "pid": result.pid,
++                    "movement_enabled": result.movement_enabled,
++                    "log_path": result.log_path,
++                },
++            )
++            return SkillResult(
++                action="drive_mode_start",
++                handled=True,
++                response_delivered=bool(delivered),
++                status=result.status,
++                metadata={"source": "drive_mode_voice_launcher", "response_kind": "direct_response", "panel_url": result.panel_url, "pid": result.pid, "movement_enabled": result.movement_enabled, "log_path": result.log_path},
++            )
++        delivered = self._deliver_simple_action_response(
++            language=lang,
++            action="drive_mode_start",
++            spoken_text=self._localized(lang, "Nie uruchomiłam trybu sterowania bazą, ponieważ bramka bezpieczeństwa sprzętu jest zamknięta.", "I did not start mobile base drive mode because the hardware safety gate is closed."),
++            display_title=self._localized(lang, "DRIVE GATE", "DRIVE GATE"),
++            display_lines=self._localized_lines(lang, ["hardware gate", "zamkniety"], ["hardware gate", "closed"]),
++            extra_metadata={"resolved_source": getattr(resolved, "source", ""), "drive_mode_status": result.status, "message": result.message, "panel_url": result.panel_url, "log_path": result.log_path},
++        )
++        return SkillResult(
++            action="drive_mode_start",
++            handled=True,
++            response_delivered=bool(delivered),
++            status=result.status,
++            metadata={"source": "drive_mode_voice_launcher", "response_kind": "direct_response", "error": result.message, "log_path": result.log_path},
++        )
++
++    def _drive_mode_started_spoken(self, *, language: str, panel_url: str) -> str:
++        if self.assistant._normalize_lang(language) == "pl":
++            return (
++                "Tryb sterowania bazą jest uruchomiony. Otwórz panel sterowania i używaj W, A, S, D. "
++                "Przytrzymanie klawisza wykonuje ruch, puszczenie klawisza zatrzymuje ruch. "
++                "W plus A jedzie i skręca w lewo, W plus D jedzie i skręca w prawo. "
++                "Spacja zatrzymuje awaryjnie, a Escape wychodzi z trybu. "
++                f"Panel: {panel_url}"
++            )
++        return (
++            "Mobile base drive mode is running. Open the drive panel and use W, A, S, D. "
++            "Holding a key moves the base, releasing it stops that movement. "
++            "W plus A drives and turns left, W plus D drives and turns right. "
++            "Space is emergency stop, and Escape exits drive mode. "
++            f"Panel: {panel_url}"
++        )
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/modules/core/flows/action_flow/orchestrator.py nexa_voice_patch_mod/modules/core/flows/action_flow/orchestrator.py
+--- a/modules/core/flows/action_flow/orchestrator.py	2026-05-05 07:14:37.000000000 +0000
++++ b/modules/core/flows/action_flow/orchestrator.py	2026-05-08 17:53:59.038619640 +0000
+@@ -14,6 +14,7 @@
+ from modules.shared.logging.logger import get_logger
+ 
+ from .executors import MemorySkillExecutor, ReminderSkillExecutor, TimerSkillExecutor
++from .drive_mode_actions_mixin import ActionDriveModeActionsMixin
+ from .memory_actions_mixin import ActionMemoryActionsMixin
+ from .models import ResolvedAction, SkillRequest, SkillResult
+ from .pan_tilt_actions_mixin import ActionPanTiltActionsMixin
+@@ -30,6 +31,7 @@
+ class ActionFlowOrchestrator(
+     ActionResolverMixin,
+     ActionResponseHelpersMixin,
++    ActionDriveModeActionsMixin,
+     ActionSystemActionsMixin,
+     ActionMemoryActionsMixin,
+     ActionReminderActionsMixin,
+@@ -87,6 +89,7 @@
+         "focus.stop": "timer_stop",
+         "break.start": "break_start",
+         "break.stop": "timer_stop",
++        "mobile_base.drive_mode": "drive_mode_start",
+         "pan_tilt.look": "look_direction",
+         "system.exit": "exit",
+         "system.shutdown": "shutdown",
+@@ -126,6 +129,7 @@
+         "focus_start",
+         "focus_offer",
+         "break_start",
++        "drive_mode_start",
+         "look_direction",
+         "exit",
+         "shutdown",
+@@ -173,6 +177,7 @@
+         "focus_start": ("uruchomienie skupienia", "start focus mode"),
+         "focus_offer": ("propozycja skupienia", "offer focus mode"),
+         "break_start": ("uruchomienie odpoczynku", "start break mode"),
++        "drive_mode_start": ("tryb sterowania bazą", "mobile base drive mode"),
+         "look_direction": ("ruch głowicy", "move camera head"),
+         "exit": ("zamknięcie asystenta", "close the assistant"),
+         "shutdown": ("wyłączenie systemu", "shut down the system"),
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/modules/devices/audio/command_asr/command_grammar.py nexa_voice_patch_mod/modules/devices/audio/command_asr/command_grammar.py
+--- a/modules/devices/audio/command_asr/command_grammar.py	2026-05-06 05:52:44.000000000 +0000
++++ b/modules/devices/audio/command_asr/command_grammar.py	2026-05-08 17:54:50.203992065 +0000
+@@ -668,6 +668,21 @@
+             tags=("visual_shell", "metric"),
+         ),
+ 
++
++        # Mobile base manual drive mode.
++        CommandPhrase("mobile_base.drive_mode", "drive mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode")),
++        CommandPhrase("mobile_base.drive_mode", "start drive mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode")),
++        CommandPhrase("mobile_base.drive_mode", "manual drive mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode")),
++        CommandPhrase("mobile_base.drive_mode", "manual drive", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode")),
++        CommandPhrase("mobile_base.drive_mode", "mobile base drive mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode")),
++        CommandPhrase("mobile_base.drive_mode", "nexa drive mode", CommandLanguage.ENGLISH, tags=("mobile_base", "drive_mode", "vosk_exclude")),
++        CommandPhrase("mobile_base.drive_mode", "tryb sterowania", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),
++        CommandPhrase("mobile_base.drive_mode", "tryb jazdy", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),
++        CommandPhrase("mobile_base.drive_mode", "sterowanie baza", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),
++        CommandPhrase("mobile_base.drive_mode", "sterowanie bazą", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),
++        CommandPhrase("mobile_base.drive_mode", "uruchom tryb sterowania", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode")),
++        CommandPhrase("mobile_base.drive_mode", "nexa tryb sterowania", CommandLanguage.POLISH, tags=("mobile_base", "drive_mode", "vosk_exclude")),
++
+         CommandPhrase(
+             "assistant.help",
+             "pomoc",
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/modules/devices/audio/command_asr/command_language.py nexa_voice_patch_mod/modules/devices/audio/command_asr/command_language.py
+--- a/modules/devices/audio/command_asr/command_language.py	2026-04-27 10:42:19.000000000 +0000
++++ b/modules/devices/audio/command_asr/command_language.py	2026-05-08 17:53:59.036905322 +0000
+@@ -14,6 +14,7 @@
+ _POLISH_DIACRITICS = set("ąćęłńóśźż")
+ 
+ _POLISH_HINTS = {
++    "baza",
+     "bateria",
+     "czas",
+     "data",
+@@ -32,7 +33,9 @@
+     "pomoc",
+     "pulpit",
+     "shell",
++    "sterowania",
+     "temperatura",
++    "tryb",
+     "twoja",
+     "ukryj",
+     "wroc",
+@@ -42,15 +45,19 @@
+ _ENGLISH_HINTS = {
+     "battery",
+     "computer",
++    "control",
+     "date",
+     "desktop",
++    "drive",
+     "focus",
+     "give",
+     "help",
+     "hide",
+     "icons",
+     "linux",
++    "manual",
+     "minutes",
++    "mode",
+     "name",
+     "shell",
+     "show",
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/modules/runtime/drive_mode/__init__.py nexa_voice_patch_mod/modules/runtime/drive_mode/__init__.py
+--- a/modules/runtime/drive_mode/__init__.py	2026-05-08 17:52:41.049695822 +0000
++++ b/modules/runtime/drive_mode/__init__.py	2026-05-08 17:53:59.034899338 +0000
+@@ -2,10 +2,22 @@
+ 
+ from .drive_mode_service import DriveModeEventResult, DriveModeService
+ from .keyboard_mapping import DriveModeAction, map_keyboard_event
++from .voice_launcher import (
++    DriveModeLaunchConfig,
++    DriveModeLaunchResult,
++    DriveModeVoiceLauncher,
++    build_drive_mode_launch_command,
++    build_drive_mode_launch_config_from_env,
++)
+ 
+ __all__ = [
+     "DriveModeAction",
+     "DriveModeEventResult",
++    "DriveModeLaunchConfig",
++    "DriveModeLaunchResult",
+     "DriveModeService",
++    "DriveModeVoiceLauncher",
++    "build_drive_mode_launch_command",
++    "build_drive_mode_launch_config_from_env",
+     "map_keyboard_event",
+ ]
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/modules/runtime/drive_mode/drive_mode_service.py nexa_voice_patch_mod/modules/runtime/drive_mode/drive_mode_service.py
+--- a/modules/runtime/drive_mode/drive_mode_service.py	2026-05-08 17:52:41.050048903 +0000
++++ b/modules/runtime/drive_mode/drive_mode_service.py	2026-05-08 17:53:59.035286864 +0000
+@@ -9,23 +9,13 @@
+ class DriveController(Protocol):
+     """Controller subset required by manual drive mode."""
+ 
+-    def drive_forward(self, *, speed_mps: float | None = None) -> str:
+-        ...
+-
+-    def drive_backward(self, *, speed_mps: float | None = None) -> str:
+-        ...
+-
+-    def rotate_left(self, *, speed_rad_s: float | None = None) -> str:
+-        ...
+-
+-    def rotate_right(self, *, speed_rad_s: float | None = None) -> str:
+-        ...
+-
+-    def stop(self, *, reason: str = "stop") -> list[str]:
+-        ...
+-
+-    def check_deadman(self, *, now_monotonic: float | None = None) -> bool:
+-        ...
++    def drive_forward(self, *, speed_mps: float | None = None) -> str: ...
++    def drive_backward(self, *, speed_mps: float | None = None) -> str: ...
++    def rotate_left(self, *, speed_rad_s: float | None = None) -> str: ...
++    def rotate_right(self, *, speed_rad_s: float | None = None) -> str: ...
++    def send_velocity(self, *, linear_x_mps: float, angular_z_rad_s: float) -> str: ...
++    def stop(self, *, reason: str = "stop") -> list[str]: ...
++    def check_deadman(self, *, now_monotonic: float | None = None) -> bool: ...
+ 
+ 
+ @dataclass(frozen=True, slots=True)
+@@ -55,13 +45,7 @@
+ 
+ 
+ class DriveModeService:
+-    """
+-    Manual drive-mode coordinator.
+-
+-    Browser keydown events refresh the active movement command. Browser keyup,
+-    Space, Escape, controller errors and the dead-man watchdog all route through
+-    STOP before the script exits or accepts the next command.
+-    """
++    """Manual drive-mode coordinator with key-up and combined-key support."""
+ 
+     def __init__(
+         self,
+@@ -77,54 +61,64 @@
+         self.exit_requested = False
+ 
+     def handle_keyboard_event(self, *, event: str, key: str) -> DriveModeEventResult:
+-        """Handle one keydown/keyup event from the local drive panel."""
++        """Handle one legacy keydown/keyup event from the local drive panel."""
+ 
+         normalized_event = str(event or "").strip().lower()
+         action = map_keyboard_event(key)
+-
+         if action is DriveModeAction.UNKNOWN:
+             return DriveModeEventResult(ok=False, action=action, event=normalized_event, error="unknown_key")
+         if normalized_event not in {"down", "up"}:
+             return DriveModeEventResult(ok=False, action=action, event=normalized_event, error="unknown_event")
+-
+         if normalized_event == "up":
+             return self._handle_key_up(action=action, event=normalized_event)
+         return self._handle_key_down(action=action, event=normalized_event)
+ 
++    def handle_pressed_keys(self, *, keys: list[str] | tuple[str, ...]) -> DriveModeEventResult:
++        """Handle the full currently pressed key set for combined movement."""
++
++        actions = {map_keyboard_event(key) for key in keys}
++        actions.discard(DriveModeAction.UNKNOWN)
++        if DriveModeAction.EXIT in actions:
++            return self._handle_key_down(action=DriveModeAction.EXIT, event="state")
++        if DriveModeAction.EMERGENCY_STOP in actions:
++            return self._handle_key_down(action=DriveModeAction.EMERGENCY_STOP, event="state")
++        linear = self._linear_from_actions(actions)
++        angular = self._angular_from_actions(actions)
++        action = self._combined_action(linear=linear, angular=angular)
++        if action is DriveModeAction.UNKNOWN:
++            if self.active_action is not None:
++                self.active_action = None
++                self.controller.stop(reason="drive_mode_key_state_release")
++                return DriveModeEventResult(ok=True, action=DriveModeAction.EMERGENCY_STOP, event="state", stopped=True)
++            return DriveModeEventResult(ok=True, action=action, event="state")
++        try:
++            command = self.controller.send_velocity(linear_x_mps=linear, angular_z_rad_s=angular)
++        except Exception as error:
++            self.active_action = None
++            self._best_effort_stop(reason="drive_mode_key_state_error")
++            return DriveModeEventResult(ok=False, action=action, event="state", stopped=True, error=str(error))
++        self.active_action = action
++        return DriveModeEventResult(ok=True, action=action, event="state", command=command)
++
+     def _handle_key_down(self, *, action: DriveModeAction, event: str) -> DriveModeEventResult:
+         if action is DriveModeAction.EMERGENCY_STOP:
+             self.active_action = None
+             self.controller.stop(reason="drive_mode_emergency_stop")
+             return DriveModeEventResult(ok=True, action=action, event=event, stopped=True)
+-
+         if action is DriveModeAction.EXIT:
+             self.active_action = None
+             self.exit_requested = True
+             self.controller.stop(reason="drive_mode_exit")
+-            return DriveModeEventResult(
+-                ok=True,
+-                action=action,
+-                event=event,
+-                stopped=True,
+-                exit_requested=True,
+-            )
+-
++            return DriveModeEventResult(ok=True, action=action, event=event, stopped=True, exit_requested=True)
+         if action in MOTION_ACTIONS:
+             try:
+                 command = self._send_motion(action)
+             except Exception as error:
+                 self.active_action = None
+                 self._best_effort_stop(reason="drive_mode_motion_error")
+-                return DriveModeEventResult(
+-                    ok=False,
+-                    action=action,
+-                    event=event,
+-                    stopped=True,
+-                    error=str(error),
+-                )
++                return DriveModeEventResult(ok=False, action=action, event=event, stopped=True, error=str(error))
+             self.active_action = action
+             return DriveModeEventResult(ok=True, action=action, event=event, command=command)
+-
+         return DriveModeEventResult(ok=False, action=action, event=event, error="unsupported_action")
+ 
+     def _handle_key_up(self, *, action: DriveModeAction, event: str) -> DriveModeEventResult:
+@@ -132,13 +126,10 @@
+             self.active_action = None
+             self.controller.stop(reason="drive_mode_key_release")
+             return DriveModeEventResult(ok=True, action=action, event=event, stopped=True)
+-
+         if action is DriveModeAction.EMERGENCY_STOP:
+             return DriveModeEventResult(ok=True, action=action, event=event)
+-
+         if action is DriveModeAction.EXIT:
+             return DriveModeEventResult(ok=True, action=action, event=event, exit_requested=self.exit_requested)
+-
+         return DriveModeEventResult(ok=True, action=action, event=event)
+ 
+     def _send_motion(self, action: DriveModeAction) -> str:
+@@ -150,8 +141,71 @@
+             return self.controller.rotate_left(speed_rad_s=self.angular_speed_rad_s)
+         if action is DriveModeAction.ROTATE_RIGHT:
+             return self.controller.rotate_right(speed_rad_s=self.angular_speed_rad_s)
++        if action in {DriveModeAction.FORWARD_LEFT, DriveModeAction.FORWARD_RIGHT, DriveModeAction.BACKWARD_LEFT, DriveModeAction.BACKWARD_RIGHT}:
++            linear, angular = self._velocity_for_combined_action(action)
++            return self.controller.send_velocity(linear_x_mps=linear, angular_z_rad_s=angular)
+         raise ValueError(f"Unsupported motion action: {action.value}")
+ 
++    def _linear_speed(self) -> float:
++        if self.linear_speed_mps is not None:
++            return float(self.linear_speed_mps)
++        policy = getattr(self.controller, "safety_policy", None)
++        return float(getattr(policy, "default_linear_speed_mps", 0.0) or 0.0)
++
++    def _angular_speed(self) -> float:
++        if self.angular_speed_rad_s is not None:
++            return float(self.angular_speed_rad_s)
++        policy = getattr(self.controller, "safety_policy", None)
++        return float(getattr(policy, "default_angular_speed_rad_s", 0.0) or 0.0)
++
++    def _linear_from_actions(self, actions: set[DriveModeAction]) -> float:
++        forward = DriveModeAction.FORWARD in actions
++        backward = DriveModeAction.BACKWARD in actions
++        if forward == backward:
++            return 0.0
++        speed = self._linear_speed()
++        return abs(speed) if forward else -abs(speed)
++
++    def _angular_from_actions(self, actions: set[DriveModeAction]) -> float:
++        left = DriveModeAction.ROTATE_LEFT in actions
++        right = DriveModeAction.ROTATE_RIGHT in actions
++        if left == right:
++            return 0.0
++        speed = self._angular_speed()
++        return abs(speed) if left else -abs(speed)
++
++    def _combined_action(self, *, linear: float, angular: float) -> DriveModeAction:
++        if linear > 0.0 and angular > 0.0:
++            return DriveModeAction.FORWARD_LEFT
++        if linear > 0.0 and angular < 0.0:
++            return DriveModeAction.FORWARD_RIGHT
++        if linear < 0.0 and angular > 0.0:
++            return DriveModeAction.BACKWARD_LEFT
++        if linear < 0.0 and angular < 0.0:
++            return DriveModeAction.BACKWARD_RIGHT
++        if linear > 0.0:
++            return DriveModeAction.FORWARD
++        if linear < 0.0:
++            return DriveModeAction.BACKWARD
++        if angular > 0.0:
++            return DriveModeAction.ROTATE_LEFT
++        if angular < 0.0:
++            return DriveModeAction.ROTATE_RIGHT
++        return DriveModeAction.UNKNOWN
++
++    def _velocity_for_combined_action(self, action: DriveModeAction) -> tuple[float, float]:
++        linear = self._linear_speed()
++        angular = self._angular_speed()
++        if action is DriveModeAction.FORWARD_LEFT:
++            return abs(linear), abs(angular)
++        if action is DriveModeAction.FORWARD_RIGHT:
++            return abs(linear), -abs(angular)
++        if action is DriveModeAction.BACKWARD_LEFT:
++            return -abs(linear), abs(angular)
++        if action is DriveModeAction.BACKWARD_RIGHT:
++            return -abs(linear), -abs(angular)
++        raise ValueError(f"Unsupported combined action: {action.value}")
++
+     def check_deadman(self, *, now_monotonic: float | None = None) -> DriveModeEventResult:
+         """Run one watchdog tick and report whether it sent STOP."""
+ 
+@@ -159,24 +213,13 @@
+         if sent_stop:
+             previous_action = self.active_action or DriveModeAction.EMERGENCY_STOP
+             self.active_action = None
+-            return DriveModeEventResult(
+-                ok=True,
+-                action=previous_action,
+-                event="deadman",
+-                stopped=True,
+-                deadman_stop=True,
+-            )
++            return DriveModeEventResult(ok=True, action=previous_action, event="deadman", stopped=True, deadman_stop=True)
+         return DriveModeEventResult(ok=True, action=DriveModeAction.UNKNOWN, event="deadman")
+ 
+     def stop_all(self, *, reason: str = "drive_mode_stop_all") -> DriveModeEventResult:
+         self.active_action = None
+         self.controller.stop(reason=reason)
+-        return DriveModeEventResult(
+-            ok=True,
+-            action=DriveModeAction.EMERGENCY_STOP,
+-            event="stop_all",
+-            stopped=True,
+-        )
++        return DriveModeEventResult(ok=True, action=DriveModeAction.EMERGENCY_STOP, event="stop_all", stopped=True)
+ 
+     def _best_effort_stop(self, *, reason: str) -> None:
+         try:
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/modules/runtime/drive_mode/keyboard_mapping.py nexa_voice_patch_mod/modules/runtime/drive_mode/keyboard_mapping.py
+--- a/modules/runtime/drive_mode/keyboard_mapping.py	2026-05-08 17:52:41.050191508 +0000
++++ b/modules/runtime/drive_mode/keyboard_mapping.py	2026-05-08 17:53:59.035192006 +0000
+@@ -10,6 +10,10 @@
+     BACKWARD = "backward"
+     ROTATE_LEFT = "rotate_left"
+     ROTATE_RIGHT = "rotate_right"
++    FORWARD_LEFT = "forward_left"
++    FORWARD_RIGHT = "forward_right"
++    BACKWARD_LEFT = "backward_left"
++    BACKWARD_RIGHT = "backward_right"
+     EMERGENCY_STOP = "emergency_stop"
+     EXIT = "exit"
+     UNKNOWN = "unknown"
+@@ -38,6 +42,10 @@
+         DriveModeAction.BACKWARD,
+         DriveModeAction.ROTATE_LEFT,
+         DriveModeAction.ROTATE_RIGHT,
++        DriveModeAction.FORWARD_LEFT,
++        DriveModeAction.FORWARD_RIGHT,
++        DriveModeAction.BACKWARD_LEFT,
++        DriveModeAction.BACKWARD_RIGHT,
+     }
+ )
+ 
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/modules/runtime/drive_mode/voice_launcher.py nexa_voice_patch_mod/modules/runtime/drive_mode/voice_launcher.py
+--- a/modules/runtime/drive_mode/voice_launcher.py	1970-01-01 00:00:00.000000000 +0000
++++ b/modules/runtime/drive_mode/voice_launcher.py	2026-05-08 17:53:59.034679885 +0000
+@@ -0,0 +1,221 @@
++from __future__ import annotations
++
++import os
++import socket
++import subprocess
++import sys
++import time
++from dataclasses import dataclass
++from pathlib import Path
++from typing import Mapping
++
++from modules.devices.mobile_base import (
++    DEFAULT_MOVEMENT_CONFIRM_ENV,
++    DEFAULT_MOVEMENT_CONFIRM_VALUE,
++)
++
++
++CONFIRM_TEST_ENV_VAR = "CONFIRM_NEXA_MOBILE_BASE_TEST"
++CONFIRM_TEST_ENV_VALUE = "RUN"
++DRIVE_MODE_HOST_ENV = "NEXA_DRIVE_MODE_HOST"
++DRIVE_MODE_HTTP_PORT_ENV = "NEXA_DRIVE_MODE_HTTP_PORT"
++DRIVE_MODE_DRY_RUN_ENV = "NEXA_DRIVE_MODE_DRY_RUN"
++DRIVE_MODE_ENABLE_MOVEMENT_ENV = "NEXA_DRIVE_MODE_ENABLE_MOVEMENT"
++DRIVE_MODE_SERIAL_PORT_ENV = "NEXA_MOBILE_BASE_SERIAL_PORT"
++DRIVE_MODE_LINEAR_SPEED_ENV = "NEXA_DRIVE_MODE_LINEAR_SPEED_MPS"
++DRIVE_MODE_ANGULAR_SPEED_ENV = "NEXA_DRIVE_MODE_ANGULAR_SPEED_RAD_S"
++DRIVE_MODE_LOG_PATH_ENV = "NEXA_DRIVE_MODE_LOG_PATH"
++
++
++@dataclass(frozen=True, slots=True)
++class DriveModeLaunchConfig:
++    """Configuration used when Voice Runtime starts manual drive mode."""
++
++    project_root: Path
++    host: str = "127.0.0.1"
++    http_port: int = 8768
++    dry_run: bool = False
++    serial_port: str = ""
++    enable_movement: bool = False
++    movement_requested: bool = False
++    linear_speed_mps: float = 0.15
++    angular_speed_rad_s: float = 0.30
++    log_path: Path | None = None
++
++    @property
++    def panel_url(self) -> str:
++        host = "127.0.0.1" if self.host in {"", "0.0.0.0"} else self.host
++        return f"http://{host}:{int(self.http_port)}/"
++
++    @property
++    def status_host(self) -> str:
++        return "127.0.0.1" if self.host in {"", "0.0.0.0"} else self.host
++
++
++@dataclass(frozen=True, slots=True)
++class DriveModeLaunchResult:
++    """Result of a voice-triggered drive mode launch attempt."""
++
++    ok: bool
++    status: str
++    message: str
++    panel_url: str = ""
++    command: tuple[str, ...] = ()
++    pid: int | None = None
++    movement_enabled: bool = False
++    log_path: str = ""
++
++
++def _truthy(value: object) -> bool:
++    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on", "run"}
++
++
++def _safe_int(value: object, default: int) -> int:
++    try:
++        return int(str(value).strip())
++    except Exception:
++        return int(default)
++
++
++def _safe_float(value: object, default: float) -> float:
++    try:
++        return float(str(value).strip())
++    except Exception:
++        return float(default)
++
++
++def build_drive_mode_launch_config_from_env(
++    *,
++    env: Mapping[str, str] | None = None,
++    project_root: Path | None = None,
++) -> DriveModeLaunchConfig:
++    """Build a safe launch config from runtime environment variables."""
++
++    source = dict(os.environ if env is None else env)
++    root = project_root or Path(__file__).resolve().parents[3]
++    movement_requested = _truthy(source.get(DRIVE_MODE_ENABLE_MOVEMENT_ENV))
++    movement_gate_open = source.get(DEFAULT_MOVEMENT_CONFIRM_ENV) == DEFAULT_MOVEMENT_CONFIRM_VALUE
++    enable_movement = bool(movement_requested and movement_gate_open)
++    configured_log = str(source.get(DRIVE_MODE_LOG_PATH_ENV, "")).strip()
++    log_path = Path(configured_log) if configured_log else root / "var" / "log" / "mobile_base_drive_mode_voice.log"
++
++    return DriveModeLaunchConfig(
++        project_root=root,
++        host=str(source.get(DRIVE_MODE_HOST_ENV, "127.0.0.1") or "127.0.0.1"),
++        http_port=_safe_int(source.get(DRIVE_MODE_HTTP_PORT_ENV), 8768),
++        dry_run=_truthy(source.get(DRIVE_MODE_DRY_RUN_ENV)),
++        serial_port=str(source.get(DRIVE_MODE_SERIAL_PORT_ENV, "") or ""),
++        enable_movement=enable_movement,
++        movement_requested=movement_requested,
++        linear_speed_mps=_safe_float(source.get(DRIVE_MODE_LINEAR_SPEED_ENV), 0.15),
++        angular_speed_rad_s=_safe_float(source.get(DRIVE_MODE_ANGULAR_SPEED_ENV), 0.30),
++        log_path=log_path,
++    )
++
++
++def build_drive_mode_launch_command(config: DriveModeLaunchConfig) -> tuple[str, ...]:
++    """Return the subprocess command used to run the web drive panel."""
++
++    script_path = config.project_root / "scripts" / "mobile_base_drive_mode.py"
++    command: list[str] = [
++        sys.executable,
++        str(script_path),
++        "--host",
++        str(config.host),
++        "--http-port",
++        str(int(config.http_port)),
++        "--linear-speed-mps",
++        f"{float(config.linear_speed_mps):.3f}",
++        "--angular-speed-rad-s",
++        f"{float(config.angular_speed_rad_s):.3f}",
++    ]
++    if config.dry_run:
++        command.append("--dry-run")
++    if config.serial_port:
++        command.extend(["--port", str(config.serial_port)])
++    if config.enable_movement:
++        command.append("--enable-movement")
++    return tuple(command)
++
++
++def _is_http_port_alive(*, host: str, port: int, timeout_sec: float = 0.15) -> bool:
++    try:
++        with socket.create_connection((host, int(port)), timeout=float(timeout_sec)):
++            return True
++    except OSError:
++        return False
++
++
++class DriveModeVoiceLauncher:
++    """Starts the manual drive panel without blocking Voice Runtime."""
++
++    def __init__(self, *, config: DriveModeLaunchConfig | None = None) -> None:
++        self.config = config or build_drive_mode_launch_config_from_env()
++
++    def launch(self) -> DriveModeLaunchResult:
++        config = self.config
++        if _is_http_port_alive(host=config.status_host, port=config.http_port):
++            return DriveModeLaunchResult(
++                ok=True,
++                status="already_running",
++                message="Drive mode panel is already running.",
++                panel_url=config.panel_url,
++                movement_enabled=config.enable_movement,
++                log_path=str(config.log_path or ""),
++            )
++        if not config.dry_run and os.environ.get(CONFIRM_TEST_ENV_VAR) != CONFIRM_TEST_ENV_VALUE:
++            return DriveModeLaunchResult(
++                ok=False,
++                status="hardware_gate_closed",
++                message=(
++                    f"Hardware gate is closed. Set {CONFIRM_TEST_ENV_VAR}={CONFIRM_TEST_ENV_VALUE} "
++                    "before voice-starting drive mode against the real mobile base."
++                ),
++                panel_url=config.panel_url,
++                movement_enabled=False,
++                log_path=str(config.log_path or ""),
++            )
++        command = build_drive_mode_launch_command(config)
++        log_path = config.log_path or (config.project_root / "var" / "log" / "mobile_base_drive_mode_voice.log")
++        log_path.parent.mkdir(parents=True, exist_ok=True)
++        with log_path.open("a", encoding="utf-8") as log_file:
++            log_file.write("\n[VOICE-LAUNCH] Starting drive mode panel\n")
++            log_file.write("[VOICE-LAUNCH] Command: " + " ".join(command) + "\n")
++            process = subprocess.Popen(
++                command,
++                cwd=str(config.project_root),
++                stdout=log_file,
++                stderr=subprocess.STDOUT,
++                start_new_session=True,
++            )
++        time.sleep(0.25)
++        if process.poll() is not None:
++            return DriveModeLaunchResult(
++                ok=False,
++                status="process_exited",
++                message="Drive mode process exited immediately. Check the drive mode voice log.",
++                panel_url=config.panel_url,
++                command=command,
++                pid=process.pid,
++                movement_enabled=config.enable_movement,
++                log_path=str(log_path),
++            )
++        return DriveModeLaunchResult(
++            ok=True,
++            status="started",
++            message="Drive mode panel started.",
++            panel_url=config.panel_url,
++            command=command,
++            pid=process.pid,
++            movement_enabled=config.enable_movement,
++            log_path=str(log_path),
++        )
++
++
++__all__ = [
++    "DriveModeLaunchConfig",
++    "DriveModeLaunchResult",
++    "DriveModeVoiceLauncher",
++    "build_drive_mode_launch_command",
++    "build_drive_mode_launch_config_from_env",
++]
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/modules/runtime/voice_engine_v2/runtime_candidate_executor.py nexa_voice_patch_mod/modules/runtime/voice_engine_v2/runtime_candidate_executor.py
+--- a/modules/runtime/voice_engine_v2/runtime_candidate_executor.py	2026-05-06 05:52:44.000000000 +0000
++++ b/modules/runtime/voice_engine_v2/runtime_candidate_executor.py	2026-05-08 17:53:59.038085653 +0000
+@@ -180,6 +180,11 @@
+                 legacy_action="help",
+                 tool_name="system.help",
+             ),
++            "mobile_base.drive_mode": RuntimeCandidateActionSpec(
++                voice_engine_intent_key="mobile_base.drive_mode",
++                legacy_action="drive_mode_start",
++                tool_name="mobile_base.drive_mode",
++            ),
+               "memory.guided_start": RuntimeCandidateActionSpec(
+                   voice_engine_intent_key="memory.guided_start",
+                   legacy_action="memory_store",
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/modules/shared/config/settings_core/defaults.py nexa_voice_patch_mod/modules/shared/config/settings_core/defaults.py
+--- a/modules/shared/config/settings_core/defaults.py	2026-05-05 20:41:32.000000000 +0000
++++ b/modules/shared/config/settings_core/defaults.py	2026-05-08 17:53:59.039828167 +0000
+@@ -102,6 +102,7 @@
+         "runtime_candidate_intent_allowlist": [
+             "assistant.identity",
+             "system.current_time",
++            "mobile_base.drive_mode",
+         ],
+         "runtime_candidate_log_path": (
+             "var/data/voice_engine_v2_runtime_candidates.jsonl"
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/scripts/mobile_base_drive_mode.py nexa_voice_patch_mod/scripts/mobile_base_drive_mode.py
+--- a/scripts/mobile_base_drive_mode.py	2026-05-08 17:52:41.057749808 +0000
++++ b/scripts/mobile_base_drive_mode.py	2026-05-08 17:53:59.035577186 +0000
+@@ -82,17 +82,23 @@
+   const time = new Date().toLocaleTimeString();
+   log.textContent = `[${time}] ${message}\n` + log.textContent;
+ }
+-async function send(event, key) {
+-  const response = await fetch('/api/key', {
++async function postJSON(path, payload) {
++  const response = await fetch(path, {
+     method: 'POST',
+     headers: {'Content-Type': 'application/json'},
+-    body: JSON.stringify({event, key})
++    body: JSON.stringify(payload)
+   });
+   const data = await response.json();
+   statusBox.textContent = `Status: ${data.ok ? 'ok' : 'error'} ${data.action || ''}`;
+   append(JSON.stringify(data));
+   return data;
+ }
++async function send(event, key) {
++  return postJSON('/api/key', {event, key});
++}
++async function sendState() {
++  return postJSON('/api/keys', {keys: Array.from(pressed)});
++}
+ function mark(key, active) {
+   const mapped = activeByKey[key] || key.toLowerCase();
+   const node = document.querySelector(`[data-key="${mapped}"]`);
+@@ -114,7 +120,7 @@
+   if (!pressed.has(key)) pressed.add(key);
+   mark(key, true);
+   if (["w", "a", "s", "d", "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"].includes(key)) {
+-    await send('down', key);
++    await sendState();
+   }
+ });
+ document.addEventListener('keyup', async (event) => {
+@@ -122,14 +128,12 @@
+   pressed.delete(key);
+   mark(key, false);
+   if (["w", "a", "s", "d", "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"].includes(key)) {
+-    await send('up', key);
++    await sendState();
+   }
+ });
+ setInterval(() => {
+-  for (const key of pressed) {
+-    if (["w", "a", "s", "d", "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"].includes(key)) {
+-      send('down', key).catch(() => {});
+-    }
++  if (pressed.size > 0) {
++    sendState().catch(() => {});
+   }
+ }, 90);
+ document.getElementById('stop').addEventListener('click', () => send('down', 'space'));
+@@ -180,16 +184,24 @@
+             result = self.server.service.stop_all(reason="drive_mode_http_stop")
+             _json_response(self, result.as_dict())
+             return
+-        if self.path != "/api/key":
++        if self.path not in {"/api/key", "/api/keys"}:
+             self.send_error(404)
+             return
+         try:
+             length = int(self.headers.get("Content-Length", "0"))
+             payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+-            result = self.server.service.handle_keyboard_event(
+-                event=str(payload.get("event", "")),
+-                key=str(payload.get("key", "")),
+-            )
++            if self.path == "/api/keys":
++                raw_keys = payload.get("keys", [])
++                if not isinstance(raw_keys, list):
++                    raise ValueError("keys must be a list")
++                result = self.server.service.handle_pressed_keys(
++                    keys=[str(item) for item in raw_keys],
++                )
++            else:
++                result = self.server.service.handle_keyboard_event(
++                    event=str(payload.get("event", "")),
++                    key=str(payload.get("key", "")),
++                )
+         except Exception as error:
+             _json_response(self, {"ok": False, "error": str(error)}, status=400)
+             return
+@@ -258,7 +270,11 @@
+ 
+ def _run_self_test(args: argparse.Namespace) -> int:
+     controller, selected_port, _is_dry_run = _build_controller(args)
+-    service = DriveModeService(controller=controller)
++    service = DriveModeService(
++        controller=controller,
++        linear_speed_mps=float(args.linear_speed_mps),
++        angular_speed_rad_s=float(args.angular_speed_rad_s),
++    )
+     controller.open()
+     try:
+         print(f"[SELF-TEST] Selected port: {selected_port}")
+@@ -296,7 +312,11 @@
+     if not is_dry_run and args.enable_movement:
+         print("[WARN] Hardware movement is enabled. Keep wheels raised and keep the web panel focused.")
+ 
+-    service = DriveModeService(controller=controller)
++    service = DriveModeService(
++        controller=controller,
++        linear_speed_mps=float(args.linear_speed_mps),
++        angular_speed_rad_s=float(args.angular_speed_rad_s),
++    )
+     stop_event = threading.Event()
+ 
+     def _handle_signal(_signum: int, _frame: object) -> None:
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/tests/core/command_intents/test_command_intent_resolver.py nexa_voice_patch_mod/tests/core/command_intents/test_command_intent_resolver.py
+--- a/tests/core/command_intents/test_command_intent_resolver.py	2026-04-27 10:52:30.000000000 +0000
++++ b/tests/core/command_intents/test_command_intent_resolver.py	2026-05-08 17:53:59.040517922 +0000
+@@ -110,4 +110,16 @@
+ 
+     assert result.status == CommandIntentResolutionStatus.UNKNOWN_INTENT
+     assert result.intent is None
+-    assert result.reason == "unknown_intent:unknown.intent"
+\ No newline at end of file
++    assert result.reason == "unknown_intent:unknown.intent"
++
++
++def test_resolver_resolves_mobile_base_drive_mode_intent() -> None:
++    grammar = build_default_command_grammar()
++    recognition = grammar.match("tryb sterowania")
++    result = CommandIntentResolver().resolve(recognition)
++    assert result.status == CommandIntentResolutionStatus.RESOLVED
++    assert result.intent is not None
++    assert result.intent.key == "mobile_base.drive_mode"
++    assert result.intent.domain == CommandIntentDomain.MOBILE_BASE
++    assert result.intent.action == "drive_mode_start"
++    assert result.intent.language == CommandLanguage.POLISH
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/tests/devices/audio/command_asr/test_command_grammar.py nexa_voice_patch_mod/tests/devices/audio/command_asr/test_command_grammar.py
+--- a/tests/devices/audio/command_asr/test_command_grammar.py	2026-05-06 00:55:08.000000000 +0000
++++ b/tests/devices/audio/command_asr/test_command_grammar.py	2026-05-08 17:53:59.040169683 +0000
+@@ -437,3 +437,18 @@
+         assert result.status == CommandRecognitionStatus.MATCHED
+         assert result.intent_key == expected_intent
+         assert result.language == CommandLanguage.ENGLISH
++
++
++
++def test_default_grammar_recognizes_mobile_base_drive_mode_aliases() -> None:
++    grammar = build_default_command_grammar()
++    english = grammar.match("drive mode")
++    assert english.is_match
++    assert english.intent_key == "mobile_base.drive_mode"
++    assert english.language == CommandLanguage.ENGLISH
++    polish = grammar.match("tryb sterowania")
++    assert polish.is_match
++    assert polish.intent_key == "mobile_base.drive_mode"
++    assert polish.language == CommandLanguage.POLISH
++    assert "drive mode" in grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH)
++    assert "tryb sterowania" in grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/tests/runtime/drive_mode/test_drive_mode_service.py nexa_voice_patch_mod/tests/runtime/drive_mode/test_drive_mode_service.py
+--- a/tests/runtime/drive_mode/test_drive_mode_service.py	2026-05-08 17:52:41.050689790 +0000
++++ b/tests/runtime/drive_mode/test_drive_mode_service.py	2026-05-08 17:53:59.040873698 +0000
+@@ -82,3 +82,20 @@
+         assert transport.written_lines == []
+     finally:
+         controller.close()
++
++
++
++def test_pressed_key_state_combines_forward_and_left() -> None:
++    service, transport, controller = _build_service()
++    try:
++        result = service.handle_pressed_keys(keys=["w", "a"])
++        assert result.ok is True
++        assert result.action is DriveModeAction.FORWARD_LEFT
++        assert result.command == '{"T":13,"X":0.04,"Z":0.18}'
++        assert transport.written_lines[-1] == '{"T":13,"X":0.04,"Z":0.18}\n'
++        release = service.handle_pressed_keys(keys=[])
++        assert release.ok is True
++        assert release.stopped is True
++        assert transport.written_lines[-1] == '{"T":13,"X":0.0,"Z":0.0}\n'
++    finally:
++        controller.close()
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/tests/runtime/drive_mode/test_drive_mode_voice_launcher.py nexa_voice_patch_mod/tests/runtime/drive_mode/test_drive_mode_voice_launcher.py
+--- a/tests/runtime/drive_mode/test_drive_mode_voice_launcher.py	1970-01-01 00:00:00.000000000 +0000
++++ b/tests/runtime/drive_mode/test_drive_mode_voice_launcher.py	2026-05-08 17:53:59.039924448 +0000
+@@ -0,0 +1,47 @@
++from __future__ import annotations
++
++from pathlib import Path
++
++from modules.runtime.drive_mode.voice_launcher import (
++    CONFIRM_TEST_ENV_VAR,
++    CONFIRM_TEST_ENV_VALUE,
++    DRIVE_MODE_DRY_RUN_ENV,
++    DRIVE_MODE_ENABLE_MOVEMENT_ENV,
++    DRIVE_MODE_SERIAL_PORT_ENV,
++    DriveModeVoiceLauncher,
++    build_drive_mode_launch_command,
++    build_drive_mode_launch_config_from_env,
++)
++
++
++def test_voice_launcher_builds_dry_run_command_without_movement(tmp_path: Path) -> None:
++    config = build_drive_mode_launch_config_from_env(env={DRIVE_MODE_DRY_RUN_ENV: "1"}, project_root=tmp_path)
++    command = build_drive_mode_launch_command(config)
++    assert "--dry-run" in command
++    assert "--enable-movement" not in command
++    assert str(tmp_path / "scripts" / "mobile_base_drive_mode.py") in command
++
++
++def test_voice_launcher_requires_movement_env_gate(tmp_path: Path) -> None:
++    config = build_drive_mode_launch_config_from_env(env={DRIVE_MODE_ENABLE_MOVEMENT_ENV: "1", DRIVE_MODE_SERIAL_PORT_ENV: "/dev/ttyACM0"}, project_root=tmp_path)
++    command = build_drive_mode_launch_command(config)
++    assert config.movement_requested is True
++    assert config.enable_movement is False
++    assert "--enable-movement" not in command
++
++
++def test_voice_launcher_allows_movement_only_when_gate_is_open(tmp_path: Path) -> None:
++    config = build_drive_mode_launch_config_from_env(env={DRIVE_MODE_ENABLE_MOVEMENT_ENV: "1", "CONFIRM_NEXA_MOBILE_BASE_MOVE": "RUN", DRIVE_MODE_SERIAL_PORT_ENV: "/dev/ttyACM0"}, project_root=tmp_path)
++    command = build_drive_mode_launch_command(config)
++    assert config.enable_movement is True
++    assert "--enable-movement" in command
++    assert "/dev/ttyACM0" in command
++
++
++def test_voice_launcher_reports_closed_hardware_gate_without_starting(tmp_path: Path) -> None:
++    config = build_drive_mode_launch_config_from_env(env={DRIVE_MODE_SERIAL_PORT_ENV: "/dev/ttyACM0"}, project_root=tmp_path)
++    result = DriveModeVoiceLauncher(config=config).launch()
++    assert result.ok is False
++    assert result.status == "hardware_gate_closed"
++    assert CONFIRM_TEST_ENV_VAR in result.message
++    assert CONFIRM_TEST_ENV_VALUE in result.message
+diff -ruN '--exclude=.pytest_cache' '--exclude=__pycache__' nexa_voice_patch_base/tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py nexa_voice_patch_mod/tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+--- a/tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py	2026-05-06 00:55:08.000000000 +0000
++++ b/tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py	2026-05-08 17:53:59.041222670 +0000
+@@ -11,6 +11,7 @@
+     "assistant.identity",
+     "memory.guided_start",
+     "memory.list",
++    "mobile_base.drive_mode",
+     "system.current_time",
+     "visual_shell.show_desktop",
+     "visual_shell.show_shell",
+@@ -171,6 +172,7 @@
+         "memory.guided_start",
+         "memory.list",
+         "memory.recall",
++        "mobile_base.drive_mode",
+         "reminder.guided_start",
+         "reminder.time_answer",
+         "system.current_time",
+@@ -338,3 +340,28 @@
+         assert plan.route_decision.metadata["voice_engine_intent_key"] == intent_key
+         assert plan.route_decision.metadata["legacy_action"] == legacy_action
+         assert plan.route_decision.metadata["llm_prevented"] is True
++
++
++
++def test_runtime_candidate_executor_builds_mobile_base_drive_mode_route() -> None:
++    builder = RuntimeCandidateExecutionPlanBuilder()
++    turn = _turn_result("drive mode", language=CommandLanguage.ENGLISH)
++    plan = builder.build_plan(turn_result=turn, transcript="drive mode", metadata={"source": "unit_test"})
++    assert plan is not None
++    assert plan.route_decision.kind == RouteKind.ACTION
++    assert plan.route_decision.primary_intent == "drive_mode_start"
++    assert plan.route_decision.tool_invocations[0].tool_name == "mobile_base.drive_mode"
++    assert plan.route_decision.metadata["voice_engine_intent_key"] == "mobile_base.drive_mode"
++    assert plan.route_decision.metadata["legacy_action"] == "drive_mode_start"
++    assert plan.route_decision.metadata["llm_prevented"] is True
++
++
++def test_runtime_candidate_executor_builds_polish_mobile_base_drive_mode_route() -> None:
++    builder = RuntimeCandidateExecutionPlanBuilder()
++    turn = _turn_result("tryb sterowania", language=CommandLanguage.POLISH)
++    plan = builder.build_plan(turn_result=turn, transcript="tryb sterowania", metadata={"source": "unit_test"})
++    assert plan is not None
++    assert plan.route_decision.language == "pl"
++    assert plan.route_decision.primary_intent == "drive_mode_start"
++    assert plan.route_decision.tool_invocations[0].tool_name == "mobile_base.drive_mode"
++    assert plan.route_decision.metadata["voice_engine_intent_key"] == "mobile_base.drive_mode"

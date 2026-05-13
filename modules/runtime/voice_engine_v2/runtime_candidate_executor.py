@@ -180,6 +180,11 @@ class RuntimeCandidateExecutionPlanBuilder:
                 legacy_action="help",
                 tool_name="system.help",
             ),
+            "mobile_base.drive_mode": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="mobile_base.drive_mode",
+                legacy_action="drive_mode_start",
+                tool_name="mobile_base.drive_mode",
+            ),
               "memory.guided_start": RuntimeCandidateActionSpec(
                   voice_engine_intent_key="memory.guided_start",
                   legacy_action="memory_store",

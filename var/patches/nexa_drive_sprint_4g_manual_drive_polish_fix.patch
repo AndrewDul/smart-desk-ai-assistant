@@ -1,0 +1,246 @@
+--- a/modules/runtime/drive_mode/voice_launcher.py	2026-05-08 19:26:41.314375143 +0000
++++ b/modules/runtime/drive_mode/voice_launcher.py	2026-05-08 19:46:44.107940710 +0000
+@@ -47,12 +47,12 @@
+     serial_port: str = ""
+     enable_movement: bool = False
+     movement_requested: bool = False
+-    linear_speed_mps: float = 0.15
+-    angular_speed_rad_s: float = 0.30
+-    command_profile: str = "ros"
+-    wheel_turn_speed_mps: float = 0.12
+-    pwm_drive: int = 90
+-    pwm_turn: int = 90
++    linear_speed_mps: float = 0.18
++    angular_speed_rad_s: float = 0.65
++    command_profile: str = "wheel"
++    wheel_turn_speed_mps: float = 0.22
++    pwm_drive: int = 135
++    pwm_turn: int = 150
+     log_path: Path | None = None
+     auto_open: bool = True
+     force_restart: bool = True
+@@ -135,12 +135,12 @@
+         serial_port=str(source.get(DRIVE_MODE_SERIAL_PORT_ENV, "") or ""),
+         enable_movement=enable_movement,
+         movement_requested=movement_requested,
+-        linear_speed_mps=_safe_float(source.get(DRIVE_MODE_LINEAR_SPEED_ENV), 0.15),
+-        angular_speed_rad_s=_safe_float(source.get(DRIVE_MODE_ANGULAR_SPEED_ENV), 0.30),
+-        command_profile=str(source.get(DRIVE_MODE_COMMAND_PROFILE_ENV, "ros") or "ros").strip().lower(),
+-        wheel_turn_speed_mps=_safe_float(source.get(DRIVE_MODE_WHEEL_TURN_SPEED_ENV), 0.12),
+-        pwm_drive=_safe_int(source.get(DRIVE_MODE_PWM_DRIVE_ENV), 90),
+-        pwm_turn=_safe_int(source.get(DRIVE_MODE_PWM_TURN_ENV), 90),
++        linear_speed_mps=_safe_float(source.get(DRIVE_MODE_LINEAR_SPEED_ENV), 0.18),
++        angular_speed_rad_s=_safe_float(source.get(DRIVE_MODE_ANGULAR_SPEED_ENV), 0.65),
++        command_profile=str(source.get(DRIVE_MODE_COMMAND_PROFILE_ENV, "wheel") or "wheel").strip().lower(),
++        wheel_turn_speed_mps=_safe_float(source.get(DRIVE_MODE_WHEEL_TURN_SPEED_ENV), 0.22),
++        pwm_drive=_safe_int(source.get(DRIVE_MODE_PWM_DRIVE_ENV), 135),
++        pwm_turn=_safe_int(source.get(DRIVE_MODE_PWM_TURN_ENV), 150),
+         log_path=log_path,
+         auto_open=not _is_falsey(source.get(DRIVE_MODE_AUTO_OPEN_ENV)),
+         force_restart=not _is_falsey(source.get(DRIVE_MODE_FORCE_RESTART_ENV, "1")),
+--- a/scripts/mobile_base_drive_mode.py	2026-05-08 19:26:41.313357366 +0000
++++ b/scripts/mobile_base_drive_mode.py	2026-05-08 19:46:44.106951737 +0000
+@@ -8,7 +8,7 @@
+ import sys
+ import threading
+ import time
+-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++from http.server import BaseHTTPRequestHandler, HTTPServer
+ from pathlib import Path
+ from typing import Any
+ 
+@@ -34,14 +34,14 @@
+ CONFIRM_TEST_ENV_VALUE = "RUN"
+ DEFAULT_HTTP_HOST = "127.0.0.1"
+ DEFAULT_HTTP_PORT = 8768
+-DEFAULT_LINEAR_SPEED_MPS = 0.15
+-DEFAULT_ANGULAR_SPEED_RAD_S = 0.30
+-MAX_LINEAR_SPEED_MPS = 0.20
+-MAX_ANGULAR_SPEED_RAD_S = 0.45
+-DEFAULT_COMMAND_PROFILE = "ros"
+-DEFAULT_WHEEL_TURN_SPEED_MPS = 0.12
+-DEFAULT_PWM_DRIVE = 90
+-DEFAULT_PWM_TURN = 90
++DEFAULT_LINEAR_SPEED_MPS = 0.18
++DEFAULT_ANGULAR_SPEED_RAD_S = 0.65
++MAX_LINEAR_SPEED_MPS = 0.30
++MAX_ANGULAR_SPEED_RAD_S = 0.90
++DEFAULT_COMMAND_PROFILE = "wheel"
++DEFAULT_WHEEL_TURN_SPEED_MPS = 0.22
++DEFAULT_PWM_DRIVE = 135
++DEFAULT_PWM_TURN = 150
+ 
+ 
+ HTML_PAGE = """<!doctype html>
+@@ -79,14 +79,18 @@
+   </main>
+ <script>
+ const pressed = new Set();
++const driveKeys = ["w", "a", "s", "d", "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"];
+ const activeByKey = {"w":"w", "a":"a", "s":"s", "d":"d", "ArrowUp":"w", "ArrowLeft":"a", "ArrowDown":"s", "ArrowRight":"d"};
+ const log = document.getElementById("log");
+ const statusBox = document.getElementById("status");
++let stateInFlight = false;
++let stateDirty = false;
++let lastRenderedAction = "";
+ function append(message) {
+   const time = new Date().toLocaleTimeString();
+   log.textContent = `[${time}] ${message}\n` + log.textContent;
+ }
+-async function postJSON(path, payload) {
++async function postJSON(path, payload, options = {}) {
+   const response = await fetch(path, {
+     method: 'POST',
+     headers: {'Content-Type': 'application/json'},
+@@ -94,14 +98,31 @@
+   });
+   const data = await response.json();
+   statusBox.textContent = `Status: ${data.ok ? 'ok' : 'error'} ${data.action || ''}`;
+-  append(JSON.stringify(data));
++  const actionKey = `${data.action || ''}:${data.command || ''}:${data.stopped || false}:${data.error || ''}`;
++  if (!options.quiet || actionKey !== lastRenderedAction || data.error) {
++    append(JSON.stringify(data));
++    lastRenderedAction = actionKey;
++  }
+   return data;
+ }
+ async function send(event, key) {
+   return postJSON('/api/key', {event, key});
+ }
+-async function sendState() {
+-  return postJSON('/api/keys', {keys: Array.from(pressed)});
++async function sendState(options = {}) {
++  if (stateInFlight) {
++    stateDirty = true;
++    return null;
++  }
++  stateInFlight = true;
++  try {
++    return await postJSON('/api/keys', {keys: Array.from(pressed)}, options);
++  } finally {
++    stateInFlight = false;
++    if (stateDirty) {
++      stateDirty = false;
++      sendState({quiet: true}).catch(() => {});
++    }
++  }
+ }
+ function mark(key, active) {
+   const mapped = activeByKey[key] || key.toLowerCase();
+@@ -109,7 +130,7 @@
+   if (node) node.classList.toggle('active', active);
+ }
+ document.addEventListener('keydown', async (event) => {
+-  if (["w", "a", "s", "d", " ", "Escape", "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"].includes(event.key)) {
++  if ([...driveKeys, " ", "Escape"].includes(event.key)) {
+     event.preventDefault();
+   }
+   if (event.key === ' ') {
+@@ -121,27 +142,32 @@
+     return;
+   }
+   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+-  if (!pressed.has(key)) pressed.add(key);
++  if (!driveKeys.includes(key)) return;
++  const wasPressed = pressed.has(key);
++  pressed.add(key);
+   mark(key, true);
+-  if (["w", "a", "s", "d", "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"].includes(key)) {
++  if (!wasPressed) {
+     await sendState();
+   }
+ });
+ document.addEventListener('keyup', async (event) => {
+   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
++  if (!driveKeys.includes(key)) return;
+   pressed.delete(key);
+   mark(key, false);
+-  if (["w", "a", "s", "d", "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"].includes(key)) {
+-    await sendState();
+-  }
++  await sendState();
+ });
+ setInterval(() => {
+   if (pressed.size > 0) {
+-    sendState().catch(() => {});
++    sendState({quiet: true}).catch(() => {});
+   }
+-}, 90);
++}, 70);
+ document.getElementById('stop').addEventListener('click', () => send('down', 'space'));
+-window.addEventListener('blur', () => send('down', 'space').catch(() => {}));
++window.addEventListener('blur', () => {
++  pressed.clear();
++  for (const key of Object.keys(activeByKey)) mark(key, false);
++  send('down', 'space').catch(() => {});
++});
+ append('Drive panel loaded. Keep wheels raised for hardware tests.');
+ </script>
+ </body>
+@@ -149,7 +175,7 @@
+ """
+ 
+ 
+-class DriveModeHTTPServer(ThreadingHTTPServer):
++class DriveModeHTTPServer(HTTPServer):
+     service: DriveModeService
+     should_exit: threading.Event
+     selected_port: str
+--- a/tests/runtime/drive_mode/test_mobile_base_drive_mode_script.py	2026-05-08 19:12:54.723164915 +0000
++++ b/tests/runtime/drive_mode/test_mobile_base_drive_mode_script.py	2026-05-08 19:46:44.108675886 +0000
+@@ -3,6 +3,7 @@
+ from scripts.mobile_base_drive_mode import (
+     DEFAULT_ANGULAR_SPEED_RAD_S,
+     DEFAULT_LINEAR_SPEED_MPS,
++    DEFAULT_COMMAND_PROFILE,
+     MAX_ANGULAR_SPEED_RAD_S,
+     MAX_LINEAR_SPEED_MPS,
+     _build_controller,
+@@ -19,6 +20,7 @@
+     assert args.enable_movement is False
+     assert args.linear_speed_mps == DEFAULT_LINEAR_SPEED_MPS
+     assert args.angular_speed_rad_s == DEFAULT_ANGULAR_SPEED_RAD_S
++    assert args.command_profile == DEFAULT_COMMAND_PROFILE
+ 
+ 
+ def test_drive_mode_self_test_runs_without_hardware(capsys) -> None:
+@@ -36,6 +38,8 @@
+         "0.99",
+         "--angular-speed-rad-s",
+         "0.99",
++        "--command-profile",
++        "ros",
+     ])
+     controller, _selected_port, _is_dry_run = _build_controller(args)
+     service = DriveModeService(controller=controller)
+--- a/tests/runtime/drive_mode/test_drive_mode_voice_launcher.py	2026-05-08 19:13:03.007097130 +0000
++++ b/tests/runtime/drive_mode/test_drive_mode_voice_launcher.py	2026-05-08 19:46:44.109272708 +0000
+@@ -9,6 +9,7 @@
+     DRIVE_MODE_ENABLE_MOVEMENT_ENV,
+     DRIVE_MODE_SERIAL_PORT_ENV,
+     DRIVE_MODE_FORCE_RESTART_ENV,
++    DRIVE_MODE_COMMAND_PROFILE_ENV,
+     DriveModeVoiceLauncher,
+     build_drive_mode_launch_command,
+     build_drive_mode_launch_config_from_env,
+@@ -59,3 +60,20 @@
+         project_root=tmp_path,
+     )
+     assert config.force_restart is False
++
++
++def test_voice_launcher_defaults_to_wheel_profile_for_ugv02(tmp_path: Path) -> None:
++    config = build_drive_mode_launch_config_from_env(env={DRIVE_MODE_DRY_RUN_ENV: "1"}, project_root=tmp_path)
++    command = build_drive_mode_launch_command(config)
++
++    assert config.command_profile == "wheel"
++    assert "--command-profile" in command
++    assert "wheel" in command
++
++
++def test_voice_launcher_allows_ros_profile_override(tmp_path: Path) -> None:
++    config = build_drive_mode_launch_config_from_env(
++        env={DRIVE_MODE_DRY_RUN_ENV: "1", DRIVE_MODE_COMMAND_PROFILE_ENV: "ros"},
++        project_root=tmp_path,
++    )
++    assert config.command_profile == "ros"

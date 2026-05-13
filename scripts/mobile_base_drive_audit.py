@@ -1,0 +1,215 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from modules.devices.mobile_base import (  # noqa: E402
+    DEFAULT_BAUDRATE,
+    DEFAULT_TIMEOUT_SEC,
+    DEFAULT_MOVEMENT_CONFIRM_ENV,
+    DEFAULT_MOVEMENT_CONFIRM_VALUE,
+    DryRunSerialTransport,
+    MobileBaseController,
+    MobileBaseSafetyPolicy,
+    PySerialLineTransport,
+    choose_serial_port,
+    detect_serial_ports,
+)
+from modules.devices.mobile_base.commands import build_ros_velocity_command, serialize_json_line  # noqa: E402
+
+
+CONFIRM_TEST_ENV_VAR = "CONFIRM_NEXA_MOBILE_BASE_TEST"
+CONFIRM_TEST_ENV_VALUE = "RUN"
+DEFAULT_ACTION = "rotate_left"
+DEFAULT_LINEAR_SPEED_MPS = 0.15
+DEFAULT_ANGULAR_SPEED_RAD_S = 0.30
+DEFAULT_DURATION_SEC = 0.35
+
+
+class AuditTransport:
+    """Transport wrapper that prints every write before delegating to serial."""
+
+    def __init__(self, inner: Any) -> None:
+        self.inner = inner
+
+    def open(self) -> None:
+        self.inner.open()
+
+    def write_line(self, line: str) -> None:
+        print(f"[AUDIT WRITE] {line.rstrip()}")
+        self.inner.write_line(line)
+
+    def read_available_lines(self, *, duration_sec: float = 0.0) -> list[str]:
+        lines = self.inner.read_available_lines(duration_sec=duration_sec)
+        for line in lines:
+            print(f"[AUDIT READ] {line}")
+        return lines
+
+    def close(self) -> None:
+        self.inner.close()
+
+
+def _hardware_gate_is_open() -> bool:
+    return os.environ.get(CONFIRM_TEST_ENV_VAR) == CONFIRM_TEST_ENV_VALUE
+
+
+def _movement_gate_is_open() -> bool:
+    return os.environ.get(DEFAULT_MOVEMENT_CONFIRM_ENV) == DEFAULT_MOVEMENT_CONFIRM_VALUE
+
+
+def _print_ports() -> None:
+    ports = detect_serial_ports()
+    if not ports:
+        print("[AUDIT] No serial ports detected.")
+        return
+    print("[AUDIT] Serial ports:")
+    for port in ports:
+        data = port.as_dict()
+        print(
+            "  - "
+            f"device={data['device']} real={data['real_device']} "
+            f"description={data['description'] or 'n/a'} source={data['source'] or 'n/a'}"
+        )
+
+
+def _movement_payload(*, action: str, linear_speed_mps: float, angular_speed_rad_s: float) -> dict[str, int | float]:
+    if action == "forward":
+        return build_ros_velocity_command(linear_x_mps=abs(linear_speed_mps), angular_z_rad_s=0.0)
+    if action == "backward":
+        return build_ros_velocity_command(linear_x_mps=-abs(linear_speed_mps), angular_z_rad_s=0.0)
+    if action == "rotate_left":
+        return build_ros_velocity_command(linear_x_mps=0.0, angular_z_rad_s=abs(angular_speed_rad_s))
+    if action == "rotate_right":
+        return build_ros_velocity_command(linear_x_mps=0.0, angular_z_rad_s=-abs(angular_speed_rad_s))
+    raise ValueError(f"Unsupported action: {action}")
+
+
+def _send_stop(controller: MobileBaseController, *, read_seconds: float) -> None:
+    print("[AUDIT] Sending repeated STOP.")
+    controller.stop(reason="mobile_base_drive_audit_stop")
+    controller.read_available_lines(duration_sec=read_seconds)
+
+
+def _run_audit(args: argparse.Namespace) -> int:
+    _print_ports()
+
+    if args.dry_run:
+        selected_port = args.port or "dry-run:auto"
+        inner_transport = DryRunSerialTransport()
+        is_dry_run = True
+    else:
+        if not _hardware_gate_is_open():
+            print(f"[AUDIT ERROR] Set {CONFIRM_TEST_ENV_VAR}={CONFIRM_TEST_ENV_VALUE} before opening hardware serial.")
+            return 2
+        selected_port = choose_serial_port(explicit_port=args.port)
+        inner_transport = PySerialLineTransport(
+            port=selected_port,
+            baudrate=int(args.baudrate),
+            timeout_sec=float(args.timeout_sec),
+        )
+        is_dry_run = False
+
+    print(f"[AUDIT] Selected port: {selected_port}")
+    print(f"[AUDIT] Mode: {'dry-run' if is_dry_run else 'hardware'}")
+    print(f"[AUDIT] Hardware gate: {CONFIRM_TEST_ENV_VAR}={os.environ.get(CONFIRM_TEST_ENV_VAR, '<unset>')}")
+    print(f"[AUDIT] Movement gate: {DEFAULT_MOVEMENT_CONFIRM_ENV}={os.environ.get(DEFAULT_MOVEMENT_CONFIRM_ENV, '<unset>')}")
+    print(f"[AUDIT] Requested action: {args.action}")
+    print(f"[AUDIT] Requested speeds: linear={float(args.linear_speed_mps):.3f} m/s angular={float(args.angular_speed_rad_s):.3f} rad/s")
+    print(f"[AUDIT] Pulse duration: {float(args.duration_sec):.3f} sec")
+
+    transport = AuditTransport(inner_transport)
+    safety_policy = MobileBaseSafetyPolicy(
+        movement_enabled=bool(args.enable_movement or args.dry_run),
+        require_movement_confirm_env=not bool(args.dry_run),
+        default_linear_speed_mps=float(args.linear_speed_mps),
+        default_angular_speed_rad_s=float(args.angular_speed_rad_s),
+        max_linear_speed_mps=max(abs(float(args.linear_speed_mps)), 0.01),
+        max_angular_speed_rad_s=max(abs(float(args.angular_speed_rad_s)), 0.01),
+        deadman_timeout_ms=int(args.deadman_timeout_ms),
+    )
+    controller = MobileBaseController(
+        transport=transport,
+        safety_policy=safety_policy,
+        stop_repeat=int(args.stop_repeat),
+        stop_interval_sec=0.04,
+    )
+
+    controller.open()
+    try:
+        _send_stop(controller, read_seconds=float(args.read_seconds))
+        if args.stop_only:
+            print("[AUDIT OK] STOP-only audit completed.")
+            return 0
+
+        if not args.enable_movement and not args.dry_run:
+            print("[AUDIT ERROR] Movement pulse was requested, but --enable-movement is missing.")
+            print(f"[AUDIT ERROR] Also required: {DEFAULT_MOVEMENT_CONFIRM_ENV}={DEFAULT_MOVEMENT_CONFIRM_VALUE}")
+            return 3
+        if not args.dry_run and not _movement_gate_is_open():
+            print(f"[AUDIT ERROR] Movement env gate is closed: {DEFAULT_MOVEMENT_CONFIRM_ENV} must be {DEFAULT_MOVEMENT_CONFIRM_VALUE}.")
+            return 4
+
+        payload = _movement_payload(
+            action=str(args.action),
+            linear_speed_mps=float(args.linear_speed_mps),
+            angular_speed_rad_s=float(args.angular_speed_rad_s),
+        )
+        print(f"[AUDIT] Planned movement payload: {json.dumps(payload, separators=(',', ':'))}")
+        print("[AUDIT] Sending movement pulse now. Keep wheels raised.")
+        controller.send_velocity(
+            linear_x_mps=float(payload["X"]),
+            angular_z_rad_s=float(payload["Z"]),
+        )
+        time.sleep(float(args.duration_sec))
+        _send_stop(controller, read_seconds=float(args.read_seconds))
+        print("[AUDIT OK] Movement audit pulse completed.")
+        return 0
+    finally:
+        try:
+            controller.stop(reason="mobile_base_drive_audit_final_stop")
+        finally:
+            controller.close()
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Audit the NeXa mobile base drive command path.")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--port", type=str, default=None)
+    parser.add_argument("--baudrate", type=int, default=DEFAULT_BAUDRATE)
+    parser.add_argument("--timeout-sec", type=float, default=DEFAULT_TIMEOUT_SEC)
+    parser.add_argument("--stop-only", action="store_true")
+    parser.add_argument("--enable-movement", action="store_true")
+    parser.add_argument("--action", choices=["forward", "backward", "rotate_left", "rotate_right"], default=DEFAULT_ACTION)
+    parser.add_argument("--linear-speed-mps", type=float, default=DEFAULT_LINEAR_SPEED_MPS)
+    parser.add_argument("--angular-speed-rad-s", type=float, default=DEFAULT_ANGULAR_SPEED_RAD_S)
+    parser.add_argument("--duration-sec", type=float, default=DEFAULT_DURATION_SEC)
+    parser.add_argument("--deadman-timeout-ms", type=int, default=250)
+    parser.add_argument("--read-seconds", type=float, default=0.4)
+    parser.add_argument("--stop-repeat", type=int, default=3)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        return _run_audit(args)
+    except KeyboardInterrupt:
+        print("[AUDIT] Interrupted by user.")
+        return 130
+    except Exception as error:
+        print(f"[AUDIT ERROR] {error}")
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

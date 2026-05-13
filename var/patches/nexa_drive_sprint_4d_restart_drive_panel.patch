@@ -1,0 +1,255 @@
+diff -ruN base/modules/runtime/drive_mode/voice_launcher.py new/modules/runtime/drive_mode/voice_launcher.py
+--- base/modules/runtime/drive_mode/voice_launcher.py	2026-05-08 19:06:24.974561247 +0000
++++ new/modules/runtime/drive_mode/voice_launcher.py	2026-05-08 19:06:42.738059371 +0000
+@@ -1,10 +1,13 @@
+ from __future__ import annotations
+ 
++import json
+ import os
+ import socket
+ import subprocess
+ import sys
+ import time
++import urllib.error
++import urllib.request
+ from dataclasses import dataclass
+ from pathlib import Path
+ from typing import Mapping
+@@ -26,6 +29,7 @@
+ DRIVE_MODE_ANGULAR_SPEED_ENV = "NEXA_DRIVE_MODE_ANGULAR_SPEED_RAD_S"
+ DRIVE_MODE_LOG_PATH_ENV = "NEXA_DRIVE_MODE_LOG_PATH"
+ DRIVE_MODE_AUTO_OPEN_ENV = "NEXA_DRIVE_MODE_AUTO_OPEN"
++DRIVE_MODE_FORCE_RESTART_ENV = "NEXA_DRIVE_MODE_FORCE_RESTART"
+ 
+ 
+ @dataclass(frozen=True, slots=True)
+@@ -43,6 +47,7 @@
+     angular_speed_rad_s: float = 0.30
+     log_path: Path | None = None
+     auto_open: bool = True
++    force_restart: bool = True
+ 
+     @property
+     def panel_url(self) -> str:
+@@ -117,6 +122,7 @@
+         angular_speed_rad_s=_safe_float(source.get(DRIVE_MODE_ANGULAR_SPEED_ENV), 0.30),
+         log_path=log_path,
+         auto_open=not _is_falsey(source.get(DRIVE_MODE_AUTO_OPEN_ENV)),
++        force_restart=not _is_falsey(source.get(DRIVE_MODE_FORCE_RESTART_ENV, "1")),
+     )
+ 
+ 
+@@ -153,6 +159,64 @@
+         return False
+ 
+ 
++def _append_log(log_path: Path, message: str) -> None:
++    try:
++        log_path.parent.mkdir(parents=True, exist_ok=True)
++        with log_path.open("a", encoding="utf-8") as log_file:
++            log_file.write(message.rstrip("\n") + "\n")
++    except Exception:
++        pass
++
++
++def _request_existing_panel_exit(*, config: DriveModeLaunchConfig, log_path: Path) -> None:
++    """Ask a previously running panel to stop before starting with fresh gates."""
++
++    url = f"http://{config.status_host}:{int(config.http_port)}/api/key"
++    payload = json.dumps({"event": "down", "key": "Escape"}).encode("utf-8")
++    request = urllib.request.Request(
++        url,
++        data=payload,
++        headers={"Content-Type": "application/json"},
++        method="POST",
++    )
++    try:
++        with urllib.request.urlopen(request, timeout=0.5) as response:
++            _append_log(log_path, f"[VOICE-LAUNCH] Existing panel exit request status: {response.status}")
++    except urllib.error.URLError as error:
++        _append_log(log_path, f"[VOICE-LAUNCH] Existing panel exit request failed: {error}")
++    except Exception as error:
++        _append_log(log_path, f"[VOICE-LAUNCH] Existing panel exit request failed: {error}")
++
++
++def _wait_for_http_port_to_close(*, host: str, port: int, timeout_sec: float = 2.0) -> bool:
++    deadline = time.monotonic() + max(0.0, float(timeout_sec))
++    while time.monotonic() < deadline:
++        if not _is_http_port_alive(host=host, port=port, timeout_sec=0.1):
++            return True
++        time.sleep(0.1)
++    return not _is_http_port_alive(host=host, port=port, timeout_sec=0.1)
++
++
++def _force_kill_panel_port(*, config: DriveModeLaunchConfig, log_path: Path) -> None:
++    """Last-resort cleanup for stale local drive panel processes."""
++
++    port_spec = f"{int(config.http_port)}/tcp"
++    try:
++        with log_path.open("a", encoding="utf-8") as log_file:
++            log_file.write(f"[VOICE-LAUNCH] Force-killing stale panel port: {port_spec}\n")
++            subprocess.run(
++                ("fuser", "-k", port_spec),
++                cwd=str(config.project_root),
++                stdout=log_file,
++                stderr=subprocess.STDOUT,
++                check=False,
++            )
++    except FileNotFoundError:
++        _append_log(log_path, "[VOICE-LAUNCH] fuser is not available; cannot force-kill stale panel port.")
++    except Exception as error:
++        _append_log(log_path, f"[VOICE-LAUNCH] Force-kill failed: {error}")
++
++
+ def _auto_open_panel(*, config: DriveModeLaunchConfig, log_path: Path) -> None:
+     """Best-effort local browser opener for Raspberry Pi desktop sessions."""
+ 
+@@ -186,18 +250,35 @@
+ 
+     def launch(self) -> DriveModeLaunchResult:
+         config = self.config
++        log_path = config.log_path or (config.project_root / "var" / "log" / "mobile_base_drive_mode_voice.log")
++        log_path.parent.mkdir(parents=True, exist_ok=True)
+         if _is_http_port_alive(host=config.status_host, port=config.http_port):
+-            log_path = config.log_path or (config.project_root / "var" / "log" / "mobile_base_drive_mode_voice.log")
+-            log_path.parent.mkdir(parents=True, exist_ok=True)
+-            _auto_open_panel(config=config, log_path=log_path)
+-            return DriveModeLaunchResult(
+-                ok=True,
+-                status="already_running",
+-                message="Drive mode panel is already running.",
+-                panel_url=config.panel_url,
+-                movement_enabled=config.enable_movement,
+-                log_path=str(config.log_path or ""),
+-            )
++            _append_log(log_path, "[VOICE-LAUNCH] Existing drive panel detected on the requested port.")
++            if config.force_restart:
++                _append_log(log_path, "[VOICE-LAUNCH] Restarting existing panel so the latest safety gates apply.")
++                _request_existing_panel_exit(config=config, log_path=log_path)
++                if not _wait_for_http_port_to_close(host=config.status_host, port=config.http_port, timeout_sec=2.0):
++                    _force_kill_panel_port(config=config, log_path=log_path)
++                    _wait_for_http_port_to_close(host=config.status_host, port=config.http_port, timeout_sec=1.5)
++                if _is_http_port_alive(host=config.status_host, port=config.http_port):
++                    return DriveModeLaunchResult(
++                        ok=False,
++                        status="port_busy",
++                        message="Drive mode panel port is still busy after restart attempt. Stop the old panel and try again.",
++                        panel_url=config.panel_url,
++                        movement_enabled=False,
++                        log_path=str(log_path),
++                    )
++            else:
++                _auto_open_panel(config=config, log_path=log_path)
++                return DriveModeLaunchResult(
++                    ok=True,
++                    status="already_running",
++                    message="Drive mode panel is already running.",
++                    panel_url=config.panel_url,
++                    movement_enabled=config.enable_movement,
++                    log_path=str(log_path),
++                )
+         if not config.dry_run and os.environ.get(CONFIRM_TEST_ENV_VAR) != CONFIRM_TEST_ENV_VALUE:
+             return DriveModeLaunchResult(
+                 ok=False,
+@@ -211,11 +292,10 @@
+                 log_path=str(config.log_path or ""),
+             )
+         command = build_drive_mode_launch_command(config)
+-        log_path = config.log_path or (config.project_root / "var" / "log" / "mobile_base_drive_mode_voice.log")
+-        log_path.parent.mkdir(parents=True, exist_ok=True)
+         with log_path.open("a", encoding="utf-8") as log_file:
+             log_file.write("\n[VOICE-LAUNCH] Starting drive mode panel\n")
+             log_file.write("[VOICE-LAUNCH] Command: " + " ".join(command) + "\n")
++            log_file.write(f"[VOICE-LAUNCH] dry_run={config.dry_run} movement_requested={config.movement_requested} movement_enabled={config.enable_movement} force_restart={config.force_restart}\n")
+             process = subprocess.Popen(
+                 command,
+                 cwd=str(config.project_root),
+@@ -253,6 +333,7 @@
+     "DriveModeLaunchResult",
+     "DriveModeVoiceLauncher",
+     "DRIVE_MODE_AUTO_OPEN_ENV",
++    "DRIVE_MODE_FORCE_RESTART_ENV",
+     "build_drive_mode_launch_command",
+     "build_drive_mode_launch_config_from_env",
+ ]
+diff -ruN base/scripts/mobile_base_drive_mode.py new/scripts/mobile_base_drive_mode.py
+--- base/scripts/mobile_base_drive_mode.py	2026-05-08 19:06:24.974874765 +0000
++++ new/scripts/mobile_base_drive_mode.py	2026-05-08 19:06:58.400305878 +0000
+@@ -148,6 +148,11 @@
+ class DriveModeHTTPServer(ThreadingHTTPServer):
+     service: DriveModeService
+     should_exit: threading.Event
++    selected_port: str
++    is_dry_run: bool
++    movement_enabled: bool
++    linear_speed_mps: float
++    angular_speed_rad_s: float
+ 
+ 
+ def _json_response(handler: BaseHTTPRequestHandler, payload: dict[str, Any], *, status: int = 200) -> None:
+@@ -175,7 +180,15 @@
+             self.wfile.write(encoded)
+             return
+         if self.path == "/api/status":
+-            _json_response(self, {"ok": True, "exit_requested": self.server.service.exit_requested})
++            _json_response(self, {
++                "ok": True,
++                "exit_requested": self.server.service.exit_requested,
++                "selected_port": self.server.selected_port,
++                "dry_run": self.server.is_dry_run,
++                "movement_enabled": self.server.movement_enabled,
++                "linear_speed_mps": self.server.linear_speed_mps,
++                "angular_speed_rad_s": self.server.angular_speed_rad_s,
++            })
+             return
+         self.send_error(404)
+ 
+@@ -304,6 +317,8 @@
+     print(f"[INFO] Mode: {'dry-run' if is_dry_run else 'hardware'}")
+     print(f"[INFO] Movement enabled flag: {bool(args.enable_movement)}")
+     print(f"[INFO] Movement env gate: {DEFAULT_MOVEMENT_CONFIRM_ENV}={DEFAULT_MOVEMENT_CONFIRM_VALUE}")
++    print(f"[INFO] Movement env current value: {os.environ.get(DEFAULT_MOVEMENT_CONFIRM_ENV)!r}")
++    print(f"[INFO] Hardware test env current value: {os.environ.get(CONFIRM_TEST_ENV_VAR)!r}")
+     print(f"[INFO] Linear speed request: {float(args.linear_speed_mps):.3f} m/s, cap: {MAX_LINEAR_SPEED_MPS:.3f} m/s")
+     print(f"[INFO] Angular speed request: {float(args.angular_speed_rad_s):.3f} rad/s, cap: {MAX_ANGULAR_SPEED_RAD_S:.3f} rad/s")
+ 
+@@ -331,6 +346,11 @@
+         server = DriveModeHTTPServer((str(args.host), int(args.http_port)), DriveModeRequestHandler)
+         server.service = service
+         server.should_exit = threading.Event()
++        server.selected_port = selected_port
++        server.is_dry_run = bool(is_dry_run)
++        server.movement_enabled = bool(args.enable_movement)
++        server.linear_speed_mps = float(args.linear_speed_mps)
++        server.angular_speed_rad_s = float(args.angular_speed_rad_s)
+         thread = threading.Thread(target=server.serve_forever, daemon=True)
+         thread.start()
+         print(f"[OK] Open this on the Raspberry Pi: http://{args.host}:{int(args.http_port)}/")
+diff -ruN base/tests/runtime/drive_mode/test_drive_mode_voice_launcher.py new/tests/runtime/drive_mode/test_drive_mode_voice_launcher.py
+--- base/tests/runtime/drive_mode/test_drive_mode_voice_launcher.py	2026-05-08 19:06:24.975466017 +0000
++++ new/tests/runtime/drive_mode/test_drive_mode_voice_launcher.py	2026-05-08 19:07:07.459374717 +0000
+@@ -8,6 +8,7 @@
+     DRIVE_MODE_DRY_RUN_ENV,
+     DRIVE_MODE_ENABLE_MOVEMENT_ENV,
+     DRIVE_MODE_SERIAL_PORT_ENV,
++    DRIVE_MODE_FORCE_RESTART_ENV,
+     DriveModeVoiceLauncher,
+     build_drive_mode_launch_command,
+     build_drive_mode_launch_config_from_env,
+@@ -45,3 +46,16 @@
+     assert result.status == "hardware_gate_closed"
+     assert CONFIRM_TEST_ENV_VAR in result.message
+     assert CONFIRM_TEST_ENV_VALUE in result.message
++
++
++def test_voice_launcher_force_restart_is_enabled_by_default(tmp_path: Path) -> None:
++    config = build_drive_mode_launch_config_from_env(env={DRIVE_MODE_DRY_RUN_ENV: "1"}, project_root=tmp_path)
++    assert config.force_restart is True
++
++
++def test_voice_launcher_force_restart_can_be_disabled(tmp_path: Path) -> None:
++    config = build_drive_mode_launch_config_from_env(
++        env={DRIVE_MODE_DRY_RUN_ENV: "1", DRIVE_MODE_FORCE_RESTART_ENV: "0"},
++        project_root=tmp_path,
++    )
++    assert config.force_restart is False
