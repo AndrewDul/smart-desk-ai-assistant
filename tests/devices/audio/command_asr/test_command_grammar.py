@@ -285,6 +285,29 @@ def test_default_grammar_recognizes_fast_calculator_phrases() -> None:
     assert english_result.matched_phrase == "5 * 6"
 
 
+def test_default_grammar_recognizes_square_root_calculator_phrases() -> None:
+    grammar = build_default_command_grammar()
+
+    polish_result = grammar.match("ile to jest pierwiastek z dziewięć")
+    english_result = grammar.match("calculate square root of sixteen")
+    operation_result = grammar.match("square root of nine plus square root of sixteen")
+
+    assert polish_result.status == CommandRecognitionStatus.MATCHED
+    assert polish_result.intent_key == "system.calculate"
+    assert polish_result.language == CommandLanguage.POLISH
+    assert polish_result.matched_phrase == "√9"
+
+    assert english_result.status == CommandRecognitionStatus.MATCHED
+    assert english_result.intent_key == "system.calculate"
+    assert english_result.language == CommandLanguage.ENGLISH
+    assert english_result.matched_phrase == "√16"
+
+    assert operation_result.status == CommandRecognitionStatus.MATCHED
+    assert operation_result.intent_key == "system.calculate"
+    assert operation_result.language == CommandLanguage.ENGLISH
+    assert operation_result.matched_phrase == "√9 + √16"
+
+
 def test_calculator_small_number_vocabulary_is_available_for_limited_vosk() -> None:
     grammar = build_default_command_grammar()
 
@@ -293,6 +316,10 @@ def test_calculator_small_number_vocabulary_is_available_for_limited_vosk() -> N
 
     assert "what is two plus two" in english_vocabulary
     assert "ile to jest dwa plus dwa" in polish_vocabulary
+    assert "what is square root of nine" in english_vocabulary
+    assert "ile to jest pierwiastek z dziewięć" in polish_vocabulary
+    assert "square root of nine plus square root of four" in english_vocabulary
+    assert "pierwiastek z dziewięć plus pierwiastek z cztery" in polish_vocabulary
 
 
 def test_default_grammar_recognizes_assistant_help_aliases() -> None:

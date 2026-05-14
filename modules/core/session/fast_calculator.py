@@ -5,6 +5,7 @@ from typing import Any
 
 from modules.core.calculator.simple_arithmetic import (
     evaluate_arithmetic_expression,
+    format_spoken_expression,
     looks_like_arithmetic,
 )
 
@@ -22,11 +23,11 @@ def try_handle_arithmetic(*, assistant: Any, raw_text: str, language: str) -> bo
     display_expr = outcome.expression.replace("*", "×").replace("/", ":")
 
     if lang.startswith("pl"):
-        spoken_op = _spoken_expression(outcome.expression, language="pl")
+        spoken_op = format_spoken_expression(outcome.expression, language="pl")
         spoken = f"{spoken_op} to {outcome.result}."
         display_title = "KALKULATOR"
     else:
-        spoken_op = _spoken_expression(outcome.expression, language="en")
+        spoken_op = format_spoken_expression(outcome.expression, language="en")
         spoken = f"{spoken_op} is {outcome.result}."
         display_title = "CALCULATOR"
 
@@ -50,24 +51,6 @@ def try_handle_arithmetic(*, assistant: Any, raw_text: str, language: str) -> bo
         metadata=metadata,
     )
     return bool(delivered)
-
-
-def _spoken_expression(expression: str, *, language: str) -> str:
-    if language == "pl":
-        return (
-            expression
-            .replace("+", " plus ")
-            .replace("-", " minus ")
-            .replace("*", " razy ")
-            .replace("/", " podzielić przez ")
-        )
-    return (
-        expression
-        .replace("+", " plus ")
-        .replace("-", " minus ")
-        .replace("*", " times ")
-        .replace("/", " divided by ")
-    )
 
 
 __all__ = [

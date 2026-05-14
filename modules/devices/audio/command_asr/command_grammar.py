@@ -287,13 +287,50 @@ def _calculator_vosk_vocabulary(
     else:
         return ()
 
-    return tuple(
+    vocabulary = {
         f"{prefix}{left} {operator} {right}".strip()
         for prefix in prefixes
         for left in numbers
         for operator in operators
         for right in numbers
+    }
+
+    if language is CommandLanguage.POLISH:
+        root_template = "pierwiastek z {number}"
+        root_prefixes = ("", "ile to jest ", "policz ", "oblicz ")
+    else:
+        root_template = "square root of {number}"
+        root_prefixes = ("", "calculate ", "what is ")
+
+    roots = tuple(root_template.format(number=number) for number in numbers)
+    vocabulary.update(
+        f"{prefix}{root}".strip()
+        for prefix in root_prefixes
+        for root in roots
     )
+    vocabulary.update(
+        f"{prefix}{left} {operator} {right}".strip()
+        for prefix in root_prefixes
+        for left in roots
+        for operator in operators
+        for right in roots
+    )
+    vocabulary.update(
+        f"{prefix}{left} {operator} {right}".strip()
+        for prefix in root_prefixes
+        for left in roots
+        for operator in operators
+        for right in numbers
+    )
+    vocabulary.update(
+        f"{prefix}{left} {operator} {right}".strip()
+        for prefix in root_prefixes
+        for left in numbers
+        for operator in operators
+        for right in roots
+    )
+
+    return tuple(sorted(vocabulary))
 
 
 def _calculation_language(
@@ -311,6 +348,10 @@ def _calculation_language(
         "odjac",
         "podzielic",
         "przez",
+        "pierwiastek",
+        "pierwiastka",
+        "kwadratowy",
+        "kwadratowego",
     }
     if set(text.split()) & polish_tokens:
         return CommandLanguage.POLISH
@@ -947,6 +988,18 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             "system.calculate",
+            "pierwiastek z",
+            CommandLanguage.POLISH,
+            tags=("system", "calculator"),
+        ),
+        CommandPhrase(
+            "system.calculate",
+            "pierwiastek kwadratowy z",
+            CommandLanguage.POLISH,
+            tags=("system", "calculator"),
+        ),
+        CommandPhrase(
+            "system.calculate",
             "calculate",
             CommandLanguage.ENGLISH,
             tags=("system", "calculator"),
@@ -954,6 +1007,18 @@ def build_default_command_grammar() -> CommandGrammar:
         CommandPhrase(
             "system.calculate",
             "what is",
+            CommandLanguage.ENGLISH,
+            tags=("system", "calculator"),
+        ),
+        CommandPhrase(
+            "system.calculate",
+            "square root of",
+            CommandLanguage.ENGLISH,
+            tags=("system", "calculator"),
+        ),
+        CommandPhrase(
+            "system.calculate",
+            "root of",
             CommandLanguage.ENGLISH,
             tags=("system", "calculator"),
         ),

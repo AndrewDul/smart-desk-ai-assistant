@@ -4,7 +4,10 @@ import time
 
 from typing import Any
 
-from modules.core.calculator.simple_arithmetic import evaluate_arithmetic_expression
+from modules.core.calculator.simple_arithmetic import (
+    evaluate_arithmetic_expression,
+    format_spoken_expression,
+)
 from modules.presentation.status_debug_presenter.service import StatusDebugPresenterService
 from modules.runtime.contracts import RouteDecision, RouteKind
 
@@ -1035,11 +1038,11 @@ class ActionSystemActionsMixin:
             result = outcome.result
 
         if language == "pl":
-            spoken_expression = self._calculator_spoken_expression(expression, language="pl")
+            spoken_expression = format_spoken_expression(expression, language="pl")
             spoken = f"{spoken_expression} to {result}."
             display_title = "KALKULATOR"
         else:
-            spoken_expression = self._calculator_spoken_expression(expression, language="en")
+            spoken_expression = format_spoken_expression(expression, language="en")
             spoken = f"{spoken_expression} is {result}."
             display_title = "CALCULATOR"
 
@@ -1058,24 +1061,6 @@ class ActionSystemActionsMixin:
                 "response_kind": "calculation",
                 "llm_prevented": True,
             },
-        )
-
-    @staticmethod
-    def _calculator_spoken_expression(expression: str, *, language: str) -> str:
-        if language == "pl":
-            return (
-                expression
-                .replace("+", " plus ")
-                .replace("-", " minus ")
-                .replace("*", " razy ")
-                .replace("/", " podzielić przez ")
-            )
-        return (
-            expression
-            .replace("+", " plus ")
-            .replace("-", " minus ")
-            .replace("*", " times ")
-            .replace("/", " divided by ")
         )
 
     def _handle_introduce_self(
