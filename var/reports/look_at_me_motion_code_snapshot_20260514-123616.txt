@@ -1,0 +1,588 @@
+========================================================================================================================
+modules.devices.vision.look_at_me.session.LookAtMeSession
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession.__init__
+    def __init__(
+        self,
+        *,
+        vision_backend: Any,
+        pan_tilt_backend: Any | None,
+        config: dict[str, Any] | None = None,
+    ) -> None:
+        cfg = dict(config or {})
+        self._vision_backend = vision_backend
+        self._pan_tilt_backend = pan_tilt_backend
+        self._enabled = bool(cfg.get("enabled", True))
+
+        self._target_fps = max(5.0, float(cfg.get("target_fps", 25.0)))
+        self._scan_after_no_face_frames = max(2, int(cfg.get("scan_after_no_face_frames", 6)))
+        self._scan_interval_seconds = max(0.04, float(cfg.get("scan_interval_seconds", 0.16)))
+        self._return_to_center_on_stop = bool(cfg.get("return_to_center_on_stop", True))
+        self._max_runtime_seconds = float(cfg.get("max_runtime_seconds", 600.0))
+
+        tracking_cfg = dict(cfg.get("tracking", {}) or {})
+        self._tracker = TrackingPlanner(
+            pan_gain_degrees=float(tracking_cfg.get("pan_gain_degrees", 22.0)),
+            tilt_gain_degrees=float(tracking_cfg.get("tilt_gain_degrees", 24.0)),
+            target_x_norm=float(tracking_cfg.get("target_x_norm", 0.5)),
+            target_y_norm=float(tracking_cfg.get("target_y_norm", 0.5)),
+            hold_zone_x=float(tracking_cfg.get("hold_zone_x", 0.020)),
+            hold_zone_y=float(tracking_cfg.get("hold_zone_y", 0.025)),
+            max_step_degrees=float(tracking_cfg.get("max_step_degrees", 1.4)),
+            fast_offset_threshold=float(tracking_cfg.get("fast_offset_threshold", 0.045)),
+            fast_gain_boost=float(tracking_cfg.get("fast_gain_boost", 1.35)),
+            invert_tilt=bool(tracking_cfg.get("invert_tilt", False)),
+        )
+
+        scan_cfg = dict(cfg.get("scan", {}) or {})
+        tilt_levels_raw = scan_cfg.get("tilt_levels_degrees", (0.0, 6.0, 10.0))
+        if isinstance(tilt_levels_raw, str):
+            tilt_levels_raw = [
+                part.strip() for part in tilt_levels_raw.split(",") if part.strip()
+            ]
+        try:
+            tilt_levels = tuple(float(v) for v in tilt_levels_raw)
+        except (TypeError, ValueError):
+            tilt_levels = (0.0, 6.0, 10.0)
+
+        self._scanner = ScanPlanner(
+            pan_limit_degrees=float(scan_cfg.get("pan_limit_degrees", 50.0)),
+            pan_step_degrees=float(scan_cfg.get("pan_step_degrees", 6.0)),
+            tilt_levels_degrees=tilt_levels,
+        )
+
+        self._stop_event = threading.Event()
+        self._worker: threading.Thread | None = None
+        self._lock = threading.RLock()
+        self._status = LookAtMeStatus(enabled=self._enabled, fps_target=self._target_fps)
+        self._status.config = {
+            "target_fps": self._target_fps,
+            "scan_after_no_face_frames": self._scan_after_no_face_frames,
+            "return_to_center_on_stop": self._return_to_center_on_stop,
+            "scan_pan_limit_degrees": self._scanner.pan_limit,
+            "scan_pan_step_degrees": self._scanner.pan_step,
+            "scan_tilt_levels_degrees": list(self._scanner.tilt_levels),
+        }
+
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._handle_face_seen
+    def _handle_face_seen(
+        self,
+        *,
+        face_box: tuple[float, float],
+        now: float,
+    ) -> None:
+        face_x_norm, face_y_norm = face_box
+        command = self._tracker.plan(face_x_norm=face_x_norm, face_y_norm=face_y_norm)
+
+        with self._lock:
+            self._status.face_seen_count += 1
+            self._status.no_face_streak = 0
+            self._status.last_face_at = now
+
+        if command.in_hold_zone:
+            with self._lock:
+                self._status.last_reason = "tracking_hold"
+            return
+
+        result = self._move_delta(
+            pan_delta_degrees=command.pan_delta_degrees,
+            tilt_delta_degrees=command.tilt_delta_degrees,
+            reason="tracking",
+        )
+        with self._lock:
+            self._status.last_reason = "tracking"
+            self._status.move_count += 1
+            self._update_pan_tilt_from_result(result)
+
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._handle_scan_step
+    def _handle_scan_step(self, *, now: float) -> None:
+        target = self._scanner.next_target()
+
+        with self._lock:
+            current_pan = self._status.pan_angle
+            current_tilt = self._status.tilt_angle
+
+        pan_delta = target.target_pan_degrees - current_pan
+        tilt_delta = target.target_tilt_degrees - current_tilt
+
+        result = self._move_delta(
+            pan_delta_degrees=pan_delta,
+            tilt_delta_degrees=tilt_delta,
+            reason=f"scan:{target.direction}",
+        )
+
+        with self._lock:
+            self._status.last_reason = f"scan:{target.direction}"
+            self._status.scan_count += 1
+            self._update_pan_tilt_from_result(result)
+
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._move_delta
+    def _move_delta(
+        self,
+        *,
+        pan_delta_degrees: float,
+        tilt_delta_degrees: float,
+        reason: str,
+    ) -> dict[str, Any]:
+        backend = self._pan_tilt_backend
+        if backend is None:
+            return {"ok": False, "movement_executed": False, "error": "pan_tilt_backend_missing"}
+
+        method = getattr(backend, "move_delta", None)
+        if not callable(method):
+            return {"ok": False, "movement_executed": False, "error": "move_delta_unavailable"}
+
+        try:
+            return dict(
+                method(
+                    pan_delta_degrees=float(pan_delta_degrees),
+                    tilt_delta_degrees=float(tilt_delta_degrees),
+                )
+                or {}
+            )
+        except Exception as error:  # pragma: no cover - hardware dependent
+            LOGGER.warning(
+                "LookAtMeSession move_delta failed safely: reason=%s error=%s",
+                reason,
+                error,
+            )
+            return {"ok": False, "movement_executed": False, "error": f"{type(error).__name__}: {error}"}
+
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._update_pan_tilt_from_result
+    def _update_pan_tilt_from_result(self, result: dict[str, Any]) -> None:
+        if not isinstance(result, dict):
+            return
+        pan = result.get("pan_angle")
+        tilt = result.get("tilt_angle")
+        if isinstance(pan, (int, float)):
+            self._status.pan_angle = float(pan)
+        if isinstance(tilt, (int, float)):
+            self._status.tilt_angle = float(tilt)
+
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._movement_interval_seconds
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._runtime_max_step_degrees
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._next_search_delta
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._safe_backend_status
+MISSING
+========================================================================================================================
+modules.devices.vision.look_at_me.tracking_planner.TrackingPlanner
+------------------------------------------------------------------------------------------------------------------------
+TrackingPlanner.__init__
+    def __init__(
+        self,
+        *,
+        pan_gain_degrees: float = 22.0,
+        tilt_gain_degrees: float = 24.0,
+        target_x_norm: float = 0.5,
+        target_y_norm: float = 0.5,
+        hold_zone_x: float = 0.020,
+        hold_zone_y: float = 0.025,
+        max_step_degrees: float = 1.4,
+        fast_offset_threshold: float = 0.045,
+        fast_gain_boost: float = 1.35,
+        invert_tilt: bool = False,
+    ) -> None:
+        self.pan_gain = float(pan_gain_degrees)
+        self.tilt_gain = float(tilt_gain_degrees)
+        self.target_x = float(target_x_norm)
+        self.target_y = float(target_y_norm)
+        self.hold_zone_x = max(0.0, float(hold_zone_x))
+        self.hold_zone_y = max(0.0, float(hold_zone_y))
+        self.max_step = max(0.0, float(max_step_degrees))
+        self.fast_threshold = max(0.0, float(fast_offset_threshold))
+        self.fast_boost = max(1.0, float(fast_gain_boost))
+        self.invert_tilt = bool(invert_tilt)
+
+------------------------------------------------------------------------------------------------------------------------
+TrackingPlanner.plan
+    def plan(self, *, face_x_norm: float, face_y_norm: float) -> TrackingCommand:
+        """Return the pan/tilt delta needed to move the face toward the target."""
+        offset_x = float(face_x_norm) - self.target_x
+        offset_y = float(face_y_norm) - self.target_y
+
+        in_hold_x = abs(offset_x) <= self.hold_zone_x
+        in_hold_y = abs(offset_y) <= self.hold_zone_y
+
+        if in_hold_x and in_hold_y:
+            return TrackingCommand(
+                pan_delta_degrees=0.0,
+                tilt_delta_degrees=0.0,
+                in_hold_zone=True,
+                reason="face_centered",
+            )
+
+        # Fast-lane gain boost when the offset is large — faces moving quickly
+        # benefit from a stronger correction so the head can catch up before
+        # the small per-frame step caps lose them.
+        pan_gain = self.pan_gain
+        tilt_gain = self.tilt_gain
+        if abs(offset_x) >= self.fast_threshold:
+            pan_gain *= self.fast_boost
+        if abs(offset_y) >= self.fast_threshold:
+            tilt_gain *= self.fast_boost
+
+        # Sign convention:
+        #   face on the left (offset_x < 0) -> pan LEFT (negative delta)
+        #   face above center (offset_y < 0) -> tilt UP. If servo is mounted
+        #   inverted, the caller flips the sign via invert_tilt.
+        pan_delta = offset_x * pan_gain
+        tilt_delta = -offset_y * tilt_gain
+        if self.invert_tilt:
+            tilt_delta = -tilt_delta
+
+        # Per-step safety cap — the pan/tilt service ALSO clamps this, but
+        # capping here keeps planner output predictable for tests.
+        pan_delta = self._clamp(pan_delta, self.max_step)
+        tilt_delta = self._clamp(tilt_delta, self.max_step)
+
+        return TrackingCommand(
+            pan_delta_degrees=pan_delta,
+            tilt_delta_degrees=tilt_delta,
+            in_hold_zone=False,
+            reason="tracking",
+        )
+
+========================================================================================================================
+modules.devices.vision.look_at_me.scan_planner.ScanPlanner
+------------------------------------------------------------------------------------------------------------------------
+ScanPlanner.__init__
+    def __init__(
+        self,
+        *,
+        pan_limit_degrees: float = 50.0,
+        pan_step_degrees: float = 6.0,
+        tilt_levels_degrees: tuple[float, ...] = (0.0, 6.0, 10.0),
+    ) -> None:
+        self.pan_limit = abs(float(pan_limit_degrees))
+        self.pan_step = max(0.5, float(pan_step_degrees))
+        # Filter out duplicates and keep order.
+        seen: set[float] = set()
+        ordered: list[float] = []
+        for level in tilt_levels_degrees:
+            value = float(level)
+            if value not in seen:
+                seen.add(value)
+                ordered.append(value)
+        self.tilt_levels: tuple[float, ...] = tuple(ordered) if ordered else (0.0,)
+
+        self._current_pan = -self.pan_limit
+        self._tilt_index = 0
+        self._pan_direction = +1  # +1 = sweeping right, -1 = sweeping left
+
+------------------------------------------------------------------------------------------------------------------------
+ScanPlanner.next_command
+MISSING
+========================================================================================================================
+modules.devices.pan_tilt.service.PanTiltService
+------------------------------------------------------------------------------------------------------------------------
+PanTiltService.move_delta
+    def move_delta(self, *, pan_delta_degrees: float, tilt_delta_degrees: float) -> dict[str, Any]:
+        return self._backend.move_delta(
+            pan_delta_degrees=pan_delta_degrees,
+            tilt_delta_degrees=tilt_delta_degrees,
+        )
+
+------------------------------------------------------------------------------------------------------------------------
+PanTiltService.move_direction
+    def move_direction(self, direction: str) -> dict[str, Any]:
+        return self._backend.move_direction(direction)
+
+------------------------------------------------------------------------------------------------------------------------
+PanTiltService.status
+    def status(self) -> dict[str, Any]:
+        return self._backend.status()
+
+========================================================================================================================
+modules.devices.pan_tilt.service.WaveshareSerialPanTiltBackend
+------------------------------------------------------------------------------------------------------------------------
+WaveshareSerialPanTiltBackend.move_delta
+    def move_delta(self, *, pan_delta_degrees: float, tilt_delta_degrees: float) -> dict[str, Any]:
+        self._maybe_refresh_telemetry_before_motion()
+
+        requested_pan = float(pan_delta_degrees)
+        requested_tilt = float(tilt_delta_degrees)
+        applied_pan = _clamp_delta(requested_pan, self._config.max_step_degrees)
+        applied_tilt = _clamp_delta(requested_tilt, self._config.max_step_degrees)
+
+        target_pan = self._config.safe_limits.clamp_pan(self._pan_angle + applied_pan)
+        target_tilt = self._config.safe_limits.clamp_tilt(self._tilt_angle + applied_tilt)
+        effective_pan_delta = target_pan - self._pan_angle
+        effective_tilt_delta = target_tilt - self._tilt_angle
+
+        common = {
+            "requested_pan_delta_degrees": round(requested_pan, 4),
+            "requested_tilt_delta_degrees": round(requested_tilt, 4),
+            "applied_pan_delta_degrees": round(effective_pan_delta, 4),
+            "applied_tilt_delta_degrees": round(effective_tilt_delta, 4),
+            "target_pan_degrees": round(target_pan, 4),
+            "target_tilt_degrees": round(target_tilt, 4),
+            "movement_executed": False,
+        }
+
+        if abs(effective_pan_delta) == 0.0 and abs(effective_tilt_delta) == 0.0:
+            result = self.status()
+            result.update(common)
+            result["detail"] = "No pan/tilt movement required after safe-limit clamping."
+            return result
+
+        status = self.status()
+        if not bool(status.get("serial_write_enabled", False)):
+            message = "Waveshare serial movement is blocked by runtime safety gates."
+            result = dict(status)
+            result.update(common)
+            result.update(
+                {
+                    "ok": False,
+                    "movement_available": False,
+                    "movement_executed": False,
+                    "detail": message,
+                    "error": message,
+                    "missing_safety_gates": self._missing_safety_gates(status),
+                }
+            )
+            return result
+
+        command = _waveshare_move_command(
+            x=target_pan,
+            y=target_tilt,
+            speed=self._config.command_speed,
+            acceleration=self._config.command_acceleration,
+            command_mode=self._config.command_mode,
+        )
+        commands = _build_waveshare_runtime_sequence(
+            target_command=command,
+            current_pan_degrees=self._pan_angle,
+            current_tilt_degrees=self._tilt_angle,
+            speed=self._config.command_speed,
+            acceleration=self._config.command_acceleration,
+            include_prepare=not self._controller_prepared,
+        )
+
+        try:
+            self._send_commands(commands)
+            self._controller_prepared = True
+        except Exception as error:
+            result = self.status()
+            result.update(common)
+            result.update(
+                {
+                    "ok": False,
+                    "movement_executed": False,
+                    "error": f"{error.__class__.__name__}: {error}",
+                    "detail": "Waveshare serial command failed before state update.",
+                }
+            )
+            return result
+
+        self._pan_angle = target_pan
+        self._tilt_angle = target_tilt
+        result = self.status()
+        result.update(common)
+        result.update(
+            {
+                "ok": True,
+                "movement_available": True,
+                "movement_executed": True,
+                "command_count": len(commands),
+                "detail": "Waveshare serial move_delta executed.",
+            }
+        )
+        return result
+
+------------------------------------------------------------------------------------------------------------------------
+WaveshareSerialPanTiltBackend.move_direction
+    def move_direction(self, direction: str) -> dict[str, Any]:
+        result = _blocked_result(
+            self._config,
+            self.name,
+            "Waveshare serial direction movement is blocked; use move_delta with safety gates.",
+        )
+        result["direction"] = str(direction or "").strip().lower()
+        return result
+
+------------------------------------------------------------------------------------------------------------------------
+WaveshareSerialPanTiltBackend._move_absolute
+    def _move_absolute(
+        self,
+        *,
+        target_pan_degrees: float,
+        target_tilt_degrees: float,
+        reason: str,
+    ) -> dict[str, Any]:
+        target_pan = self._config.safe_limits.clamp_pan(float(target_pan_degrees))
+        target_tilt = self._config.safe_limits.clamp_tilt(float(target_tilt_degrees))
+
+        current_pan = float(self._pan_angle)
+        current_tilt = float(self._tilt_angle)
+
+        effective_pan_delta = target_pan - current_pan
+        effective_tilt_delta = target_tilt - current_tilt
+
+        common = {
+            "absolute_move_reason": reason,
+            "requested_target_pan_degrees": round(float(target_pan_degrees), 4),
+            "requested_target_tilt_degrees": round(float(target_tilt_degrees), 4),
+            "target_pan_degrees": round(target_pan, 4),
+            "target_tilt_degrees": round(target_tilt, 4),
+            "applied_pan_delta_degrees": round(effective_pan_delta, 4),
+            "applied_tilt_delta_degrees": round(effective_tilt_delta, 4),
+            "movement_executed": False,
+        }
+
+        if abs(effective_pan_delta) < 0.0001 and abs(effective_tilt_delta) < 0.0001:
+            result = self.status()
+            result.update(common)
+            result["detail"] = "No pan/tilt absolute movement required."
+            return result
+
+        status = self.status()
+        if not bool(status.get("serial_write_enabled", False)):
+            message = "Waveshare serial absolute movement is blocked by runtime safety gates."
+            result = dict(status)
+            result.update(common)
+            result.update(
+                {
+                    "ok": False,
+                    "movement_available": False,
+                    "movement_executed": False,
+                    "detail": message,
+                    "error": message,
+                    "missing_safety_gates": self._missing_safety_gates(status),
+                }
+            )
+            return result
+
+        command = _waveshare_move_command(
+            x=target_pan,
+            y=target_tilt,
+            speed=self._config.command_speed,
+            acceleration=self._config.command_acceleration,
+            command_mode=self._config.command_mode,
+        )
+        commands = _build_waveshare_runtime_sequence(
+            target_command=command,
+            current_pan_degrees=current_pan,
+            current_tilt_degrees=current_tilt,
+            speed=self._config.command_speed,
+            acceleration=self._config.command_acceleration,
+            include_prepare=not self._controller_prepared,
+        )
+
+        try:
+            self._send_commands(commands)
+            self._controller_prepared = True
+        except Exception as error:
+            result = self.status()
+            result.update(common)
+            result.update(
+                {
+                    "ok": False,
+                    "movement_executed": False,
+                    "error": f"{error.__class__.__name__}: {error}",
+                    "detail": "Waveshare serial absolute command failed before state update.",
+                }
+            )
+            return result
+
+        self._pan_angle = target_pan
+        self._tilt_angle = target_tilt
+
+        result = self.status()
+        result.update(common)
+        result.update(
+            {
+                "ok": True,
+                "movement_available": True,
+                "movement_executed": True,
+                "command_count": len(commands),
+                "detail": "Waveshare serial absolute move executed.",
+            }
+        )
+        return result
+
+------------------------------------------------------------------------------------------------------------------------
+WaveshareSerialPanTiltBackend.status
+    def status(self) -> dict[str, Any]:
+        device_exists = bool(self._config.device) and Path(self._config.device).exists()
+        calibration_status = self._calibration_status()
+        serial_write_enabled = self._serial_write_enabled(
+            device_exists=device_exists,
+            calibration_ready=calibration_status["calibration_ready"],
+        )
+        status = _base_status(
+            config=self._config,
+            backend=self.name,
+            ok=True,
+            movement_available=serial_write_enabled,
+            detail=(
+                "Waveshare serial backend is hardware-capable but safety-gated."
+                if serial_write_enabled
+                else "Waveshare serial movement is blocked by runtime safety gates."
+            ),
+        )
+        status.update(
+            {
+                "device_exists": device_exists,
+                "serial_opened": False,
+                "serial_write_enabled": serial_write_enabled,
+                "serial_write_count": self._serial_write_count,
+                "controller_prepared": self._controller_prepared,
+                "pan_angle": round(self._pan_angle, 3),
+                "tilt_angle": round(self._tilt_angle, 3),
+                **self._telemetry_status(),
+                **calibration_status,
+            }
+        )
+        return status
+
+========================================================================================================================
+modules.devices.pan_tilt.service module helpers
+------------------------------------------------------------------------------------------------------------------------
+_waveshare_move_command
+def _waveshare_move_command(
+    *,
+    x: float,
+    y: float,
+    speed: int,
+    acceleration: int,
+    command_mode: str = "absolute",
+) -> dict[str, Any]:
+    mode = str(command_mode or "").strip().lower()
+    wire_x = _wire_axis_value(x)
+    wire_y = _wire_axis_value(y)
+
+    if mode in {"gimbal_move", "smooth", "smooth_gimbal", "t134"}:
+        command_speed = max(1, int(speed))
+        return {
+            "T": 134,
+            "X": wire_x,
+            "Y": wire_y,
+            "SX": command_speed,
+            "SY": command_speed,
+        }
+
+    return {
+        "T": 133,
+        "X": wire_x,
+        "Y": wire_y,
+        "SPD": int(speed),
+        "ACC": int(acceleration),
+    }
+
+------------------------------------------------------------------------------------------------------------------------
+_safe_float
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+_clamp
+MISSING

@@ -122,13 +122,13 @@ class LookAtMeSession:
 
         tracking_cfg = dict(cfg.get("tracking", {}) or {})
         self._tracker = TrackingPlanner(
-            pan_gain_degrees=float(tracking_cfg.get("pan_gain_degrees", 22.0)),
-            tilt_gain_degrees=float(tracking_cfg.get("tilt_gain_degrees", 24.0)),
+            pan_gain_degrees=float(cfg.get("pan_gain_degrees", tracking_cfg.get("pan_gain_degrees", 22.0))),
+            tilt_gain_degrees=float(cfg.get("tilt_gain_degrees", tracking_cfg.get("tilt_gain_degrees", 24.0))),
             target_x_norm=float(tracking_cfg.get("target_x_norm", 0.5)),
             target_y_norm=float(tracking_cfg.get("target_y_norm", 0.5)),
-            hold_zone_x=float(tracking_cfg.get("hold_zone_x", 0.020)),
-            hold_zone_y=float(tracking_cfg.get("hold_zone_y", 0.025)),
-            max_step_degrees=float(tracking_cfg.get("max_step_degrees", 1.4)),
+            hold_zone_x=float(cfg.get("dead_zone_x", tracking_cfg.get("hold_zone_x", 0.020))),
+            hold_zone_y=float(cfg.get("dead_zone_y", tracking_cfg.get("hold_zone_y", 0.025))),
+            max_step_degrees=float(cfg.get("max_step_degrees", tracking_cfg.get("max_step_degrees", 1.4))),
             fast_offset_threshold=float(tracking_cfg.get("fast_offset_threshold", 0.045)),
             fast_gain_boost=float(tracking_cfg.get("fast_gain_boost", 1.35)),
             invert_tilt=bool(tracking_cfg.get("invert_tilt", False)),
@@ -146,8 +146,8 @@ class LookAtMeSession:
             tilt_levels = (0.0, 6.0, 10.0)
 
         self._scanner = ScanPlanner(
-            pan_limit_degrees=float(scan_cfg.get("pan_limit_degrees", 50.0)),
-            pan_step_degrees=float(scan_cfg.get("pan_step_degrees", 6.0)),
+            pan_limit_degrees=float(cfg.get("search_pan_limit_degrees", scan_cfg.get("pan_limit_degrees", 50.0))),
+            pan_step_degrees=float(cfg.get("search_step_degrees", scan_cfg.get("pan_step_degrees", 6.0))),
             tilt_levels_degrees=tilt_levels,
         )
 
@@ -163,6 +163,28 @@ class LookAtMeSession:
             "scan_pan_step_degrees": self._scanner.pan_step,
             "scan_tilt_levels_degrees": list(self._scanner.tilt_levels),
         }
+
+        # Continuous follow runtime state.
+        # The face detector can update faster than the physical pan-tilt can
+        # move. Sending every tiny correction as an independent move_delta makes
+        # the head look like: move, stop, move, stop. These fields smooth and
+        # rate-limit the physical command stream.
+        self._command_interval_seconds = max(
+            0.015,
+            float(cfg.get("command_interval_seconds", cfg.get("movement_interval_seconds", 0.04))),
+        )
+        self._min_move_degrees = max(0.0, float(cfg.get("min_move_degrees", 0.04)))
+        self._runtime_max_step_degrees = max(
+            0.05,
+            float(cfg.get("max_runtime_step_degrees", cfg.get("max_step_degrees", tracking_cfg.get("max_step_degrees", 0.6)))),
+        )
+        self._follow_smoothing_alpha = min(
+            1.0,
+            max(0.05, float(cfg.get("smoothing_alpha", cfg.get("target_smoothing_alpha", 0.25)))),
+        )
+        self._last_motion_command_at = 0.0
+        self._smoothed_pan_delta_degrees = 0.0
+        self._smoothed_tilt_delta_degrees = 0.0
 
     # ------------------------------------------------------------------
     # Factories
@@ -371,6 +393,7 @@ class LookAtMeSession:
             self._status.last_face_at = now
 
         if command.in_hold_zone:
+            self._reset_motion_smoothing()
             with self._lock:
                 self._status.last_reason = "tracking_hold"
             return
@@ -406,6 +429,26 @@ class LookAtMeSession:
             self._status.scan_count += 1
             self._update_pan_tilt_from_result(result)
 
+    def _reset_motion_smoothing(self) -> None:
+        self._smoothed_pan_delta_degrees = 0.0
+        self._smoothed_tilt_delta_degrees = 0.0
+
+    def _clamp_runtime_delta(self, value: float) -> float:
+        limit = max(0.05, float(self._runtime_max_step_degrees))
+        value = float(value)
+        if value > limit:
+            return limit
+        if value < -limit:
+            return -limit
+        return value
+
+    def _current_pan_tilt_angles(self) -> dict[str, float]:
+        with self._lock:
+            return {
+                "pan_angle": float(self._status.pan_angle),
+                "tilt_angle": float(self._status.tilt_angle),
+            }
+
     def _move_delta(
         self,
         *,
@@ -421,14 +464,79 @@ class LookAtMeSession:
         if not callable(method):
             return {"ok": False, "movement_executed": False, "error": "move_delta_unavailable"}
 
+        requested_pan = float(pan_delta_degrees)
+        requested_tilt = float(tilt_delta_degrees)
+
+        # Scan commands are intentionally discrete. Face-follow commands are
+        # smoothed and rate-limited to reduce physical start/stop behaviour.
+        if reason == "tracking":
+            alpha = float(self._follow_smoothing_alpha)
+            self._smoothed_pan_delta_degrees = (
+                alpha * requested_pan + (1.0 - alpha) * self._smoothed_pan_delta_degrees
+            )
+            self._smoothed_tilt_delta_degrees = (
+                alpha * requested_tilt + (1.0 - alpha) * self._smoothed_tilt_delta_degrees
+            )
+
+            pan_to_send = self._clamp_runtime_delta(self._smoothed_pan_delta_degrees)
+            tilt_to_send = self._clamp_runtime_delta(self._smoothed_tilt_delta_degrees)
+
+            min_delta = float(self._min_move_degrees)
+            if abs(pan_to_send) < min_delta and abs(tilt_to_send) < min_delta:
+                result = self._current_pan_tilt_angles()
+                result.update(
+                    {
+                        "ok": True,
+                        "movement_executed": False,
+                        "movement_deferred": True,
+                        "defer_reason": "below_min_move_degrees",
+                        "requested_pan_delta_degrees": round(requested_pan, 4),
+                        "requested_tilt_delta_degrees": round(requested_tilt, 4),
+                        "smoothed_pan_delta_degrees": round(pan_to_send, 4),
+                        "smoothed_tilt_delta_degrees": round(tilt_to_send, 4),
+                    }
+                )
+                return result
+
+            now = time.monotonic()
+            elapsed = now - float(self._last_motion_command_at)
+            if elapsed < float(self._command_interval_seconds):
+                result = self._current_pan_tilt_angles()
+                result.update(
+                    {
+                        "ok": True,
+                        "movement_executed": False,
+                        "movement_deferred": True,
+                        "defer_reason": "command_interval",
+                        "command_interval_seconds": round(float(self._command_interval_seconds), 4),
+                        "elapsed_since_last_command_seconds": round(elapsed, 4),
+                        "requested_pan_delta_degrees": round(requested_pan, 4),
+                        "requested_tilt_delta_degrees": round(requested_tilt, 4),
+                        "smoothed_pan_delta_degrees": round(pan_to_send, 4),
+                        "smoothed_tilt_delta_degrees": round(tilt_to_send, 4),
+                    }
+                )
+                return result
+
+            self._last_motion_command_at = now
+        else:
+            pan_to_send = self._clamp_runtime_delta(requested_pan)
+            tilt_to_send = self._clamp_runtime_delta(requested_tilt)
+
         try:
-            return dict(
+            result = dict(
                 method(
-                    pan_delta_degrees=float(pan_delta_degrees),
-                    tilt_delta_degrees=float(tilt_delta_degrees),
+                    pan_delta_degrees=float(pan_to_send),
+                    tilt_delta_degrees=float(tilt_to_send),
                 )
                 or {}
             )
+            result.setdefault("requested_pan_delta_degrees", round(requested_pan, 4))
+            result.setdefault("requested_tilt_delta_degrees", round(requested_tilt, 4))
+            result["continuous_follow_reason"] = reason
+            result["smoothed_pan_delta_degrees"] = round(float(pan_to_send), 4)
+            result["smoothed_tilt_delta_degrees"] = round(float(tilt_to_send), 4)
+            return result
         except Exception as error:  # pragma: no cover - hardware dependent
             LOGGER.warning(
                 "LookAtMeSession move_delta failed safely: reason=%s error=%s",

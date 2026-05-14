@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from typing import Any
 
 from modules.core.calculator.simple_arithmetic import evaluate_arithmetic_expression
@@ -751,6 +753,37 @@ class ActionSystemActionsMixin:
             )
 
 
+    def _should_suppress_repeated_system_response(
+        self,
+        *,
+        response_key: str,
+        window_seconds: float | None = None,
+        cooldown_seconds: float | None = None,
+    ) -> bool:
+        """
+        Prevent deterministic spoken responses from self-triggering immediate loops.
+
+        This guard must stay very short. It is not a normal user cooldown.
+        A user should be able to ask the same identity/help question again after
+        another wake phrase without being silently blocked.
+        """
+        now = time.monotonic()
+        effective_window = window_seconds if window_seconds is not None else cooldown_seconds
+        if effective_window is None:
+            effective_window = 0.75
+
+        # Never allow this helper to become a long cooldown again.
+        effective_window = max(0.0, min(float(effective_window), 1.25))
+
+        attr_name = f"_last_{response_key}_system_response_at"
+        last = float(getattr(self, attr_name, 0.0) or 0.0)
+
+        if last > 0.0 and (now - last) < effective_window:
+            return True
+
+        setattr(self, attr_name, now)
+        return False
+
     def _handle_help(
         self,
         *,
@@ -759,8 +792,20 @@ class ActionSystemActionsMixin:
         payload: dict[str, Any],
         resolved: ResolvedAction,
     ) -> bool:
+        if self._should_suppress_repeated_system_response(
+            response_key="assistant_help",
+            window_seconds=0.75,
+        ):
+            return True
+
         self._show_visual_help_overlay(language=language)
         del route, payload
+
+        if self._should_suppress_repeated_system_response(
+            response_key="assistant.help",
+            window_seconds=0.75,
+        ):
+            return True
 
         spoken = self._localized(
             language,
@@ -1041,12 +1086,28 @@ class ActionSystemActionsMixin:
         payload: dict[str, Any],
         resolved: ResolvedAction,
     ) -> bool:
+        if self._should_suppress_repeated_system_response(
+            response_key="assistant_identity",
+            window_seconds=0.75,
+        ):
+            return True
+
         del route, payload
+
+        if self._should_suppress_repeated_system_response(
+            response_key="assistant.identity",
+            window_seconds=0.75,
+        ):
+            return True
 
         spoken = self._localized(
             language,
-            'Jestem asystentem wykorzystującym AI, stworzonym na Raspberry Pi 5, aby pomagać Ci w pracy przy komputerze i nie tylko. Mogę reagować na szybkie komendy głosowe, wspierać Twoją pracę, pomagać w codziennych zadaniach i działać jako lokalny, inteligentny system przy Twoim biurku. Jeśli jesteś ciekawy, jak mogę Ci pomóc, powiedz: pomoc, albo: jak możesz mi pomóc.',
-            'I am an AI-powered assistant, built on a Raspberry Pi 5 to help you work at your computer and beyond. I can respond to fast voice commands, support your workflow, help with everyday tasks, and act as a local intelligent system at your desk. If you want to know what I can do, say: help, or: how can you help me.',
+            "Jestem asystentem AI stworzonym na Raspberry Pi 5. "
+            "Pomagam Ci w pracy przy komputerze i w codziennych zadaniach. "
+            "Jeśli chcesz wiedzieć, co potrafię, powiedz: pomoc albo jak możesz mi pomóc.",
+            "I am an AI assistant built on a Raspberry Pi 5. "
+            "I help you work at your computer and support everyday tasks. "
+            "To learn what I can do, say: help, or how can you help me.",
         )
         return self._deliver_simple_action_response(
             language=language,

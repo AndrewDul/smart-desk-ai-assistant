@@ -16689,3 +16689,31 @@ python3 -m pytest -q tests/presentation/visual_shell/test_visual_shell_system_me
 ```
 
 Final result: `pokaż baterię` and `show battery` now display real X1206 battery state through the existing fast-line Visual Shell battery command.
+
+## 2026-05-14 - Final Polish UI: Scrollable Visual Shell help command table
+
+### Summary
+
+The Visual Shell help overlay command table was updated so the command list is no longer forced to fit all rows into the visible panel at once.
+
+The help overlay now uses a fixed readable row layout with clipping and a visible manual scrollbar inside the help table area. This keeps English and Polish command entries readable on the 1280x800 DSI display while preventing command text and descriptions from overflowing beyond the table.
+
+### Runtime scope
+
+Changed runtime area:
+
+- `modules/presentation/visual_shell/godot_app/scripts/help_overlay_view.gd`
+
+The change is limited to Visual Shell help overlay rendering only.
+
+No voice runtime behavior was changed:
+
+- Vosk fast-line command routing unchanged.
+- Identity/help routing unchanged.
+- Piper TTS behavior unchanged.
+- Command aliases and spoken responses unchanged.
+- Core runtime execution path unchanged.
+
+### Product result
+
+The help screen now supports a larger command list without sacrificing readability. Users can scroll the command table when the list is longer than the visible UI area.

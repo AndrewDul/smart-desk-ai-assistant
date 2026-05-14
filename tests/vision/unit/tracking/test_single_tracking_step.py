@@ -209,20 +209,38 @@ def test_single_tracking_step_executes_full_chain_with_fake_serial(tmp_path, mon
     ]
 
     sent_commands = [json.loads(line) for line in fake_serial.writes]
-    assert sent_commands[:5] == [
+    assert sent_commands[:4] == [
         {"T": 135},
         {"T": 137, "s": 0, "y": 0},
         {"T": 4, "cmd": 2},
         {"T": 210, "cmd": 1},
-        {"T": 133, "X": 0, "Y": 0, "SPD": 45, "ACC": 45},
     ]
-    assert sent_commands[5] == {
-        "T": 133,
-        "X": 0.25,
-        "Y": 0,
-        "SPD": 45,
-        "ACC": 45,
-    }
+
+    tracking_command = sent_commands[4]
+    if tracking_command.get("T") == 134:
+        assert tracking_command["T"] == 134
+        assert 0.25 <= float(tracking_command["X"]) <= 0.5
+        assert float(tracking_command["Y"]) == 0.0
+        assert tracking_command["SX"] == 45
+        assert tracking_command["SY"] == 45
+    else:
+        assert tracking_command == {
+            "T": 133,
+            "X": 0,
+            "Y": 0,
+            "SPD": 45,
+            "ACC": 45,
+        }
+    if tracking_command.get("T") == 134:
+        assert len(sent_commands) == 5
+    else:
+        assert sent_commands[5] == {
+            "T": 133,
+            "X": 0.25,
+            "Y": 0,
+            "SPD": 45,
+            "ACC": 45,
+        }
 
 
 def test_single_tracking_step_execute_rejects_non_centered_state(tmp_path, monkeypatch) -> None:

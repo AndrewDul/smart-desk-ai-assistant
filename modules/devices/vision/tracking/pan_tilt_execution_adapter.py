@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any
 
@@ -102,6 +104,18 @@ class PanTiltExecutionAdapter:
         else:
             self._config = PanTiltExecutionAdapterConfig.from_mapping(config)
 
+        # Active smooth-follow state.
+        #
+        # This adapter is the real live path used by look-at-me:
+        # VisionTrackingService -> TrackingMotionExecutor -> PanTiltExecutionAdapter.
+        # Without this state, every frame sends a tiny independent move_delta,
+        # which makes the physical head move-stop-move-stop.
+        self._last_backend_command_at = 0.0
+        self._smooth_pan_delta_degrees = 0.0
+        self._smooth_tilt_delta_degrees = 0.0
+        self._last_pan_direction = 0
+        self._last_tilt_direction = 0
+
     def prepare(
         self,
         execution: TrackingMotionExecutionResult | dict[str, Any] | None,
@@ -130,6 +144,7 @@ class PanTiltExecutionAdapter:
         )
 
         if not has_target:
+            self._reset_smooth_follow_state()
             return self._result(
                 status="no_target",
                 accepted=True,
@@ -144,6 +159,7 @@ class PanTiltExecutionAdapter:
             )
 
         if not would_move_pan_tilt:
+            self._reset_smooth_follow_state()
             return self._result(
                 status="no_pan_tilt_motion_required",
                 accepted=True,
@@ -210,6 +226,112 @@ class PanTiltExecutionAdapter:
             return "physical_movement_confirmation_gate"
         return "runtime_hardware_execution_gate"
 
+    def _reset_smooth_follow_state(self) -> None:
+        self._smooth_pan_delta_degrees = 0.0
+        self._smooth_tilt_delta_degrees = 0.0
+        self._last_pan_direction = 0
+        self._last_tilt_direction = 0
+
+    @staticmethod
+    def _direction(value: float) -> int:
+        if value > 0.0001:
+            return 1
+        if value < -0.0001:
+            return -1
+        return 0
+
+    @staticmethod
+    def _clamp_signed(value: float, limit: float) -> float:
+        limit = abs(float(limit))
+        value = float(value)
+        if value > limit:
+            return limit
+        if value < -limit:
+            return -limit
+        return value
+
+    def _smooth_follow_delta(
+        self,
+        *,
+        requested_pan: float,
+        requested_tilt: float,
+        clamped_pan: float,
+        clamped_tilt: float,
+    ) -> dict[str, Any]:
+        max_pan = max(0.0, float(self._config.max_allowed_pan_delta_degrees))
+        max_tilt = max(0.0, float(self._config.max_allowed_tilt_delta_degrees))
+
+        # If max_allowed is too small, physical movement becomes visibly
+        # steppy. We still respect the configured safety maximum, but the
+        # settings patch below raises it for look_at_me runtime.
+        alpha = 0.62
+        lead_gain = 2.15
+        min_live_step = 0.42
+        command_interval_seconds = 0.018
+
+        pan_direction = self._direction(clamped_pan)
+        tilt_direction = self._direction(clamped_tilt)
+
+        # On direction changes, do not carry old momentum across the center.
+        if pan_direction and self._last_pan_direction and pan_direction != self._last_pan_direction:
+            self._smooth_pan_delta_degrees = 0.0
+        if tilt_direction and self._last_tilt_direction and tilt_direction != self._last_tilt_direction:
+            self._smooth_tilt_delta_degrees = 0.0
+
+        if pan_direction:
+            self._last_pan_direction = pan_direction
+        if tilt_direction:
+            self._last_tilt_direction = tilt_direction
+
+        self._smooth_pan_delta_degrees = (
+            alpha * float(clamped_pan)
+            + (1.0 - alpha) * self._smooth_pan_delta_degrees
+        )
+        self._smooth_tilt_delta_degrees = (
+            alpha * float(clamped_tilt)
+            + (1.0 - alpha) * self._smooth_tilt_delta_degrees
+        )
+
+        send_pan = self._smooth_pan_delta_degrees * lead_gain
+        send_tilt = self._smooth_tilt_delta_degrees * lead_gain
+
+        # Keep motion alive when the user is clearly off-center. This avoids
+        # repeated tiny servo start/stop impulses.
+        if pan_direction and abs(send_pan) < min_live_step and abs(requested_pan) >= 0.15:
+            send_pan = pan_direction * min(min_live_step, max_pan)
+        if tilt_direction and abs(send_tilt) < min_live_step and abs(requested_tilt) >= 0.15:
+            send_tilt = tilt_direction * min(min_live_step, max_tilt)
+
+        send_pan = self._clamp_signed(send_pan, max_pan)
+        send_tilt = self._clamp_signed(send_tilt, max_tilt)
+
+        now = time.monotonic()
+        elapsed = now - float(self._last_backend_command_at)
+        if elapsed < command_interval_seconds:
+            return {
+                "send": False,
+                "reason": "smooth_follow_command_interval",
+                "elapsed_since_last_command_seconds": round(elapsed, 4),
+                "command_interval_seconds": command_interval_seconds,
+                "send_pan_delta_degrees": round(send_pan, 4),
+                "send_tilt_delta_degrees": round(send_tilt, 4),
+            }
+
+        self._last_backend_command_at = now
+        return {
+            "send": True,
+            "reason": "smooth_follow_lead_delta",
+            "requested_pan_delta_degrees": round(float(requested_pan), 4),
+            "requested_tilt_delta_degrees": round(float(requested_tilt), 4),
+            "input_clamped_pan_delta_degrees": round(float(clamped_pan), 4),
+            "input_clamped_tilt_delta_degrees": round(float(clamped_tilt), 4),
+            "smoothed_pan_delta_degrees": round(float(self._smooth_pan_delta_degrees), 4),
+            "smoothed_tilt_delta_degrees": round(float(self._smooth_tilt_delta_degrees), 4),
+            "lead_gain": lead_gain,
+            "send_pan_delta_degrees": round(float(send_pan), 4),
+            "send_tilt_delta_degrees": round(float(send_tilt), 4),
+        }
+
     def _execute_backend_delta(
         self,
         *,
@@ -248,10 +370,39 @@ class PanTiltExecutionAdapter:
                 payload=payload,
             )
 
+        smooth_follow = self._smooth_follow_delta(
+            requested_pan=requested_pan,
+            requested_tilt=requested_tilt,
+            clamped_pan=clamped_pan,
+            clamped_tilt=clamped_tilt,
+        )
+
+        if not bool(smooth_follow.get("send", False)):
+            return self._result(
+                status="backend_command_coalesced",
+                accepted=True,
+                has_target=True,
+                would_send_pan_tilt_command=True,
+                requested_pan_delta_degrees=requested_pan,
+                requested_tilt_delta_degrees=requested_tilt,
+                clamped_pan_delta_degrees=clamped_pan,
+                clamped_tilt_delta_degrees=clamped_tilt,
+                blocked_reason=str(smooth_follow.get("reason", "smooth_follow_coalesced")),
+                payload=payload,
+                backend_command_executed=False,
+                backend_response={
+                    "smooth_follow_mode": True,
+                    **smooth_follow,
+                },
+            )
+
+        send_pan = float(smooth_follow.get("send_pan_delta_degrees", clamped_pan))
+        send_tilt = float(smooth_follow.get("send_tilt_delta_degrees", clamped_tilt))
+
         try:
             backend_response = move_delta(
-                pan_delta_degrees=clamped_pan,
-                tilt_delta_degrees=clamped_tilt,
+                pan_delta_degrees=send_pan,
+                tilt_delta_degrees=send_tilt,
             )
         except Exception as error:
             return self._result(
@@ -280,7 +431,11 @@ class PanTiltExecutionAdapter:
             blocked_reason="",
             payload=payload,
             backend_command_executed=True,
-            backend_response=_mapping_or_value(backend_response),
+            backend_response={
+                "smooth_follow_mode": True,
+                "smooth_follow": smooth_follow,
+                "backend": _mapping_or_value(backend_response),
+            },
         )
 
     def _result(

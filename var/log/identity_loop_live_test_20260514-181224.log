@@ -1,0 +1,36 @@
+[0;93m2026-05-14 18:12:27.406617313 [W:onnxruntime:Default, device_discovery.cc:325 DiscoverDevicesForPlatform] GPU device discovery failed: device_discovery.cc:92 ReadFileContents Failed to open file: "/sys/class/drm/card1/device/vendor"[m
+/home/devdul/Projects/smart-desk-ai-assistant/.venv/lib/python3.13/site-packages/onnxruntime/capi/onnxruntime_inference_collection.py:123: UserWarning: Specified provider 'CUDAExecutionProvider' is not in available provider names.Available providers: 'AzureExecutionProvider, CPUExecutionProvider'
+  warnings.warn(
+[DISPLAY] waveshare_2inch ready (320x240, rotate=180)
+
+================================
+NeXa
+--------------------------------
+starting up...
+assistant boot seque
+================================
+Runtime state: READY. Voice mode: half-duplex. Wake barge-in: disabled.
+
+Standby. Waiting for wake phrase...
+Wake phrase detected. Waiting for command...
+
+Listening for your request...
+WARNING (VoskAPI:UpdateGrammarFst():recognizer.cc:308) Ignoring word missing in vocabulary: 'nexa'
+Heard: kim jesteś
+Response stream failed to speak chunk index=0, kind=content, chars=362
+
+================================
+NeXa
+--------------------------------
+lokalny
+desk assistant
+================================
+
+================================
+NeXa
+--------------------------------
+Jestem asystentem
+wykorzystującym AI,
+================================
+
+Standby. Waiting for wake phrase...

@@ -195,12 +195,18 @@ def test_pan_tilt_adapter_executes_backend_delta_only_when_all_runtime_gates_are
     assert result.clamped_pan_delta_degrees == 0.75
     assert result.clamped_tilt_delta_degrees == -0.25
     assert result.blocked_reason == ""
-    assert backend.calls == [
-        {
-            "pan_delta_degrees": 0.75,
-            "tilt_delta_degrees": -0.25,
-        }
-    ]
+    assert len(backend.calls) == 1
+
+    backend_call = backend.calls[0]
+    assert 0.75 <= backend_call["pan_delta_degrees"] <= 2.0
+    assert -2.0 <= backend_call["tilt_delta_degrees"] <= -0.25
+
+    backend_response = result.metadata["backend_response"]
+    assert backend_response["smooth_follow_mode"] is True
+    assert backend_response["smooth_follow"]["send"] is True
+    assert backend_response["smooth_follow"]["reason"] == "smooth_follow_lead_delta"
+    assert backend_response["smooth_follow"]["send_pan_delta_degrees"] == backend_call["pan_delta_degrees"]
+    assert backend_response["smooth_follow"]["send_tilt_delta_degrees"] == backend_call["tilt_delta_degrees"]
 
 
 def test_pan_tilt_adapter_keeps_backend_blocked_when_runtime_gate_is_missing() -> None:

@@ -5645,3 +5645,46 @@ python3 -m pytest -q tests/presentation/visual_shell/test_visual_shell_system_me
 ```
 
 Runtime benchmark confirmed `pokaż baterię` and `show battery` route through Vosk fast-line with LLM and FasterWhisper prevented.
+
+## 2026-05-14 - Visual Shell help overlay command list overflow
+
+### Symptom
+
+When NeXa displayed the help screen, the command table/list overflowed outside the visible table area on the 1280x800 DSI display. English and Polish command descriptions were difficult to read, and lower rows could leave the intended UI bounds.
+
+### Cause
+
+The help overlay attempted to render the full command list inside one fixed visible table area. As the number of commands increased, shrinking the row height and font was not enough to keep the UI readable and contained.
+
+An earlier scrollbar attempt was not visually clear enough in the runtime UI, so the final fix moved to a visible manual scrollbar drawn inside the help table area.
+
+### Fix
+
+Updated:
+
+- `modules/presentation/visual_shell/godot_app/scripts/help_overlay_view.gd`
+
+The help overlay now uses:
+
+- readable fixed row height,
+- clipping for the visible table area,
+- scroll offset handling,
+- visible manual scrollbar,
+- mouse wheel / pointer interaction for scrolling.
+
+### Verification
+
+Manual runtime verification:
+
+- Start NeXa.
+- Say `pomoc` or `help`.
+- Confirm the command table remains inside the help panel.
+- Confirm command names and descriptions are readable.
+- Confirm the list can be scrolled using the visible scrollbar / scroll interaction.
+
+Focused test command:
+
+```bash
+python -m pytest -q tests/presentation/visual_shell
+```
+

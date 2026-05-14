@@ -1,0 +1,619 @@
+========================================================================================================================
+modules.devices.vision.look_at_me.session.LookAtMeSession
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._run_loop
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._run_iteration
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._tracking_service
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._activate_runtime_tracking_service
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._build_runtime_tracking_config
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._execute_tracking_plan
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._minimum_movement_delta
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._runtime_max_step_degrees
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._force_refresh_during_tracking
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+LookAtMeSession._persist_runtime_status
+MISSING
+========================================================================================================================
+modules.devices.vision.tracking.service.VisionTrackingService
+------------------------------------------------------------------------------------------------------------------------
+VisionTrackingService.__init__
+    def __init__(
+        self,
+        *,
+        vision_backend: Any,
+        pan_tilt_backend: Any | None = None,
+        config: dict[str, Any] | None = None,
+        policy: PanTiltTrackingPolicy | None = None,
+        motion_executor: TrackingMotionExecutor | None = None,
+        pan_tilt_adapter: PanTiltExecutionAdapter | None = None,
+    ) -> None:
+        self._vision_backend = vision_backend
+        self._pan_tilt_backend = pan_tilt_backend
+        self._config = dict(config or {})
+        policy_config_payload = dict(self._config.get("policy", self._config) or {})
+        self._policy = policy or PanTiltTrackingPolicy(
+            config=TrackingPolicyConfig.from_mapping(policy_config_payload)
+        )
+
+        motion_executor_config = dict(
+            self._config.get("motion_executor", self._config.get("executor", {})) or {}
+        )
+        self._motion_executor = motion_executor or TrackingMotionExecutor(
+            pan_tilt_backend=pan_tilt_backend,
+            mobile_base_backend=None,
+            config=motion_executor_config,
+        )
+
+        pan_tilt_adapter_config = dict(
+            self._config.get(
+                "pan_tilt_adapter",
+                self._config.get("pan_tilt_execution_adapter", {}),
+            )
+            or {}
+        )
+        self._pan_tilt_adapter = pan_tilt_adapter or PanTiltExecutionAdapter(
+            pan_tilt_backend=pan_tilt_backend,
+            config=pan_tilt_adapter_config,
+        )
+
+        self._last_plan: TrackingMotionPlan | None = None
+        self._last_execution_result: TrackingMotionExecutionResult | None = None
+        self._last_pan_tilt_adapter_result: PanTiltExecutionAdapterResult | None = None
+        self._last_error: str | None = None
+        self._last_telemetry_error: str | None = None
+        self._last_plan_timestamp_monotonic: float | None = None
+        self._persist_status = bool(self._config.get("persist_status", True))
+        self._status_path = str(
+            self._config.get("status_path", "var/data/vision_tracking_status.json")
+        )
+        self._telemetry_writer = VisionTrackingTelemetryWriter(path=self._status_path)
+
+------------------------------------------------------------------------------------------------------------------------
+VisionTrackingService.plan_once
+    def plan_once(self, *, force_refresh: bool = False) -> TrackingMotionPlan:
+        """
+        Compute one tracking plan from the latest observation.
+
+        force_refresh defaults to False because this service is meant for the
+        hot tracking path. It should not force camera capture unless a caller
+        explicitly asks for that slower behavior.
+        """
+        started_at = time.monotonic()
+        try:
+            observation = self._latest_observation(force_refresh=force_refresh)
+            pan_state = self._pan_tilt_state()
+            plan = self._policy.plan_from_observation(
+                observation,
+                current_pan_degrees=pan_state["pan_degrees"],
+                current_tilt_degrees=pan_state["tilt_degrees"],
+                safe_limits=pan_state["safe_limits"],
+            )
+            self._last_plan = plan
+            self._last_execution_result = self._motion_executor.execute(plan)
+            self._last_pan_tilt_adapter_result = self._pan_tilt_adapter.prepare(
+                self._last_execution_result
+            )
+            self._last_error = None
+            self._last_plan_timestamp_monotonic = time.monotonic()
+            self._persist_latest_status(
+                force_refresh=force_refresh,
+                elapsed_ms=(time.monotonic() - started_at) * 1000.0,
+            )
+            return plan
+        except Exception as error:
+            self._last_error = f"{error.__class__.__name__}: {error}"
+            plan = TrackingMotionPlan(
+                has_target=False,
+                target=None,
+                reason="tracking_service_error",
+                diagnostics={"error": self._last_error},
+            )
+            self._last_plan = plan
+            self._last_execution_result = self._motion_executor.execute(plan)
+            self._last_pan_tilt_adapter_result = self._pan_tilt_adapter.prepare(
+                self._last_execution_result
+            )
+            self._last_plan_timestamp_monotonic = time.monotonic()
+            self._persist_latest_status(
+                force_refresh=force_refresh,
+                elapsed_ms=(time.monotonic() - started_at) * 1000.0,
+            )
+            return plan
+
+------------------------------------------------------------------------------------------------------------------------
+VisionTrackingService.execute_plan
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+VisionTrackingService.latest_execution_result
+    def latest_execution_result(self) -> TrackingMotionExecutionResult | None:
+        return self._last_execution_result
+
+------------------------------------------------------------------------------------------------------------------------
+VisionTrackingService.latest_pan_tilt_adapter_result
+    def latest_pan_tilt_adapter_result(self) -> PanTiltExecutionAdapterResult | None:
+        return self._last_pan_tilt_adapter_result
+
+------------------------------------------------------------------------------------------------------------------------
+VisionTrackingService.status
+    def status(self) -> dict[str, Any]:
+        return {
+            "ok": self._last_error is None,
+            "dry_run": True,
+            "movement_execution_enabled": False,
+            "pan_tilt_movement_execution_enabled": False,
+            "base_yaw_assist_execution_enabled": False,
+            "base_forward_backward_movement_enabled": False,
+            "persist_status": self._persist_status,
+            "status_path": self._status_path,
+            "last_error": self._last_error,
+            "last_telemetry_error": self._last_telemetry_error,
+            "last_plan_timestamp_monotonic": self._last_plan_timestamp_monotonic,
+            "last_plan": None if self._last_plan is None else asdict(self._last_plan),
+            "last_execution_result": (
+                None if self._last_execution_result is None else asdict(self._last_execution_result)
+            ),
+            "last_pan_tilt_adapter_result": (
+                None
+                if self._last_pan_tilt_adapter_result is None
+                else asdict(self._last_pan_tilt_adapter_result)
+            ),
+            "motion_executor_status": self._motion_executor.status(),
+            "pan_tilt_adapter_status": self._pan_tilt_adapter.status(),
+        }
+
+========================================================================================================================
+modules.devices.vision.tracking.motion_executor.TrackingMotionExecutor
+------------------------------------------------------------------------------------------------------------------------
+TrackingMotionExecutor.__init__
+    def __init__(
+        self,
+        *,
+        pan_tilt_backend: Any | None = None,
+        mobile_base_backend: Any | None = None,
+        config: dict[str, Any] | TrackingMotionExecutorConfig | None = None,
+    ) -> None:
+        self._pan_tilt_backend = pan_tilt_backend
+        self._mobile_base_backend = mobile_base_backend
+        if isinstance(config, TrackingMotionExecutorConfig):
+            self._config = config
+        else:
+            self._config = TrackingMotionExecutorConfig.from_mapping(config)
+
+------------------------------------------------------------------------------------------------------------------------
+TrackingMotionExecutor.execute
+    def execute(self, plan: TrackingMotionPlan | dict[str, Any] | None) -> TrackingMotionExecutionResult:
+        plan_metadata = _plan_to_mapping(plan)
+
+        if not plan_metadata:
+            return self._result(
+                status="no_plan",
+                accepted=False,
+                reason="no_plan",
+                plan_metadata={},
+            )
+
+        has_target = bool(plan_metadata.get("has_target", False))
+        pan_delta = _safe_float(plan_metadata.get("pan_delta_degrees", 0.0))
+        tilt_delta = _safe_float(plan_metadata.get("tilt_delta_degrees", 0.0))
+        base_yaw_assist_required = bool(plan_metadata.get("base_yaw_assist_required", False))
+        base_yaw_direction = _safe_direction(plan_metadata.get("base_yaw_direction"))
+
+        would_move_pan_tilt = bool(has_target and (abs(pan_delta) > 0.0 or abs(tilt_delta) > 0.0))
+        would_request_base_yaw_assist = bool(has_target and base_yaw_assist_required)
+
+        if not has_target:
+            status = "no_target"
+            reason = "no_target"
+        elif would_move_pan_tilt or would_request_base_yaw_assist:
+            status = "dry_run_motion_blocked"
+            reason = "dry_run_execution_only"
+        else:
+            status = "no_motion_required"
+            reason = str(plan_metadata.get("reason", "target_centered") or "target_centered")
+
+        return self._result(
+            status=status,
+            accepted=True,
+            reason=reason,
+            has_target=has_target,
+            would_move_pan_tilt=would_move_pan_tilt,
+            would_request_base_yaw_assist=would_request_base_yaw_assist,
+            pan_delta_degrees=pan_delta,
+            tilt_delta_degrees=tilt_delta,
+            base_yaw_direction=base_yaw_direction,
+            plan_metadata=plan_metadata,
+        )
+
+------------------------------------------------------------------------------------------------------------------------
+TrackingMotionExecutor.status
+    def status(self) -> dict[str, Any]:
+        return {
+            "dry_run": True,
+            "execution_block_reason": "dry_run_safety_gate",
+            "requested_any_physical_execution": self._config.requested_any_physical_execution,
+            "requested_dry_run": self._config.dry_run,
+            "requested_movement_execution_enabled": self._config.movement_execution_enabled,
+            "requested_pan_tilt_movement_execution_enabled": (
+                self._config.pan_tilt_movement_execution_enabled
+            ),
+            "requested_base_yaw_assist_execution_enabled": (
+                self._config.base_yaw_assist_execution_enabled
+            ),
+            "requested_base_forward_backward_movement_enabled": (
+                self._config.base_forward_backward_movement_enabled
+            ),
+            "effective_dry_run": self._config.effective_dry_run,
+            "effective_movement_execution_enabled": (
+                self._config.effective_movement_execution_enabled
+            ),
+            "effective_pan_tilt_movement_execution_enabled": (
+                self._config.effective_pan_tilt_movement_execution_enabled
+            ),
+            "effective_base_yaw_assist_execution_enabled": (
+                self._config.effective_base_yaw_assist_execution_enabled
+            ),
+            "effective_base_forward_backward_movement_enabled": (
+                self._config.effective_base_forward_backward_movement_enabled
+            ),
+            "movement_execution_enabled": False,
+            "pan_tilt_movement_execution_enabled": False,
+            "base_yaw_assist_execution_enabled": False,
+            "base_forward_backward_movement_enabled": False,
+            "pan_tilt_backend_attached": self._pan_tilt_backend is not None,
+            "mobile_base_backend_attached": self._mobile_base_backend is not None,
+        }
+
+========================================================================================================================
+modules.devices.vision.tracking.pan_tilt_execution_adapter.PanTiltExecutionAdapter
+------------------------------------------------------------------------------------------------------------------------
+PanTiltExecutionAdapter.__init__
+    def __init__(
+        self,
+        *,
+        pan_tilt_backend: Any | None = None,
+        config: dict[str, Any] | PanTiltExecutionAdapterConfig | None = None,
+    ) -> None:
+        self._pan_tilt_backend = pan_tilt_backend
+        if isinstance(config, PanTiltExecutionAdapterConfig):
+            self._config = config
+        else:
+            self._config = PanTiltExecutionAdapterConfig.from_mapping(config)
+
+------------------------------------------------------------------------------------------------------------------------
+PanTiltExecutionAdapter.execute
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+PanTiltExecutionAdapter.status
+    def status(self) -> dict[str, Any]:
+        return {
+            "dry_run": self._config.dry_run,
+            "requested_backend_command_execution_enabled": (
+                self._config.backend_command_execution_enabled
+            ),
+            "backend_command_execution_enabled": self._config.backend_command_execution_enabled,
+            "runtime_hardware_execution_enabled": self._config.runtime_hardware_execution_enabled,
+            "physical_movement_confirmed": self._config.physical_movement_confirmed,
+            "effective_backend_command_execution_enabled": (
+                self._config.effective_backend_command_execution_enabled
+            ),
+            "require_calibrated_limits": self._config.require_calibrated_limits,
+            "require_no_motion_startup_policy": self._config.require_no_motion_startup_policy,
+            "max_allowed_pan_delta_degrees": self._config.max_allowed_pan_delta_degrees,
+            "max_allowed_tilt_delta_degrees": self._config.max_allowed_tilt_delta_degrees,
+            "pan_tilt_backend_attached": self._pan_tilt_backend is not None,
+            "backend_name": _backend_name(self._pan_tilt_backend),
+        }
+
+========================================================================================================================
+modules.devices.vision.tracking.pan_tilt_policy.PanTiltTrackingPolicy
+------------------------------------------------------------------------------------------------------------------------
+PanTiltTrackingPolicy.__init__
+    def __init__(
+        self,
+        *,
+        config: TrackingPolicyConfig | None = None,
+        selector: TrackingTargetSelector | None = None,
+    ) -> None:
+        self._config = config or TrackingPolicyConfig()
+        self._selector = selector or TrackingTargetSelector()
+        self._locked_target: TrackingTarget | None = None
+        self._candidate_target: TrackingTarget | None = None
+        self._candidate_hits = 0
+
+------------------------------------------------------------------------------------------------------------------------
+PanTiltTrackingPolicy.build_plan
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+PanTiltTrackingPolicy._smooth_target
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+PanTiltTrackingPolicy._select_target
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+PanTiltTrackingPolicy._near_pan_limit
+MISSING
+------------------------------------------------------------------------------------------------------------------------
+PanTiltTrackingPolicy._near_tilt_limit
+MISSING
+========================================================================================================================
+modules.devices.pan_tilt.service.WaveshareSerialPanTiltBackend
+------------------------------------------------------------------------------------------------------------------------
+WaveshareSerialPanTiltBackend.move_delta
+    def move_delta(self, *, pan_delta_degrees: float, tilt_delta_degrees: float) -> dict[str, Any]:
+        self._maybe_refresh_telemetry_before_motion()
+
+        requested_pan = float(pan_delta_degrees)
+        requested_tilt = float(tilt_delta_degrees)
+        applied_pan = _clamp_delta(requested_pan, self._config.max_step_degrees)
+        applied_tilt = _clamp_delta(requested_tilt, self._config.max_step_degrees)
+
+        target_pan = self._config.safe_limits.clamp_pan(self._pan_angle + applied_pan)
+        target_tilt = self._config.safe_limits.clamp_tilt(self._tilt_angle + applied_tilt)
+        effective_pan_delta = target_pan - self._pan_angle
+        effective_tilt_delta = target_tilt - self._tilt_angle
+
+        common = {
+            "requested_pan_delta_degrees": round(requested_pan, 4),
+            "requested_tilt_delta_degrees": round(requested_tilt, 4),
+            "applied_pan_delta_degrees": round(effective_pan_delta, 4),
+            "applied_tilt_delta_degrees": round(effective_tilt_delta, 4),
+            "target_pan_degrees": round(target_pan, 4),
+            "target_tilt_degrees": round(target_tilt, 4),
+            "movement_executed": False,
+        }
+
+        if abs(effective_pan_delta) == 0.0 and abs(effective_tilt_delta) == 0.0:
+            result = self.status()
+            result.update(common)
+            result["detail"] = "No pan/tilt movement required after safe-limit clamping."
+            return result
+
+        status = self.status()
+        if not bool(status.get("serial_write_enabled", False)):
+            message = "Waveshare serial movement is blocked by runtime safety gates."
+            result = dict(status)
+            result.update(common)
+            result.update(
+                {
+                    "ok": False,
+                    "movement_available": False,
+                    "movement_executed": False,
+                    "detail": message,
+                    "error": message,
+                    "missing_safety_gates": self._missing_safety_gates(status),
+                }
+            )
+            return result
+
+        command = _waveshare_move_command(
+            x=target_pan,
+            y=target_tilt,
+            speed=self._config.command_speed,
+            acceleration=self._config.command_acceleration,
+            command_mode=self._config.command_mode,
+        )
+        commands = _build_waveshare_runtime_sequence(
+            target_command=command,
+            current_pan_degrees=self._pan_angle,
+            current_tilt_degrees=self._tilt_angle,
+            speed=self._config.command_speed,
+            acceleration=self._config.command_acceleration,
+            include_prepare=not self._controller_prepared,
+        )
+
+        try:
+            self._send_commands(commands)
+            self._controller_prepared = True
+        except Exception as error:
+            result = self.status()
+            result.update(common)
+            result.update(
+                {
+                    "ok": False,
+                    "movement_executed": False,
+                    "error": f"{error.__class__.__name__}: {error}",
+                    "detail": "Waveshare serial command failed before state update.",
+                }
+            )
+            return result
+
+        self._pan_angle = target_pan
+        self._tilt_angle = target_tilt
+        result = self.status()
+        result.update(common)
+        result.update(
+            {
+                "ok": True,
+                "movement_available": True,
+                "movement_executed": True,
+                "command_count": len(commands),
+                "detail": "Waveshare serial move_delta executed.",
+            }
+        )
+        return result
+
+------------------------------------------------------------------------------------------------------------------------
+WaveshareSerialPanTiltBackend._move_absolute
+    def _move_absolute(
+        self,
+        *,
+        target_pan_degrees: float,
+        target_tilt_degrees: float,
+        reason: str,
+    ) -> dict[str, Any]:
+        target_pan = self._config.safe_limits.clamp_pan(float(target_pan_degrees))
+        target_tilt = self._config.safe_limits.clamp_tilt(float(target_tilt_degrees))
+
+        current_pan = float(self._pan_angle)
+        current_tilt = float(self._tilt_angle)
+
+        effective_pan_delta = target_pan - current_pan
+        effective_tilt_delta = target_tilt - current_tilt
+
+        common = {
+            "absolute_move_reason": reason,
+            "requested_target_pan_degrees": round(float(target_pan_degrees), 4),
+            "requested_target_tilt_degrees": round(float(target_tilt_degrees), 4),
+            "target_pan_degrees": round(target_pan, 4),
+            "target_tilt_degrees": round(target_tilt, 4),
+            "applied_pan_delta_degrees": round(effective_pan_delta, 4),
+            "applied_tilt_delta_degrees": round(effective_tilt_delta, 4),
+            "movement_executed": False,
+        }
+
+        if abs(effective_pan_delta) < 0.0001 and abs(effective_tilt_delta) < 0.0001:
+            result = self.status()
+            result.update(common)
+            result["detail"] = "No pan/tilt absolute movement required."
+            return result
+
+        status = self.status()
+        if not bool(status.get("serial_write_enabled", False)):
+            message = "Waveshare serial absolute movement is blocked by runtime safety gates."
+            result = dict(status)
+            result.update(common)
+            result.update(
+                {
+                    "ok": False,
+                    "movement_available": False,
+                    "movement_executed": False,
+                    "detail": message,
+                    "error": message,
+                    "missing_safety_gates": self._missing_safety_gates(status),
+                }
+            )
+            return result
+
+        command = _waveshare_move_command(
+            x=target_pan,
+            y=target_tilt,
+            speed=self._config.command_speed,
+            acceleration=self._config.command_acceleration,
+            command_mode=self._config.command_mode,
+        )
+        commands = _build_waveshare_runtime_sequence(
+            target_command=command,
+            current_pan_degrees=current_pan,
+            current_tilt_degrees=current_tilt,
+            speed=self._config.command_speed,
+            acceleration=self._config.command_acceleration,
+            include_prepare=not self._controller_prepared,
+        )
+
+        try:
+            self._send_commands(commands)
+            self._controller_prepared = True
+        except Exception as error:
+            result = self.status()
+            result.update(common)
+            result.update(
+                {
+                    "ok": False,
+                    "movement_executed": False,
+                    "error": f"{error.__class__.__name__}: {error}",
+                    "detail": "Waveshare serial absolute command failed before state update.",
+                }
+            )
+            return result
+
+        self._pan_angle = target_pan
+        self._tilt_angle = target_tilt
+
+        result = self.status()
+        result.update(common)
+        result.update(
+            {
+                "ok": True,
+                "movement_available": True,
+                "movement_executed": True,
+                "command_count": len(commands),
+                "detail": "Waveshare serial absolute move executed.",
+            }
+        )
+        return result
+
+------------------------------------------------------------------------------------------------------------------------
+WaveshareSerialPanTiltBackend._send_commands
+    def _send_commands(self, commands: list[tuple[str, dict[str, Any], float, float]]) -> None:
+        ser = self._get_serial_for_command()
+
+        warmup_seconds = self._config.serial_warmup_seconds
+        if not self._controller_prepared:
+            warmup_seconds = max(warmup_seconds, 0.05)
+        else:
+            warmup_seconds = max(warmup_seconds, 0.0)
+
+        if warmup_seconds > 0.0:
+            time.sleep(warmup_seconds)
+
+        # Do not reset the input buffer for every movement command.
+        # Keeping telemetry available helps the backend stay synchronized with hardware.
+
+        for label, command, pause_seconds, read_seconds in commands:
+            line = compact_json_line(command)
+            ser.write(line.encode("utf-8"))
+            flush = getattr(ser, "flush", None)
+            if callable(flush):
+                flush()
+            self._serial_write_count += 1
+            self._drain_serial(ser, read_seconds=read_seconds)
+            if pause_seconds > 0.0:
+                time.sleep(pause_seconds)
+
+        if self._serial_factory is not None:
+            close = getattr(ser, "close", None)
+            if callable(close):
+                close()
+
+------------------------------------------------------------------------------------------------------------------------
+WaveshareSerialPanTiltBackend.status
+    def status(self) -> dict[str, Any]:
+        device_exists = bool(self._config.device) and Path(self._config.device).exists()
+        calibration_status = self._calibration_status()
+        serial_write_enabled = self._serial_write_enabled(
+            device_exists=device_exists,
+            calibration_ready=calibration_status["calibration_ready"],
+        )
+        status = _base_status(
+            config=self._config,
+            backend=self.name,
+            ok=True,
+            movement_available=serial_write_enabled,
+            detail=(
+                "Waveshare serial backend is hardware-capable but safety-gated."
+                if serial_write_enabled
+                else "Waveshare serial movement is blocked by runtime safety gates."
+            ),
+        )
+        status.update(
+            {
+                "device_exists": device_exists,
+                "serial_opened": False,
+                "serial_write_enabled": serial_write_enabled,
+                "serial_write_count": self._serial_write_count,
+                "controller_prepared": self._controller_prepared,
+                "pan_angle": round(self._pan_angle, 3),
+                "tilt_angle": round(self._tilt_angle, 3),
+                **self._telemetry_status(),
+                **calibration_status,
+            }
+        )
+        return status
+
