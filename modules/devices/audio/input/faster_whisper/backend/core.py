@@ -649,6 +649,14 @@ class FasterWhisperInputBackend(
             max(0.0, capture_finished_at - started_at),
         )
         metadata.setdefault("faster_whisper_bypassed", True)
+        metadata.setdefault("full_stt_prevented", True)
+        metadata.setdefault("runtime_takeover", True)
+        metadata.setdefault("runtime_takeover_stage", "vosk_pre_whisper_candidate")
+        metadata.setdefault("runtime_integration", True)
+        metadata.setdefault("live_command_recognition_enabled", True)
+        metadata.setdefault("command_execution_enabled", True)
+        metadata.setdefault("action_executed", False)
+        metadata.setdefault("llm_prevented", True)
         metadata.setdefault("voice_engine_v2_pre_whisper_candidate", candidate)
 
         if tap_snapshot_at_capture_finished:

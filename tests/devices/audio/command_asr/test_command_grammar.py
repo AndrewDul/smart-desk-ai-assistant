@@ -248,7 +248,7 @@ def test_vosk_vocabulary_excludes_small_model_unsupported_natural_aliases() -> N
 
     assert "odsłoń pulpit" not in polish_vocabulary
     assert all("nexa" not in phrase.lower() for phrase in english_vocabulary)
-    assert all("nexa" not in phrase.lower() for phrase in polish_vocabulary)
+    assert "wyłącz nexa" in polish_vocabulary
 
 
 def test_vosk_vocabulary_excludes_vosk_exclude_even_when_recovery_enabled() -> None:
@@ -265,8 +265,34 @@ def test_vosk_vocabulary_excludes_vosk_exclude_even_when_recovery_enabled() -> N
 
     assert "odsłoń pulpit" not in polish_vocabulary
     assert all("nexa" not in phrase.lower() for phrase in english_vocabulary)
-    assert all("nexa" not in phrase.lower() for phrase in polish_vocabulary)
+    assert "wyłącz nexa" in polish_vocabulary
 
+
+def test_default_grammar_recognizes_fast_calculator_phrases() -> None:
+    grammar = build_default_command_grammar()
+
+    polish_result = grammar.match("ile to jest dwa plus dwa")
+    english_result = grammar.match("calculate five times six")
+
+    assert polish_result.status == CommandRecognitionStatus.MATCHED
+    assert polish_result.intent_key == "system.calculate"
+    assert polish_result.language == CommandLanguage.POLISH
+    assert polish_result.matched_phrase == "2 + 2"
+
+    assert english_result.status == CommandRecognitionStatus.MATCHED
+    assert english_result.intent_key == "system.calculate"
+    assert english_result.language == CommandLanguage.ENGLISH
+    assert english_result.matched_phrase == "5 * 6"
+
+
+def test_calculator_small_number_vocabulary_is_available_for_limited_vosk() -> None:
+    grammar = build_default_command_grammar()
+
+    english_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH)
+    polish_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)
+
+    assert "what is two plus two" in english_vocabulary
+    assert "ile to jest dwa plus dwa" in polish_vocabulary
 
 
 def test_default_grammar_recognizes_assistant_help_aliases() -> None:
@@ -296,8 +322,9 @@ def test_default_grammar_recognizes_visual_shell_voice_control_aliases() -> None
         ("show face", "visual_shell.show_face", "en"),
         ("wróć do chmury", "visual_shell.return_to_idle", "pl"),
         ("return to idle", "visual_shell.return_to_idle", "en"),
-        ("pokaż temperaturę", "visual_shell.show_temperature", "pl"),
-        ("show temperature", "visual_shell.show_temperature", "en"),
+        ("jaka masz temperaturę", "visual_shell.show_temperature", "pl"),
+        ("cpu temperatura", "visual_shell.show_temperature", "pl"),
+        ("show cpu temperature", "visual_shell.show_temperature", "en"),
         ("pokaż baterię", "visual_shell.show_battery", "pl"),
         ("show battery", "visual_shell.show_battery", "en"),
         ("spójrz na mnie", "visual_shell.look_at_user", "pl"),
@@ -311,18 +338,66 @@ def test_default_grammar_recognizes_visual_shell_voice_control_aliases() -> None
         assert result.intent_key == intent_key
         assert result.language.value == language
 
-    disabled_cases = [
-        "pokaż oczy",
-        "show eyes",
-        "sprawdź pokój",
-        "scan room",
-        "look around",
+    newly_promoted_cases = [
+        ("pokaż oczy", "visual_shell.show_eyes", "pl"),
+        ("show eyes", "visual_shell.show_eyes", "en"),
+        ("sprawdź pokój", "visual_shell.start_scanning", "pl"),
+        ("scan room", "visual_shell.start_scanning", "en"),
+        ("look around", "visual_shell.start_scanning", "en"),
     ]
 
-    for transcript in disabled_cases:
+    for transcript, intent_key, language in newly_promoted_cases:
         result = grammar.match(transcript)
 
-        assert result.status != CommandRecognitionStatus.MATCHED
+        assert result.status == CommandRecognitionStatus.MATCHED
+        assert result.intent_key == intent_key
+        assert result.language.value == language
+
+
+def test_default_grammar_reserves_generic_temperature_for_room_sensor() -> None:
+    grammar = build_default_command_grammar()
+
+    reserved_cases = [
+        "temperatura",
+        "pokaż temperaturę",
+        "pokaz temperature",
+        "temperature",
+        "show temperature",
+        "display temperature",
+    ]
+
+    for transcript in reserved_cases:
+        result = grammar.match(transcript)
+
+        assert result.status == CommandRecognitionStatus.NO_MATCH
+        assert result.intent_key is None
+
+
+def test_default_grammar_recognizes_cpu_temperature_aliases() -> None:
+    grammar = build_default_command_grammar()
+
+    cases = [
+        ("jaka masz temperaturę", "visual_shell.show_temperature", "pl"),
+        ("jaką masz temperaturę", "visual_shell.show_temperature", "pl"),
+        ("jako masz temperatura", "visual_shell.show_temperature", "pl"),
+        ("jaka jest twoja temperatura", "visual_shell.show_temperature", "pl"),
+        ("cpu temperatura", "visual_shell.show_temperature", "pl"),
+        ("temperatura cpu", "visual_shell.show_temperature", "pl"),
+        ("temperatura procesora", "visual_shell.show_temperature", "pl"),
+        ("what is your cpu", "visual_shell.show_temperature", "en"),
+        ("what is your cpu temperature", "visual_shell.show_temperature", "en"),
+        ("what is the cpu temperature", "visual_shell.show_temperature", "en"),
+        ("show cpu temperature", "visual_shell.show_temperature", "en"),
+        ("processor temperature", "visual_shell.show_temperature", "en"),
+        ("raspberry pi temperature", "visual_shell.show_temperature", "en"),
+    ]
+
+    for transcript, intent_key, language in cases:
+        result = grammar.match(transcript)
+
+        assert result.status == CommandRecognitionStatus.MATCHED
+        assert result.intent_key == intent_key
+        assert result.language.value == language
 
 
 def test_default_grammar_routes_show_time_to_visual_shell_without_hijacking_time_question() -> None:

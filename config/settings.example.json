@@ -117,6 +117,8 @@
       "assistant.identity",
       "system.current_time",
       "system.current_date",
+      "system.calculate",
+      "system.exit",
       "system.temperature",
       "system.battery",
       "visual_shell.show_desktop",

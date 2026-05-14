@@ -66,6 +66,19 @@ _ENGLISH_HINTS = {
     "temperature",
     "time",
     "timer",
+    "what",
+    "your",
+    "cpu",
+    "processor",
+    "system",
+    "device",
+    "computer",
+    "board",
+    "core",
+    "raspberry",
+    "pi",
+    "hot",
+    "overheating",
 }
 
 

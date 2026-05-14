@@ -5513,3 +5513,40 @@ Final fast-line audit result:
 - ready=26
 - partial=7
 - missing=0
+
+## 2026-05-14 - CPU/self-temperature command did not route consistently through Vosk
+
+### Problem
+
+CPU/self-temperature commands were inconsistent. Some phrases worked through Vosk, while CPU-based phrases were misrecognized or fell back to FasterWhisper/LLM.
+
+Observed problematic recognitions included:
+
+```text
+CPU temperat
+Cepę u temperatura
+What is your...
+Show.
+```
+
+Generic phrases such as `temperature` and `show temperature` also conflicted with the planned future room-temperature command.
+
+### Cause
+
+The command grammar did not include enough CPU/self-temperature rescue aliases, while generic temperature phrases were still too close to CPU/self-temperature routing. A temporary edit also introduced a broken `CommandPhrase(...)` entry without a required `CommandLanguage` argument.
+
+### Fix
+
+The grammar was updated to add CPU/self-temperature aliases and ASR recovery variants, keep generic temperature phrases reserved for future room-temperature sensing, avoid unsafe false-positive aliases such as `show` or `what is your`, and ensure all `CommandPhrase(...)` entries include the required language argument.
+
+### Validation
+
+Focused tests passed and runtime benchmark confirmed live Vosk takeover:
+
+```text
+stt_backend_label=vosk_command_asr
+runtime_takeover=True
+action_executed=True
+llm_prevented=True
+faster_whisper_prevented=True
+```

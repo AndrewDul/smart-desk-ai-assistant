@@ -238,7 +238,8 @@ func set_visual_state(new_state: String) -> void:
     elif coerced == VisualStates.BATTERY_GLYPH:
         _trigger_glyph(GLYPH_KIND_BATTERY)
     elif _state_is_glyph(previous) and not _state_is_glyph(coerced):
-        _force_glyph_dissolve()
+        if not _glyph_should_ignore_state_dissolve():
+            _force_glyph_dissolve()
 
 
 func set_shell_compact_mode(enabled: bool) -> void:
@@ -662,6 +663,13 @@ func _force_glyph_dissolve() -> void:
         return
     glyph_state = FACE_STATE_DISSOLVE
     glyph_state_age = (1.0 - glyph_blend) * FACE_DISSOLVE_DURATION
+
+
+func _glyph_should_ignore_state_dissolve() -> bool:
+    # Temperature, battery, date and time glyphs are command results. They must
+    # remain visible long enough to be read even when the voice runtime quickly
+    # switches the visual state to speaking, listening or idle after execution.
+    return glyph_state == FACE_STATE_EMERGE or glyph_state == FACE_STATE_HOLD
 
 
 func _update_glyph_state(delta: float) -> void:

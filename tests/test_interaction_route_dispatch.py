@@ -13,6 +13,10 @@ class _FakeInterruptController:
 
 
 class _FakeVoiceSession:
+    def set_state(self, state: str, *, detail: str = "") -> None:
+        self.state = state
+        self.detail = detail
+
     def transition_to_routing(self, *, detail: str = "") -> None:
         self.detail = detail
 
@@ -34,11 +38,35 @@ class _FakeBenchmarkService:
         )
 
 
+
+
+class _FakeRuntimeCandidateAdapter:
+    def __init__(self, route: RouteDecision) -> None:
+        self.route = route
+
+    def process_transcript(self, **kwargs):
+        return SimpleNamespace(
+            accepted=True,
+            reason="accepted",
+            route_decision=self.route,
+            legacy_runtime_primary=False,
+            metadata={
+                "intent_key": "system.exit",
+                "candidate_source": "vosk_pre_whisper_candidate",
+                "runtime_takeover": True,
+                "faster_whisper_prevented": True,
+            },
+        )
+
+
 class _FakeAssistant(CoreAssistantInteractionMixin):
     def __init__(self, route: RouteDecision, *, fast_lane_result=None) -> None:
         self.interrupt_controller = _FakeInterruptController()
         self.voice_session = _FakeVoiceSession()
         self.turn_benchmark_service = _FakeBenchmarkService()
+        self.settings = {"voice_engine": {"runtime_candidates_enabled": True}}
+        self.voice_engine_v2_runtime_candidate_adapter = None
+        self.action_route_result = True
         self.command_flow = SimpleNamespace(log_route_decision=lambda route: None)
         self.route = route
         self.fast_lane_result = fast_lane_result
@@ -106,7 +134,7 @@ class _FakeAssistant(CoreAssistantInteractionMixin):
 
     def _execute_action_route(self, route, language: str) -> bool:
         self.dispatched.append(("action", language))
-        return True
+        return bool(self.action_route_result)
 
     def _handle_mixed_route(self, route, language: str) -> bool:
         self.dispatched.append(("mixed", language))
@@ -180,6 +208,40 @@ class InteractionRouteDispatchTests(unittest.TestCase):
         self.assertEqual(assistant.finished_telemetry["primary_intent"], "ask_time")
         self.assertEqual(assistant.turn_benchmark_service.route_events[0]["route_kind"], "action")
         self.assertEqual(assistant.turn_benchmark_service.route_events[0]["primary_intent"], "ask_time")
+
+    def test_runtime_candidate_exit_marks_action_executed_but_returns_false_to_stop_loop(self) -> None:
+        route = self._route(RouteKind.ACTION, primary_intent="system.exit")
+        route.metadata["voice_engine_intent_key"] = "system.exit"
+        route.metadata["llm_prevented"] = True
+        route.metadata["runtime_takeover"] = True
+        route.metadata["faster_whisper_prevented"] = True
+        assistant = _FakeAssistant(route)
+        assistant.voice_engine_v2_runtime_candidate_adapter = _FakeRuntimeCandidateAdapter(route)
+        assistant.action_route_result = False
+        telemetry = {
+            "stt_backend": "vosk_command_asr",
+            "input_source": "voice",
+            "capture_phase": "inline_command_after_wake",
+            "stt_mode": "command",
+            "started_at": 0.0,
+        }
+
+        result = assistant._try_handle_voice_engine_v2_runtime_candidate(
+            telemetry=telemetry,
+            prepared={"routing_text": "exit", "raw_text": "exit"},
+            transcript="exit",
+            language="en",
+        )
+
+        self.assertFalse(result)
+        self.assertEqual(assistant.dispatched, [("action", "en")])
+        self.assertTrue(telemetry["voice_engine_v2_action_executed"])
+        self.assertTrue(telemetry["action_executed"])
+        self.assertTrue(telemetry["command_execution_enabled"])
+        self.assertEqual(
+            telemetry["voice_engine_v2_candidate_control_result"],
+            "runtime_exit_requested",
+        )
 
 
 if __name__ == "__main__":

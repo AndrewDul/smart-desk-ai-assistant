@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from modules.core.calculator.simple_arithmetic import evaluate_arithmetic_expression
 from modules.presentation.status_debug_presenter.service import StatusDebugPresenterService
 from modules.runtime.contracts import RouteDecision, RouteKind
 
-from .models import ResolvedAction, SkillRequest
+from .models import ResolvedAction, SkillRequest, SkillResult
 
 
 class ActionSystemActionsMixin:
@@ -884,6 +885,88 @@ class ActionSystemActionsMixin:
             ),
         )
 
+    def _handle_calculate(
+        self,
+        *,
+        route: RouteDecision,
+        language: str,
+        payload: dict[str, Any],
+        resolved: ResolvedAction,
+    ) -> bool:
+        expression = str(payload.get("expression", "") or "").strip()
+        result = str(payload.get("result", "") or "").strip()
+        source_text = str(payload.get("source_text", "") or route.raw_text or "").strip()
+
+        if not expression or not result:
+            outcome = evaluate_arithmetic_expression(source_text)
+            if not outcome.ok:
+                return self._deliver_simple_action_response(
+                    language=language,
+                    action="calculate",
+                    spoken_text=self._localized(
+                        language,
+                        "Nie udało mi się policzyć tego działania.",
+                        "I could not calculate that expression.",
+                    ),
+                    display_title="CALCULATOR",
+                    display_lines=self._localized_lines(
+                        language,
+                        ["brak wyniku"],
+                        ["no result"],
+                    ),
+                    extra_metadata={
+                        "resolved_source": resolved.source,
+                        "source_text": source_text,
+                        "calculation_error": outcome.error,
+                    },
+                )
+            expression = outcome.expression
+            result = outcome.result
+
+        if language == "pl":
+            spoken_expression = self._calculator_spoken_expression(expression, language="pl")
+            spoken = f"{spoken_expression} to {result}."
+            display_title = "KALKULATOR"
+        else:
+            spoken_expression = self._calculator_spoken_expression(expression, language="en")
+            spoken = f"{spoken_expression} is {result}."
+            display_title = "CALCULATOR"
+
+        display_expression = expression.replace("*", "×").replace("/", ":")
+        return self._deliver_simple_action_response(
+            language=language,
+            action="calculate",
+            spoken_text=spoken,
+            display_title=display_title,
+            display_lines=[display_expression, f"= {result}"],
+            extra_metadata={
+                "resolved_source": resolved.source,
+                "source_text": source_text,
+                "expression": expression,
+                "result": result,
+                "response_kind": "calculation",
+                "llm_prevented": True,
+            },
+        )
+
+    @staticmethod
+    def _calculator_spoken_expression(expression: str, *, language: str) -> str:
+        if language == "pl":
+            return (
+                expression
+                .replace("+", " plus ")
+                .replace("-", " minus ")
+                .replace("*", " razy ")
+                .replace("/", " podzielić przez ")
+            )
+        return (
+            expression
+            .replace("+", " plus ")
+            .replace("-", " minus ")
+            .replace("*", " times ")
+            .replace("/", " divided by ")
+        )
+
     def _handle_introduce_self(
         self,
         *,
@@ -1041,21 +1124,52 @@ class ActionSystemActionsMixin:
         payload: dict[str, Any],
         resolved: ResolvedAction,
         request: SkillRequest | None = None,
-    ) -> bool:
-        del route, payload
-        self.assistant.pending_follow_up = {"type": "confirm_exit", "lang": language}
-        spoken = self._localized(
-            language,
-            "Zamknąć?",
-            "Close?",
-        )
-        return self._deliver_action_follow_up_prompt(
+    ) -> SkillResult:
+        del route, payload, request
+        self.assistant.pending_follow_up = None
+        self.assistant.pending_confirmation = None
+
+        display = getattr(self.assistant, "display", None)
+        if display is not None:
+            try:
+                display.show_block(
+                    self._localized(language, "DO WIDZENIA", "GOODBYE"),
+                    [self._localized(language, "zamykam NeXa", "closing NeXa")],
+                    duration=0.8,
+                )
+            except Exception:
+                pass
+
+        delivered = self._deliver_simple_action_response(
             language=language,
-            action=request.action if request is not None else "exit",
-            spoken_text=spoken,
-            source="action_exit_confirmation",
-            follow_up_type="confirm_exit",
-            extra_metadata={"resolved_source": resolved.source},
+            action="exit",
+            spoken_text=self._localized(
+                language,
+                "Zamykam NeXa.",
+                "Closing NeXa.",
+            ),
+            display_title="EXIT",
+            display_lines=self._localized_lines(
+                language,
+                ["zamykam", "runtime"],
+                ["closing", "runtime"],
+            ),
+            extra_metadata={
+                "resolved_source": resolved.source,
+                "exit_requested": True,
+                "response_kind": "runtime_exit",
+            },
+        )
+        return SkillResult(
+            action="exit",
+            handled=False,
+            response_delivered=bool(delivered),
+            status="runtime_exit_requested",
+            metadata={
+                "source": "action_flow.exit",
+                "response_kind": "runtime_exit",
+                "exit_requested": True,
+            },
         )
 
     def _handle_shutdown(

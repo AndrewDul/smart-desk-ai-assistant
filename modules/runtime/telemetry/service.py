@@ -423,6 +423,39 @@ class TurnBenchmarkService:
                 "interrupt_kind": str(telemetry.get("interrupt_kind", "") or "").strip(),
                 "interrupt_metadata": dict(telemetry.get("interrupt_metadata", {}) or {}),
                 "route_notes": list(telemetry.get("route_notes", []) or []),
+                "canonical_intent": str(
+                    telemetry.get("canonical_intent")
+                    or telemetry.get("voice_engine_v2_candidate_intent")
+                    or telemetry.get("primary_intent")
+                    or ""
+                ).strip(),
+                "llm_prevented": bool(telemetry.get("llm_prevented", False)),
+                "runtime_takeover": bool(telemetry.get("runtime_takeover", False)),
+                "command_execution_enabled": bool(
+                    telemetry.get("command_execution_enabled", False)
+                ),
+                "action_executed": bool(telemetry.get("action_executed", False)),
+                "faster_whisper_prevented": bool(
+                    telemetry.get("faster_whisper_prevented", False)
+                ),
+                "voice_engine_v2_candidate_accepted": bool(
+                    telemetry.get("voice_engine_v2_candidate_accepted", False)
+                ),
+                "voice_engine_v2_candidate_reason": str(
+                    telemetry.get("voice_engine_v2_candidate_reason", "") or ""
+                ).strip(),
+                "voice_engine_v2_candidate_source": str(
+                    telemetry.get("voice_engine_v2_candidate_source", "") or ""
+                ).strip(),
+                "voice_engine_v2_legacy_runtime_primary": bool(
+                    telemetry.get("voice_engine_v2_legacy_runtime_primary", False)
+                ),
+                "voice_engine_v2_runtime_takeover": bool(
+                    telemetry.get("voice_engine_v2_runtime_takeover", False)
+                ),
+                "voice_engine_v2_action_executed": bool(
+                    telemetry.get("voice_engine_v2_action_executed", False)
+                ),
                 "stt_input_source": str(trace.speech_input_source or trace.input_source or "voice").strip() or "voice",
                 "stt_language": str(trace.speech_language or trace.language or "").strip().lower(),
                 "stt_latency_ms": self._safe_float(trace.speech_latency_ms) or None,

@@ -27,6 +27,11 @@ SYSTEM_INTENT_DEFINITIONS: dict[str, CommandIntentDefinition] = {
         domain=CommandIntentDomain.SYSTEM,
         action="report_current_date",
     ),
+    "system.calculate": CommandIntentDefinition(
+        key="system.calculate",
+        domain=CommandIntentDomain.SYSTEM,
+        action="calculate",
+    ),
     "system.exit": CommandIntentDefinition(
         key="system.exit",
         domain=CommandIntentDomain.SYSTEM,

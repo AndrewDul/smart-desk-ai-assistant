@@ -470,6 +470,9 @@ class VoiceEngineV2RuntimeCandidateAdapter:
                 )
             )
 
+        request_metadata = dict(request.metadata or {})
+        live_vosk_takeover = self._request_is_live_vosk_takeover(request_metadata)
+
         turn_result = self._engine.process_shadow_turn(
             VoiceTurnInput(
                 turn_id=request.turn_id,
@@ -501,12 +504,18 @@ class VoiceEngineV2RuntimeCandidateAdapter:
                         turn_result=turn_result,
                         execution_plan=memory_override_plan,
                         metadata={
+                            **request_metadata,
                             "route": "command",
                             "fallback_used": True,
                             "fallback_reason": fallback_reason or "unknown",
                             "candidate_source": "transcript_override_after_shadow_fallback",
                             "runtime_candidate": True,
                             "runtime_candidate_source_safe": True,
+                            "runtime_takeover": live_vosk_takeover,
+                            "full_stt_prevented": live_vosk_takeover,
+                            "faster_whisper_prevented": live_vosk_takeover,
+                            "command_execution_enabled": True,
+                            "action_executed": False,
                         },
                     )
                 )
@@ -580,22 +589,43 @@ class VoiceEngineV2RuntimeCandidateAdapter:
             VoiceEngineV2RuntimeCandidateResult(
                 accepted=True,
                 reason="accepted",
-                legacy_runtime_primary=True,
+                legacy_runtime_primary=not live_vosk_takeover,
                 request=request,
                 turn_result=turn_result,
                 execution_plan=execution_plan,
                 metadata={
-                    **dict(request.metadata),
+                    **request_metadata,
                     "runtime_candidate": True,
+                    "runtime_candidate_source_safe": True,
                     "runtime_candidates_can_run": True,
                     "intent_key": intent_key,
                     "legacy_action": execution_plan.spec.legacy_action,
                     "tool_name": execution_plan.spec.tool_name,
                     "route": execution_plan.route_decision.kind.value,
                     "language": turn_result.language.value,
+                    "runtime_takeover": live_vosk_takeover,
+                    "full_stt_prevented": live_vosk_takeover,
+                    "faster_whisper_prevented": live_vosk_takeover,
+                    "command_execution_enabled": True,
+                    "action_executed": False,
                 },
             )
         )
+
+    @staticmethod
+    def _request_is_live_vosk_takeover(metadata: Mapping[str, Any]) -> bool:
+        """Return whether this candidate came from the pre-Whisper Vosk live path."""
+
+        source = str(metadata.get("source", "") or "").strip()
+        candidate_stage = str(metadata.get("candidate_stage", "") or "").strip()
+        capture_backend = str(metadata.get("capture_backend", "") or "").strip()
+        return (
+            source == "vosk_pre_whisper_candidate"
+            or candidate_stage == "vosk_pre_whisper_candidate"
+            or bool(metadata.get("faster_whisper_bypassed", False))
+            or capture_backend == "vosk_command_asr"
+        )
+
 
     @staticmethod
     def _extract_vosk_shadow_transcript(result_metadata: Mapping[str, Any]) -> str:

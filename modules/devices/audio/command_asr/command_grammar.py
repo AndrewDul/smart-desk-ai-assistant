@@ -12,6 +12,10 @@ from modules.devices.audio.command_asr.command_result import (
     CommandRecognitionResult,
     CommandRecognitionStatus,
 )
+from modules.core.calculator.simple_arithmetic import (
+    evaluate_arithmetic_expression,
+    looks_like_arithmetic,
+)
 
 
 _NON_WORD_PATTERN = re.compile(r"[^\w\s]", flags=re.UNICODE)
@@ -123,6 +127,19 @@ class CommandGrammar:
             )
 
         for candidate in normalized_candidates:
+            if looks_like_arithmetic(candidate):
+                outcome = evaluate_arithmetic_expression(candidate)
+                if outcome.ok:
+                    return CommandRecognitionResult.matched(
+                        transcript=transcript,
+                        normalized_transcript=candidate,
+                        language=_calculation_language(candidate, detected_language),
+                        confidence=0.97,
+                        intent_key="system.calculate",
+                        matched_phrase=outcome.expression,
+                    )
+
+        for candidate in normalized_candidates:
             exact_match = self._exact_index.get(candidate)
             if exact_match is not None:
                 return CommandRecognitionResult.matched(
@@ -211,11 +228,95 @@ class CommandGrammar:
                 if "stt_recovery" not in phrase.tags
             ]
 
-        return tuple(sorted({phrase.phrase for phrase in phrases}))
+        vocabulary = {phrase.phrase for phrase in phrases}
+        vocabulary.update(_calculator_vosk_vocabulary(language))
+        return tuple(sorted(vocabulary))
 
     @staticmethod
     def _compact(normalized: str) -> str:
         return normalized.replace(" ", "")
+
+
+_PL_CALCULATOR_NUMBERS = (
+    "zero",
+    "jeden",
+    "dwa",
+    "trzy",
+    "cztery",
+    "pięć",
+    "sześć",
+    "siedem",
+    "osiem",
+    "dziewięć",
+    "dziesięć",
+)
+
+_EN_CALCULATOR_NUMBERS = (
+    "zero",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+)
+
+
+def _calculator_vosk_vocabulary(
+    language: CommandLanguage | None,
+) -> tuple[str, ...]:
+    """Return compact dynamic calculator phrases for limited Vosk grammar.
+
+    This intentionally covers the most common spoken small-number arithmetic
+    without exploding the grammar size. Larger or unusual calculations can
+    still fall through to the normal transcript path.
+    """
+
+    if language is CommandLanguage.POLISH:
+        prefixes = ("", "ile to jest ", "policz ")
+        operators = ("plus", "minus", "razy", "przez")
+        numbers = _PL_CALCULATOR_NUMBERS
+    elif language is CommandLanguage.ENGLISH:
+        prefixes = ("", "calculate ", "what is ")
+        operators = ("plus", "minus", "times", "over")
+        numbers = _EN_CALCULATOR_NUMBERS
+    else:
+        return ()
+
+    return tuple(
+        f"{prefix}{left} {operator} {right}".strip()
+        for prefix in prefixes
+        for left in numbers
+        for operator in operators
+        for right in numbers
+    )
+
+
+def _calculation_language(
+    normalized_candidate: str,
+    detected_language: CommandLanguage,
+) -> CommandLanguage:
+    text = normalize_command_text(normalized_candidate)
+    polish_tokens = {
+        "ile",
+        "jest",
+        "policz",
+        "oblicz",
+        "razy",
+        "dodac",
+        "odjac",
+        "podzielic",
+        "przez",
+    }
+    if set(text.split()) & polish_tokens:
+        return CommandLanguage.POLISH
+    if detected_language in (CommandLanguage.POLISH, CommandLanguage.ENGLISH):
+        return detected_language
+    return CommandLanguage.ENGLISH
 
 
 def build_default_command_grammar() -> CommandGrammar:
@@ -409,6 +510,115 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
 
         CommandPhrase(
+            "visual_shell.show_self",
+            "pokaż asystenta",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "self"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_self",
+            "pokaz asystenta",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "self"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_self",
+            "pokaż postać",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "self"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_self",
+            "show assistant",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "self"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_self",
+            "show your avatar",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "self"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_self",
+            "show avatar",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "self"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_eyes",
+            "pokaż oczy",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "eyes"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_eyes",
+            "pokaz oczy",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "eyes"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_eyes",
+            "show eyes",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "eyes"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_eyes",
+            "show your eyes",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "eyes"),
+        ),
+        CommandPhrase(
+            "visual_shell.start_scanning",
+            "sprawdź pokój",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "scan"),
+        ),
+        CommandPhrase(
+            "visual_shell.start_scanning",
+            "sprawdz pokoj",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "scan"),
+        ),
+        CommandPhrase(
+            "visual_shell.start_scanning",
+            "rozejrzyj się",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "scan"),
+        ),
+        CommandPhrase(
+            "visual_shell.start_scanning",
+            "rozejrzyj sie",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "scan"),
+        ),
+        CommandPhrase(
+            "visual_shell.start_scanning",
+            "scan room",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "scan"),
+        ),
+        CommandPhrase(
+            "visual_shell.start_scanning",
+            "scan the room",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "scan"),
+        ),
+        CommandPhrase(
+            "visual_shell.start_scanning",
+            "look around",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "scan"),
+        ),
+        CommandPhrase(
+            "visual_shell.start_scanning",
+            "check room",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "scan"),
+        ),
+
+        CommandPhrase(
             "visual_shell.return_to_idle",
             "wróć do chmury",
             CommandLanguage.POLISH,
@@ -432,23 +642,188 @@ def build_default_command_grammar() -> CommandGrammar:
             CommandLanguage.ENGLISH,
             tags=("visual_shell", "idle"),
         ),
+        # CPU / NeXa temperature. Generic phrases such as "temperatura" /
+        # "show temperature" are intentionally reserved for a future room
+        # temperature sensor command.
         CommandPhrase(
             "visual_shell.show_temperature",
-            "pokaż temperaturę",
+            "jaka masz temperaturę",
             CommandLanguage.POLISH,
-            tags=("visual_shell", "metric"),
+            tags=("visual_shell", "metric", "cpu_temperature"),
         ),
         CommandPhrase(
             "visual_shell.show_temperature",
-            "pokaz temperature",
+            "jaką masz temperaturę",
             CommandLanguage.POLISH,
-            tags=("visual_shell", "metric"),
+            tags=("visual_shell", "metric", "cpu_temperature"),
         ),
         CommandPhrase(
             "visual_shell.show_temperature",
-            "show temperature",
+            "jako masz temperatura",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "stt_recovery"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "jaka jest twoja temperatura",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric", "cpu_temperature"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "cpu temperatura",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric", "cpu_temperature"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "temperatura cpu",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric", "cpu_temperature"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "temperatura procesora",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric", "cpu_temperature"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "what is your cpu",
             CommandLanguage.ENGLISH,
-            tags=("visual_shell", "metric"),
+            tags=("visual_shell", "metric", "cpu_temperature"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "what is your cpu temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "what is the cpu temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "show cpu temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "processor temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "raspberry pi temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "what is your temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "what s your temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "whats your temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "show your temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "your temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "device temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "system temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "computer temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "board temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "core temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "what is your processor temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "what is the processor temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "show processor temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "what is your system temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "show system temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "how hot are you",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            CommandLanguage.ENGLISH,
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric", "cpu_temperature", "model_friendly"),
         ),
         CommandPhrase(
             "visual_shell.show_battery",
@@ -477,34 +852,46 @@ def build_default_command_grammar() -> CommandGrammar:
 
         # System state.
         CommandPhrase(
-            "visual_shell.show_temperature",
-            "temperatura",
+            "system.temperature",
+            "powiedz temperaturę procesora",
             CommandLanguage.POLISH,
-            tags=("system",),
+            tags=("system", "cpu_temperature"),
         ),
         CommandPhrase(
             "system.temperature",
-            "jaka jest twoja temperatura",
+            "podaj temperaturę procesora",
             CommandLanguage.POLISH,
-            tags=("system",),
+            tags=("system", "cpu_temperature"),
+        ),
+        CommandPhrase(
+            "system.temperature",
+            "odczytaj temperaturę procesora",
+            CommandLanguage.POLISH,
+            tags=("system", "cpu_temperature"),
         ),
         CommandPhrase(
             "system.temperature",
             "czy jest ci za gorąco",
             CommandLanguage.POLISH,
-            tags=("system",),
+            tags=("system", "cpu_temperature"),
         ),
         CommandPhrase(
             "system.temperature",
-            "temperature",
+            "tell me the cpu temperature",
             CommandLanguage.ENGLISH,
-            tags=("system",),
+            tags=("system", "cpu_temperature"),
         ),
         CommandPhrase(
             "system.temperature",
-            "what is your temperature",
+            "report cpu temperature",
             CommandLanguage.ENGLISH,
-            tags=("system",),
+            tags=("system", "cpu_temperature"),
+        ),
+        CommandPhrase(
+            "system.temperature",
+            "are you overheating",
+            CommandLanguage.ENGLISH,
+            tags=("system", "cpu_temperature"),
         ),
         CommandPhrase(
             "visual_shell.show_battery",
@@ -535,6 +922,40 @@ def build_default_command_grammar() -> CommandGrammar:
             "what is your battery",
             CommandLanguage.ENGLISH,
             tags=("system",),
+        ),
+
+        # Fast local calculator. Dynamic arithmetic expressions are matched
+        # by CommandGrammar.match once Vosk returns the recognized text. These
+        # short prompts keep calculator vocabulary available in limited grammar.
+        CommandPhrase(
+            "system.calculate",
+            "ile to jest",
+            CommandLanguage.POLISH,
+            tags=("system", "calculator"),
+        ),
+        CommandPhrase(
+            "system.calculate",
+            "policz",
+            CommandLanguage.POLISH,
+            tags=("system", "calculator"),
+        ),
+        CommandPhrase(
+            "system.calculate",
+            "oblicz",
+            CommandLanguage.POLISH,
+            tags=("system", "calculator"),
+        ),
+        CommandPhrase(
+            "system.calculate",
+            "calculate",
+            CommandLanguage.ENGLISH,
+            tags=("system", "calculator"),
+        ),
+        CommandPhrase(
+            "system.calculate",
+            "what is",
+            CommandLanguage.ENGLISH,
+            tags=("system", "calculator"),
         ),
 
         # Basic assistant commands.
@@ -1131,6 +1552,37 @@ def build_default_command_grammar() -> CommandGrammar:
             tags=("system", "exit"),
         ),
 
+        CommandPhrase(
+            "system.exit",
+            "wyłącz nexa",
+            CommandLanguage.POLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "wylacz nexa",
+            CommandLanguage.POLISH,
+            tags=("system", "exit", "stt_recovery"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "zamknij nexa",
+            CommandLanguage.POLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "close nexa",
+            CommandLanguage.ENGLISH,
+            tags=("system", "exit", "vosk_exclude"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "turn off nexa",
+            CommandLanguage.ENGLISH,
+            tags=("system", "exit", "vosk_exclude"),
+        ),
+
         # Focus mode.
         CommandPhrase(
             "focus.start",
@@ -1293,21 +1745,27 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             "visual_shell.show_temperature",
-            "display temperature",
+            "display cpu temperature",
             CommandLanguage.ENGLISH,
-            tags=("visual_shell", "temperature"),
+            tags=("visual_shell", "temperature", "cpu_temperature"),
         ),
         CommandPhrase(
             "visual_shell.show_temperature",
-            "show current temperature",
+            "show current cpu temperature",
             CommandLanguage.ENGLISH,
-            tags=("visual_shell", "temperature"),
+            tags=("visual_shell", "temperature", "cpu_temperature"),
         ),
         CommandPhrase(
             "visual_shell.show_temperature",
-            "pokaż temperaturę",
+            "pokaż temperaturę cpu",
             CommandLanguage.POLISH,
-            tags=("visual_shell", "temperature"),
+            tags=("visual_shell", "temperature", "cpu_temperature"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "pokaż temperaturę procesora",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "temperature", "cpu_temperature"),
         ),
         CommandPhrase(
             "visual_shell.show_battery",
@@ -2104,6 +2562,72 @@ def build_default_command_grammar() -> CommandGrammar:
             'czy pamietasz',
             language=CommandLanguage.POLISH,
             tags=('memory', 'recall', 'prefix'),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "cpu temperat",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "temperature", "cpu_temperature", "stt_recovery"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "c p u temperature",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "temperature", "cpu_temperature", "stt_recovery"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "c p u temperat",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "temperature", "cpu_temperature", "stt_recovery"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "show c p u temperat",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "temperature", "cpu_temperature", "stt_recovery"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "what is your temp",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "temperature", "cpu_temperature", "stt_recovery"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "show your temp",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "temperature", "cpu_temperature", "stt_recovery"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "show your temper",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "temperature", "cpu_temperature", "stt_recovery"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "your temper",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "temperature", "cpu_temperature", "stt_recovery"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "processor temper",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "temperature", "cpu_temperature", "stt_recovery"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "cepę u temperatura",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "temperature", "cpu_temperature", "stt_recovery"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_temperature",
+            "cepe u temperatura",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "temperature", "cpu_temperature", "stt_recovery"),
         ),
     ]
 

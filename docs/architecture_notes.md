@@ -16514,3 +16514,44 @@ Final audit result:
 ### Next step
 
 Run a real runtime smoke test and verify that selected fast-line commands bypass LLM routing and respond naturally through Piper within the target latency window.
+
+## 2026-05-14 - Final Polish: CPU/self-temperature fast-line command polish
+
+### Summary
+
+CPU/self-temperature voice commands were separated from future room-temperature commands.
+
+CPU/self-temperature now routes through live Vosk fast-line to `visual_shell.show_temperature` for phrases such as:
+
+- `jaka masz temperaturę`
+- `cpu temperatura`
+- `temperatura procesora`
+- `show your temperature`
+- `processor temperature`
+- `what is your temperature`
+- `show c p u temperature`
+- `c p u temperature`
+
+Generic temperature phrases are intentionally reserved for a future room-temperature sensor command:
+
+- `temperatura`
+- `pokaż temperaturę`
+- `temperature`
+- `show temperature`
+- `are you hot`
+
+### Runtime validation
+
+Runtime benchmark confirmed:
+
+```text
+canonical_intent=visual_shell.show_temperature
+stt_backend_label=vosk_command_asr
+runtime_takeover=True
+action_executed=True
+llm_prevented=True
+faster_whisper_prevented=True
+total_turn_ms≈16-23
+```
+
+This confirms CPU/self-temperature now works as a live deterministic Vosk fast-line command without FasterWhisper or LLM fallback.

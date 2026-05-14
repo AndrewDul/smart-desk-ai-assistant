@@ -10,10 +10,10 @@ _RANDOM = SystemRandom()
 _RESPONSES: dict[str, dict[VisualVoiceAction, tuple[str, ...]]] = {
     "pl": {
         VisualVoiceAction.SHOW_TEMPERATURE: (
-            "Wyświetlam temperaturę.",
-            "Pokazuję temperaturę.",
-            "Już pokazuję temperaturę.",
-            "Temperatura jest na ekranie.",
+            "Pokazuję temperaturę NeXa.",
+            "Już pokazuję temperaturę CPU.",
+            "Temperatura procesora jest na ekranie.",
+            "Wyświetlam temperaturę NeXa.",
         ),
         VisualVoiceAction.SHOW_BATTERY: (
             "Wyświetlam stan baterii.",
@@ -48,10 +48,10 @@ _RESPONSES: dict[str, dict[VisualVoiceAction, tuple[str, ...]]] = {
     },
     "en": {
         VisualVoiceAction.SHOW_TEMPERATURE: (
-            "Showing temperature.",
-            "Displaying the temperature.",
-            "I am showing the temperature now.",
-            "The temperature is on screen.",
+            "Showing NeXa temperature.",
+            "Showing CPU temperature now.",
+            "The processor temperature is on screen.",
+            "Displaying NeXa temperature.",
         ),
         VisualVoiceAction.SHOW_BATTERY: (
             "Showing battery status.",

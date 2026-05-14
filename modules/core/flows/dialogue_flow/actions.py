@@ -67,6 +67,8 @@ class DialogueFlowActions:
             "assistant.introduce": "introduce_self",
             "clock.time": "ask_time",
             "clock.date": "ask_date",
+            "system.calculate": "calculate",
+            "system.exit": "exit",
             "clock.day": "ask_day",
             "clock.month": "ask_month",
             "clock.year": "ask_year",

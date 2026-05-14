@@ -336,7 +336,20 @@ class CoreAssistantInteractionMixin:
         self._mark_voice_engine_v2_candidate_routing(route)
         self._commit_language(str(getattr(route, "language", language) or language))
 
-        return bool(self._execute_action_route(route, str(route.language or language)))
+        execution_started = time.perf_counter()
+        action_result = bool(self._execute_action_route(route, str(route.language or language)))
+        telemetry["voice_engine_v2_candidate_execution_ms"] = self._elapsed_ms(
+            execution_started
+        )
+        action_executed = bool(action_result)
+        if not action_executed and self._voice_engine_v2_candidate_requested_runtime_exit(route):
+            action_executed = True
+            telemetry["voice_engine_v2_candidate_control_result"] = "runtime_exit_requested"
+
+        telemetry["voice_engine_v2_action_executed"] = action_executed
+        telemetry["action_executed"] = action_executed
+        telemetry["command_execution_enabled"] = True
+        return action_result
 
     def _voice_engine_v2_runtime_candidates_enabled(self) -> bool:
         settings = getattr(self, "settings", {})
@@ -358,6 +371,35 @@ class CoreAssistantInteractionMixin:
         return None
 
     @staticmethod
+    def _voice_engine_v2_candidate_requested_runtime_exit(route: Any) -> bool:
+        """Return True when a false action result means the runtime should exit.
+
+        The runtime exit command intentionally returns ``False`` to the main loop so
+        the loop stops after the goodbye response. That control-flow signal should
+        not be reported as an action failure in fast-line telemetry.
+        """
+
+        primary_intent = str(getattr(route, "primary_intent", "") or "").strip().lower()
+        if primary_intent == "system.exit":
+            return True
+
+        metadata = dict(getattr(route, "metadata", {}) or {})
+        for key in ("voice_engine_intent_key", "intent_key", "action"):
+            if str(metadata.get(key, "") or "").strip().lower() == "system.exit":
+                return True
+
+        for intent in list(getattr(route, "intents", []) or []):
+            if str(getattr(intent, "name", "") or "").strip().lower() == "system.exit":
+                return True
+
+        for tool in list(getattr(route, "tool_invocations", []) or []):
+            if str(getattr(tool, "tool_name", "") or "").strip().lower() == "system.exit":
+                return True
+
+        return False
+
+
+    @staticmethod
     def _store_voice_engine_v2_candidate_route_telemetry(
         *,
         telemetry: dict[str, Any],
@@ -369,7 +411,45 @@ class CoreAssistantInteractionMixin:
         telemetry["primary_intent"] = str(getattr(route, "primary_intent", "") or "")
         telemetry["topics"] = list(getattr(route, "conversation_topics", []) or [])
         telemetry["route_notes"] = list(getattr(route, "notes", []) or [])
-        telemetry["route_metadata"] = dict(getattr(route, "metadata", {}) or {})
+        route_metadata = dict(getattr(route, "metadata", {}) or {})
+        result_metadata = dict(getattr(result, "metadata", {}) or {})
+        request = getattr(result, "request", None)
+        request_metadata = dict(getattr(request, "metadata", {}) or {})
+
+        telemetry["route_metadata"] = route_metadata
+        canonical_intent = str(
+            route_metadata.get("voice_engine_intent_key")
+            or result_metadata.get("intent_key")
+            or result_metadata.get("voice_engine_intent_key")
+            or ""
+        ).strip()
+        telemetry["canonical_intent"] = canonical_intent
+        telemetry["llm_prevented"] = bool(route_metadata.get("llm_prevented", False))
+        telemetry["voice_engine_v2_legacy_runtime_primary"] = bool(
+            getattr(result, "legacy_runtime_primary", True)
+        )
+        telemetry["voice_engine_v2_candidate_source"] = str(
+            result_metadata.get("candidate_source")
+            or request_metadata.get("candidate_source")
+            or request_metadata.get("source")
+            or ""
+        ).strip()
+        telemetry["voice_engine_v2_runtime_takeover"] = (
+            str(telemetry.get("stt_backend", "") or "").strip() == "vosk_command_asr"
+            or bool(route_metadata.get("runtime_takeover", False))
+            or bool(result_metadata.get("runtime_takeover", False))
+            or bool(request_metadata.get("runtime_takeover", False))
+        )
+        telemetry["runtime_takeover"] = bool(
+            telemetry["voice_engine_v2_runtime_takeover"]
+        )
+        telemetry["faster_whisper_prevented"] = (
+            str(telemetry.get("stt_backend", "") or "").strip() == "vosk_command_asr"
+            or bool(route_metadata.get("faster_whisper_prevented", False))
+            or bool(result_metadata.get("faster_whisper_prevented", False))
+            or bool(request_metadata.get("faster_whisper_prevented", False))
+        )
+        telemetry["command_execution_enabled"] = True
 
         turn_result = getattr(result, "turn_result", None)
         intent = getattr(turn_result, "intent", None) if turn_result is not None else None
@@ -377,6 +457,8 @@ class CoreAssistantInteractionMixin:
             telemetry["voice_engine_v2_candidate_intent"] = str(
                 getattr(intent, "key", "") or ""
             )
+        elif canonical_intent:
+            telemetry["voice_engine_v2_candidate_intent"] = canonical_intent
 
     def _note_voice_engine_v2_candidate_route(
         self,
@@ -884,6 +966,12 @@ class CoreAssistantInteractionMixin:
             f" | route_kind={telemetry.get('route_kind', '')}"
             f" | route_conf={float(telemetry.get('route_confidence', 0.0) or 0.0):.2f}"
             f" | intent={telemetry.get('primary_intent', '')}"
+            f" | canonical_intent={telemetry.get('canonical_intent', '')}"
+            f" | llm_prevented={bool(telemetry.get('llm_prevented', False))}"
+            f" | runtime_takeover={bool(telemetry.get('runtime_takeover', False))}"
+            f" | command_execution_enabled={bool(telemetry.get('command_execution_enabled', False))}"
+            f" | action_executed={bool(telemetry.get('action_executed', False))}"
+            f" | faster_whisper_prevented={bool(telemetry.get('faster_whisper_prevented', False))}"
             f" | capture_phase={telemetry.get('capture_phase', '')}"
             f" | stt_backend={telemetry.get('stt_backend', '')}"
             f" | response_source={telemetry.get('response_source', '')}"

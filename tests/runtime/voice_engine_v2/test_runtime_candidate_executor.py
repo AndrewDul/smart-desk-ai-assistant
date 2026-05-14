@@ -121,7 +121,7 @@ def test_runtime_candidate_executor_builds_system_fast_line_routes() -> None:
             "system.battery",
         ),
         (
-            "what is your temperature",
+            "tell me the cpu temperature",
             CommandLanguage.ENGLISH,
             "system.temperature",
             "show_temperature",
@@ -210,7 +210,30 @@ def test_runtime_candidate_executor_builds_polish_hide_desktop_action_flow_route
     assert plan.route_decision.metadata["voice_engine_intent_key"] == "visual_shell.show_shell"
 
 
-def test_runtime_candidate_executor_rejects_exit_even_if_recognized() -> None:
+def test_runtime_candidate_executor_builds_calculator_action_flow_route() -> None:
+    builder = RuntimeCandidateExecutionPlanBuilder()
+    turn = _turn_result("ile to jest dwa plus dwa", language=CommandLanguage.POLISH)
+
+    plan = builder.build_plan(
+        turn_result=turn,
+        transcript="ile to jest dwa plus dwa",
+        metadata={"source": "unit_test"},
+    )
+
+    assert plan is not None
+    assert plan.route_decision.kind == RouteKind.ACTION
+    assert plan.route_decision.language == "pl"
+    assert plan.route_decision.primary_intent == "calculate"
+    assert plan.route_decision.tool_invocations[0].tool_name == "system.calculate"
+    assert plan.route_decision.tool_invocations[0].payload == {
+        "expression": "2 + 2",
+        "result": "4",
+        "source_text": "ile to jest dwa plus dwa",
+    }
+    assert plan.route_decision.metadata["voice_engine_intent_key"] == "system.calculate"
+
+
+def test_runtime_candidate_executor_builds_exit_action_flow_route() -> None:
     builder = RuntimeCandidateExecutionPlanBuilder()
     turn = _turn_result("exit.")
 
@@ -220,7 +243,12 @@ def test_runtime_candidate_executor_rejects_exit_even_if_recognized() -> None:
         metadata={"source": "unit_test"},
     )
 
-    assert plan is None
+    assert plan is not None
+    assert plan.route_decision.kind == RouteKind.ACTION
+    assert plan.route_decision.primary_intent == "exit"
+    assert plan.route_decision.tool_invocations[0].tool_name == "system.exit"
+    assert plan.route_decision.metadata["voice_engine_intent_key"] == "system.exit"
+
     assert builder.supported_intents == (
         "assistant.help",
         "assistant.identity",
@@ -239,8 +267,10 @@ def test_runtime_candidate_executor_rejects_exit_even_if_recognized() -> None:
         "reminder.guided_start",
         "reminder.time_answer",
         "system.battery",
+        "system.calculate",
         "system.current_date",
         "system.current_time",
+        "system.exit",
         "system.temperature",
         "visual_shell.look_at_user",
         "visual_shell.return_to_idle",
@@ -283,7 +313,7 @@ def test_runtime_candidate_executor_builds_extended_visual_shell_action_routes()
         ("spójrz na mnie", CommandLanguage.POLISH, "visual_shell.look_at_user", "look_at_user"),
         ("scan room", CommandLanguage.ENGLISH, "visual_shell.start_scanning", "start_scanning"),
         ("wróć do chmury", CommandLanguage.POLISH, "visual_shell.return_to_idle", "return_to_idle"),
-        ("show temperature", CommandLanguage.ENGLISH, "visual_shell.show_temperature", "show_temperature"),
+        ("show cpu temperature", CommandLanguage.ENGLISH, "visual_shell.show_temperature", "show_temperature"),
         ("pokaż baterię", CommandLanguage.POLISH, "visual_shell.show_battery", "show_battery"),
     ]
 

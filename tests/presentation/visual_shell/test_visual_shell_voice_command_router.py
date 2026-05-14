@@ -32,17 +32,39 @@ def test_voice_router_matches_temperature_variants() -> None:
     router = VisualShellVoiceCommandRouter()
 
     examples = [
-        "temperatura",
+        "jaka masz temperature",
+        "jako masz temperatura",
         "jaka jest twoja temperatura",
-        "czy jest ci za gorąco",
-        "temperature",
-        "are you hot",
+        "cpu temperatura",
+        "temperatura cpu",
+        "what is your cpu",
+        "what is your cpu temperature",
+        "show cpu temperature",
+        "processor temperature",
+        "are you overheating",
     ]
 
     for text in examples:
         match = router.match(text)
         assert match is not None
         assert match.action == VisualVoiceAction.SHOW_TEMPERATURE
+
+
+def test_voice_router_reserves_generic_temperature_for_room_sensor() -> None:
+    router = VisualShellVoiceCommandRouter()
+
+    examples = [
+        "temperatura",
+        "pokaż temperaturę",
+        "pokaz temperature",
+        "temperature",
+        "show temperature",
+        "display temperature",
+        "are you hot",
+    ]
+
+    for text in examples:
+        assert router.match(text) is None
 
 
 def test_voice_router_does_not_match_loose_temp_inside_unrelated_phrase() -> None:

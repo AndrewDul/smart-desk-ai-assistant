@@ -13,6 +13,7 @@ from modules.runtime.contracts import (
     RouteKind,
     ToolInvocation,
 )
+from modules.core.calculator.simple_arithmetic import evaluate_arithmetic_expression
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +75,16 @@ class RuntimeCandidateExecutionPlanBuilder:
                 voice_engine_intent_key="system.current_date",
                 legacy_action="show_date",
                 tool_name="clock.date",
+            ),
+            "system.calculate": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="system.calculate",
+                legacy_action="calculate",
+                tool_name="system.calculate",
+            ),
+            "system.exit": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="system.exit",
+                legacy_action="exit",
+                tool_name="system.exit",
             ),
             "system.temperature": RuntimeCandidateActionSpec(
                 voice_engine_intent_key="system.temperature",
@@ -259,6 +270,16 @@ class RuntimeCandidateExecutionPlanBuilder:
             if recall_key:
                 action_payload = {"key": recall_key, "query": recall_key}
 
+        if intent_key == "system.calculate":
+            calculation = evaluate_arithmetic_expression(transcript)
+            if not calculation.ok:
+                return None
+            action_payload = {
+                "expression": calculation.expression,
+                "result": calculation.result,
+                "source_text": str(transcript or "").strip(),
+            }
+
         route = RouteDecision(
             turn_id=str(turn_id or ""),
             raw_text=str(transcript or "").strip(),
@@ -320,6 +341,17 @@ class RuntimeCandidateExecutionPlanBuilder:
         )
 
     _TRANSCRIPT_INTENT_OVERRIDES = {
+        "ile to jest": "system.calculate",
+        "policz": "system.calculate",
+        "oblicz": "system.calculate",
+        "calculate": "system.calculate",
+        "what is": "system.calculate",
+        "wyłącz nexa": "system.exit",
+        "wylacz nexa": "system.exit",
+        "zamknij nexa": "system.exit",
+        "exit": "system.exit",
+        "close nexa": "system.exit",
+        "turn off nexa": "system.exit",
         "look at me.": "visual_shell.look_at_user",
         "look at me now.": "visual_shell.look_at_user",
         "start looking at me.": "visual_shell.look_at_user",
@@ -367,18 +399,30 @@ class RuntimeCandidateExecutionPlanBuilder:
         "battery": "visual_shell.show_battery",
         "baterie": "visual_shell.show_battery",
         "bateria": "visual_shell.show_battery",
-        "ten paratura": "visual_shell.show_temperature",
-        "temperature": "visual_shell.show_temperature",
-        "temperatura": "visual_shell.show_temperature",
+        "jaka masz temperaturę": "visual_shell.show_temperature",
+        "jaką masz temperaturę": "visual_shell.show_temperature",
+        "jako masz temperatura": "visual_shell.show_temperature",
+        "jaka jest twoja temperatura": "visual_shell.show_temperature",
+        "cpu temperatura": "visual_shell.show_temperature",
+        "temperatura cpu": "visual_shell.show_temperature",
+        "temperatura procesora": "visual_shell.show_temperature",
+        "what is your cpu": "visual_shell.show_temperature",
+        "what is your cpu temperature": "visual_shell.show_temperature",
+        "what is the cpu temperature": "visual_shell.show_temperature",
+        "show cpu temperature": "visual_shell.show_temperature",
+        "processor temperature": "visual_shell.show_temperature",
+        "raspberry pi temperature": "visual_shell.show_temperature",
         "pokaz baterie": "visual_shell.show_battery",
         "pokaż baterię": "visual_shell.show_battery",
         "show battery status": "visual_shell.show_battery",
         "display battery": "visual_shell.show_battery",
         "show battery": "visual_shell.show_battery",
-        "pokaz temperature": "visual_shell.show_temperature",
-        "pokaż temperaturę": "visual_shell.show_temperature",
-        "display temperature": "visual_shell.show_temperature",
-        "show temperature": "visual_shell.show_temperature",
+        "pokaz temperature cpu": "visual_shell.show_temperature",
+        "pokaż temperaturę cpu": "visual_shell.show_temperature",
+        "pokaz temperature procesora": "visual_shell.show_temperature",
+        "pokaż temperaturę procesora": "visual_shell.show_temperature",
+        "display cpu temperature": "visual_shell.show_temperature",
+        "show current cpu temperature": "visual_shell.show_temperature",
         "pokaz twarz": "visual_shell.show_face",
         "pokaż twarz": "visual_shell.show_face",
         "twarz": "visual_shell.show_face",
@@ -565,6 +609,16 @@ class RuntimeCandidateExecutionPlanBuilder:
             recall_key = self._extract_recall_key(transcript)
             if recall_key:
                 action_payload = {"key": recall_key, "query": recall_key}
+
+        if resolved_intent_key == "system.calculate":
+            calculation = evaluate_arithmetic_expression(transcript)
+            if not calculation.ok:
+                return None
+            action_payload = {
+                "expression": calculation.expression,
+                "result": calculation.result,
+                "source_text": str(transcript or "").strip(),
+            }
 
         route = RouteDecision(
             turn_id=str(getattr(turn_result, "turn_id", "") or ""),

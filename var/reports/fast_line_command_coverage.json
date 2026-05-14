@@ -1,10 +1,10 @@
 {
-  "generated_at_utc": "2026-05-13T20:48:19+00:00",
+  "generated_at_utc": "2026-05-14T09:28:56+00:00",
   "summary": {
-    "checked": 33,
+    "checked": 34,
     "target_fast_line": 17,
-    "ready": 26,
-    "partial": 7,
+    "ready": 31,
+    "partial": 3,
     "missing": 0
   },
   "records": [
@@ -180,15 +180,18 @@
       "description": "Speak system temperature.",
       "status": "READY",
       "reason": "grammar + allowlist + execution spec present",
-      "pl_phrase_count": 2,
-      "en_phrase_count": 2,
+      "pl_phrase_count": 4,
+      "en_phrase_count": 3,
       "sample_pl_aliases": [
-        "jaka jest twoja temperatura",
+        "powiedz temperaturę procesora",
+        "podaj temperaturę procesora",
+        "odczytaj temperaturę procesora",
         "czy jest ci za gorąco"
       ],
       "sample_en_aliases": [
-        "temperature",
-        "what is your temperature"
+        "tell me the cpu temperature",
+        "report cpu temperature",
+        "are you overheating"
       ],
       "allowlisted": true,
       "has_execution_spec": true,
@@ -373,16 +376,21 @@
       "description": "Show temperature glyph.",
       "status": "READY",
       "reason": "grammar + allowlist + execution spec present",
-      "pl_phrase_count": 2,
-      "en_phrase_count": 3,
+      "pl_phrase_count": 8,
+      "en_phrase_count": 8,
       "sample_pl_aliases": [
-        "pokaż temperaturę",
-        "temperatura"
+        "jaka masz temperaturę",
+        "jako masz temperatura",
+        "jaka jest twoja temperatura",
+        "cpu temperatura",
+        "temperatura cpu"
       ],
       "sample_en_aliases": [
-        "show temperature",
-        "display temperature",
-        "show current temperature"
+        "what is your cpu",
+        "what is your cpu temperature",
+        "what is the cpu temperature",
+        "show cpu temperature",
+        "processor temperature"
       ],
       "allowlisted": true,
       "has_execution_spec": true,
@@ -486,78 +494,6 @@
       "has_execution_spec": true,
       "legacy_action": "memory_recall",
       "tool_name": "memory.recall"
-    },
-    {
-      "intent": "system.exit",
-      "target_fast_line": false,
-      "description": "",
-      "status": "PARTIAL",
-      "reason": "missing: runtime allowlist, execution spec",
-      "pl_phrase_count": 5,
-      "en_phrase_count": 6,
-      "sample_pl_aliases": [
-        "zamknij asystenta",
-        "zamknij nexa",
-        "idź spać",
-        "odpocznij",
-        "wyłącz asystenta"
-      ],
-      "sample_en_aliases": [
-        "exit",
-        "exit assistant",
-        "close assistant",
-        "close nexa",
-        "go to sleep"
-      ],
-      "allowlisted": false,
-      "has_execution_spec": false,
-      "legacy_action": "",
-      "tool_name": ""
-    },
-    {
-      "intent": "visual_shell.show_eyes",
-      "target_fast_line": false,
-      "description": "",
-      "status": "PARTIAL",
-      "reason": "missing: PL aliases, EN aliases",
-      "pl_phrase_count": 0,
-      "en_phrase_count": 0,
-      "sample_pl_aliases": [],
-      "sample_en_aliases": [],
-      "allowlisted": true,
-      "has_execution_spec": true,
-      "legacy_action": "show_eyes",
-      "tool_name": "visual_shell.show_eyes"
-    },
-    {
-      "intent": "visual_shell.show_self",
-      "target_fast_line": false,
-      "description": "",
-      "status": "PARTIAL",
-      "reason": "missing: PL aliases, EN aliases",
-      "pl_phrase_count": 0,
-      "en_phrase_count": 0,
-      "sample_pl_aliases": [],
-      "sample_en_aliases": [],
-      "allowlisted": true,
-      "has_execution_spec": true,
-      "legacy_action": "show_self",
-      "tool_name": "visual_shell.show_self"
-    },
-    {
-      "intent": "visual_shell.start_scanning",
-      "target_fast_line": false,
-      "description": "",
-      "status": "PARTIAL",
-      "reason": "missing: PL aliases, EN aliases",
-      "pl_phrase_count": 0,
-      "en_phrase_count": 0,
-      "sample_pl_aliases": [],
-      "sample_en_aliases": [],
-      "allowlisted": true,
-      "has_execution_spec": true,
-      "legacy_action": "start_scanning",
-      "tool_name": "visual_shell.start_scanning"
     },
     {
       "intent": "break.start",
@@ -765,6 +701,120 @@
       "has_execution_spec": true,
       "legacy_action": "reminder_time_answer",
       "tool_name": "reminder.time_answer"
+    },
+    {
+      "intent": "system.calculate",
+      "target_fast_line": false,
+      "description": "",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 3,
+      "en_phrase_count": 2,
+      "sample_pl_aliases": [
+        "ile to jest",
+        "policz",
+        "oblicz"
+      ],
+      "sample_en_aliases": [
+        "calculate",
+        "what is"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "calculate",
+      "tool_name": "system.calculate"
+    },
+    {
+      "intent": "system.exit",
+      "target_fast_line": false,
+      "description": "",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 7,
+      "en_phrase_count": 7,
+      "sample_pl_aliases": [
+        "zamknij asystenta",
+        "zamknij nexa",
+        "idź spać",
+        "odpocznij",
+        "wyłącz asystenta"
+      ],
+      "sample_en_aliases": [
+        "exit",
+        "exit assistant",
+        "close assistant",
+        "close nexa",
+        "go to sleep"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "exit",
+      "tool_name": "system.exit"
+    },
+    {
+      "intent": "visual_shell.show_eyes",
+      "target_fast_line": false,
+      "description": "",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 1,
+      "en_phrase_count": 2,
+      "sample_pl_aliases": [
+        "pokaż oczy"
+      ],
+      "sample_en_aliases": [
+        "show eyes",
+        "show your eyes"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "show_eyes",
+      "tool_name": "visual_shell.show_eyes"
+    },
+    {
+      "intent": "visual_shell.show_self",
+      "target_fast_line": false,
+      "description": "",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 2,
+      "en_phrase_count": 3,
+      "sample_pl_aliases": [
+        "pokaż asystenta",
+        "pokaż postać"
+      ],
+      "sample_en_aliases": [
+        "show assistant",
+        "show your avatar",
+        "show avatar"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "show_self",
+      "tool_name": "visual_shell.show_self"
+    },
+    {
+      "intent": "visual_shell.start_scanning",
+      "target_fast_line": false,
+      "description": "",
+      "status": "READY",
+      "reason": "grammar + allowlist + execution spec present",
+      "pl_phrase_count": 2,
+      "en_phrase_count": 4,
+      "sample_pl_aliases": [
+        "sprawdź pokój",
+        "rozejrzyj się"
+      ],
+      "sample_en_aliases": [
+        "scan room",
+        "scan the room",
+        "look around",
+        "check room"
+      ],
+      "allowlisted": true,
+      "has_execution_spec": true,
+      "legacy_action": "start_scanning",
+      "tool_name": "visual_shell.start_scanning"
     }
   ]
 }
