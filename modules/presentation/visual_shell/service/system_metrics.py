@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import fcntl
 import re
 import subprocess
 from dataclasses import dataclass
@@ -22,6 +23,8 @@ class BatteryReading:
 
     percent: int
     source: str
+    voltage_v: float | None = None
+    raw_percent: float | None = None
 
 
 @dataclass(slots=True)
@@ -33,6 +36,8 @@ class VisualShellSystemMetricsProvider:
 
     thermal_zone_path: Path = Path("/sys/class/thermal/thermal_zone0/temp")
     power_supply_root: Path = Path("/sys/class/power_supply")
+    x1206_i2c_device: Path = Path("/dev/i2c-1")
+    x1206_i2c_address: int = 0x36
     vcgencmd_path: str = "vcgencmd"
     command_timeout_sec: float = 0.2
 
@@ -47,6 +52,10 @@ class VisualShellSystemMetricsProvider:
         env_reading = self._read_battery_from_environment()
         if env_reading is not None:
             return env_reading
+
+        x1206_reading = self._read_battery_from_x1206_i2c()
+        if x1206_reading is not None:
+            return x1206_reading
 
         return self._read_battery_from_power_supply()
 
@@ -107,6 +116,53 @@ class VisualShellSystemMetricsProvider:
             percent=percent,
             source="NEXA_BATTERY_PERCENT",
         )
+
+    def _read_battery_from_x1206_i2c(self) -> BatteryReading | None:
+        """Read real battery state from the X1206 MAX17040 fuel gauge.
+
+        Unit tests often pass a temporary power_supply_root. In that case this
+        provider must not read the real Raspberry Pi I2C device, otherwise tests
+        that expect fake /sys/class/power_supply data would be polluted by the
+        real UPS state.
+        """
+
+        if self.power_supply_root != Path("/sys/class/power_supply"):
+            return None
+
+        try:
+            soc_raw = self._x1206_read_word(register=0x04)
+            vcell_raw = self._x1206_read_word(register=0x02)
+        except OSError:
+            return None
+        except PermissionError:
+            return None
+
+        raw_percent = float((soc_raw >> 8) + ((soc_raw & 0xFF) / 256.0))
+        percent = self._clamp_percent(round(raw_percent))
+
+        # MAX17040 VCELL is a 12-bit value left-aligned in a 16-bit register.
+        # Each step is 1.25 mV.
+        voltage_v = float(((vcell_raw >> 4) * 1.25) / 1000.0)
+
+        return BatteryReading(
+            percent=percent,
+            source=f"{self.x1206_i2c_device}@0x{self.x1206_i2c_address:02x}:MAX17040",
+            voltage_v=round(voltage_v, 3),
+            raw_percent=round(raw_percent, 2),
+        )
+
+    def _x1206_read_word(self, *, register: int) -> int:
+        i2c_slave_ioctl = 0x0703
+
+        with self.x1206_i2c_device.open("r+b", buffering=0) as device:
+            fcntl.ioctl(device.fileno(), i2c_slave_ioctl, self.x1206_i2c_address)
+            device.write(bytes([register]))
+            data = device.read(2)
+
+        if len(data) != 2:
+            raise OSError(f"Short I2C read from register 0x{register:02x}")
+
+        return (data[0] << 8) | data[1]
 
     def _read_battery_from_power_supply(self) -> BatteryReading | None:
         try:

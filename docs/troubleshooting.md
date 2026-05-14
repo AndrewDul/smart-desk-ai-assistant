@@ -5550,3 +5550,98 @@ action_executed=True
 llm_prevented=True
 faster_whisper_prevented=True
 ```
+
+## 2026-05-14 - Identity/help response self-trigger and English help delivery issue
+
+### Problem
+
+After polishing the `kim jesteś` / `who are you` response, the assistant could repeat the identity response multiple times. This looked like a self-trigger loop caused by the assistant speaking its own wake-word style phrase inside the response.
+
+The English help command `how can you help me` also did not speak reliably, while the Visual Shell command table disappeared too quickly for a long help guide.
+
+### Cause
+
+The identity/help spoken templates included wake-word trigger phrasing such as `NeXa, help` / `NeXa, pomoc`, which could be heard by the microphone from the speaker output.
+
+The help response was also too long for the previous simple action-response path and needed to be delivered as a streamed text response. The Visual Shell help overlay hold time was too short for the expanded command table.
+
+### Fix
+
+The spoken templates were changed to avoid saying wake-word trigger phrases. Identity/help responses now tell the user to say `help`, `pomoc`, `how can you help me`, or `jak możesz mi pomóc` without speaking the wake word.
+
+The `_handle_help` path was changed to use `deliver_text_response(...)`, allowing the longer help guide to be spoken more naturally.
+
+The Visual Shell help overlay was expanded with a fuller PL/EN command table and its hold duration was increased to 180 seconds.
+
+### Validation
+
+Focused tests passed:
+
+```text
+python3 -m pytest -q tests/test_fast_action_response_templates.py tests/devices/audio/command_asr/test_command_grammar.py tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+```
+
+Source checks confirmed that spoken help no longer contains direct wake-word trigger phrases such as `say: NeXa` or `powiedz: NeXa`.
+
+## 2026-05-14 - X1206 battery provider integration issues
+
+### Problem
+
+NeXa previously did not have a real battery-state adapter for the SupTronics/Geekworm X1206 UPS. Battery display could only rely on an environment override or a generic `/sys/class/power_supply` fallback, which did not provide real battery state on the Raspberry Pi/X1206 setup.
+
+During integration, the first partial patch changed `read_battery()` to call `_read_battery_from_x1206_i2c()`, but the helper method was not inserted. This caused:
+
+```text
+AttributeError: VisualShellSystemMetricsProvider object has no attribute _read_battery_from_x1206_i2c
+```
+
+The first provider probe also failed with:
+
+```text
+ModuleNotFoundError: No module named modules
+```
+
+because the probe script was executed from `scripts/` and did not add the project root to `sys.path`.
+
+After the X1206 methods were added, another issue appeared because `BatteryReading` did not yet include `voltage_v` and `raw_percent` fields:
+
+```text
+TypeError: BatteryReading.__init__() got an unexpected keyword argument voltage_v
+```
+
+### Cause
+
+The X1206 integration was applied in stages. The route from `read_battery()` to the X1206 provider was added before the helper methods and dataclass fields were fully present. The probe script also needed explicit project-root import setup.
+
+### Fix
+
+The X1206/MAX17040 provider was completed in `modules/presentation/visual_shell/service/system_metrics.py`.
+
+The provider now:
+
+- reads SOC and VCELL directly from `/dev/i2c-1` at address `0x36`,
+- returns `BatteryReading(percent, source, voltage_v, raw_percent)`,
+- avoids reading the real Raspberry Pi I2C device during tests that pass a temporary `power_supply_root`,
+- falls back to generic `/sys/class/power_supply` if X1206 is unavailable,
+- keeps the environment override as the highest-priority source.
+
+The probe script was updated to add the project root to `sys.path` before importing NeXa modules.
+
+### Validation
+
+The hardware probe confirmed real X1206 battery readings:
+
+```text
+percent=96
+raw_percent=96.08
+voltage_v=4.155
+source=/dev/i2c-1@0x36:MAX17040
+```
+
+Focused tests passed:
+
+```text
+python3 -m pytest -q tests/presentation/visual_shell/test_visual_shell_system_metrics.py tests/presentation/visual_shell/test_visual_shell_controller.py
+```
+
+Runtime benchmark confirmed `pokaż baterię` and `show battery` route through Vosk fast-line with LLM and FasterWhisper prevented.

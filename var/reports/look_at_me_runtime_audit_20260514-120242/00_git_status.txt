@@ -1,0 +1,11 @@
+=== git status ===
+ M modules/core/flows/action_flow/system_actions_mixin.py
+ M modules/core/session/fast_command_lane.py
+ M modules/devices/audio/command_asr/command_grammar.py
+ M modules/presentation/visual_shell/godot_app/scripts/main_shell.gd
+ M modules/presentation/visual_shell/service/system_metrics.py
+ M tests/devices/audio/command_asr/test_command_grammar.py
+ M tests/test_fast_action_response_templates.py
+?? scripts/probe_x1206_battery.py
+?? scripts/probe_x1206_battery_raw.py
+?? var/reports/look_at_me_runtime_audit_20260514-120242/

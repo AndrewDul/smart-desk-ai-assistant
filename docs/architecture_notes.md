@@ -16555,3 +16555,137 @@ total_turn_ms≈16-23
 ```
 
 This confirms CPU/self-temperature now works as a live deterministic Vosk fast-line command without FasterWhisper or LLM fallback.
+
+## 2026-05-14 - Final Polish: identity and help fast-line response polish
+
+### Summary
+
+The assistant identity and help commands were polished for the final fast-line runtime.
+
+Identity commands such as `kim jesteś`, `who are you`, `what are you`, and `tell me who you are` now route to `assistant.identity` and return a natural bilingual response explaining that NeXa is an AI-powered assistant built on Raspberry Pi 5 to help with computer work and more.
+
+Help commands such as `pomoc`, `jak możesz mi pomóc`, `how can you help me`, `what can you do`, and `what are your commands` now route to `assistant.help` and return a fuller built-in capability guide.
+
+The help response now describes the current built-in functions in a natural spoken format, including:
+
+- conversation and general questions
+- current time and date
+- CPU/self-temperature
+- battery status
+- memory and reminders
+- local fast calculator
+- desktop reveal and full assistant view
+- focus mode
+- break mode
+- look-at-me face tracking
+- mobile-base drive mode and stop base
+- feedback mode
+- exit / NeXa runtime shutdown
+
+Long help delivery was changed to use `deliver_text_response(...)` so the response can be handled as a streamed text response instead of one oversized action-response chunk.
+
+The Visual Shell help overlay was updated with a fuller command table and a longer hold duration of 180 seconds, so users have enough time to read the available commands.
+
+### Runtime safety note
+
+The spoken identity/help templates were updated to avoid saying wake-word trigger phrases such as `say: NeXa, help` or `powiedz: NeXa, pomoc`, reducing the risk of self-trigger loops where the assistant hears its own speaker output.
+
+### Validation
+
+Focused validation passed:
+
+```text
+python3 -m pytest -q tests/test_fast_action_response_templates.py tests/devices/audio/command_asr/test_command_grammar.py tests/runtime/voice_engine_v2/test_runtime_candidate_executor.py
+```
+
+Observed grammar validation confirmed the new identity/help aliases route correctly to `assistant.identity` and `assistant.help` in Polish and English.
+
+## 2026-05-14 - Final Polish: real X1206 battery state provider
+
+### Summary
+
+NeXa now reads real battery state from the SupTronics/Geekworm X1206 4-cell 21700 UPS fuel gauge instead of relying only on environment/demo values or generic `/sys/class/power_supply` fallback.
+
+The X1206 fuel gauge was detected on Raspberry Pi I2C bus 1 at address `0x36`:
+
+```text
+/dev/i2c-1
+i2cdetect -y 1 -> 0x36
+```
+
+The battery provider now reads the MAX17040-compatible fuel-gauge registers directly through `/dev/i2c-1`:
+
+- `SOC` register: `0x04`
+- `VCELL` register: `0x02`
+- I2C address: `0x36`
+
+The Visual Shell battery metric path now uses this order:
+
+1. `NEXA_BATTERY_PERCENT` environment override
+2. X1206/MAX17040 real I2C provider
+3. Generic `/sys/class/power_supply/*/capacity` fallback
+
+The `BatteryReading` model now supports optional diagnostic metadata:
+
+- `percent`
+- `source`
+- `voltage_v`
+- `raw_percent`
+
+### Runtime validation
+
+The raw X1206 probe confirmed real battery data:
+
+```text
+x1206_battery_available
+soc_raw=0x6014
+vcell_raw=0xcfc0
+raw_percent=96.08
+percent=96
+voltage_v=4.155
+source=/dev/i2c-1@0x36:MAX17040
+```
+
+The NeXa provider probe confirmed the same real source:
+
+```text
+battery_available
+percent=96
+raw_percent=96.08
+voltage_v=4.155
+source=/dev/i2c-1@0x36:MAX17040
+```
+
+Voice runtime benchmark confirmed that battery commands still route through live Vosk fast-line:
+
+```text
+text=pokaż baterię
+canonical_intent=visual_shell.show_battery
+stt_backend_label=vosk_command_asr
+runtime_takeover=True
+action_executed=True
+llm_prevented=True
+faster_whisper_prevented=True
+total_turn_ms≈20.3
+
+text=show battery
+canonical_intent=visual_shell.show_battery
+stt_backend_label=vosk_command_asr
+runtime_takeover=True
+action_executed=True
+llm_prevented=True
+faster_whisper_prevented=True
+total_turn_ms≈12.7
+```
+
+### Validation
+
+Focused tests passed:
+
+```text
+python3 -m py_compile modules/presentation/visual_shell/service/system_metrics.py scripts/probe_x1206_battery.py
+python3 scripts/probe_x1206_battery.py
+python3 -m pytest -q tests/presentation/visual_shell/test_visual_shell_system_metrics.py tests/presentation/visual_shell/test_visual_shell_controller.py
+```
+
+Final result: `pokaż baterię` and `show battery` now display real X1206 battery state through the existing fast-line Visual Shell battery command.

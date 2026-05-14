@@ -761,25 +761,91 @@ class ActionSystemActionsMixin:
     ) -> bool:
         self._show_visual_help_overlay(language=language)
         del route, payload
+
         spoken = self._localized(
             language,
-            "Mogę z Tobą porozmawiać, pomóc Ci coś zapamiętać, podać czas, pokazać pulpit oraz przedstawić status runtime, testy i benchmarki.",
-            "I can talk with you, help you remember something, tell you the time, show the desktop, and report runtime status, tests, and benchmarks.",
+            "Mogę pomóc Ci na kilka sposobów. Możesz ze mną po prostu porozmawiać. "
+            "Możesz zapytać, która jest godzina, poprosić o datę, godzinę, moją temperaturę albo stan baterii. "
+            "Powiedz: jaka masz temperaturę, a pokażę temperaturę procesora. Powiedz: pokaż baterię, a pokażę stan baterii. "
+            "Mogę zapamiętać coś dla Ciebie. Powiedz: zapamiętaj to. Mogę też przypomnieć Ci o czymś. Powiedz: ustaw przypomnienie. "
+            "Mogę szybko coś obliczyć. Powiedz na przykład: ile to jest dwa plus dwa. "
+            "Mogę odsłonić pulpit. Powiedz: pokaż pulpit. Gdy chcesz wrócić do pełnego ekranu asystenta, powiedz: schowaj pulpit. "
+            "Mogę pokazać godzinę lub datę na ekranie. Powiedz: pokaż godzinę albo pokaż datę. "
+            "Mogę pomóc Ci skupić się na nauce lub pracy. Powiedz: focus mode. "
+            "Mogę też kontrolować Twoją przerwę od pracy. Powiedz: break mode. "
+            "Mogę spojrzeć na Ciebie i śledzić Twoją twarz. Powiedz: spójrz na mnie, a będę Cię obserwować. "
+            "Gdy chcesz zakończyć obserwowanie, powiedz: przestań patrzeć. "
+            "Mogę uruchomić tryb jazdy dla bazy jezdnej. Powiedz: drive mode. Aby zatrzymać bazę, powiedz: zatrzymaj bazę. "
+            "Mogę też przyjąć feedback. Powiedz: feedback on, a potem powiedz, co mam poprawić. "
+            "Jeśli chcesz usłyszeć tę pomoc ponownie, powiedz: pomoc albo jak możesz mi pomóc.",
+            "I can help you in several ways. You can simply talk with me. "
+            "You can ask what time it is, ask for the date, the current time, my temperature, or the battery status. "
+            "Say: show your temperature, and I will show my processor temperature. Say: show battery, and I will show the battery status. "
+            "I can remember things for you. Say: remember this. I can also remind you about something. Say: set a reminder. "
+            "I can calculate quickly. For example, say: calculate two plus two. "
+            "I can reveal the desktop. Say: show desktop. When you want to return to the full assistant screen, say: hide desktop. "
+            "I can show the time or date on the screen. Say: show time, or show date. "
+            "I can help you focus while studying or working. Say: focus mode. "
+            "I can also manage your break from work. Say: break mode. "
+            "I can look at you and track your face. Say: look at me, and I will keep watching you. "
+            "When you want me to stop, say: stop looking at me. "
+            "I can start drive mode for the mobile base. Say: drive mode. To stop the base, say: stop base. "
+            "I can also receive feedback. Say: feedback on, then tell me what I should improve. "
+            "To hear this guide again, say: help, or: how can you help me.",
         )
-        delivered = self._deliver_simple_action_response(
+
+        display_title = self._localized(language, "JAK MOGĘ POMÓC", "HOW I CAN HELP")
+        display_lines = self._localized_lines(
+            language,
+            [
+                "rozmowa i pytania",
+                "godzina, data, temperatura, bateria",
+                "pamięć i przypomnienia",
+                "kalkulator",
+                "pulpit i pełny ekran",
+                "focus mode i break mode",
+                "spójrz na mnie",
+                "drive mode i zatrzymaj bazę",
+                "feedback on",
+            ],
+            [
+                "conversation and questions",
+                "time, date, temperature, battery",
+                "memory and reminders",
+                "calculator",
+                "desktop and full screen",
+                "focus mode and break mode",
+                "look at me",
+                "drive mode and stop base",
+                "feedback on",
+            ],
+        )
+
+        metadata = self._current_action_response_metadata(
             language=language,
             action="help",
-            spoken_text=spoken,
-            display_title=self._localized(language, "JAK MOGĘ POMÓC", "HOW I CAN HELP"),
-            display_lines=self._localized_lines(
-                language,
-                ["rozmowa", "pamiec", "przypomnienia", "status i debug"],
-                ["conversation", "memory", "reminders", "status and debug"],
-            ),
-            extra_metadata={"resolved_source": resolved.source},
+            extra_metadata={
+                "resolved_source": resolved.source,
+                "display_title": display_title,
+                "display_lines": display_lines,
+                "help_response_mode": "sentence_streamed_text_response",
+            },
         )
+
+        delivered = bool(
+            self.assistant.deliver_text_response(
+                spoken,
+                language=language,
+                route_kind=RouteKind.ACTION,
+                source="action_flow:help",
+                remember=True,
+                metadata=metadata,
+            )
+        )
+
         self._show_visual_help_overlay(language=language)
         return delivered
+
 
     def _handle_status(
         self,
@@ -979,8 +1045,8 @@ class ActionSystemActionsMixin:
 
         spoken = self._localized(
             language,
-            "Nazywam się NeXa.",
-            "My name is NeXa.",
+            'Jestem asystentem wykorzystującym AI, stworzonym na Raspberry Pi 5, aby pomagać Ci w pracy przy komputerze i nie tylko. Mogę reagować na szybkie komendy głosowe, wspierać Twoją pracę, pomagać w codziennych zadaniach i działać jako lokalny, inteligentny system przy Twoim biurku. Jeśli jesteś ciekawy, jak mogę Ci pomóc, powiedz: pomoc, albo: jak możesz mi pomóc.',
+            'I am an AI-powered assistant, built on a Raspberry Pi 5 to help you work at your computer and beyond. I can respond to fast voice commands, support your workflow, help with everyday tasks, and act as a local intelligent system at your desk. If you want to know what I can do, say: help, or: how can you help me.',
         )
         return self._deliver_simple_action_response(
             language=language,

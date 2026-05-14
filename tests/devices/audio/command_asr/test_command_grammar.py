@@ -570,3 +570,28 @@ def test_default_grammar_recognizes_mobile_base_drive_mode_asr_recovery_aliases(
 
     assert "drie moe" not in grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH)
     assert "tryp sterowania" not in grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)
+
+
+
+def test_default_grammar_recognizes_rich_identity_and_help_aliases() -> None:
+    grammar = build_default_command_grammar()
+
+    cases = [
+        ("kim jesteś", "assistant.identity", CommandLanguage.POLISH),
+        ("kim ty jesteś", "assistant.identity", CommandLanguage.POLISH),
+        ("powiedz kim jesteś", "assistant.identity", CommandLanguage.POLISH),
+        ("who are you", "assistant.identity", CommandLanguage.ENGLISH),
+        ("what are you", "assistant.identity", CommandLanguage.ENGLISH),
+        ("tell me who you are", "assistant.identity", CommandLanguage.ENGLISH),
+        ("jak możesz mi pomóc", "assistant.help", CommandLanguage.POLISH),
+        ("co potrafisz", "assistant.help", CommandLanguage.POLISH),
+        ("how can you help me", "assistant.help", CommandLanguage.ENGLISH),
+        ("what can you do", "assistant.help", CommandLanguage.ENGLISH),
+        ("what are your commands", "assistant.help", CommandLanguage.ENGLISH),
+    ]
+
+    for phrase, intent_key, language in cases:
+        result = grammar.match(phrase)
+        assert result.status == CommandRecognitionStatus.MATCHED
+        assert result.intent_key == intent_key
+        assert result.language == language
