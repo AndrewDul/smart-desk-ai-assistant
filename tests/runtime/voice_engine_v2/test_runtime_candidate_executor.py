@@ -393,6 +393,29 @@ def test_runtime_candidate_executor_builds_memory_guided_start_route() -> None:
     assert plan.route_decision.metadata["llm_prevented"] is True
 
 
+
+def test_runtime_candidate_executor_builds_person_memory_enrollment_payload() -> None:
+    builder = RuntimeCandidateExecutionPlanBuilder()
+    turn = _turn_result("zapamiętaj mnie", language=CommandLanguage.POLISH)
+
+    plan = builder.build_plan(
+        turn_result=turn,
+        transcript="zapamiętaj mnie",
+        metadata={"source": "unit_test"},
+    )
+
+    assert plan is not None
+    assert plan.route_decision.kind == RouteKind.ACTION
+    assert plan.route_decision.language == "pl"
+    assert plan.route_decision.primary_intent == "memory_store"
+    assert plan.route_decision.tool_invocations[0].tool_name == "memory.guided_start"
+    assert plan.route_decision.tool_invocations[0].payload == {
+        "guided": True,
+        "person_enrollment": True,
+    }
+    assert plan.route_decision.metadata["llm_prevented"] is True
+
+
 def test_runtime_candidate_executor_builds_memory_list_route() -> None:
     builder = RuntimeCandidateExecutionPlanBuilder()
     turn = _turn_result("what do you remember", language=CommandLanguage.ENGLISH)

@@ -20,8 +20,29 @@ class ActionMemoryActionsMixin:
         del route, resolved
 
         guided = bool(payload.get("guided", False))
+        person_enrollment = bool(payload.get("person_enrollment", False))
         memory_text = self._first_present(payload, "memory_text", "message", "content", "text")
         key, value = self._resolve_memory_store_fields(payload)
+
+        if person_enrollment:
+            self.assistant.pending_follow_up = {
+                "type": "memory_person_name",
+                "language": language,
+            }
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Dobrze. Jak mam Cię nazywać?",
+                    "Okay. What should I call you?",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="action_memory_person_name_prompt",
+                metadata={
+                    "follow_up_type": "memory_person_name",
+                    "action": "memory_store",
+                },
+            )
 
         if guided or (not str(memory_text or "").strip() and (not key or not value)):
             self.assistant.pending_follow_up = {

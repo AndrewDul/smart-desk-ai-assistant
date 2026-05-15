@@ -56,6 +56,21 @@ class IntentParserMemoryMixin:
         return None
 
     def _parse_memory_store(self, normalized: str) -> IntentResult | None:
+        person_enrollment_triggers = {
+            "remember me",
+            "save me",
+            "save me to memory",
+            "zapamietaj mnie",
+            "zapamiętaj mnie",
+            "pamietaj mnie",
+            "pamiętaj mnie",
+        }
+        if normalized in person_enrollment_triggers:
+            return IntentResult.from_action(
+                action="memory_store",
+                data={"guided": True, "person_enrollment": True},
+            )
+
         # Bare trigger words → enter guided mode immediately.
         # ("remember" alone, "zapamiętaj" alone, etc.)
         bare_triggers = {

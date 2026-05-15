@@ -4,10 +4,13 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
+
 from modules.core.flows.action_flow.executors.memory_executor import MemorySkillExecutor
 from modules.core.flows.action_flow.memory_actions_mixin import ActionMemoryActionsMixin
 from modules.core.flows.pending_flow.follow_up_mixin import PendingFlowFollowUpMixin
 from modules.features.memory.service import MemoryService
+from modules.features.memory_v2.store import SQLiteMemoryStore
 from modules.shared.persistence.repositories import MemoryRepository
 
 
@@ -17,6 +20,7 @@ class _Assistant:
         self.pending_follow_up = None
         self.responses: list[dict] = []
         self.committed_language = ""
+        self.vision = None
 
     def _localized(self, language: str, polish_text: str, english_text: str) -> str:
         return polish_text if str(language).lower().startswith("pl") else english_text
@@ -43,6 +47,37 @@ class _Assistant:
             }
         )
         return True
+
+
+
+
+class _FramePacket:
+    backend_label = "unit_rgb"
+
+    def __init__(self) -> None:
+        self.pixels = np.zeros((24, 32, 3), dtype=np.uint8)
+
+
+class _FakeVisionBackend:
+    def __init__(self) -> None:
+        self.started = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def latest_tracking_observation(self, *, force_refresh: bool = True):
+        del force_refresh
+        return SimpleNamespace(
+            metadata={
+                "perception": {
+                    "faces": [{"confidence": 0.82}],
+                    "face_count": 1,
+                }
+            }
+        )
+
+    def latest_frame(self):
+        return _FramePacket()
 
 
 class _PendingFlow(PendingFlowFollowUpMixin):
@@ -179,3 +214,98 @@ def test_polish_guided_memory_repairs_glued_keys_phrase_before_saving() -> None:
         assert assistant.responses[-1]["source"] == "pending_memory_message_saved"
         assert assistant.responses[-1]["metadata"]["stored_text"] == "klucze są w kuchni"
         assert assistant.memory.recall("gdzie są moje klucze", language="pl") == "klucze są w kuchni"
+
+
+def test_guided_person_memory_starts_name_follow_up() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        assistant = _Assistant(_memory_service(Path(temp_dir) / "memory.json"))
+        flow = _MemoryActionFlow(assistant)
+
+        handled = flow._handle_memory_store(
+            route=SimpleNamespace(),
+            language="pl",
+            payload={"guided": True, "person_enrollment": True},
+            resolved=SimpleNamespace(source="unit_test"),
+        )
+
+        assert handled is True
+        assert assistant.pending_follow_up == {
+            "type": "memory_person_name",
+            "language": "pl",
+        }
+        assert assistant.responses[-1]["source"] == "action_memory_person_name_prompt"
+        assert assistant.responses[-1]["text"] == "Dobrze. Jak mam Cię nazywać?"
+
+
+
+
+def test_guided_person_memory_name_follow_up_prepares_face_slot_with_index() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+        assistant = _Assistant(memory)
+        assistant.pending_follow_up = {"type": "memory_person_name", "language": "pl"}
+        flow = _PendingFlow(assistant)
+
+        decision = flow.handle_pending_follow_up("mam na imię Andrzej", "pl")
+
+        assert decision.handled is True
+        assert decision.consumed_by == "follow_up:memory_person_name"
+        assert assistant.pending_follow_up is None
+        response = assistant.responses[-1]
+        assert response["source"] == "pending_memory_person_name_saved"
+        assert response["metadata"]["display_name"] == "Andrzej"
+        assert response["metadata"]["face_capture_ready"] is True
+        assert response["metadata"]["face_capture_saved"] is False
+        assert response["metadata"]["person_entity_id"]
+        assert Path(response["metadata"]["person_faces_dir"]).exists()
+        assert response["metadata"]["next_face_asset_path"].endswith("face_001.jpg")
+        assert response["text"] == "Dobrze, Andrzej. Zapamiętałam Cię jako Andrzej. Przygotowałam miejsce na zdjęcia twarzy."
+
+
+def test_guided_person_memory_name_follow_up_captures_face_when_vision_frame_available() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+        assistant = _Assistant(memory)
+        assistant.vision = _FakeVisionBackend()
+        assistant.pending_follow_up = {"type": "memory_person_name", "language": "pl"}
+        flow = _PendingFlow(assistant)
+
+        decision = flow.handle_pending_follow_up("mam na imię Andrzej", "pl")
+
+        assert decision.handled is True
+        response = assistant.responses[-1]
+        assert response["metadata"]["face_capture_ready"] is True
+        assert response["metadata"]["face_capture_saved"] is True
+        assert response["metadata"]["face_asset_id"].startswith("asset_")
+        assert Path(response["metadata"]["face_asset_path"]).exists()
+        assert response["metadata"]["face_capture_width"] == 32
+        assert response["metadata"]["face_capture_height"] == 24
+        assert response["metadata"]["face_detected"] is True
+        assert response["metadata"]["face_count"] == 1
+        assert response["metadata"]["face_confidence"] == 0.82
+        assert memory.index_store is not None
+        assert memory.index_store.asset_count() == 1
+        assert response["text"] == "Dobrze, Andrzej. Zapamiętałam Cię jako Andrzej i zapisałam zdjęcie twarzy."
+
+def test_guided_person_memory_name_follow_up_remembers_user_person() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        assistant = _Assistant(_memory_service(Path(temp_dir) / "memory.json"))
+        assistant.pending_follow_up = {"type": "memory_person_name", "language": "pl"}
+        flow = _PendingFlow(assistant)
+
+        decision = flow.handle_pending_follow_up("mam na imię Andrzej", "pl")
+
+        assert decision.handled is True
+        assert decision.consumed_by == "follow_up:memory_person_name"
+        assert assistant.pending_follow_up is None
+        assert assistant.responses[-1]["source"] == "pending_memory_person_name_saved"
+        assert assistant.responses[-1]["metadata"]["display_name"] == "Andrzej"
+        assert assistant.memory.recall("kogo znasz", language="pl") == "Znam: Andrzej."

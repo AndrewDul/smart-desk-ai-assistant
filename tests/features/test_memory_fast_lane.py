@@ -184,7 +184,7 @@ class TestVoskFastLaneMemoryRecall(unittest.TestCase):
         keyed = {e.name: e.value for e in entities}
         self.assertEqual(keyed.get("key"), "telefon")
 
-    def test_guided_start_plan_has_empty_payload(self) -> None:
+    def test_guided_start_plan_marks_guided_payload(self) -> None:
         plan = self.builder.build_plan_from_intent(
             turn_id="t2",
             intent_key="memory.guided_start",
@@ -194,7 +194,7 @@ class TestVoskFastLaneMemoryRecall(unittest.TestCase):
 
         self.assertIsNotNone(plan)
         self.assertEqual(plan.route_decision.primary_intent, "memory_store")
-        self.assertEqual(plan.route_decision.tool_invocations[0].payload, {})
+        self.assertEqual(plan.route_decision.tool_invocations[0].payload, {"guided": True})
 
     # -- end-to-end fast lane recall -----------------------------------
 

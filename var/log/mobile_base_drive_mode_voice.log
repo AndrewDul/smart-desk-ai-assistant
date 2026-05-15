@@ -1624,3 +1624,33 @@ Traceback (most recent call last):
   File "/usr/lib/python3/dist-packages/serial/serialposix.py", line 325, in open
     raise SerialException(msg.errno, "could not open port {}: {}".format(self._port, msg))
 serial.serialutil.SerialException: [Errno 2] could not open port /dev/serial/by-id/usb-1a86_USB_Single_Serial_5A36029146-if00: [Errno 2] No such file or directory: '/dev/serial/by-id/usb-1a86_USB_Single_Serial_5A36029146-if00'
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/serial/serialposix.py", line 322, in open
+    self.fd = os.open(self.portstr, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+              ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/dev/serial/by-id/usb-1a86_USB_Single_Serial_5A36029146-if00'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/devdul/Projects/smart-desk-ai-assistant/scripts/mobile_base_drive_mode.py", line 77, in <module>
+    if __name__=="__main__": raise SystemExit(main(sys.argv[1:]))
+                                              ~~~~^^^^^^^^^^^^^^
+  File "/home/devdul/Projects/smart-desk-ai-assistant/scripts/mobile_base_drive_mode.py", line 76, in main
+    args=parser().parse_args(argv); return selftest(args) if args.self_test else server(args)
+                                                                                 ~~~~~~^^^^^^
+  File "/home/devdul/Projects/smart-desk-ai-assistant/scripts/mobile_base_drive_mode.py", line 66, in server
+    service, selected, dry=make(args); service.controller.open(); Handler.service=service; Handler.selected_port=selected; Handler.dry_run=dry; Handler.movement_enabled=bool(args.enable_movement); Handler.linear_speed_mps=args.linear_speed_mps; Handler.angular_speed_rad_s=args.angular_speed_rad_s; Handler.command_profile=args.command_profile; Handler.wheel_turn_speed_mps=args.wheel_turn_speed_mps; stop=threading.Event()
+                                       ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/devdul/Projects/smart-desk-ai-assistant/modules/devices/mobile_base/controller.py", line 45, in open
+    self.transport.open()
+    ~~~~~~~~~~~~~~~~~~~^^
+  File "/home/devdul/Projects/smart-desk-ai-assistant/modules/devices/mobile_base/serial_transport.py", line 150, in open
+    self._serial = serial.Serial(self.port, baudrate=self.baudrate, timeout=self.timeout_sec)
+                   ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/serial/serialutil.py", line 244, in __init__
+    self.open()
+    ~~~~~~~~~^^
+  File "/usr/lib/python3/dist-packages/serial/serialposix.py", line 325, in open
+    raise SerialException(msg.errno, "could not open port {}: {}".format(self._port, msg))
+serial.serialutil.SerialException: [Errno 2] could not open port /dev/serial/by-id/usb-1a86_USB_Single_Serial_5A36029146-if00: [Errno 2] No such file or directory: '/dev/serial/by-id/usb-1a86_USB_Single_Serial_5A36029146-if00'

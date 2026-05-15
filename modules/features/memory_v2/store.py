@@ -102,10 +102,21 @@ class SQLiteMemoryStore:
     def replace_all_entities(self, entities: Iterable[dict[str, Any]]) -> None:
         self.ensure_ready()
         normalized_entities = [dict(entity) for entity in entities if isinstance(entity, dict)]
+        active_entity_ids = [
+            str(entity.get("id", "") or "").strip()
+            for entity in normalized_entities
+            if str(entity.get("id", "") or "").strip()
+        ]
         with self._connect() as connection:
             connection.execute("DELETE FROM memory_relationships")
-            connection.execute("DELETE FROM memory_assets")
-            connection.execute("DELETE FROM memory_entities")
+            if active_entity_ids:
+                placeholders = ",".join("?" for _ in active_entity_ids)
+                connection.execute(
+                    f"DELETE FROM memory_entities WHERE id NOT IN ({placeholders})",
+                    active_entity_ids,
+                )
+            else:
+                connection.execute("DELETE FROM memory_entities")
             for entity in normalized_entities:
                 self._upsert_entity(connection, entity)
 
@@ -311,6 +322,61 @@ class SQLiteMemoryStore:
                 conditions.append(f"{column} LIKE ?")
                 params.append("% " + token + " %")
         return " OR ".join(conditions)
+
+    def upsert_asset(self, asset: dict[str, Any]) -> None:
+        self.ensure_ready()
+        with self._connect() as connection:
+            self._upsert_asset(connection, asset)
+
+    def list_assets(
+        self,
+        *,
+        entity_id: str | None = None,
+        asset_type: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        self.ensure_ready()
+        params: list[Any] = []
+        where_parts: list[str] = []
+        if entity_id:
+            where_parts.append("entity_id = ?")
+            params.append(str(entity_id))
+        if asset_type:
+            where_parts.append("asset_type = ?")
+            params.append(str(asset_type))
+
+        where_sql = "WHERE " + " AND ".join(where_parts) if where_parts else ""
+        sql = f"""
+            SELECT id, entity_id, asset_type, path, caption, metadata_json, created_at_iso
+            FROM memory_assets
+            {where_sql}
+            ORDER BY created_at_iso DESC, id DESC
+        """
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(max(1, int(limit)))
+
+        with self._connect() as connection:
+            rows = connection.execute(sql, params).fetchall()
+        return [self._row_to_asset(row) for row in rows]
+
+    def person_faces_dir(self, person_entity_id: str) -> Path:
+        clean_id = self._safe_path_component(person_entity_id)
+        path = self.faces_dir / clean_id
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def object_assets_dir(self, object_entity_id: str) -> Path:
+        clean_id = self._safe_path_component(object_entity_id)
+        path = self.objects_dir / clean_id
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def asset_count(self) -> int:
+        self.ensure_ready()
+        with self._connect() as connection:
+            row = connection.execute("SELECT COUNT(*) AS count FROM memory_assets").fetchone()
+        return int(row["count"] if row is not None else 0)
 
     def list_records(self, *, language: str | None = None, limit: int | None = None) -> list[dict[str, Any]]:
         self.ensure_ready()
@@ -636,6 +702,38 @@ class SQLiteMemoryStore:
             ),
         )
 
+    def _upsert_asset(self, connection: sqlite3.Connection, asset: dict[str, Any]) -> None:
+        asset_id = str(asset.get("id", "") or "").strip()
+        asset_type = str(asset.get("asset_type", "") or "").strip()
+        asset_path = str(asset.get("path", "") or "").strip()
+        if not asset_id or not asset_type or not asset_path:
+            return
+
+        now = self._now_iso()
+        created_at_iso = str(asset.get("created_at_iso", "") or now)
+        connection.execute(
+            """
+            INSERT INTO memory_assets (
+                id, entity_id, asset_type, path, caption, metadata_json, created_at_iso
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                entity_id = excluded.entity_id,
+                asset_type = excluded.asset_type,
+                path = excluded.path,
+                caption = excluded.caption,
+                metadata_json = excluded.metadata_json
+            """,
+            (
+                asset_id,
+                asset.get("entity_id"),
+                asset_type,
+                asset_path,
+                str(asset.get("caption", "") or ""),
+                json.dumps(dict(asset.get("metadata", {}) or {}), ensure_ascii=False),
+                created_at_iso,
+            ),
+        )
+
     @staticmethod
     def _clean_tokens(tokens: Iterable[Any]) -> list[str]:
         clean: list[str] = []
@@ -667,6 +765,24 @@ class SQLiteMemoryStore:
             "metadata": metadata,
             "created_at_iso": str(row["created_at_iso"]),
             "updated_at_iso": str(row["updated_at_iso"]),
+        }
+
+    @staticmethod
+    def _row_to_asset(row: sqlite3.Row) -> dict[str, Any]:
+        metadata: dict[str, Any]
+        try:
+            metadata = dict(json.loads(row["metadata_json"] or "{}"))
+        except (TypeError, ValueError):
+            metadata = {}
+
+        return {
+            "id": str(row["id"]),
+            "entity_id": row["entity_id"],
+            "asset_type": str(row["asset_type"]),
+            "path": str(row["path"]),
+            "caption": str(row["caption"] or ""),
+            "metadata": metadata,
+            "created_at_iso": str(row["created_at_iso"]),
         }
 
     @staticmethod
@@ -717,6 +833,14 @@ class SQLiteMemoryStore:
             "confidence": float(row["confidence"]),
             "metadata": metadata,
         }
+
+    @staticmethod
+    def _safe_path_component(value: str) -> str:
+        clean = "".join(
+            character if character.isalnum() or character in {"-", "_"} else "_"
+            for character in str(value or "").strip()
+        ).strip("_")
+        return clean or "unknown"
 
     @staticmethod
     def _now_iso() -> str:

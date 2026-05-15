@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import sqlite3
 import tempfile
+from types import SimpleNamespace
 from pathlib import Path
+
+import numpy as np
 
 from modules.features.memory.service import MemoryService
 from modules.features.memory_v2.store import SQLiteMemoryStore
@@ -270,3 +273,242 @@ def test_memory_service_remember_person_survives_restart() -> None:
         assert people[0]["display_name"] == "Andrew Dul"
         assert "andrew" in people[0]["aliases"]
         assert second.recall("who do you know", language="en") == "I know: Andrew Dul."
+
+def test_people_recall_is_cross_language(tmp_path: Path) -> None:
+    memory = MemoryService(
+        store=MemoryRepository(path=str(tmp_path / "memory.json")),
+        index_store=SQLiteMemoryStore(root=tmp_path / "nexa_memory"),
+    )
+
+    memory.remember_text("mam na imię Andrzej", language="pl", source="unit_test")
+    memory.remember_person("Dominika", aliases=["dominika"], language="pl")
+
+    assert memory.recall("kogo znasz", language="pl") == "Znam: Dominika, Andrzej."
+    assert memory.recall("who do you know", language="en") == "I know: Dominika, Andrzej."
+
+
+def test_sqlite_memory_store_persists_person_face_assets() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir) / "nexa_memory"
+        store = SQLiteMemoryStore(root=root)
+        store.upsert_entity(
+            {
+                "id": "person_andrzej",
+                "entity_type": "person",
+                "display_name": "Andrzej",
+                "aliases": ["andrzej"],
+                "language": "pl",
+                "metadata": {"source": "unit_test"},
+            }
+        )
+        face_dir = store.person_faces_dir("person_andrzej")
+        store.upsert_asset(
+            {
+                "id": "asset_face_1",
+                "entity_id": "person_andrzej",
+                "asset_type": "face_photo",
+                "path": str(face_dir / "face_001.jpg"),
+                "caption": "Andrzej",
+                "metadata": {"source": "unit_test"},
+            }
+        )
+
+        assert face_dir.exists()
+        assert store.asset_count() == 1
+        assets = store.list_assets(entity_id="person_andrzej", asset_type="face_photo")
+        assert assets[0]["path"].endswith("face_001.jpg")
+        assert assets[0]["caption"] == "Andrzej"
+
+
+def test_memory_service_registers_person_face_asset_and_preserves_link_after_resync() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory_file = root / "memory.json"
+        sqlite_root = root / "nexa_memory"
+        memory = MemoryService(
+            store=MemoryRepository(path=str(memory_file)),
+            index_store=SQLiteMemoryStore(root=sqlite_root),
+        )
+
+        asset_id = memory.remember_person_face_asset(
+            "Andrzej",
+            sqlite_root / "assets" / "faces" / "andrzej" / "face_001.jpg",
+            aliases=["andrzej"],
+            language="pl",
+            caption="Andrzej face reference",
+        )
+
+        assert asset_id is not None
+        assert memory.index_store is not None
+        assert memory.index_store.asset_count() == 1
+        assets = memory.list_person_face_assets(display_name="Andrzej", language="pl")
+        assert len(assets) == 1
+        assert assets[0]["caption"] == "Andrzej face reference"
+
+        # Saving another memory rebuilds the SQLite record/entity/fact index.
+        # Face asset links must survive that rebuild because future camera
+        # capture will attach photos to person entities independently from
+        # general text memories.
+        memory.remember_text("lubię programować", language="pl", source="unit_test")
+        assets_after_resync = memory.list_person_face_assets(display_name="Andrzej", language="pl")
+        assert len(assets_after_resync) == 1
+        assert assets_after_resync[0]["entity_id"] == assets[0]["entity_id"]
+
+
+def test_memory_service_prepares_person_face_capture_slot() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+
+        slot = memory.prepare_person_face_capture_slot(
+            "Andrzej",
+            aliases=["andrzej"],
+            language="pl",
+            source="unit_test",
+        )
+
+        assert slot is not None
+        assert slot["face_capture_ready"] is True
+        assert slot["display_name"] == "Andrzej"
+        assert slot["person_entity_id"]
+        assert Path(slot["person_faces_dir"]).exists()
+        assert slot["next_face_asset_path"].endswith("face_001.jpg")
+        assert memory.recall("kogo znasz", language="pl") == "Znam: Andrzej."
+
+        asset_id = memory.remember_person_face_asset(
+            "Andrzej",
+            slot["next_face_asset_path"],
+            aliases=["andrzej"],
+            language="pl",
+            caption="Andrzej face reference",
+        )
+        assert asset_id is not None
+
+        next_slot = memory.prepare_person_face_capture_slot(
+            "Andrzej",
+            aliases=["andrzej"],
+            language="pl",
+            source="unit_test",
+        )
+        assert next_slot is not None
+        assert next_slot["existing_face_asset_count"] == 1
+        assert next_slot["next_face_asset_path"].endswith("face_002.jpg")
+
+
+class _FramePacket:
+    backend_label = "unit_rgb"
+
+    def __init__(self) -> None:
+        self.pixels = np.zeros((20, 30, 3), dtype=np.uint8)
+
+
+class _FakeVisionBackend:
+    def __init__(self) -> None:
+        self.started = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def latest_tracking_observation(self, *, force_refresh: bool = True):
+        del force_refresh
+        return SimpleNamespace(
+            metadata={
+                "perception": {
+                    "faces": [{"confidence": 0.86}],
+                    "face_count": 1,
+                }
+            }
+        )
+
+    def latest_frame(self):
+        return _FramePacket()
+
+
+class _FakeVisionBackendWithoutFace(_FakeVisionBackend):
+    def latest_tracking_observation(self, *, force_refresh: bool = True):
+        del force_refresh
+        return SimpleNamespace(
+            metadata={
+                "perception": {
+                    "faces": [],
+                    "face_count": 0,
+                }
+            }
+        )
+
+
+def test_memory_service_captures_person_face_reference_from_existing_vision_backend() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+
+        result = memory.capture_person_face_reference(
+            display_name="Andrzej",
+            aliases=["andrzej"],
+            language="pl",
+            vision_backend=_FakeVisionBackend(),
+        )
+
+        assert result["ok"] is True
+        assert result["asset_id"].startswith("asset_")
+        assert result["width"] == 30
+        assert result["height"] == 20
+        assert result["face_detected"] is True
+        assert result["face_count"] == 1
+        assert result["face_confidence"] == 0.86
+        assert Path(result["path"]).exists()
+        assert memory.index_store is not None
+        assert memory.index_store.asset_count() == 1
+        assets = memory.list_person_face_assets(display_name="Andrzej", language="pl")
+        assert assets[0]["path"] == result["path"]
+        assert assets[0]["metadata"]["face_detected"] is True
+        assert assets[0]["metadata"]["face_count"] == 1
+
+
+def test_memory_service_face_capture_skips_asset_when_no_face_is_detected() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+
+        result = memory.capture_person_face_reference(
+            display_name="Andrzej",
+            aliases=["andrzej"],
+            language="pl",
+            vision_backend=_FakeVisionBackendWithoutFace(),
+        )
+
+        assert result["ok"] is False
+        assert result["reason"] == "face_not_detected"
+        assert result["face_detected"] is False
+        assert result["face_count"] == 0
+        assert memory.index_store is not None
+        assert memory.index_store.asset_count() == 0
+
+
+def test_memory_service_face_capture_returns_safe_failure_without_vision_backend() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+
+        result = memory.capture_person_face_reference(
+            display_name="Andrzej",
+            language="pl",
+            vision_backend=None,
+        )
+
+        assert result["ok"] is False
+        assert result["reason"] == "vision_backend_unavailable"
+        assert memory.index_store is not None
+        assert memory.index_store.asset_count() == 0

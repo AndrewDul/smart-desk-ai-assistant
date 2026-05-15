@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import re
+from typing import Any
+
 from modules.runtime.contracts import RouteKind
 from modules.shared.logging.logger import get_logger
 
@@ -97,6 +100,14 @@ class PendingFlowFollowUpMixin:
                 handled=True,
                 response=result,
                 consumed_by="follow_up:memory_message",
+            )
+
+        if follow_type == "memory_person_name":
+            result = self._handle_memory_person_name_follow_up(text=routing_text, language=lang)
+            return PendingFlowDecision(
+                handled=True,
+                response=result,
+                consumed_by="follow_up:memory_person_name",
             )
 
         if follow_type == "capture_name":
@@ -769,6 +780,196 @@ class PendingFlowFollowUpMixin:
                 "stored_text": prepared_memory_text,
             },
         )
+
+    def _handle_memory_person_name_follow_up(self, *, text: str, language: str) -> bool:
+        display_name = self._clean_person_memory_display_name(text)
+
+        if not display_name:
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Nie usłyszałam wyraźnie imienia. Powiedz proszę, jak mam Cię nazywać.",
+                    "I did not catch the name clearly. Please tell me what I should call you.",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_memory_person_name_retry",
+                metadata={"follow_up_type": "memory_person_name"},
+            )
+
+        memory = getattr(self.assistant, "memory", None)
+        remember_person_method = getattr(memory, "remember_person", None)
+        prepare_face_slot_method = getattr(memory, "prepare_person_face_capture_slot", None)
+        capture_face_method = getattr(memory, "capture_person_face_reference", None)
+        if not callable(remember_person_method):
+            self.assistant.pending_follow_up = None
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Moduł pamięci osób nie jest jeszcze gotowy.",
+                    "The people memory module is not ready yet.",
+                ),
+                language=language,
+                route_kind=RouteKind.UNCLEAR,
+                source="pending_memory_person_name_unavailable",
+                metadata={"follow_up_type": "memory_person_name"},
+            )
+
+        aliases = ["user", "me", "myself"] if str(language).lower().startswith("en") else ["user", "ja", "mnie", "sobie"]
+        face_slot: dict[str, Any] = {}
+        self.assistant.pending_follow_up = None
+        try:
+            if callable(prepare_face_slot_method):
+                prepared_slot = prepare_face_slot_method(
+                    display_name,
+                    aliases=aliases,
+                    language=language,
+                    source="guided_person_enrollment",
+                    metadata={"person_scope": "user", "enrollment_flow": "voice_guided"},
+                )
+                face_slot = dict(prepared_slot or {})
+                person_id = str(
+                    face_slot.get("person_entity_id")
+                    or face_slot.get("person_id")
+                    or ""
+                ).strip()
+            else:
+                person_id = remember_person_method(
+                    display_name,
+                    aliases=aliases,
+                    language=language,
+                    source="guided_person_enrollment",
+                    metadata={"person_scope": "user", "enrollment_flow": "voice_guided"},
+                )
+        except TypeError:
+            person_id = remember_person_method(display_name, aliases=aliases, language=language)
+        except Exception as error:
+            LOGGER.warning("Guided person memory save failed: %s", error)
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Nie udało mi się zapisać tej osoby w pamięci.",
+                    "I could not save that person to memory.",
+                ),
+                language=language,
+                route_kind=RouteKind.UNCLEAR,
+                source="pending_memory_person_name_failed",
+                metadata={"follow_up_type": "memory_person_name"},
+            )
+
+        face_capture_ready = bool(face_slot.get("face_capture_ready", False))
+        face_capture_result: dict[str, Any] = {}
+        if face_capture_ready and callable(capture_face_method):
+            try:
+                face_capture_result = dict(
+                    capture_face_method(
+                        display_name=display_name,
+                        aliases=aliases,
+                        language=language,
+                        source="guided_person_face_capture",
+                        slot=face_slot,
+                        vision_backend=getattr(self.assistant, "vision", None),
+                    )
+                    or {}
+                )
+            except Exception as error:  # pragma: no cover - defensive runtime fallback
+                LOGGER.warning("Guided person face capture failed: %s", error)
+                face_capture_result = {"ok": False, "reason": error.__class__.__name__}
+
+        face_capture_saved = bool(face_capture_result.get("ok", False))
+        if face_capture_saved:
+            response_text = self.assistant._localized(
+                language,
+                f"Dobrze, {display_name}. Zapamiętałam Cię jako {display_name} i zapisałam zdjęcie twarzy.",
+                f"Okay, {display_name}. I remembered you as {display_name} and saved a face photo.",
+            )
+        elif face_capture_ready:
+            response_text = self.assistant._localized(
+                language,
+                f"Dobrze, {display_name}. Zapamiętałam Cię jako {display_name}. Przygotowałam miejsce na zdjęcia twarzy.",
+                f"Okay, {display_name}. I remembered you as {display_name}. I prepared a place for face photos.",
+            )
+        else:
+            response_text = self.assistant._localized(
+                language,
+                f"Dobrze, {display_name}. Zapamiętałam Cię jako {display_name}.",
+                f"Okay, {display_name}. I remembered you as {display_name}.",
+            )
+
+        metadata = {
+            "follow_up_type": "memory_person_name",
+            "person_id": str(person_id or "").strip(),
+            "display_name": display_name,
+            "language": language,
+            "face_capture_ready": face_capture_ready,
+            "face_capture_saved": face_capture_saved,
+        }
+        if face_slot:
+            metadata.update(
+                {
+                    key: value
+                    for key, value in face_slot.items()
+                    if key in {
+                        "person_entity_id",
+                        "person_faces_dir",
+                        "next_face_asset_path",
+                        "existing_face_asset_count",
+                    }
+                }
+            )
+        if face_capture_result:
+            metadata.update(
+                {
+                    "face_capture_reason": str(face_capture_result.get("reason", "") or ""),
+                    "face_asset_id": str(face_capture_result.get("asset_id", "") or ""),
+                    "face_asset_path": str(face_capture_result.get("path", "") or ""),
+                    "face_capture_backend": str(face_capture_result.get("backend", "") or ""),
+                    "face_capture_width": int(face_capture_result.get("width", 0) or 0),
+                    "face_capture_height": int(face_capture_result.get("height", 0) or 0),
+                    "face_detected": bool(face_capture_result.get("face_detected", False)),
+                    "face_count": int(face_capture_result.get("face_count", 0) or 0),
+                    "face_confidence": float(face_capture_result.get("face_confidence", 0.0) or 0.0),
+                }
+            )
+
+        return self.assistant.deliver_text_response(
+            response_text,
+            language=language,
+            route_kind=RouteKind.ACTION,
+            source="pending_memory_person_name_saved",
+            metadata=metadata,
+        )
+
+    @staticmethod
+    def _clean_person_memory_display_name(text: str) -> str:
+        raw = " ".join(str(text or "").strip().split()).strip(" .")
+        if not raw:
+            return ""
+
+        raw = re.sub(
+            r"^(?:mam na imie|mam na imię|nazywam sie|nazywam się|jestem|my name is|i am|i'm|call me)\s+",
+            "",
+            raw,
+            flags=re.IGNORECASE,
+        ).strip(" .")
+        if not raw:
+            return ""
+
+        blocked = {"tak", "nie", "yes", "no", "cancel", "anuluj", "stop"}
+        if raw.lower() in blocked:
+            return ""
+
+        tokens = re.findall(r"[A-Za-zÀ-ÿ'’-]{2,32}", raw)
+        if not tokens or len(tokens) > 4:
+            return ""
+
+        normalized_tokens = []
+        for token in tokens:
+            cleaned = token.strip(" '-’")
+            if not cleaned:
+                continue
+            normalized_tokens.append(cleaned[:1].upper() + cleaned[1:].lower())
+        return " ".join(normalized_tokens).strip()
 
     def _handle_capture_name(self, *, text: str, language: str) -> bool:
         name = self._extract_name(text)

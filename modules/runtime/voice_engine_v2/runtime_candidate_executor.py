@@ -260,11 +260,16 @@ class RuntimeCandidateExecutionPlanBuilder:
         safe_language = language if language in {"pl", "en"} else "unknown"
         safe_confidence = max(float(confidence or 0.0), 0.90)
 
+        # For guided memory, selected phrases carry a sub-flow, for example
+        # "zapamiętaj mnie" starts person enrollment instead of generic text capture.
+        action_payload: dict[str, Any] = {}
+        if intent_key == "memory.guided_start":
+            action_payload = self._memory_guided_action_payload(transcript)
+
         # For memory.recall the spoken transcript carries the subject
         # ("gdzie jest mój telefon" → "telefon"). Extract it now so that the
         # downstream ActionFlow / MemorySkillExecutor receives the key
         # without having to re-run the parser.
-        action_payload: dict[str, Any] = {}
         if intent_key == "memory.recall":
             recall_key = self._extract_recall_key(transcript)
             recall_query = recall_key or str(transcript or "").strip()
@@ -455,6 +460,8 @@ class RuntimeCandidateExecutionPlanBuilder:
           "remember this": "memory.guided_start",
           "remember that": "memory.guided_start",
           "remember it": "memory.guided_start",
+          "remember me": "memory.guided_start",
+          "save me to memory": "memory.guided_start",
           "save this": "memory.guided_start",
           "save that": "memory.guided_start",
           "save to memory": "memory.guided_start",
@@ -462,7 +469,9 @@ class RuntimeCandidateExecutionPlanBuilder:
           "zapamiętaj coś": "memory.guided_start",
           "zapamietaj cos": "memory.guided_start",
           "zapamiętaj to": "memory.guided_start",
+          "zapamiętaj mnie": "memory.guided_start",
           "zapamietaj to": "memory.guided_start",
+          "zapamietaj mnie": "memory.guided_start",
           "zapisz to": "memory.guided_start",
           "zapisz w pamięci": "memory.guided_start",
           "zapisz w pamieci": "memory.guided_start",
@@ -578,15 +587,22 @@ class RuntimeCandidateExecutionPlanBuilder:
     )
 
     @classmethod
-    def _resolve_runtime_intent_key(
-        cls,
-        *,
-        intent_key: str,
-        transcript: str,
-    ) -> str:
-        """Resolve short runtime candidate phrases that can collide in grammar."""
+    def _memory_guided_action_payload(cls, transcript: str) -> dict[str, Any]:
+        normalized = cls._normalize_runtime_text(transcript)
+        if normalized in {
+            "remember me",
+            "save me to memory",
+            "zapamiętaj mnie",
+            "zapamietaj mnie",
+            "pamiętaj mnie",
+            "pamietaj mnie",
+        }:
+            return {"guided": True, "person_enrollment": True}
+        return {"guided": True}
 
-        normalized = " ".join(
+    @staticmethod
+    def _normalize_runtime_text(transcript: str) -> str:
+        return " ".join(
             str(transcript or "")
             .strip()
             .lower()
@@ -596,6 +612,17 @@ class RuntimeCandidateExecutionPlanBuilder:
             .replace("!", " ")
             .split()
         )
+
+    @classmethod
+    def _resolve_runtime_intent_key(
+        cls,
+        *,
+        intent_key: str,
+        transcript: str,
+    ) -> str:
+        """Resolve short runtime candidate phrases that can collide in grammar."""
+
+        normalized = cls._normalize_runtime_text(transcript)
         override = cls._TRANSCRIPT_INTENT_OVERRIDES.get(normalized)
         if override:
             return str(override)
@@ -615,16 +642,7 @@ class RuntimeCandidateExecutionPlanBuilder:
     @classmethod
     def _extract_recall_key(cls, transcript: str) -> str:
         """Return the subject portion of a recall transcript, or empty."""
-        normalized = " ".join(
-            str(transcript or "")
-            .strip()
-            .lower()
-            .replace(".", " ")
-            .replace(",", " ")
-            .replace("?", " ")
-            .replace("!", " ")
-            .split()
-        )
+        normalized = cls._normalize_runtime_text(transcript)
         normalized_with_space = normalized + " "
         for prefix in cls._RECALL_PREFIXES:
             if normalized_with_space.startswith(prefix):
@@ -693,8 +711,11 @@ class RuntimeCandidateExecutionPlanBuilder:
         normalized_text = str(transcript or "").strip()
         voice_engine_action = str(getattr(raw_intent, "action", "") or "").strip()
 
-        # For memory.recall the spoken transcript carries the subject.
         action_payload: dict[str, Any] = {}
+        if resolved_intent_key == "memory.guided_start":
+            action_payload = self._memory_guided_action_payload(transcript)
+
+        # For memory.recall the spoken transcript carries the subject.
         if resolved_intent_key == "memory.recall":
             recall_key = self._extract_recall_key(transcript)
             recall_query = recall_key or str(transcript or "").strip()

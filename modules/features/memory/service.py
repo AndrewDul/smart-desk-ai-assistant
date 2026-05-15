@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from modules.shared.logging.logger import append_log
+from modules.features.memory_v2.face_capture import capture_face_reference_from_vision
 from modules.features.memory_v2.store import SQLiteMemoryStore
 from modules.shared.persistence.json_store import JsonStore
 from modules.shared.persistence.paths import MEMORY_PATH
@@ -448,6 +449,270 @@ class MemoryService:
             },
         )
 
+    def prepare_person_face_capture_slot(
+        self,
+        display_name: str,
+        *,
+        aliases: list[str] | tuple[str, ...] | None = None,
+        language: str = "unknown",
+        source: str = "guided_person_enrollment",
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        clean_display_name = self._compact_original_text(display_name)
+        if not clean_display_name:
+            append_log("Person face capture slot skipped: empty display name.")
+            return None
+
+        normalized_language = self._normalize_language(language) or "unknown"
+        person_record_id = self.remember_person(
+            clean_display_name,
+            aliases=aliases,
+            language=normalized_language,
+            source=source,
+            metadata={
+                "person_scope": "user",
+                "enrollment_flow": "voice_guided",
+                "face_capture_slot_requested": True,
+                **dict(metadata or {}),
+            },
+        )
+
+        slot: dict[str, Any] = {
+            "person_id": str(person_record_id or "").strip(),
+            "display_name": clean_display_name,
+            "face_capture_ready": False,
+        }
+
+        if self.index_store is None:
+            append_log("Person face capture slot prepared without SQLite asset index.")
+            return slot
+
+        person = self._find_person_entity_by_display_name(
+            clean_display_name,
+            language=normalized_language,
+        )
+        if person is None:
+            append_log(f"Person face capture slot skipped: person entity not found for {clean_display_name}.")
+            return slot
+
+        entity_id = str(person.get("id", "") or "").strip()
+        if not entity_id:
+            append_log(f"Person face capture slot skipped: empty person entity id for {clean_display_name}.")
+            return slot
+
+        face_dir = self.index_store.person_faces_dir(entity_id)
+        existing_assets = self.list_person_face_assets(person_entity_id=entity_id)
+        next_index = len(existing_assets) + 1
+        next_face_path = face_dir / f"face_{next_index:03d}.jpg"
+
+        slot.update(
+            {
+                "person_entity_id": entity_id,
+                "person_faces_dir": str(face_dir),
+                "next_face_asset_path": str(next_face_path),
+                "existing_face_asset_count": len(existing_assets),
+                "face_capture_ready": True,
+            }
+        )
+        append_log(
+            "Person face capture slot prepared: "
+            f"entity_id={entity_id} dir={face_dir} next_path={next_face_path}"
+        )
+        return slot
+
+    def remember_person_face_asset(
+        self,
+        display_name: str,
+        asset_path: str | Path,
+        *,
+        aliases: list[str] | tuple[str, ...] | None = None,
+        language: str = "unknown",
+        caption: str | None = None,
+        source: str = "person_face_asset",
+        metadata: dict[str, Any] | None = None,
+    ) -> str | None:
+        if self.index_store is None:
+            append_log("Person face asset save skipped: SQLite memory index is disabled.")
+            return None
+
+        clean_display_name = self._compact_original_text(display_name)
+        clean_asset_path = self._compact_original_text(str(asset_path))
+        if not clean_display_name or not clean_asset_path:
+            append_log("Person face asset save skipped: missing display name or asset path.")
+            return None
+
+        normalized_language = self._normalize_language(language) or "unknown"
+        self.remember_person(
+            clean_display_name,
+            aliases=aliases,
+            language=normalized_language,
+            source=source,
+            metadata={"has_face_asset": True, **dict(metadata or {})},
+        )
+        person = self._find_person_entity_by_display_name(
+            clean_display_name,
+            language=normalized_language,
+        )
+        if person is None:
+            append_log(f"Person face asset save skipped: person entity not found for {clean_display_name}.")
+            return None
+
+        entity_id = str(person.get("id", "") or "").strip()
+        if not entity_id:
+            append_log(f"Person face asset save skipped: empty person entity id for {clean_display_name}.")
+            return None
+
+        face_dir = self.index_store.person_faces_dir(entity_id)
+        asset = {
+            "id": self._build_asset_id(
+                entity_id=entity_id,
+                asset_type="face_photo",
+                path=clean_asset_path,
+            ),
+            "entity_id": entity_id,
+            "asset_type": "face_photo",
+            "path": clean_asset_path,
+            "caption": self._compact_original_text(caption or clean_display_name),
+            "created_at_iso": self._now_iso(),
+            "metadata": {
+                "source": source,
+                "asset_role": "person_face_reference",
+                "person_display_name": clean_display_name,
+                "person_faces_dir": str(face_dir),
+                **dict(metadata or {}),
+            },
+        }
+        try:
+            self.index_store.upsert_asset(asset)
+        except Exception as exc:  # pragma: no cover - defensive runtime fallback
+            append_log(f"Person face asset save failed: {exc}")
+            return None
+
+        append_log(
+            "Person face asset saved: "
+            f"entity_id={entity_id} path={clean_asset_path}"
+        )
+        return str(asset["id"])
+
+    def list_person_face_assets(
+        self,
+        *,
+        display_name: str | None = None,
+        person_entity_id: str | None = None,
+        language: str | None = None,
+    ) -> list[dict[str, Any]]:
+        if self.index_store is None:
+            return []
+
+        entity_id = str(person_entity_id or "").strip()
+        if not entity_id and display_name:
+            person = self._find_person_entity_by_display_name(display_name, language=language)
+            if person is not None:
+                entity_id = str(person.get("id", "") or "").strip()
+
+        if not entity_id:
+            return []
+
+        try:
+            return self.index_store.list_assets(
+                entity_id=entity_id,
+                asset_type="face_photo",
+            )
+        except Exception as exc:  # pragma: no cover - defensive runtime fallback
+            append_log(f"Person face asset lookup failed: {exc}")
+            return []
+
+    def capture_person_face_reference(
+        self,
+        *,
+        display_name: str,
+        vision_backend: Any,
+        aliases: list[str] | tuple[str, ...] | None = None,
+        language: str = "unknown",
+        source: str = "guided_person_face_capture",
+        slot: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        clean_display_name = self._compact_original_text(display_name)
+        if not clean_display_name:
+            return {"ok": False, "reason": "display_name_missing"}
+
+        face_slot = dict(slot or {})
+        if not face_slot.get("face_capture_ready"):
+            prepared_slot = self.prepare_person_face_capture_slot(
+                clean_display_name,
+                aliases=aliases,
+                language=language,
+                source=source,
+            )
+            face_slot = dict(prepared_slot or {})
+
+        target_path = str(face_slot.get("next_face_asset_path", "") or "").strip()
+        if not target_path:
+            return {
+                "ok": False,
+                "reason": "face_slot_unavailable",
+                "slot": face_slot,
+            }
+
+        result = capture_face_reference_from_vision(
+            vision_backend=vision_backend,
+            target_path=target_path,
+        )
+        if not result.ok:
+            append_log(f"Person face capture skipped: {result.reason}")
+            return {
+                "ok": False,
+                "reason": result.reason,
+                "face_detected": result.face_detected,
+                "face_count": result.face_count,
+                "face_confidence": result.face_confidence,
+                "slot": face_slot,
+                "target_path": target_path,
+            }
+
+        asset_id = self.remember_person_face_asset(
+            clean_display_name,
+            result.path,
+            aliases=aliases,
+            language=language,
+            caption=f"{clean_display_name} face reference",
+            source=source,
+            metadata={
+                "capture_backend": result.backend,
+                "capture_width": result.width,
+                "capture_height": result.height,
+                "capture_source": "runtime_vision_backend_latest_frame",
+                "face_detected": result.face_detected,
+                "face_count": result.face_count,
+                "face_confidence": result.face_confidence,
+                "face_quality_gate": "runtime_tracking_observation",
+            },
+        )
+        if not asset_id:
+            return {
+                "ok": False,
+                "reason": "asset_record_failed",
+                "slot": face_slot,
+                "target_path": result.path,
+            }
+
+        append_log(
+            "Person face reference captured: "
+            f"display_name={clean_display_name} path={result.path} asset_id={asset_id}"
+        )
+        return {
+            "ok": True,
+            "asset_id": asset_id,
+            "path": result.path,
+            "width": result.width,
+            "height": result.height,
+            "backend": result.backend,
+            "face_detected": result.face_detected,
+            "face_count": result.face_count,
+            "face_confidence": result.face_confidence,
+            "slot": face_slot,
+        }
+
     def export(self) -> list[dict[str, Any]]:
         return self.list_records()
 
@@ -604,7 +869,7 @@ class MemoryService:
             return None
 
         normalized_language = self._normalize_language(language) or "unknown"
-        people = self.list_people(language=normalized_language if normalized_language != "unknown" else None)
+        people = self.list_people(language=None)
         answer = self._format_known_people_answer(people, language=normalized_language)
         return MemoryMatch(
             id="memory_people_list",
@@ -851,6 +1116,48 @@ class MemoryService:
         if not clean:
             return ""
         return " ".join(part[:1].upper() + part[1:] for part in clean.split())
+
+    def _find_person_entity_by_display_name(
+        self,
+        display_name: str,
+        *,
+        language: str | None = None,
+    ) -> dict[str, Any] | None:
+        normalized_name = self._normalize_fact_subject(display_name)
+        if not normalized_name:
+            return None
+
+        normalized_language = self._normalize_language(language)
+        candidate_groups = [self.list_people(language=normalized_language)]
+        if normalized_language is not None:
+            candidate_groups.append(self.list_people(language=None))
+
+        for people in candidate_groups:
+            for person in people:
+                names = [
+                    str(person.get("display_name", "") or ""),
+                    *[str(alias) for alias in list(person.get("aliases", []) or [])],
+                ]
+                normalized_names = {
+                    value
+                    for value in (self._normalize_fact_subject(name) for name in names)
+                    if value
+                }
+                if normalized_name in normalized_names:
+                    return dict(person)
+        return None
+
+    @staticmethod
+    def _build_asset_id(
+        *,
+        entity_id: str,
+        asset_type: str,
+        path: str,
+    ) -> str:
+        digest = hashlib.sha1(
+            f"{entity_id}|{asset_type}|{path}".encode("utf-8")
+        ).hexdigest()[:16]
+        return f"asset_{digest}"
 
     @staticmethod
     def _build_entity_id(

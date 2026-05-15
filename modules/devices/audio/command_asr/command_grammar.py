@@ -2485,6 +2485,18 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             'memory.guided_start',
+            'remember me',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'guided_start', 'person'),
+        ),
+        CommandPhrase(
+            'memory.guided_start',
+            'save me to memory',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'guided_start', 'person'),
+        ),
+        CommandPhrase(
+            'memory.guided_start',
             'save this',
             language=CommandLanguage.ENGLISH,
             tags=('memory', 'guided_start'),
@@ -2521,9 +2533,21 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             'memory.guided_start',
+            'zapamiętaj mnie',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'guided_start', 'person'),
+        ),
+        CommandPhrase(
+            'memory.guided_start',
             'zapamietaj to',
             language=CommandLanguage.POLISH,
             tags=('memory', 'guided_start'),
+        ),
+        CommandPhrase(
+            'memory.guided_start',
+            'zapamietaj mnie',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'guided_start', 'person'),
         ),
         CommandPhrase(
             'memory.guided_start',
