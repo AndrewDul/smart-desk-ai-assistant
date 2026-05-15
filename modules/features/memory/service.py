@@ -7,10 +7,13 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
+from pathlib import Path
 from typing import Any
 
 from modules.shared.logging.logger import append_log
+from modules.features.memory_v2.store import SQLiteMemoryStore
 from modules.shared.persistence.json_store import JsonStore
+from modules.shared.persistence.paths import MEMORY_PATH
 from modules.shared.persistence.repositories import MemoryRepository
 
 
@@ -132,11 +135,19 @@ class MemoryService:
     def __init__(
         self,
         store: JsonStore[Any] | MemoryRepository | None = None,
+        *,
+        index_store: SQLiteMemoryStore | None = None,
+        enable_runtime_index: bool | None = None,
     ) -> None:
         self.store = store or MemoryRepository()
         self.store.ensure_valid()
         self._records_cache: list[dict[str, Any]] | None = None
         self._records_cache_signature: tuple[str, int | None] | None = None
+        self.index_store = self._resolve_index_store(
+            index_store=index_store,
+            enable_runtime_index=enable_runtime_index,
+        )
+        self._sync_index_from_json()
 
     # ------------------------------------------------------------------
     # Public API
@@ -318,6 +329,10 @@ class MemoryService:
         return match.original_text
 
     def match(self, key: str, *, language: str | None = None) -> MemoryMatch | None:
+        indexed_match = self._find_best_indexed_record(key, language=language)
+        if indexed_match is not None:
+            return indexed_match
+
         records = self._load_records()
         if not records:
             return None
@@ -415,6 +430,7 @@ class MemoryService:
         self.store.write(cleaned_records)
         self._records_cache = deepcopy(cleaned_records)
         self._records_cache_signature = self._store_signature()
+        self._replace_index_records(cleaned_records)
 
     def _store_signature(self) -> tuple[str, int | None]:
         path = getattr(self.store, "path", None)
@@ -451,6 +467,102 @@ class MemoryService:
             records.append(record)
 
         return records
+
+
+    # ------------------------------------------------------------------
+    # SQLite fast index
+    # ------------------------------------------------------------------
+
+    def _resolve_index_store(
+        self,
+        *,
+        index_store: SQLiteMemoryStore | None,
+        enable_runtime_index: bool | None,
+    ) -> SQLiteMemoryStore | None:
+        if index_store is not None:
+            try:
+                index_store.ensure_ready()
+                return index_store
+            except Exception as exc:  # pragma: no cover - defensive runtime fallback
+                append_log(f"Memory SQLite index disabled: {exc}")
+                return None
+
+        should_enable = self._uses_default_runtime_store() if enable_runtime_index is None else bool(enable_runtime_index)
+        if not should_enable:
+            return None
+
+        try:
+            runtime_index = SQLiteMemoryStore()
+            runtime_index.ensure_ready()
+            return runtime_index
+        except Exception as exc:  # pragma: no cover - defensive runtime fallback
+            append_log(f"Memory SQLite index disabled: {exc}")
+            return None
+
+    def _uses_default_runtime_store(self) -> bool:
+        path = getattr(self.store, "path", None)
+        if path is None:
+            return False
+
+        try:
+            return Path(path).resolve() == MEMORY_PATH.resolve()
+        except OSError:
+            return False
+
+    def _sync_index_from_json(self) -> None:
+        if self.index_store is None:
+            return
+
+        try:
+            self.index_store.replace_all_records(self._load_records())
+        except Exception as exc:  # pragma: no cover - defensive runtime fallback
+            append_log(f"Memory SQLite index sync failed: {exc}")
+            self.index_store = None
+
+    def _replace_index_records(self, records: list[dict[str, Any]]) -> None:
+        if self.index_store is None:
+            return
+
+        try:
+            self.index_store.replace_all_records(records)
+        except Exception as exc:  # pragma: no cover - defensive runtime fallback
+            append_log(f"Memory SQLite index update failed: {exc}")
+            self.index_store = None
+
+    def _find_best_indexed_record(
+        self,
+        key: str,
+        *,
+        language: str | None = None,
+    ) -> MemoryMatch | None:
+        if self.index_store is None:
+            return None
+
+        normalized_query = self._clean_text(key)
+        if not normalized_query:
+            return None
+
+        query_tokens = self._tokenize(normalized_query)
+        if not query_tokens:
+            return None
+
+        expanded_tokens = self._expand_token_variants(query_tokens)
+        normalized_language = self._normalize_language(language)
+        try:
+            candidates = self.index_store.find_candidate_records(
+                tokens=expanded_tokens,
+                language=normalized_language or None,
+                limit=64,
+            )
+        except Exception as exc:  # pragma: no cover - defensive runtime fallback
+            append_log(f"Memory SQLite index lookup failed: {exc}")
+            self.index_store = None
+            return None
+
+        if not candidates:
+            return None
+
+        return self._find_best_record(candidates, key, language=language)
 
     # ------------------------------------------------------------------
     # Matching
