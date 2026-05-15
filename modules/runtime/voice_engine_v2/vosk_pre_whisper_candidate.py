@@ -76,6 +76,9 @@ class VoiceEngineV2VoskPreWhisperCandidateAdapter:
         self._settings = settings
         self._runtime_candidate_adapter = runtime_candidate_adapter
         self._command_asr_adapter = command_asr_adapter
+        self._cached_command_asr_adapter: VoskCommandAsrAdapter | None = None
+        self._cached_command_asr_config_key: tuple[str, str, int] | None = None
+        self._current_pcm: bytes | None = None
 
     def try_process_capture_window(
         self,
@@ -149,19 +152,21 @@ class VoiceEngineV2VoskPreWhisperCandidateAdapter:
             runtime_takeover=False,
         )
 
-        command_asr = self._command_asr_adapter_for_pcm(
-            pcm=pcm,
-            sample_rate=sample_rate,
-            voice_engine=voice_engine,
-        )
-
         try:
+            command_asr = self._command_asr_adapter_for_pcm(
+                pcm=pcm,
+                sample_rate=sample_rate,
+                voice_engine=voice_engine,
+            )
             asr_result = command_asr.recognize(segment=segment)
         except Exception as error:
             return self._not_attempted(
                 f"vosk_command_asr_failed:{type(error).__name__}",
                 metadata={"error": str(error)},
             )
+        finally:
+            if self._command_asr_adapter is None:
+                self._current_pcm = None
 
         result_metadata = self._asr_result_to_metadata(
             asr_result,
@@ -248,6 +253,14 @@ class VoiceEngineV2VoskPreWhisperCandidateAdapter:
             voice_engine.get("vosk_command_sample_rate"),
             fallback=sample_rate,
         )
+        config_key = (english_model_path, polish_model_path, configured_sample_rate)
+        self._current_pcm = pcm
+
+        if (
+            self._cached_command_asr_adapter is not None
+            and self._cached_command_asr_config_key == config_key
+        ):
+            return self._cached_command_asr_adapter
 
         try:
             from modules.devices.audio.command_asr import BilingualVoskCommandRecognizer
@@ -262,11 +275,20 @@ class VoiceEngineV2VoskPreWhisperCandidateAdapter:
             sample_rate=configured_sample_rate,
         )
 
-        return VoskCommandAsrAdapter(
+        adapter = VoskCommandAsrAdapter(
             settings=VoskCommandAsrAdapterSettings(enabled=True),
             recognizer=recognizer,
-            segment_pcm_provider=lambda segment: pcm,
+            segment_pcm_provider=self._current_pcm_for_segment,
         )
+        self._cached_command_asr_adapter = adapter
+        self._cached_command_asr_config_key = config_key
+        return adapter
+
+    def _current_pcm_for_segment(
+        self,
+        segment: VoiceEngineV2CommandAudioSegment,
+    ) -> bytes | None:
+        return self._current_pcm
 
     @staticmethod
     def _audio_to_pcm_s16le(

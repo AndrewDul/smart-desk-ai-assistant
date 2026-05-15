@@ -16753,3 +16753,21 @@ what objects do you know -> MEMORY -> I know objects: Vape.
 who you know -> MEMORY -> I know: Tomek, Dominika, Andrzej.
 list items -> MEMORY -> I know objects: Vape.
 ```
+
+## 2026-05-16 - Vosk pre-whisper command ASR cache
+
+### Summary
+
+I cached the default Vosk pre-whisper command ASR stack.
+
+I stopped rebuilding the bilingual Vosk command recognizer stack on every capture window.
+
+I kept `KaldiRecognizer` per utterance because it holds state for one recognition.
+
+I kept injected `command_asr_adapter` behavior unchanged.
+
+I fixed the stale PCM risk by setting current PCM before `recognize()` and clearing it in `finally`.
+
+I kept fallback safe if Vosk command ASR setup or recognition fails.
+
+I tested the runtime manually and fast-line commands felt instant after the cache patch.

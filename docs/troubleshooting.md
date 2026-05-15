@@ -5717,3 +5717,25 @@ I kept those aliases available as fallback/recovery, but excluded them from limi
 ### Note
 
 FasterWhisper input overflow appeared once during manual testing. I did not fix that in this sprint. It should be handled in the next audio/latency sprint.
+
+## 2026-05-16 - Vosk pre-whisper command ASR cache
+
+### Problem
+
+Fast-line commands could feel slow because the Vosk pre-whisper path could rebuild the command ASR stack per capture window.
+
+### Cause
+
+When no `command_asr_adapter` was injected, the default Vosk command ASR stack was built inside capture-window handling.
+
+### Fix
+
+I cached the default `VoskCommandAsrAdapter` / bilingual recognizer stack inside the pre-whisper adapter.
+
+### Note
+
+`KaldiRecognizer` is still rebuilt per utterance on purpose.
+
+### Note
+
+FasterWhisper input overflow is still a separate audio smoothness topic if it appears again.
