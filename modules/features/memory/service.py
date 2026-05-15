@@ -329,6 +329,10 @@ class MemoryService:
         return match.original_text
 
     def match(self, key: str, *, language: str | None = None) -> MemoryMatch | None:
+        fact_match = self._find_best_indexed_structured_fact(key, language=language)
+        if fact_match is not None:
+            return fact_match
+
         indexed_match = self._find_best_indexed_record(key, language=language)
         if indexed_match is not None:
             return indexed_match
@@ -514,7 +518,7 @@ class MemoryService:
             return
 
         try:
-            self.index_store.replace_all_records(self._load_records())
+            self._replace_index_records(self._load_records())
         except Exception as exc:  # pragma: no cover - defensive runtime fallback
             append_log(f"Memory SQLite index sync failed: {exc}")
             self.index_store = None
@@ -525,9 +529,73 @@ class MemoryService:
 
         try:
             self.index_store.replace_all_records(records)
+            self.index_store.replace_all_facts(self._build_facts_from_records(records))
         except Exception as exc:  # pragma: no cover - defensive runtime fallback
             append_log(f"Memory SQLite index update failed: {exc}")
             self.index_store = None
+
+    def _find_best_indexed_structured_fact(
+        self,
+        key: str,
+        *,
+        language: str | None = None,
+    ) -> MemoryMatch | None:
+        if self.index_store is None:
+            return None
+
+        normalized_query = self._clean_text(key)
+        if not normalized_query:
+            return None
+
+        query_tokens = self._tokenize(normalized_query)
+        if not query_tokens:
+            return None
+
+        query_plan = self._detect_fact_query(normalized_query, query_tokens)
+        if query_plan is None:
+            return None
+
+        relation = str(query_plan.get("relation", "") or "").strip()
+        subject_tokens = list(query_plan.get("subject_tokens", []) or [])
+        value_tokens = list(query_plan.get("value_tokens", []) or [])
+        normalized_language = self._normalize_language(language)
+
+        try:
+            facts = self.index_store.find_facts(
+                relation=relation,
+                subject_tokens=self._expand_token_variants(subject_tokens),
+                value_tokens=self._expand_token_variants(value_tokens),
+                language=normalized_language or None,
+                limit=16,
+            )
+        except Exception as exc:  # pragma: no cover - defensive runtime fallback
+            append_log(f"Memory SQLite fact lookup failed: {exc}")
+            self.index_store = None
+            return None
+
+        if not facts:
+            return None
+
+        fact = facts[0]
+        source_text = str(fact.get("source_original_text", "") or "").strip()
+        if not source_text:
+            source_text = self._compose_fact_answer(fact)
+        if not source_text:
+            return None
+
+        normalized_text = self._clean_text(source_text)
+        return MemoryMatch(
+            id=str(fact.get("source_record_id") or fact.get("id") or ""),
+            key=source_text,
+            value=source_text,
+            original_text=source_text,
+            score=0.98,
+            exact=False,
+            language=str(fact.get("language", "unknown") or "unknown"),
+            normalized_query=normalized_query,
+            normalized_text=normalized_text,
+            record={"fact": dict(fact)},
+        )
 
     def _find_best_indexed_record(
         self,
@@ -563,6 +631,375 @@ class MemoryService:
             return None
 
         return self._find_best_record(candidates, key, language=language)
+
+    # ------------------------------------------------------------------
+    # Structured fact extraction
+    # ------------------------------------------------------------------
+
+    def _build_facts_from_records(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        facts: list[dict[str, Any]] = []
+        for record in records:
+            facts.extend(self._extract_structured_facts(record))
+        return facts
+
+    def _extract_structured_facts(self, record: dict[str, Any]) -> list[dict[str, Any]]:
+        extractors = (
+            self._extract_location_fact,
+            self._extract_preference_fact,
+            self._extract_name_fact,
+            self._extract_ownership_fact,
+        )
+        facts: list[dict[str, Any]] = []
+        for extractor in extractors:
+            fact = extractor(record)
+            if fact is not None:
+                facts.append(fact)
+        return facts
+
+    def _extract_location_fact(self, record: dict[str, Any]) -> dict[str, Any] | None:
+        normalized_text = str(record.get("normalized_text", "") or "").strip()
+        if not normalized_text:
+            normalized_text = self._clean_text(record.get("original_text", ""))
+        if not normalized_text:
+            return None
+
+        language = self._normalize_language(str(record.get("language", "") or "")) or "unknown"
+        match: re.Match[str] | None = None
+        if language == "pl":
+            patterns = (
+                r"^(?P<subject>.+?) (?:jest|sa) (?P<prep>w|we|na|pod|przy|obok|nad|za) (?P<place>.+)$",
+                r"^mam (?P<subject>.+?) (?P<prep>w|we|na|pod|przy|obok|nad|za) (?P<place>.+)$",
+            )
+        elif language == "en":
+            patterns = (
+                r"^(?:my |the |a |an )?(?P<subject>.+?) (?:is|are) (?P<prep>in|on|under|inside|near|beside|at) (?:the |a |an |my )?(?P<place>.+)$",
+                r"^i have (?:my |the |a |an )?(?P<subject>.+?) (?P<prep>in|on|under|inside|near|beside|at) (?:the |a |an |my )?(?P<place>.+)$",
+            )
+        else:
+            patterns = (
+                r"^(?P<subject>.+?) (?:is|are|jest|sa) (?P<prep>in|on|under|inside|near|beside|at|w|we|na|pod|przy|obok|nad|za) (?P<place>.+)$",
+            )
+
+        for pattern in patterns:
+            match = re.match(pattern, normalized_text)
+            if match is not None:
+                break
+
+        if match is None:
+            return None
+
+        subject = self._normalize_fact_subject(match.group("subject"))
+        place = self._normalize_fact_value(match.group("place"))
+        prep = self._normalize_fact_value(match.group("prep"))
+        if not subject or not place or not prep:
+            return None
+
+        value_text = f"{prep} {place}".strip()
+        return self._build_structured_fact(
+            record=record,
+            subject_text=subject,
+            relation="location",
+            value_text=value_text,
+            source="memory_text_location_extractor",
+        )
+
+    def _extract_preference_fact(self, record: dict[str, Any]) -> dict[str, Any] | None:
+        normalized_text = self._record_normalized_text(record)
+        if not normalized_text:
+            return None
+
+        language = self._normalize_language(str(record.get("language", "") or "")) or "unknown"
+        if language == "pl":
+            patterns = (
+                r"^(?:ja )?lubie (?P<value>.+)$",
+                r"^interesuje sie (?P<value>.+)$",
+                r"^moje hobby to (?P<value>.+)$",
+            )
+        elif language == "en":
+            patterns = (
+                r"^i like (?P<value>.+)$",
+                r"^my hobby is (?P<value>.+)$",
+                r"^i am interested in (?P<value>.+)$",
+            )
+        else:
+            patterns = (
+                r"^(?:i like|lubie) (?P<value>.+)$",
+            )
+
+        match = self._match_first(patterns, normalized_text)
+        if match is None:
+            return None
+
+        value = self._normalize_fact_value(match.group("value"))
+        if not value:
+            return None
+
+        return self._build_structured_fact(
+            record=record,
+            subject_text="user",
+            relation="likes",
+            value_text=value,
+            source="memory_text_preference_extractor",
+        )
+
+    def _extract_name_fact(self, record: dict[str, Any]) -> dict[str, Any] | None:
+        normalized_text = self._record_normalized_text(record)
+        if not normalized_text:
+            return None
+
+        language = self._normalize_language(str(record.get("language", "") or "")) or "unknown"
+        if language == "pl":
+            patterns = (
+                r"^mam na imie (?P<value>.+)$",
+                r"^nazywam sie (?P<value>.+)$",
+            )
+        elif language == "en":
+            patterns = (
+                r"^my name is (?P<value>.+)$",
+                r"^call me (?P<value>.+)$",
+            )
+        else:
+            patterns = (
+                r"^(?:my name is|mam na imie|nazywam sie) (?P<value>.+)$",
+            )
+
+        match = self._match_first(patterns, normalized_text)
+        if match is None:
+            return None
+
+        value = self._normalize_fact_value(match.group("value"))
+        if not value:
+            return None
+
+        return self._build_structured_fact(
+            record=record,
+            subject_text="user",
+            relation="name",
+            value_text=value,
+            source="memory_text_name_extractor",
+        )
+
+    def _extract_ownership_fact(self, record: dict[str, Any]) -> dict[str, Any] | None:
+        normalized_text = self._record_normalized_text(record)
+        if not normalized_text:
+            return None
+
+        language = self._normalize_language(str(record.get("language", "") or "")) or "unknown"
+        if language == "pl":
+            patterns = (
+                r"^to jest (?:moj|moja|moje) (?P<subject>.+)$",
+                r"^(?P<subject>.+?) jest (?:moj|moja|moje)$",
+                r"^(?P<subject>.+?) nalezy do (?P<owner>.+)$",
+            )
+        elif language == "en":
+            patterns = (
+                r"^this is my (?P<subject>.+)$",
+                r"^(?P<subject>.+?) is mine$",
+                r"^(?P<subject>.+?) belongs to (?P<owner>.+)$",
+            )
+        else:
+            patterns = (
+                r"^(?:this is my|to jest moj|to jest moja|to jest moje) (?P<subject>.+)$",
+            )
+
+        match = self._match_first(patterns, normalized_text)
+        if match is None:
+            return None
+
+        subject = self._normalize_fact_subject(match.group("subject"))
+        owner = self._normalize_fact_value(match.groupdict().get("owner") or "user")
+        if not subject or not owner:
+            return None
+
+        return self._build_structured_fact(
+            record=record,
+            subject_text=subject,
+            relation="owned_by",
+            value_text=owner,
+            source="memory_text_ownership_extractor",
+        )
+
+    def _record_normalized_text(self, record: dict[str, Any]) -> str:
+        normalized_text = str(record.get("normalized_text", "") or "").strip()
+        if normalized_text:
+            return normalized_text
+        return self._clean_text(record.get("original_text", ""))
+
+    @staticmethod
+    def _match_first(patterns: tuple[str, ...], text: str) -> re.Match[str] | None:
+        for pattern in patterns:
+            match = re.match(pattern, text)
+            if match is not None:
+                return match
+        return None
+
+    def _build_structured_fact(
+        self,
+        *,
+        record: dict[str, Any],
+        subject_text: str,
+        relation: str,
+        value_text: str,
+        source: str,
+    ) -> dict[str, Any] | None:
+        subject = self._normalize_fact_subject(subject_text)
+        value = self._normalize_fact_value(value_text)
+        clean_relation = str(relation or "").strip()
+        language = self._normalize_language(str(record.get("language", "") or "")) or "unknown"
+        if not subject or not value or not clean_relation:
+            return None
+
+        fact_id = self._build_fact_id(
+            subject_text=subject,
+            relation=clean_relation,
+            value_text=value,
+            language=language,
+        )
+        return {
+            "id": fact_id,
+            "subject_entity_id": None,
+            "subject_text": subject,
+            "relation": clean_relation,
+            "value_text": value,
+            "language": language,
+            "source_record_id": str(record.get("id", "") or ""),
+            "confidence": max(0.0, min(1.0, float(record.get("confidence", 1.0) or 0.0))),
+            "created_at_iso": str(record.get("created_at_iso", "") or self._now_iso()),
+            "metadata": {
+                "source": source,
+                "source_text": str(record.get("original_text", "") or ""),
+            },
+        }
+
+    def _normalize_fact_subject(self, text: str) -> str:
+        tokens = self._tokenize(self._clean_text(text))
+        return " ".join(tokens).strip()
+
+    def _normalize_fact_value(self, text: str) -> str:
+        cleaned = self._clean_text(text)
+        tokens = [
+            token
+            for token in cleaned.split()
+            if token not in {"the", "a", "an", "my", "moj", "moja", "moje"}
+        ]
+        return " ".join(tokens).strip()
+
+    def _compose_fact_answer(self, fact: dict[str, Any]) -> str:
+        subject = str(fact.get("subject_text", "") or "").strip()
+        value = str(fact.get("value_text", "") or "").strip()
+        relation = str(fact.get("relation", "") or "").strip()
+        language = str(fact.get("language", "unknown") or "unknown")
+        if not subject or not value:
+            return ""
+        if relation == "likes":
+            return f"I like {value}" if language == "en" else f"lubię {value}"
+        if relation == "name":
+            return f"my name is {value}" if language == "en" else f"mam na imię {value}"
+        if relation == "owned_by":
+            owner = "me" if value == "user" and language == "en" else value
+            owner = "mnie" if value == "user" and language != "en" else owner
+            return f"{subject} belongs to {owner}" if language == "en" else f"{subject} należy do {owner}"
+        connector = "is" if language == "en" else "jest"
+        if language == "pl" and subject.endswith("e"):
+            connector = "są"
+        return f"{subject} {connector} {value}"
+
+    @staticmethod
+    def _build_fact_id(
+        *,
+        subject_text: str,
+        relation: str,
+        value_text: str,
+        language: str,
+    ) -> str:
+        digest = hashlib.sha1(
+            f"{language}|{subject_text}|{relation}|{value_text}".encode("utf-8")
+        ).hexdigest()[:16]
+        return f"fact_{digest}"
+
+    def _detect_fact_query(
+        self,
+        normalized_query: str,
+        query_tokens: list[str],
+    ) -> dict[str, Any] | None:
+        if self._looks_like_location_query(normalized_query):
+            return {"relation": "location", "subject_tokens": query_tokens, "value_tokens": []}
+
+        if self._looks_like_name_query(normalized_query):
+            return {"relation": "name", "subject_tokens": ["user"], "value_tokens": []}
+
+        if self._looks_like_preference_query(normalized_query):
+            return {"relation": "likes", "subject_tokens": ["user"], "value_tokens": []}
+
+        ownership_subject = self._extract_ownership_query_subject(normalized_query)
+        if ownership_subject:
+            return {
+                "relation": "owned_by",
+                "subject_tokens": self._tokenize(ownership_subject),
+                "value_tokens": [],
+            }
+
+        about_subject = self._extract_about_query_subject(normalized_query)
+        if about_subject:
+            return {
+                "relation": "",
+                "subject_tokens": self._tokenize(about_subject),
+                "value_tokens": [],
+            }
+
+        return None
+
+    @staticmethod
+    def _looks_like_location_query(normalized_query: str) -> bool:
+        return bool(
+            re.search(r"\bwhere\b", normalized_query)
+            or re.search(r"\bgdzie\b", normalized_query)
+            or re.search(r"\b(?:lezy|sa|jest)\b", normalized_query)
+        )
+
+    @staticmethod
+    def _looks_like_name_query(normalized_query: str) -> bool:
+        return normalized_query in {
+            "jak mam na imie",
+            "jak sie nazywam",
+            "what is my name",
+            "what do you call me",
+        }
+
+    @staticmethod
+    def _looks_like_preference_query(normalized_query: str) -> bool:
+        return normalized_query in {
+            "co lubie",
+            "co ja lubie",
+            "co lubie robic",
+            "what do i like",
+            "what do i like doing",
+        }
+
+    def _extract_ownership_query_subject(self, normalized_query: str) -> str:
+        patterns = (
+            r"^czyj to (?P<subject>.+)$",
+            r"^do kogo nalezy (?P<subject>.+)$",
+            r"^whose (?P<subject>.+?) is this$",
+            r"^who owns (?P<subject>.+)$",
+        )
+        match = self._match_first(patterns, normalized_query)
+        if match is None:
+            return ""
+        return self._normalize_fact_subject(match.group("subject"))
+
+    def _extract_about_query_subject(self, normalized_query: str) -> str:
+        patterns = (
+            r"^co wiesz o (?P<subject>.+)$",
+            r"^what do you know about (?P<subject>.+)$",
+        )
+        match = self._match_first(patterns, normalized_query)
+        if match is None:
+            return ""
+        subject = self._normalize_fact_subject(match.group("subject"))
+        if subject in {"mnie", "sobie", "me", "myself"}:
+            return "user"
+        return subject
 
     # ------------------------------------------------------------------
     # Matching

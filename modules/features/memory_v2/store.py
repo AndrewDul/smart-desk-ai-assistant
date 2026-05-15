@@ -94,6 +94,125 @@ class SQLiteMemoryStore:
         with self._connect() as connection:
             connection.execute("DELETE FROM memory_tokens")
             connection.execute("DELETE FROM memory_records")
+            connection.execute("DELETE FROM memory_facts")
+
+    def replace_all_facts(self, facts: Iterable[dict[str, Any]]) -> None:
+        self.ensure_ready()
+        normalized_facts = [dict(fact) for fact in facts if isinstance(fact, dict)]
+        with self._connect() as connection:
+            connection.execute("DELETE FROM memory_facts")
+            for fact in normalized_facts:
+                self._upsert_fact(connection, fact)
+
+    def upsert_fact(self, fact: dict[str, Any]) -> None:
+        self.ensure_ready()
+        with self._connect() as connection:
+            self._upsert_fact(connection, fact)
+
+    def find_location_facts(
+        self,
+        *,
+        subject_tokens: Iterable[str],
+        language: str | None = None,
+        limit: int = 16,
+    ) -> list[dict[str, Any]]:
+        return self.find_facts(
+            relation="location",
+            subject_tokens=subject_tokens,
+            language=language,
+            limit=limit,
+        )
+
+    def find_facts(
+        self,
+        *,
+        relation: str | None = None,
+        subject_tokens: Iterable[str] | None = None,
+        value_tokens: Iterable[str] | None = None,
+        language: str | None = None,
+        limit: int = 16,
+    ) -> list[dict[str, Any]]:
+        clean_subject_tokens = self._clean_tokens(subject_tokens or [])
+        clean_value_tokens = self._clean_tokens(value_tokens or [])
+        if not relation and not clean_subject_tokens and not clean_value_tokens:
+            return []
+
+        self.ensure_ready()
+        params: list[Any] = []
+        where_parts: list[str] = []
+
+        clean_relation = str(relation or "").strip()
+        if clean_relation:
+            where_parts.append("f.relation = ?")
+            params.append(clean_relation)
+
+        subject_conditions = self._build_text_match_conditions(
+            column="f.subject_text",
+            tokens=clean_subject_tokens,
+            params=params,
+        )
+        if subject_conditions:
+            where_parts.append(f"({subject_conditions})")
+
+        value_conditions = self._build_text_match_conditions(
+            column="f.value_text",
+            tokens=clean_value_tokens,
+            params=params,
+        )
+        if value_conditions:
+            where_parts.append(f"({value_conditions})")
+
+        if language:
+            where_parts.append("f.language = ?")
+            params.append(str(language))
+
+        params.append(max(1, int(limit)))
+        where_sql = " AND ".join(where_parts) if where_parts else "1 = 1"
+
+        sql = f"""
+            SELECT f.id,
+                   f.subject_entity_id,
+                   f.subject_text,
+                   f.relation,
+                   f.value_text,
+                   f.language,
+                   f.source_record_id,
+                   f.confidence,
+                   f.metadata_json,
+                   f.created_at_iso,
+                   f.updated_at_iso,
+                   r.original_text AS source_original_text,
+                   r.normalized_text AS source_normalized_text
+            FROM memory_facts f
+            LEFT JOIN memory_records r ON r.id = f.source_record_id
+            WHERE {where_sql}
+            ORDER BY f.updated_at_iso DESC, f.confidence DESC
+            LIMIT ?
+        """
+
+        with self._connect() as connection:
+            rows = connection.execute(sql, params).fetchall()
+        return [self._row_to_fact(row) for row in rows]
+
+    @staticmethod
+    def _build_text_match_conditions(
+        *,
+        column: str,
+        tokens: list[str],
+        params: list[Any],
+    ) -> str:
+        conditions: list[str] = []
+        for token in tokens:
+            conditions.append(f"{column} = ?")
+            params.append(token)
+            if len(token) >= 3:
+                conditions.append(f"{column} LIKE ?")
+                params.append(token + "%")
+                conditions.append(f"{column} LIKE ?")
+                params.append("% " + token)
+                conditions.append(f"{column} LIKE ?")
+                params.append("% " + token + " %")
+        return " OR ".join(conditions)
 
     def list_records(self, *, language: str | None = None, limit: int | None = None) -> list[dict[str, Any]]:
         self.ensure_ready()
@@ -172,6 +291,12 @@ class SQLiteMemoryStore:
         self.ensure_ready()
         with self._connect() as connection:
             row = connection.execute("SELECT COUNT(*) AS count FROM memory_entities").fetchone()
+        return int(row["count"] if row is not None else 0)
+
+    def fact_count(self) -> int:
+        self.ensure_ready()
+        with self._connect() as connection:
+            row = connection.execute("SELECT COUNT(*) AS count FROM memory_facts").fetchone()
         return int(row["count"] if row is not None else 0)
 
     def _ensure_directories(self) -> None:
@@ -332,6 +457,50 @@ class SQLiteMemoryStore:
             [(token, language, record_id) for token in tokens],
         )
 
+    def _upsert_fact(self, connection: sqlite3.Connection, fact: dict[str, Any]) -> None:
+        fact_id = str(fact.get("id", "") or "").strip()
+        subject_text = str(fact.get("subject_text", "") or "").strip()
+        relation = str(fact.get("relation", "") or "").strip()
+        value_text = str(fact.get("value_text", "") or "").strip()
+        language = str(fact.get("language", "unknown") or "unknown").strip() or "unknown"
+        if not fact_id or not subject_text or not relation or not value_text:
+            return
+
+        now = self._now_iso()
+        created_at_iso = str(fact.get("created_at_iso", "") or now)
+        connection.execute(
+            """
+            INSERT INTO memory_facts (
+                id, subject_entity_id, subject_text, relation, value_text,
+                language, source_record_id, confidence, metadata_json,
+                created_at_iso, updated_at_iso
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                subject_entity_id = excluded.subject_entity_id,
+                subject_text = excluded.subject_text,
+                relation = excluded.relation,
+                value_text = excluded.value_text,
+                language = excluded.language,
+                source_record_id = excluded.source_record_id,
+                confidence = excluded.confidence,
+                metadata_json = excluded.metadata_json,
+                updated_at_iso = excluded.updated_at_iso
+            """,
+            (
+                fact_id,
+                fact.get("subject_entity_id"),
+                subject_text,
+                relation,
+                value_text,
+                language,
+                fact.get("source_record_id"),
+                float(fact.get("confidence", 1.0) or 0.0),
+                json.dumps(dict(fact.get("metadata", {}) or {}), ensure_ascii=False),
+                created_at_iso,
+                now,
+            ),
+        )
+
     @staticmethod
     def _clean_tokens(tokens: Iterable[Any]) -> list[str]:
         clean: list[str] = []
@@ -340,6 +509,30 @@ class SQLiteMemoryStore:
             if value and value not in clean:
                 clean.append(value)
         return clean
+
+    @staticmethod
+    def _row_to_fact(row: sqlite3.Row) -> dict[str, Any]:
+        metadata: dict[str, Any]
+        try:
+            metadata = dict(json.loads(row["metadata_json"] or "{}"))
+        except (TypeError, ValueError):
+            metadata = {}
+
+        return {
+            "id": str(row["id"]),
+            "subject_entity_id": row["subject_entity_id"],
+            "subject_text": str(row["subject_text"]),
+            "relation": str(row["relation"]),
+            "value_text": str(row["value_text"]),
+            "language": str(row["language"]),
+            "source_record_id": row["source_record_id"],
+            "confidence": float(row["confidence"]),
+            "metadata": metadata,
+            "created_at_iso": str(row["created_at_iso"]),
+            "updated_at_iso": str(row["updated_at_iso"]),
+            "source_original_text": str(row["source_original_text"] or ""),
+            "source_normalized_text": str(row["source_normalized_text"] or ""),
+        }
 
     @staticmethod
     def _row_to_record(row: sqlite3.Row) -> dict[str, Any]:
