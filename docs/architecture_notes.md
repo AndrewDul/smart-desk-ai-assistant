@@ -16717,3 +16717,39 @@ No voice runtime behavior was changed:
 ### Product result
 
 The help screen now supports a larger command list without sacrificing readability. Users can scroll the command table when the list is longer than the visible UI area.
+
+## 2026-05-16 - Memory v2 object recall and gallery sprint
+
+### Summary
+
+I added Memory v2 object capture support.
+
+I added object memory recall.
+
+I added people and object memory gallery support in Visual Shell.
+
+I added the `SHOW_MEMORY_GALLERY` path through the backend and Visual Shell.
+
+I added a Visual Shell memory gallery with cards, details, scroll, close button, and timeout.
+
+I fixed gallery dispatch for ASR variants like `kogo z nasz`, `jakie obiektyznaz`, and `what object now`.
+
+I cleaned `.gitignore` so runtime logs, reports, backups, and `.bak` files do not show up in `git status`.
+
+I cleaned limited Vosk grammar so unsupported Polish words do not create repeated missing-vocabulary warnings.
+
+I added a wider but controlled memory recall alias pack for Polish and English.
+
+I kept risky Polish aliases out of limited Vosk grammar and left them as fallback/recovery aliases.
+
+I fixed English object recall variants so `what objects do you know`, `what objects do you need`, `list items`, and `who you know` return MEMORY responses instead of CHAT or `not found`.
+
+### Manual runtime test
+
+I tested the runtime manually:
+
+```text
+what objects do you know -> MEMORY -> I know objects: Vape.
+who you know -> MEMORY -> I know: Tomek, Dominika, Andrzej.
+list items -> MEMORY -> I know objects: Vape.
+```

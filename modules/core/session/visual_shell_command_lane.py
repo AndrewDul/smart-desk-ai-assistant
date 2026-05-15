@@ -409,6 +409,52 @@ class VisualShellCommandLane:
         )
         return handled
 
+    def show_memory_gallery(
+        self,
+        *,
+        gallery_kind: str,
+        items: list[dict],
+        language: str = "en",
+        title: str = "",
+        subtitle: str = "",
+        assistant: Any | None = None,
+    ) -> bool:
+        if not self.enabled:
+            return False
+
+        try:
+            handled = bool(
+                self._controller().show_memory_gallery(
+                    gallery_kind=gallery_kind,
+                    items=items,
+                    language=language,
+                    title=title,
+                    subtitle=subtitle,
+                    source="nexa-memory-gallery",
+                )
+            )
+        except Exception as error:
+            LOGGER.warning("Visual Shell memory gallery failed safely: %s", error)
+            handled = False
+
+        if assistant is not None:
+            assistant._last_visual_shell_memory_gallery = {
+                "handled": handled,
+                "gallery_kind": gallery_kind,
+                "item_count": len(items),
+                "language": language,
+                "source": "visual_shell_command_lane",
+            }
+
+        LOGGER.info(
+            "Visual Shell memory gallery dispatched: handled=%s kind=%s items=%s language=%s",
+            handled,
+            gallery_kind,
+            len(items),
+            language,
+        )
+        return handled
+
     def dispatch_event(
         self,
         *,

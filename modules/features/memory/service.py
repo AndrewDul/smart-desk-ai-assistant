@@ -12,6 +12,7 @@ from typing import Any
 
 from modules.shared.logging.logger import append_log
 from modules.features.memory_v2.face_capture import capture_face_reference_from_vision
+from modules.features.memory_v2.object_capture import capture_object_reference_from_vision
 from modules.features.memory_v2.store import SQLiteMemoryStore
 from modules.shared.persistence.json_store import JsonStore
 from modules.shared.persistence.paths import MEMORY_PATH
@@ -334,6 +335,10 @@ class MemoryService:
         if people_match is not None:
             return people_match
 
+        objects_match = self._find_best_indexed_objects_query(key, language=language)
+        if objects_match is not None:
+            return objects_match
+
         fact_match = self._find_best_indexed_structured_fact(key, language=language)
         if fact_match is not None:
             return fact_match
@@ -416,6 +421,27 @@ class MemoryService:
             ]
         return [entity for entity in entities if entity.get("entity_type") == "person"]
 
+    def list_objects(self, *, language: str | None = None) -> list[dict[str, Any]]:
+        normalized_language = self._normalize_language(language)
+        if self.index_store is not None:
+            try:
+                return self.index_store.list_entities(
+                    entity_type="object",
+                    language=normalized_language or None,
+                )
+            except Exception as exc:  # pragma: no cover - defensive runtime fallback
+                append_log(f"Memory object index lookup failed: {exc}")
+                self.index_store = None
+
+        entities = self._build_entities_from_records(self._load_records())
+        if normalized_language:
+            entities = [
+                entity
+                for entity in entities
+                if str(entity.get("language", "unknown") or "unknown") == normalized_language
+            ]
+        return [entity for entity in entities if entity.get("entity_type") == "object"]
+
     def remember_person(
         self,
         display_name: str,
@@ -448,6 +474,305 @@ class MemoryService:
                 **dict(metadata or {}),
             },
         )
+
+    def remember_object(
+        self,
+        display_name: str,
+        *,
+        aliases: list[str] | tuple[str, ...] | None = None,
+        language: str = "unknown",
+        source: str = "object_memory",
+        owner: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> str | None:
+        clean_display_name = self._compact_original_text(display_name)
+        if not clean_display_name:
+            append_log("Object memory save skipped: empty display name.")
+            return None
+
+        normalized_language = self._normalize_language(language) or "unknown"
+        if normalized_language == "en":
+            memory_text = f"I know object: {clean_display_name}"
+        else:
+            memory_text = f"znam obiekt: {clean_display_name}"
+
+        clean_owner = self._normalize_fact_value(owner or "")
+        object_metadata = {
+            "memory_kind": "object",
+            "display_name": clean_display_name,
+            "aliases": list(aliases or []),
+            **dict(metadata or {}),
+        }
+        if clean_owner:
+            object_metadata["owner"] = clean_owner
+
+        return self.remember_text(
+            memory_text,
+            language=normalized_language,
+            source=source,
+            confidence=1.0,
+            metadata=object_metadata,
+        )
+
+    def prepare_object_image_capture_slot(
+        self,
+        display_name: str,
+        *,
+        aliases: list[str] | tuple[str, ...] | None = None,
+        language: str = "unknown",
+        owner: str | None = None,
+        source: str = "guided_object_enrollment",
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        clean_display_name = self._compact_original_text(display_name)
+        if not clean_display_name:
+            append_log("Object image capture slot skipped: empty display name.")
+            return None
+
+        normalized_language = self._normalize_language(language) or "unknown"
+        object_record_id = self.remember_object(
+            clean_display_name,
+            aliases=aliases,
+            language=normalized_language,
+            owner=owner,
+            source=source,
+            metadata={
+                "enrollment_flow": "voice_guided_object",
+                "image_capture_slot_requested": True,
+                **dict(metadata or {}),
+            },
+        )
+
+        slot: dict[str, Any] = {
+            "object_id": str(object_record_id or "").strip(),
+            "display_name": clean_display_name,
+            "object_capture_ready": False,
+        }
+
+        if self.index_store is None:
+            append_log("Object image capture slot prepared without SQLite asset index.")
+            return slot
+
+        memory_object = self._find_object_entity_by_display_name(
+            clean_display_name,
+            language=normalized_language,
+        )
+        if memory_object is None:
+            append_log(f"Object image capture slot skipped: object entity not found for {clean_display_name}.")
+            return slot
+
+        entity_id = str(memory_object.get("id", "") or "").strip()
+        if not entity_id:
+            append_log(f"Object image capture slot skipped: empty object entity id for {clean_display_name}.")
+            return slot
+
+        object_dir = self.index_store.object_assets_dir(entity_id)
+        existing_assets = self.list_object_image_assets(object_entity_id=entity_id)
+        next_index = len(existing_assets) + 1
+        next_object_path = object_dir / f"object_{next_index:03d}.jpg"
+
+        slot.update(
+            {
+                "object_entity_id": entity_id,
+                "object_assets_dir": str(object_dir),
+                "next_object_asset_path": str(next_object_path),
+                "existing_object_asset_count": len(existing_assets),
+                "object_capture_ready": True,
+            }
+        )
+        append_log(
+            "Object image capture slot prepared: "
+            f"entity_id={entity_id} dir={object_dir} next_path={next_object_path}"
+        )
+        return slot
+
+    def remember_object_image_asset(
+        self,
+        display_name: str,
+        asset_path: str | Path,
+        *,
+        aliases: list[str] | tuple[str, ...] | None = None,
+        language: str = "unknown",
+        caption: str | None = None,
+        source: str = "object_image_asset",
+        owner: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> str | None:
+        if self.index_store is None:
+            append_log("Object image asset save skipped: SQLite memory index is disabled.")
+            return None
+
+        clean_display_name = self._compact_original_text(display_name)
+        clean_asset_path = self._compact_original_text(str(asset_path))
+        if not clean_display_name or not clean_asset_path:
+            append_log("Object image asset save skipped: missing display name or asset path.")
+            return None
+
+        normalized_language = self._normalize_language(language) or "unknown"
+        self.remember_object(
+            clean_display_name,
+            aliases=aliases,
+            language=normalized_language,
+            owner=owner,
+            source=source,
+            metadata={"has_object_asset": True, **dict(metadata or {})},
+        )
+        memory_object = self._find_object_entity_by_display_name(
+            clean_display_name,
+            language=normalized_language,
+        )
+        if memory_object is None:
+            append_log(f"Object image asset save skipped: object entity not found for {clean_display_name}.")
+            return None
+
+        entity_id = str(memory_object.get("id", "") or "").strip()
+        if not entity_id:
+            append_log(f"Object image asset save skipped: empty object entity id for {clean_display_name}.")
+            return None
+
+        object_dir = self.index_store.object_assets_dir(entity_id)
+        asset = {
+            "id": self._build_asset_id(
+                entity_id=entity_id,
+                asset_type="object_photo",
+                path=clean_asset_path,
+            ),
+            "entity_id": entity_id,
+            "asset_type": "object_photo",
+            "path": clean_asset_path,
+            "caption": self._compact_original_text(caption or clean_display_name),
+            "created_at_iso": self._now_iso(),
+            "metadata": {
+                "source": source,
+                "asset_role": "object_reference",
+                "object_display_name": clean_display_name,
+                "object_assets_dir": str(object_dir),
+                **dict(metadata or {}),
+            },
+        }
+        try:
+            self.index_store.upsert_asset(asset)
+        except Exception as exc:  # pragma: no cover - defensive runtime fallback
+            append_log(f"Object image asset save failed: {exc}")
+            return None
+
+        append_log(
+            "Object image asset saved: "
+            f"entity_id={entity_id} path={clean_asset_path}"
+        )
+        return str(asset["id"])
+
+    def list_object_image_assets(
+        self,
+        *,
+        display_name: str | None = None,
+        object_entity_id: str | None = None,
+        language: str | None = None,
+    ) -> list[dict[str, Any]]:
+        if self.index_store is None:
+            return []
+
+        entity_id = str(object_entity_id or "").strip()
+        if not entity_id and display_name:
+            memory_object = self._find_object_entity_by_display_name(display_name, language=language)
+            if memory_object is not None:
+                entity_id = str(memory_object.get("id", "") or "").strip()
+
+        if not entity_id:
+            return []
+
+        try:
+            return self.index_store.list_assets(
+                entity_id=entity_id,
+                asset_type="object_photo",
+            )
+        except Exception as exc:  # pragma: no cover - defensive runtime fallback
+            append_log(f"Object image asset lookup failed: {exc}")
+            return []
+
+    def capture_object_image_reference(
+        self,
+        *,
+        display_name: str,
+        vision_backend: Any,
+        aliases: list[str] | tuple[str, ...] | None = None,
+        language: str = "unknown",
+        source: str = "guided_object_image_capture",
+        owner: str | None = None,
+        slot: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        clean_display_name = self._compact_original_text(display_name)
+        if not clean_display_name:
+            return {"ok": False, "reason": "display_name_missing"}
+
+        object_slot = dict(slot or {})
+        if not object_slot.get("object_capture_ready"):
+            prepared_slot = self.prepare_object_image_capture_slot(
+                clean_display_name,
+                aliases=aliases,
+                language=language,
+                owner=owner,
+                source=source,
+            )
+            object_slot = dict(prepared_slot or {})
+
+        target_path = str(object_slot.get("next_object_asset_path", "") or "").strip()
+        if not target_path:
+            return {
+                "ok": False,
+                "reason": "object_slot_unavailable",
+                "slot": object_slot,
+            }
+
+        result = capture_object_reference_from_vision(
+            vision_backend=vision_backend,
+            target_path=target_path,
+        )
+        if not result.ok:
+            append_log(f"Object image capture skipped: {result.reason}")
+            return {
+                "ok": False,
+                "reason": result.reason,
+                "slot": object_slot,
+                "target_path": target_path,
+            }
+
+        asset_id = self.remember_object_image_asset(
+            clean_display_name,
+            result.path,
+            aliases=aliases,
+            language=language,
+            caption=f"{clean_display_name} object reference",
+            source=source,
+            owner=owner,
+            metadata={
+                "capture_backend": result.backend,
+                "capture_width": result.width,
+                "capture_height": result.height,
+                "capture_source": "runtime_vision_backend_latest_frame",
+            },
+        )
+        if not asset_id:
+            return {
+                "ok": False,
+                "reason": "asset_record_failed",
+                "slot": object_slot,
+                "target_path": result.path,
+            }
+
+        append_log(
+            "Object image reference captured: "
+            f"display_name={clean_display_name} path={result.path} asset_id={asset_id}"
+        )
+        return {
+            "ok": True,
+            "asset_id": asset_id,
+            "path": result.path,
+            "width": result.width,
+            "height": result.height,
+            "backend": result.backend,
+            "slot": object_slot,
+        }
 
     def prepare_person_face_capture_slot(
         self,
@@ -884,6 +1209,32 @@ class MemoryService:
             record={"people": people},
         )
 
+    def _find_best_indexed_objects_query(
+        self,
+        key: str,
+        *,
+        language: str | None = None,
+    ) -> MemoryMatch | None:
+        normalized_query = self._clean_text(key)
+        if not self._looks_like_objects_list_query(normalized_query):
+            return None
+
+        normalized_language = self._normalize_language(language) or "unknown"
+        objects = self.list_objects(language=None)
+        answer = self._format_known_objects_answer(objects, language=normalized_language)
+        return MemoryMatch(
+            id="memory_objects_list",
+            key=normalized_query,
+            value=answer,
+            original_text=answer,
+            score=1.0,
+            exact=True,
+            language=normalized_language,
+            normalized_query=normalized_query,
+            normalized_text=normalized_query,
+            record={"objects": objects},
+        )
+
     def _find_best_indexed_structured_fact(
         self,
         key: str,
@@ -1002,6 +1353,16 @@ class MemoryService:
             entity = self._person_entity_from_metadata(record, metadata)
             if entity is not None:
                 entities.append(entity)
+        if metadata.get("memory_kind") == "object":
+            entity = self._object_entity_from_metadata(record, metadata)
+            if entity is not None:
+                entities.append(entity)
+
+        ownership_fact = self._extract_ownership_fact(record)
+        if ownership_fact is not None:
+            entity = self._object_entity_from_ownership_fact(record, ownership_fact)
+            if entity is not None:
+                entities.append(entity)
 
         name_fact = self._extract_name_fact(record)
         if name_fact is not None and str(name_fact.get("subject_text")) == "user":
@@ -1090,6 +1451,87 @@ class MemoryService:
             "metadata": dict(metadata or {}),
         }
 
+    def _object_entity_from_metadata(
+        self,
+        record: dict[str, Any],
+        metadata: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        display_name = self._compact_original_text(metadata.get("display_name", ""))
+        if not display_name:
+            return None
+
+        aliases = [str(alias) for alias in list(metadata.get("aliases", []) or [])]
+        return self._build_object_entity(
+            display_name=display_name,
+            language=str(record.get("language", "unknown") or "unknown"),
+            aliases=aliases,
+            record=record,
+            metadata={
+                "source": "object_memory_metadata",
+                "source_record_id": str(record.get("id", "") or ""),
+                "owner": str(metadata.get("owner", "") or ""),
+            },
+        )
+
+    def _object_entity_from_ownership_fact(
+        self,
+        record: dict[str, Any],
+        ownership_fact: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        display_name = self._display_name_from_value(str(ownership_fact.get("subject_text", "") or ""))
+        if not display_name:
+            return None
+
+        subject = str(ownership_fact.get("subject_text", "") or "")
+        owner = str(ownership_fact.get("value_text", "") or "")
+        aliases = [subject]
+        return self._build_object_entity(
+            display_name=display_name,
+            language=str(record.get("language", "unknown") or "unknown"),
+            aliases=aliases,
+            record=record,
+            metadata={
+                "source": "ownership_fact_object",
+                "source_record_id": str(record.get("id", "") or ""),
+                "owner": owner,
+            },
+        )
+
+    def _build_object_entity(
+        self,
+        *,
+        display_name: str,
+        language: str,
+        aliases: list[str],
+        record: dict[str, Any],
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        clean_name = self._compact_original_text(display_name)
+        normalized_name = self._normalize_fact_subject(clean_name)
+        normalized_language = self._normalize_language(language) or "unknown"
+        if not clean_name or not normalized_name:
+            return None
+
+        clean_aliases = sorted({
+            alias
+            for alias in (self._normalize_fact_subject(alias) for alias in aliases + [clean_name, normalized_name])
+            if alias
+        })
+        entity_id = self._build_entity_id(
+            entity_type="object",
+            display_name=normalized_name,
+            language=normalized_language,
+        )
+        return {
+            "id": entity_id,
+            "entity_type": "object",
+            "display_name": clean_name,
+            "aliases": clean_aliases,
+            "language": normalized_language,
+            "created_at_iso": str(record.get("created_at_iso", "") or self._now_iso()),
+            "metadata": dict(metadata or {}),
+        }
+
     def _format_known_people_answer(
         self,
         people: list[dict[str, Any]],
@@ -1109,6 +1551,26 @@ class MemoryService:
         if len(names) > 8:
             preview += f" i jeszcze {len(names) - 8}" if language != "en" else f" and {len(names) - 8} more"
         return f"I know: {preview}." if language == "en" else f"Znam: {preview}."
+
+    def _format_known_objects_answer(
+        self,
+        objects: list[dict[str, Any]],
+        *,
+        language: str,
+    ) -> str:
+        names: list[str] = []
+        for memory_object in objects:
+            name = str(memory_object.get("display_name", "") or "").strip()
+            if name and name not in names:
+                names.append(name)
+
+        if not names:
+            return "I do not know any objects yet." if language == "en" else "Nie znam jeszcze żadnych obiektów."
+
+        preview = ", ".join(names[:8])
+        if len(names) > 8:
+            preview += f" i jeszcze {len(names) - 8}" if language != "en" else f" and {len(names) - 8} more"
+        return f"I know objects: {preview}." if language == "en" else f"Znam obiekty: {preview}."
 
     @staticmethod
     def _display_name_from_value(value: str) -> str:
@@ -1145,6 +1607,36 @@ class MemoryService:
                 }
                 if normalized_name in normalized_names:
                     return dict(person)
+        return None
+
+    def _find_object_entity_by_display_name(
+        self,
+        display_name: str,
+        *,
+        language: str | None = None,
+    ) -> dict[str, Any] | None:
+        normalized_name = self._normalize_fact_subject(display_name)
+        if not normalized_name:
+            return None
+
+        normalized_language = self._normalize_language(language)
+        candidate_groups = [self.list_objects(language=normalized_language)]
+        if normalized_language is not None:
+            candidate_groups.append(self.list_objects(language=None))
+
+        for objects in candidate_groups:
+            for memory_object in objects:
+                names = [
+                    str(memory_object.get("display_name", "") or ""),
+                    *[str(alias) for alias in list(memory_object.get("aliases", []) or [])],
+                ]
+                normalized_names = {
+                    value
+                    for value in (self._normalize_fact_subject(name) for name in names)
+                    if value
+                }
+                if normalized_name in normalized_names:
+                    return dict(memory_object)
         return None
 
     @staticmethod
@@ -1489,15 +1981,63 @@ class MemoryService:
         return None
 
     @staticmethod
+    def _looks_like_objects_list_query(normalized_query: str) -> bool:
+        return normalized_query in {
+            "jakie obiekty znasz",
+            "jakie obiektyznaz",
+            "jakie obiekty znaz",
+            "what object now",
+            "what objects now",
+            "what object know",
+            "jakie obiekty z nasz",
+            "jakie obiekty z nas",
+            "jakie obiekty znas",
+            "jakie rzeczy znasz",
+            "co za obiekty znasz",
+            "pokaż obiekty które znasz",
+            "pokaz obiekty ktore znasz",
+            "pokaż zapamiętane obiekty",
+            "pokaz zapamietane obiekty",
+            "pokaż rzeczy które znasz",
+            "pokaz rzeczy ktore znasz",
+            "what objects do you know",
+            "what object do you know",
+            "what objects do you need",
+            "what object do you need",
+            "what objects you know",
+            "what object you know",
+            "what objects",
+            "what object",
+            "what items do you know",
+            "what item do you know",
+            "what things do you know",
+            "what thing do you know",
+            "list items",
+            "list objects",
+            "known items",
+            "known objects",
+            "what things do you know",
+            "show known objects",
+            "show remembered objects",
+            "show objects you know",
+        }
+
+    @staticmethod
     def _looks_like_people_list_query(normalized_query: str) -> bool:
         return normalized_query in {
             "kogo znasz",
+            "kogo z nasz",
+            "kogo z nas",
+            "kogo znas",
+            "kogoznasz",
             "jakie osoby znasz",
             "pokaż kogo znasz",
             "pokaz kogo znasz",
             "pokaż osoby które znasz",
             "pokaz osoby ktore znasz",
             "who do you know",
+            "who you know",
+            "known people",
             "show people you know",
             "show known people",
             "what people do you know",

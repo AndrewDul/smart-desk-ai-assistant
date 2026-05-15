@@ -248,7 +248,27 @@ def test_vosk_vocabulary_excludes_small_model_unsupported_natural_aliases() -> N
 
     assert "odsłoń pulpit" not in polish_vocabulary
     assert all("nexa" not in phrase.lower() for phrase in english_vocabulary)
-    assert "wyłącz nexa" in polish_vocabulary
+    assert all("nexa" not in phrase.lower() for phrase in polish_vocabulary)
+
+
+def test_polish_vosk_vocabulary_excludes_small_model_missing_words() -> None:
+    grammar = build_default_command_grammar()
+
+    polish_vocabulary = grammar.to_vosk_vocabulary(
+        language=CommandLanguage.POLISH,
+    )
+    normalized_words = {
+        word
+        for phrase in polish_vocabulary
+        for word in normalize_command_text(phrase).split()
+    }
+
+    assert "polozylam" not in normalized_words
+    assert "polozylem" not in normalized_words
+    assert "pamietasz" not in normalized_words
+    assert "zapamietane" not in normalized_words
+    assert "nexa" not in normalized_words
+    assert "pamieci" not in normalized_words
 
 
 def test_vosk_vocabulary_excludes_vosk_exclude_even_when_recovery_enabled() -> None:
@@ -265,7 +285,7 @@ def test_vosk_vocabulary_excludes_vosk_exclude_even_when_recovery_enabled() -> N
 
     assert "odsłoń pulpit" not in polish_vocabulary
     assert all("nexa" not in phrase.lower() for phrase in english_vocabulary)
-    assert "wyłącz nexa" in polish_vocabulary
+    assert all("nexa" not in phrase.lower() for phrase in polish_vocabulary)
 
 
 def test_default_grammar_recognizes_fast_calculator_phrases() -> None:

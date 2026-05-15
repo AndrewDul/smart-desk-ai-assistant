@@ -1,4 +1,5 @@
 from modules.core.voice_engine import VoiceTurnInput
+from modules.core.flows.action_flow.memory_actions_mixin import ActionMemoryActionsMixin
 from modules.devices.audio.command_asr.command_grammar import build_default_command_grammar
 from modules.devices.audio.command_asr import CommandLanguage
 from modules.runtime.contracts import RouteKind
@@ -12,6 +13,7 @@ _RUNTIME_CANDIDATE_ALLOWLIST = [
     "assistant.identity",
     "memory.guided_start",
     "memory.list",
+    "memory.recall",
     "mobile_base.drive_mode",
     "system.current_time",
     "system.current_date",
@@ -29,6 +31,129 @@ _RUNTIME_CANDIDATE_ALLOWLIST = [
     "visual_shell.show_battery",
     "visual_shell.show_time",
     "visual_shell.show_date",
+]
+
+ENGLISH_PEOPLE_RECALL_ALIASES = [
+    "who do you know",
+    "who you know",
+    "who do you remember",
+    "who can you remember",
+    "who is in your memory",
+    "show people you know",
+    "show known people",
+    "list known people",
+    "list people you know",
+    "tell me who you know",
+    "what people do you know",
+    "which people do you know",
+    "known people",
+]
+
+ENGLISH_OBJECT_RECALL_ALIASES = [
+    "what objects do you know",
+    "what object do you know",
+    "what objects do you need",
+    "what object do you need",
+    "what objects you know",
+    "what object you know",
+    "what objects",
+    "what object",
+    "what objects do you remember",
+    "what object do you remember",
+    "what items do you know",
+    "what item do you know",
+    "what items do you remember",
+    "what item do you remember",
+    "what things do you know",
+    "what thing do you know",
+    "what things do you remember",
+    "what thing do you remember",
+    "which objects do you know",
+    "which items do you know",
+    "which things do you know",
+    "show objects you know",
+    "show known objects",
+    "show my objects",
+    "show remembered objects",
+    "show items you know",
+    "show known items",
+    "show things you know",
+    "list objects",
+    "list known objects",
+    "list my objects",
+    "list remembered objects",
+    "list items",
+    "list known items",
+    "list things",
+    "known objects",
+    "known items",
+    "remembered objects",
+    "remembered items",
+    "objects you know",
+    "items you know",
+    "things you know",
+    "what object now",
+]
+
+POLISH_PEOPLE_RECALL_ALIASES = [
+    "kogo znasz",
+    "kogo znas",
+    "kogo z nasz",
+    "kogo z nas",
+    "jakie osoby znasz",
+    "jakie osoby pamiętasz",
+    "jakie osoby pamietasz",
+    "kogo pamiętasz",
+    "kogo pamietasz",
+    "pokaż osoby które znasz",
+    "pokaz osoby ktore znasz",
+    "pokaż znane osoby",
+    "pokaz znane osoby",
+    "lista osób",
+    "lista osob",
+    "lista znanych osób",
+    "lista znanych osob",
+    "osoby które znasz",
+    "osoby ktore znasz",
+    "znane osoby",
+]
+
+POLISH_OBJECT_RECALL_ALIASES = [
+    "jakie obiekty znasz",
+    "jakie obiektyznaz",
+    "jakie obiekty z nasz",
+    "jakie rzeczy znasz",
+    "jakie przedmioty znasz",
+    "jakie obiekty pamiętasz",
+    "jakie obiekty pamietasz",
+    "jakie rzeczy pamiętasz",
+    "jakie rzeczy pamietasz",
+    "jakie przedmioty pamiętasz",
+    "jakie przedmioty pamietasz",
+    "pokaż obiekty",
+    "pokaz obiekty",
+    "pokaż znane obiekty",
+    "pokaz znane obiekty",
+    "pokaż moje obiekty",
+    "pokaz moje obiekty",
+    "pokaż rzeczy które znasz",
+    "pokaz rzeczy ktore znasz",
+    "pokaż przedmioty które znasz",
+    "pokaz przedmioty ktore znasz",
+    "lista obiektów",
+    "lista obiektow",
+    "lista rzeczy",
+    "lista przedmiotów",
+    "lista przedmiotow",
+    "znane obiekty",
+    "znane rzeczy",
+    "znane przedmioty",
+    "obiekty które znasz",
+    "obiekty ktore znasz",
+    "rzeczy które znasz",
+    "rzeczy ktore znasz",
+    "przedmioty które znasz",
+    "przedmioty ktore znasz",
 ]
 
 
@@ -72,6 +197,44 @@ def _first_transcript_for_intent(
             return phrase.phrase
 
     raise AssertionError(f"No {language.value} phrase found for {intent_key}")
+
+
+def _assert_memory_recall_aliases(
+    aliases: list[str],
+    *,
+    language: CommandLanguage,
+    gallery_kind: str,
+) -> None:
+    grammar = build_default_command_grammar()
+    builder = RuntimeCandidateExecutionPlanBuilder()
+
+    for alias in aliases:
+        result = grammar.match(alias)
+        assert result.is_match, alias
+        assert result.intent_key == "memory.recall", alias
+        assert result.language == language, alias
+
+        plan = builder.build_plan_from_intent(
+            turn_id=f"turn-{alias.replace(' ', '-')}",
+            intent_key=result.intent_key or "",
+            transcript=alias,
+            language=result.language.value,
+            confidence=result.confidence,
+            matched_phrase=result.matched_phrase,
+        )
+
+        assert plan is not None, alias
+        assert plan.route_decision.kind == RouteKind.ACTION, alias
+        assert plan.route_decision.language == language.value, alias
+        assert plan.route_decision.primary_intent == "memory_recall", alias
+        assert plan.route_decision.metadata["llm_prevented"] is True, alias
+        invocation = plan.route_decision.tool_invocations[0]
+        assert invocation.tool_name == "memory.recall", alias
+        assert invocation.payload["key"] == alias, alias
+        assert (
+            ActionMemoryActionsMixin._memory_gallery_kind_from_query(alias)
+            == gallery_kind
+        ), alias
 
 
 def test_runtime_candidate_executor_builds_identity_action_flow_route() -> None:
@@ -416,6 +579,29 @@ def test_runtime_candidate_executor_builds_person_memory_enrollment_payload() ->
     assert plan.route_decision.metadata["llm_prevented"] is True
 
 
+def test_runtime_candidate_executor_builds_object_memory_enrollment_payload() -> None:
+    builder = RuntimeCandidateExecutionPlanBuilder()
+    turn = _turn_result("zapamiętaj ten telefon", language=CommandLanguage.POLISH)
+
+    plan = builder.build_plan(
+        turn_result=turn,
+        transcript="zapamiętaj ten telefon",
+        metadata={"source": "unit_test"},
+    )
+
+    assert plan is not None
+    assert plan.route_decision.kind == RouteKind.ACTION
+    assert plan.route_decision.language == "pl"
+    assert plan.route_decision.primary_intent == "memory_store"
+    assert plan.route_decision.tool_invocations[0].tool_name == "memory.guided_start"
+    assert plan.route_decision.tool_invocations[0].payload == {
+        "guided": True,
+        "object_enrollment": True,
+        "object_hint": "telefon",
+    }
+    assert plan.route_decision.metadata["llm_prevented"] is True
+
+
 def test_runtime_candidate_executor_builds_memory_list_route() -> None:
     builder = RuntimeCandidateExecutionPlanBuilder()
     turn = _turn_result("what do you remember", language=CommandLanguage.ENGLISH)
@@ -503,3 +689,54 @@ def test_runtime_candidate_executor_routes_known_people_query_to_memory_recall()
     assert plan.route_decision.tool_invocations[0].tool_name == "memory.recall"
     assert plan.route_decision.tool_invocations[0].payload["key"] == "kogo znasz"
     assert plan.route_decision.metadata["llm_prevented"] is True
+
+
+def test_runtime_candidate_executor_routes_known_objects_query_to_memory_recall() -> None:
+    builder = RuntimeCandidateExecutionPlanBuilder()
+    turn = _turn_result("jakie obiekty znasz", language=CommandLanguage.POLISH)
+
+    plan = builder.build_plan(
+        turn_result=turn,
+        transcript="jakie obiekty znasz",
+        metadata={"source": "unit_test"},
+    )
+
+    assert plan is not None
+    assert plan.route_decision.kind == RouteKind.ACTION
+    assert plan.route_decision.language == "pl"
+    assert plan.route_decision.primary_intent == "memory_recall"
+    assert plan.route_decision.tool_invocations[0].tool_name == "memory.recall"
+    assert plan.route_decision.tool_invocations[0].payload["key"] == "jakie obiekty znasz"
+    assert plan.route_decision.metadata["llm_prevented"] is True
+
+
+def test_english_people_recall_aliases_route_to_memory_recall() -> None:
+    _assert_memory_recall_aliases(
+        ENGLISH_PEOPLE_RECALL_ALIASES,
+        language=CommandLanguage.ENGLISH,
+        gallery_kind="people",
+    )
+
+
+def test_english_object_recall_aliases_route_to_memory_recall() -> None:
+    _assert_memory_recall_aliases(
+        ENGLISH_OBJECT_RECALL_ALIASES,
+        language=CommandLanguage.ENGLISH,
+        gallery_kind="objects",
+    )
+
+
+def test_polish_people_recall_aliases_route_to_memory_recall() -> None:
+    _assert_memory_recall_aliases(
+        POLISH_PEOPLE_RECALL_ALIASES,
+        language=CommandLanguage.POLISH,
+        gallery_kind="people",
+    )
+
+
+def test_polish_object_recall_aliases_route_to_memory_recall() -> None:
+    _assert_memory_recall_aliases(
+        POLISH_OBJECT_RECALL_ALIASES,
+        language=CommandLanguage.POLISH,
+        gallery_kind="objects",
+    )

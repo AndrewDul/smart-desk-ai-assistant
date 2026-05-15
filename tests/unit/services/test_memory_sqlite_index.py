@@ -512,3 +512,160 @@ def test_memory_service_face_capture_returns_safe_failure_without_vision_backend
         assert result["reason"] == "vision_backend_unavailable"
         assert memory.index_store is not None
         assert memory.index_store.asset_count() == 0
+
+
+def test_memory_service_creates_object_entity_from_ownership_fact() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        index_store = SQLiteMemoryStore(root=root / "nexa_memory")
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=index_store,
+        )
+
+        memory.remember_text("to jest mój telefon", language="pl", source="unit_test")
+
+        objects = memory.list_objects(language="pl")
+        assert len(objects) == 1
+        assert objects[0]["display_name"] == "Telefon"
+        assert memory.recall("jakie obiekty znasz", language="pl") == "Znam obiekty: Telefon."
+        assert memory.recall("what objects do you know", language="en") == "I know objects: Telefon."
+
+
+def test_memory_service_people_recall_aliases_return_known_people_answer() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+        memory.remember_person("Andrzej", language="pl", source="unit_test")
+
+        for query in ("who you know", "who do you know", "known people"):
+            assert memory.recall(query, language="en") == "I know: Andrzej."
+
+
+def test_memory_service_object_recall_aliases_return_known_objects_answer() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+        memory.remember_object("Vape", language="en", source="unit_test")
+
+        for query in (
+            "what objects do you know",
+            "what objects do you need",
+            "what object do you need",
+            "list items",
+            "list objects",
+            "known items",
+        ):
+            assert memory.recall(query, language="en") == "I know objects: Vape."
+
+
+def test_memory_service_remember_object_and_prepare_image_slot() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+
+        memory.remember_object("telefon", aliases=["phone"], language="pl", owner="user")
+
+        objects = memory.list_objects(language="pl")
+        assert len(objects) == 1
+        assert objects[0]["display_name"] == "telefon"
+        assert "phone" in objects[0]["aliases"]
+
+        slot = memory.prepare_object_image_capture_slot(
+            "telefon",
+            aliases=["phone"],
+            language="pl",
+            owner="user",
+            source="unit_test",
+        )
+
+        assert slot is not None
+        assert slot["object_capture_ready"] is True
+        assert slot["display_name"] == "telefon"
+        assert slot["object_entity_id"]
+        assert Path(slot["object_assets_dir"]).exists()
+        assert slot["next_object_asset_path"].endswith("object_001.jpg")
+
+        asset_id = memory.remember_object_image_asset(
+            "telefon",
+            slot["next_object_asset_path"],
+            aliases=["phone"],
+            language="pl",
+            caption="telefon reference",
+            owner="user",
+        )
+        assert asset_id is not None
+
+        assets = memory.list_object_image_assets(display_name="telefon", language="pl")
+        assert len(assets) == 1
+        assert assets[0]["caption"] == "telefon reference"
+
+        next_slot = memory.prepare_object_image_capture_slot(
+            "telefon",
+            aliases=["phone"],
+            language="pl",
+            owner="user",
+            source="unit_test",
+        )
+        assert next_slot is not None
+        assert next_slot["existing_object_asset_count"] == 1
+        assert next_slot["next_object_asset_path"].endswith("object_002.jpg")
+
+
+def test_memory_service_captures_object_reference_from_existing_vision_backend() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+
+        result = memory.capture_object_image_reference(
+            display_name="telefon",
+            aliases=["phone"],
+            language="pl",
+            owner="user",
+            vision_backend=_FakeVisionBackend(),
+        )
+
+        assert result["ok"] is True
+        assert result["asset_id"].startswith("asset_")
+        assert result["width"] == 30
+        assert result["height"] == 20
+        assert Path(result["path"]).exists()
+        assert memory.index_store is not None
+        assert memory.index_store.asset_count() == 1
+        assets = memory.list_object_image_assets(display_name="telefon", language="pl")
+        assert assets[0]["path"] == result["path"]
+        assert assets[0]["metadata"]["capture_source"] == "runtime_vision_backend_latest_frame"
+        assert assets[0]["metadata"]["capture_width"] == 30
+        assert assets[0]["metadata"]["capture_height"] == 20
+
+
+def test_memory_service_object_capture_returns_safe_failure_without_vision_backend() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+
+        result = memory.capture_object_image_reference(
+            display_name="telefon",
+            language="pl",
+            vision_backend=None,
+        )
+
+        assert result["ok"] is False
+        assert result["reason"] == "vision_backend_unavailable"
+        assert memory.index_store is not None
+        assert memory.index_store.asset_count() == 0

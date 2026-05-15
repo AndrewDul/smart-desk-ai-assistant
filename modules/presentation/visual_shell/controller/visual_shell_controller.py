@@ -297,6 +297,31 @@ class VisualShellController:
             )
         )
 
+    def show_memory_gallery(
+        self,
+        *,
+        gallery_kind: str,
+        items: list[dict],
+        language: str = "en",
+        title: str = "",
+        subtitle: str = "",
+        source: str = "nexa-runtime",
+    ) -> bool:
+        safe_items = [dict(item) for item in items if isinstance(item, dict)]
+        return self.send_command(
+            VisualCommand(
+                command=VisualCommandName.SHOW_MEMORY_GALLERY,
+                payload={
+                    "kind": str(gallery_kind or "objects"),
+                    "language": str(language or "en"),
+                    "title": str(title or ""),
+                    "subtitle": str(subtitle or ""),
+                    "items": safe_items,
+                },
+                source=source,
+            )
+        )
+
 
     def show_timer_countdown(
         self,

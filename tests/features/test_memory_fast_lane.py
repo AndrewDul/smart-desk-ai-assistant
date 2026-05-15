@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
+from modules.core.flows.action_flow.memory_actions_mixin import ActionMemoryActionsMixin
 from modules.core.flows.action_flow.executors.memory_executor import MemorySkillExecutor
 from modules.devices.audio.command_asr.command_grammar import (
     build_default_command_grammar,
@@ -63,7 +64,8 @@ class TestVoskGrammarPolishFix(unittest.TestCase):
             language=CommandLanguage.POLISH,
         )
         self.assertIn("przypomnij mi gdzie", polish_vocab)
-        self.assertIn("gdzie polozylem", polish_vocab)
+        self.assertIn("gdzie jest", polish_vocab)
+        self.assertNotIn("gdzie polozylem", polish_vocab)
 
 
 class TestVoskFastLaneMemoryRecall(unittest.TestCase):
@@ -84,6 +86,26 @@ class TestVoskFastLaneMemoryRecall(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
+
+    def test_known_memory_recall_queries_resolve_gallery_kind(self) -> None:
+        cases = {
+            "kogo znasz": "people",
+            "kogo z nasz": "people",
+            "kogo z nas": "people",
+            "kogo znas": "people",
+            "jakie obiekty znasz": "objects",
+            "jakie obiektyznaz": "objects",
+            "jakie obiekty z nasz": "objects",
+            "what objects do you know": "objects",
+            "what object now": "objects",
+        }
+
+        for query, expected_kind in cases.items():
+            with self.subTest(query=query):
+                self.assertEqual(
+                    ActionMemoryActionsMixin._memory_gallery_kind_from_query(query),
+                    expected_kind,
+                )
 
     # -- intent resolution ---------------------------------------------
 
@@ -195,6 +217,21 @@ class TestVoskFastLaneMemoryRecall(unittest.TestCase):
         self.assertIsNotNone(plan)
         self.assertEqual(plan.route_decision.primary_intent, "memory_store")
         self.assertEqual(plan.route_decision.tool_invocations[0].payload, {"guided": True})
+
+    def test_object_guided_start_plan_marks_object_payload(self) -> None:
+        plan = self.builder.build_plan_from_intent(
+            turn_id="t3",
+            intent_key="memory.guided_start",
+            transcript="zapamiętaj ten telefon",
+            language="pl",
+        )
+
+        self.assertIsNotNone(plan)
+        self.assertEqual(plan.route_decision.primary_intent, "memory_store")
+        self.assertEqual(
+            plan.route_decision.tool_invocations[0].payload,
+            {"guided": True, "object_enrollment": True, "object_hint": "telefon"},
+        )
 
     # -- end-to-end fast lane recall -----------------------------------
 

@@ -6,6 +6,7 @@ const DesktopWindowController = preload("res://scripts/desktop/desktop_window_co
 const ShellLayout = preload("res://scripts/desktop/shell_layout.gd")
 const VisualShellTcpServerScript = preload("res://scripts/transport/visual_shell_tcp_server.gd")
 const HelpOverlayViewScript = preload("res://scripts/help_overlay_view.gd")
+const MemoryGalleryViewScript = preload("res://scripts/memory_gallery_view.gd")
 const FeedbackDashboardViewScript = preload("res://scripts/feedback_dashboard_view.gd")
 
 const BOOT_STATE = VisualStates.IDLE_PARTICLE_CLOUD
@@ -21,6 +22,7 @@ const DEFAULT_VISUAL_SHELL_WINDOW_WIDTH = 1280
 const DEFAULT_VISUAL_SHELL_WINDOW_HEIGHT = 800
 
 const HELP_OVERLAY_HOLD_SECONDS = 180.0
+const MEMORY_GALLERY_HOLD_SECONDS = 300.0
 const HELP_OVERLAY_PANEL_ALPHA = 0.72
 
 const HELP_LINES_EN = [
@@ -139,6 +141,9 @@ var help_overlay_pl_header: Label = null
 var help_overlay_en_body: Label = null
 var help_overlay_pl_body: Label = null
 var help_overlay_timer := 0.0
+var memory_gallery_layer: CanvasLayer = null
+var memory_gallery_draw_view: Control = null
+var memory_gallery_timer := 0.0
 var feedback_dashboard_layer: CanvasLayer = null
 var feedback_dashboard_view: Control = null
 var timer_countdown_layer: CanvasLayer = null
@@ -166,6 +171,7 @@ func _ready() -> void:
     _setup_state_machine()
     _setup_visual_transport()
     _setup_help_overlay()
+    _setup_memory_gallery()
     _setup_feedback_dashboard()
     _apply_shell_layout(BOOT_LAYOUT)
     _apply_visual_shell_window_policy()
@@ -183,6 +189,7 @@ func _process(_delta: float) -> void:
     if has_method("_poll_escape_quit"):
         _poll_escape_quit()
     _enforce_full_window_top_left_if_needed()
+    _tick_memory_gallery(_delta)
 func _arm_full_window_top_left_lock(duration_msec: int = 3500) -> void:
     _full_window_lock_until_msec = OS.get_ticks_msec() + duration_msec
 
@@ -630,24 +637,28 @@ func _set_visual_state(new_state: String) -> void:
 
 func display_temperature_value(value_c: int) -> void:
     _hide_help_overlay(false)
+    _hide_memory_gallery(false)
     particle_cloud.set_temperature_metric(value_c)
     state_machine.set_state(VisualStates.TEMPERATURE_GLYPH)
 
 
 func display_battery_percent(percent: int) -> void:
     _hide_help_overlay(false)
+    _hide_memory_gallery(false)
     particle_cloud.set_battery_metric(percent)
     state_machine.set_state(VisualStates.BATTERY_GLYPH)
 
 
 func display_date_text(text: String) -> void:
     _hide_help_overlay(false)
+    _hide_memory_gallery(false)
     particle_cloud.set_date_metric(text)
     state_machine.set_state(VisualStates.DATE_GLYPH)
 
 
 func display_time_text(text: String) -> void:
     _hide_help_overlay(false)
+    _hide_memory_gallery(false)
     particle_cloud.set_time_metric(text)
     state_machine.set_state(VisualStates.TIME_GLYPH)
 
@@ -945,6 +956,10 @@ func _apply_visual_command(command: String, payload: Dictionary, raw_message: Di
         clear_timer_countdown()
         return
 
+    if command == "SHOW_MEMORY_GALLERY":
+        display_memory_gallery(payload)
+        return
+
     if command == "SHOW_HELP":
         print("Visual Shell applying help overlay: ", String(payload.get("language", "en")))
         display_help_overlay(String(payload.get("language", "en")))
@@ -1056,6 +1071,10 @@ func _sync_scene_layout() -> void:
     if background != null:
         background.visible = true
 
+    if _is_memory_gallery_visible():
+        _layout_memory_gallery()
+        return
+
     if _is_help_overlay_visible():
         if help_overlay_draw_view != null and help_overlay_draw_view.visible:
             _layout_help_overlay()
@@ -1106,6 +1125,118 @@ func _build_status_text(current_state: String) -> String:
         + current_state \
         + "\nlayout: " \
         + shell_layout
+
+
+func _setup_memory_gallery() -> void:
+    memory_gallery_layer = CanvasLayer.new()
+    memory_gallery_layer.name = "MemoryGalleryLayer"
+    memory_gallery_layer.layer = 110
+    add_child(memory_gallery_layer)
+
+    memory_gallery_draw_view = MemoryGalleryViewScript.new()
+    memory_gallery_draw_view.name = "MemoryGalleryDrawView"
+    memory_gallery_draw_view.visible = false
+    memory_gallery_draw_view.mouse_filter = Control.MOUSE_FILTER_PASS
+    memory_gallery_layer.add_child(memory_gallery_draw_view)
+    if memory_gallery_draw_view.has_signal("close_requested"):
+        memory_gallery_draw_view.connect("close_requested", self, "_on_memory_gallery_close_requested")
+
+
+func display_memory_gallery(payload: Dictionary) -> void:
+    memory_gallery_timer = MEMORY_GALLERY_HOLD_SECONDS
+    _hide_help_overlay(false)
+
+    if status_label != null:
+        status_label.set_as_toplevel(false)
+        status_label.visible = false
+        status_label.text = ""
+
+    if background != null:
+        background.visible = true
+        background.color = Color(0.002, 0.003, 0.007, 1.0)
+
+    if particle_cloud != null:
+        particle_cloud.visible = true
+        particle_cloud.show()
+        particle_cloud.modulate = Color(0.62, 0.72, 0.92, 0.62)
+        particle_cloud.set_process(true)
+        particle_cloud.update()
+
+    if memory_gallery_draw_view != null and memory_gallery_draw_view.has_method("set_gallery_content"):
+        memory_gallery_draw_view.visible = true
+        memory_gallery_draw_view.show()
+        memory_gallery_draw_view.set_gallery_content(
+            String(payload.get("language", "en")),
+            String(payload.get("kind", "objects")),
+            String(payload.get("title", "")),
+            String(payload.get("subtitle", "")),
+            _normalize_memory_gallery_items(payload.get("items", []))
+        )
+        _layout_memory_gallery()
+        memory_gallery_draw_view.raise()
+
+
+func _normalize_memory_gallery_items(raw_items) -> Array:
+    if typeof(raw_items) != TYPE_ARRAY:
+        return []
+
+    var items = []
+    for raw_item in raw_items:
+        if typeof(raw_item) == TYPE_DICTIONARY:
+            items.append(raw_item)
+    return items
+
+
+func _tick_memory_gallery(delta: float) -> void:
+    if memory_gallery_timer <= 0.0:
+        return
+
+    memory_gallery_timer -= delta
+    if memory_gallery_timer <= 0.0:
+        _hide_memory_gallery(true)
+
+
+func _is_memory_gallery_visible() -> bool:
+    return memory_gallery_timer > 0.0
+
+
+func _on_memory_gallery_close_requested() -> void:
+    _hide_memory_gallery(true)
+
+
+func _hide_memory_gallery(return_to_idle: bool) -> void:
+    memory_gallery_timer = 0.0
+
+    if memory_gallery_draw_view != null:
+        memory_gallery_draw_view.visible = false
+
+    if background != null:
+        background.visible = true
+        background.color = Color(0.002, 0.003, 0.007, 1.0)
+
+    if particle_cloud != null:
+        particle_cloud.visible = true
+
+    if return_to_idle and state_machine != null:
+        state_machine.set_state(VisualStates.IDLE_PARTICLE_CLOUD)
+
+
+func _layout_memory_gallery() -> void:
+    if memory_gallery_draw_view == null:
+        return
+
+    if not _is_memory_gallery_visible():
+        memory_gallery_draw_view.visible = false
+        return
+
+    memory_gallery_draw_view.visible = true
+    memory_gallery_draw_view.show()
+
+    if memory_gallery_draw_view.has_method("layout_for_viewport"):
+        memory_gallery_draw_view.layout_for_viewport(get_viewport_rect().size)
+
+    memory_gallery_draw_view.raise()
+
 
 func _setup_feedback_dashboard() -> void:
     if feedback_dashboard_layer != null:

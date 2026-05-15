@@ -110,6 +110,14 @@ class PendingFlowFollowUpMixin:
                 consumed_by="follow_up:memory_person_name",
             )
 
+        if follow_type == "memory_object_name":
+            result = self._handle_memory_object_name_follow_up(text=routing_text, language=lang)
+            return PendingFlowDecision(
+                handled=True,
+                response=result,
+                consumed_by="follow_up:memory_object_name",
+            )
+
         if follow_type == "capture_name":
             result = self._handle_capture_name(text=routing_text, language=lang)
             return PendingFlowDecision(
@@ -781,6 +789,179 @@ class PendingFlowFollowUpMixin:
             },
         )
 
+    def _handle_memory_object_name_follow_up(self, *, text: str, language: str) -> bool:
+        pending_follow_up = dict(getattr(self.assistant, "pending_follow_up", {}) or {})
+        object_hint = str(pending_follow_up.get("object_hint", "") or "").strip()
+        display_name = self._clean_object_memory_display_name(text)
+        owner = self._object_owner_from_text(text)
+
+        if not display_name:
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Nie usłyszałam wyraźnie nazwy obiektu. Powiedz proszę, jak mam go nazwać.",
+                    "I did not catch the object name clearly. Please tell me what I should call it.",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_memory_object_name_retry",
+                metadata={"follow_up_type": "memory_object_name"},
+            )
+
+        rejection_reason = self._object_memory_name_rejection_reason(
+            text=text,
+            display_name=display_name,
+            object_hint=object_hint,
+        )
+        if rejection_reason:
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "To nie brzmi jak nazwa obiektu. Powiedz proszę jeszcze raz, jak mam go nazwać.",
+                    "That does not sound like an object name. Please tell me again what I should call it.",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_memory_object_name_rejected",
+                metadata={
+                    "follow_up_type": "memory_object_name",
+                    "rejection_reason": rejection_reason,
+                    "object_hint": object_hint,
+                    "raw_text": text,
+                    "display_name": display_name,
+                },
+            )
+
+        memory = getattr(self.assistant, "memory", None)
+        prepare_object_slot_method = getattr(memory, "prepare_object_image_capture_slot", None)
+        capture_object_method = getattr(memory, "capture_object_image_reference", None)
+        remember_object_method = getattr(memory, "remember_object", None)
+        if not callable(prepare_object_slot_method) and not callable(remember_object_method):
+            self.assistant.pending_follow_up = None
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Moduł pamięci obiektów nie jest jeszcze gotowy.",
+                    "The object memory module is not ready yet.",
+                ),
+                language=language,
+                route_kind=RouteKind.UNCLEAR,
+                source="pending_memory_object_name_unavailable",
+                metadata={"follow_up_type": "memory_object_name"},
+            )
+
+        aliases = ["object", "thing"] if str(language).lower().startswith("en") else ["obiekt", "rzecz"]
+        object_slot: dict[str, Any] = {}
+        self.assistant.pending_follow_up = None
+        try:
+            if callable(prepare_object_slot_method):
+                prepared_slot = prepare_object_slot_method(
+                    display_name,
+                    aliases=aliases,
+                    language=language,
+                    owner=owner,
+                    source="guided_object_enrollment",
+                    metadata={"enrollment_flow": "voice_guided_object"},
+                )
+                object_slot = dict(prepared_slot or {})
+                object_id = str(
+                    object_slot.get("object_entity_id")
+                    or object_slot.get("object_id")
+                    or ""
+                ).strip()
+            else:
+                object_id = remember_object_method(
+                    display_name,
+                    aliases=aliases,
+                    language=language,
+                    owner=owner,
+                    source="guided_object_enrollment",
+                    metadata={"enrollment_flow": "voice_guided_object"},
+                )
+        except TypeError:
+            object_id = remember_object_method(display_name, aliases=aliases, language=language, owner=owner)
+        except Exception as error:
+            LOGGER.warning("Guided object memory save failed: %s", error)
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Nie udało mi się zapisać tego obiektu w pamięci.",
+                    "I could not save that object to memory.",
+                ),
+                language=language,
+                route_kind=RouteKind.UNCLEAR,
+                source="pending_memory_object_name_failed",
+                metadata={"follow_up_type": "memory_object_name"},
+            )
+
+        object_capture_ready = bool(object_slot.get("object_capture_ready", False))
+        object_capture_result: dict[str, Any] = {}
+        if object_capture_ready and callable(capture_object_method):
+            try:
+                object_capture_result = dict(
+                    capture_object_method(
+                        display_name=display_name,
+                        aliases=aliases,
+                        language=language,
+                        owner=owner,
+                        source="guided_object_image_capture",
+                        slot=object_slot,
+                        vision_backend=getattr(self.assistant, "vision", None),
+                    )
+                    or {}
+                )
+            except Exception as error:  # pragma: no cover - defensive runtime fallback
+                LOGGER.warning("Guided object image capture failed: %s", error)
+                object_capture_result = {"ok": False, "reason": error.__class__.__name__}
+
+        object_capture_saved = bool(object_capture_result.get("ok", False))
+        response_text = self.assistant._localized(
+            language,
+            f"Dobrze. Będę pamiętać ten obiekt jako {display_name}.",
+            f"Okay. I will remember this object as {display_name}.",
+        )
+        metadata = {
+            "follow_up_type": "memory_object_name",
+            "object_id": str(object_id or "").strip(),
+            "display_name": display_name,
+            "language": language,
+            "owner": owner,
+            "object_capture_ready": object_capture_ready,
+            "object_capture_saved": object_capture_saved,
+        }
+        if object_slot:
+            metadata.update(
+                {
+                    key: value
+                    for key, value in object_slot.items()
+                    if key in {
+                        "object_entity_id",
+                        "object_assets_dir",
+                        "next_object_asset_path",
+                        "existing_object_asset_count",
+                    }
+                }
+            )
+        if object_capture_result:
+            metadata.update(
+                {
+                    "object_capture_reason": str(object_capture_result.get("reason", "") or ""),
+                    "object_asset_id": str(object_capture_result.get("asset_id", "") or ""),
+                    "object_asset_path": str(object_capture_result.get("path", "") or ""),
+                    "object_capture_backend": str(object_capture_result.get("backend", "") or ""),
+                    "object_capture_width": int(object_capture_result.get("width", 0) or 0),
+                    "object_capture_height": int(object_capture_result.get("height", 0) or 0),
+                }
+            )
+
+        return self.assistant.deliver_text_response(
+            response_text,
+            language=language,
+            route_kind=RouteKind.ACTION,
+            source="pending_memory_object_name_saved",
+            metadata=metadata,
+        )
+
     def _handle_memory_person_name_follow_up(self, *, text: str, language: str) -> bool:
         display_name = self._clean_person_memory_display_name(text)
 
@@ -880,20 +1061,20 @@ class PendingFlowFollowUpMixin:
         if face_capture_saved:
             response_text = self.assistant._localized(
                 language,
-                f"Dobrze, {display_name}. Zapamiętałam Cię jako {display_name} i zapisałam zdjęcie twarzy.",
-                f"Okay, {display_name}. I remembered you as {display_name} and saved a face photo.",
+                f"Dobrze, {display_name}. Będę Cię już pamiętać.",
+                f"Okay, {display_name}. I will remember you now.",
             )
         elif face_capture_ready:
             response_text = self.assistant._localized(
                 language,
-                f"Dobrze, {display_name}. Zapamiętałam Cię jako {display_name}. Przygotowałam miejsce na zdjęcia twarzy.",
-                f"Okay, {display_name}. I remembered you as {display_name}. I prepared a place for face photos.",
+                f"Dobrze, {display_name}. Będę Cię już pamiętać.",
+                f"Okay, {display_name}. I will remember you now.",
             )
         else:
             response_text = self.assistant._localized(
                 language,
-                f"Dobrze, {display_name}. Zapamiętałam Cię jako {display_name}.",
-                f"Okay, {display_name}. I remembered you as {display_name}.",
+                f"Dobrze, {display_name}. Będę Cię już pamiętać.",
+                f"Okay, {display_name}. I will remember you now.",
             )
 
         metadata = {
@@ -939,6 +1120,197 @@ class PendingFlowFollowUpMixin:
             source="pending_memory_person_name_saved",
             metadata=metadata,
         )
+
+    @classmethod
+    def _clean_object_memory_display_name(cls, text: str) -> str:
+        raw = " ".join(str(text or "").strip().split())
+        if not raw:
+            return ""
+
+        trim_chars = " .,!?:;" + chr(92) + chr(34) + chr(39)
+        normalized = raw.lower().strip(trim_chars)
+
+        prefixes = (
+            "to jest mój ",
+            "to jest moj ",
+            "to jest moja ",
+            "to jest moje ",
+            "to jest ",
+            "nazywa się ",
+            "nazywa sie ",
+            "nazwij go ",
+            "nazwij to ",
+            "mój ",
+            "moj ",
+            "moja ",
+            "moje ",
+            "this is my ",
+            "this is the ",
+            "this is ",
+            "call it ",
+            "call this ",
+            "my ",
+            "the ",
+        )
+
+        for prefix in prefixes:
+            if normalized.startswith(prefix):
+                normalized = normalized[len(prefix):].strip()
+                break
+
+        normalized = normalized.strip(trim_chars)
+        if normalized in {"object", "thing", "obiekt", "rzecz", "to", "this", "that", "it"}:
+            return ""
+
+        canonical_name = cls._canonical_object_memory_display_name(normalized)
+        if canonical_name:
+            return canonical_name
+
+        return cls._title_display_name(normalized)
+
+    @classmethod
+    def _canonical_object_memory_display_name(cls, text: str) -> str:
+        trim_chars = " .,!?:;" + chr(92) + chr(34) + chr(39)
+        normalized = cls._normalize_object_guard_text(text)
+        normalized = normalized.strip(trim_chars)
+
+        object_name_corrections = {
+            "vape": "Vape",
+            "wipe": "Vape",
+            "wejp": "Vape",
+            "wajp": "Vape",
+            "wape": "Vape",
+            "vejp": "Vape",
+            "e papieros": "E-papieros",
+            "epapieros": "E-papieros",
+            "e-papieros": "E-papieros",
+        }
+
+        return object_name_corrections.get(normalized, "")
+
+    @classmethod
+    def _object_memory_name_rejection_reason(
+        cls,
+        *,
+        text: str,
+        display_name: str,
+        object_hint: str = "",
+    ) -> str:
+        normalized_text = cls._normalize_object_guard_text(text)
+        normalized_display = cls._normalize_object_guard_text(display_name)
+        normalized_hint = cls._normalize_object_guard_text(object_hint)
+        if not normalized_text or not normalized_display:
+            return ""
+
+        command_like_phrases = {
+            "pomoc",
+            "help",
+            "exit",
+            "wyjdz",
+            "wylacz nexa",
+            "pokaż pulpit",
+            "pokaz pulpit",
+            "show desktop",
+            "schowaj pulpit",
+            "hide desktop",
+            "pokaż sie",
+            "pokaz sie",
+            "show yourself",
+            "pokaż oczy",
+            "pokaz oczy",
+            "show eyes",
+            "spojrz na mnie",
+            "patrz na mnie",
+            "look at me",
+            "co pamietasz",
+            "co pamiętasz",
+            "what do you remember",
+            "kogo znasz",
+            "who do you know",
+            "jakie obiekty znasz",
+            "what objects do you know",
+            "zapamietaj",
+            "zapamiętaj",
+            "remember",
+        }
+        for phrase in command_like_phrases:
+            normalized_phrase = cls._normalize_object_guard_text(phrase)
+            if (
+                normalized_text == normalized_phrase
+                or normalized_text.startswith(normalized_phrase + " ")
+                or normalized_display == normalized_phrase
+                or normalized_display.startswith(normalized_phrase + " ")
+            ):
+                return "command_like_object_name"
+
+        if normalized_hint and normalized_hint not in normalized_text and normalized_hint not in normalized_display:
+            tokens = normalized_text.split()
+            filler_tokens = {
+                "ale",
+                "but",
+                "w",
+                "we",
+                "na",
+                "do",
+                "i",
+                "a",
+                "the",
+                "to",
+                "in",
+                "on",
+                "of",
+                "for",
+                "from",
+                "form",
+            }
+            filler_count = sum(1 for token in tokens if token in filler_tokens)
+            if len(tokens) >= 2 and (tokens[0] in {"ale", "but"} or filler_count >= max(2, len(tokens) - 1)):
+                return "low_quality_object_name"
+
+        return ""
+
+    @staticmethod
+    def _normalize_object_guard_text(text: str) -> str:
+        normalized = " ".join(str(text or "").strip().lower().split())
+        translation = str.maketrans({
+            "ą": "a",
+            "ć": "c",
+            "ę": "e",
+            "ł": "l",
+            "ń": "n",
+            "ó": "o",
+            "ś": "s",
+            "ź": "z",
+            "ż": "z",
+        })
+        normalized = normalized.translate(translation)
+        return re.sub(r"[^a-z0-9 ]+", "", normalized).strip()
+
+    @staticmethod
+    def _object_owner_from_text(text: str) -> str:
+        normalized = " ".join(str(text or "").strip().lower().split())
+        if not normalized:
+            return ""
+        user_markers = (
+            "mój ",
+            "moj ",
+            "moja ",
+            "moje ",
+            "to jest mój ",
+            "to jest moj ",
+            "to jest moja ",
+            "to jest moje ",
+            "my ",
+            "this is my ",
+        )
+        return "user" if any(normalized.startswith(marker) for marker in user_markers) else ""
+
+    @staticmethod
+    def _title_display_name(text: str) -> str:
+        clean = " ".join(str(text or "").split()).strip()
+        if not clean:
+            return ""
+        return " ".join(part[:1].upper() + part[1:] for part in clean.split())
 
     @staticmethod
     def _clean_person_memory_display_name(text: str) -> str:

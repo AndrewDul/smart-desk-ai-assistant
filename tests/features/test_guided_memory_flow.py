@@ -239,6 +239,152 @@ def test_guided_person_memory_starts_name_follow_up() -> None:
 
 
 
+def test_guided_object_memory_starts_object_name_follow_up() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        assistant = _Assistant(_memory_service(Path(temp_dir) / "memory.json"))
+        flow = _MemoryActionFlow(assistant)
+
+        handled = flow._handle_memory_store(
+            route=SimpleNamespace(),
+            language="pl",
+            payload={"guided": True, "object_enrollment": True, "object_hint": "telefon"},
+            resolved=SimpleNamespace(source="unit_test"),
+        )
+
+        assert handled is True
+        assert assistant.pending_follow_up == {
+            "type": "memory_object_name",
+            "language": "pl",
+            "object_hint": "telefon",
+        }
+        assert assistant.responses[-1]["source"] == "action_memory_object_name_prompt"
+        assert assistant.responses[-1]["text"] == "Dobrze. Jak mam nazwać ten obiekt?"
+
+
+def test_guided_object_memory_name_follow_up_prepares_object_slot_with_index() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+        assistant = _Assistant(memory)
+        assistant.pending_follow_up = {"type": "memory_object_name", "language": "pl", "object_hint": "telefon"}
+        flow = _PendingFlow(assistant)
+
+        decision = flow.handle_pending_follow_up("mój telefon", "pl")
+
+        assert decision.handled is True
+        assert decision.consumed_by == "follow_up:memory_object_name"
+        assert assistant.pending_follow_up is None
+        response = assistant.responses[-1]
+        assert response["source"] == "pending_memory_object_name_saved"
+        assert response["metadata"]["display_name"] == "Telefon"
+        assert response["metadata"]["owner"] == "user"
+        assert response["metadata"]["object_capture_ready"] is True
+        assert response["metadata"]["object_capture_saved"] is False
+        assert response["metadata"]["object_capture_reason"] == "vision_backend_unavailable"
+        assert response["metadata"]["object_entity_id"]
+        assert Path(response["metadata"]["object_assets_dir"]).exists()
+        assert response["metadata"]["next_object_asset_path"].endswith("object_001.jpg")
+        assert response["text"] == "Dobrze. Będę pamiętać ten obiekt jako Telefon."
+        assert memory.recall("jakie obiekty znasz", language="pl") == "Znam obiekty: Telefon."
+
+
+
+def test_guided_object_memory_name_follow_up_corrects_vape_asr_name() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+        assistant = _Assistant(memory)
+        assistant.pending_follow_up = {"type": "memory_object_name", "language": "en", "object_hint": "vape"}
+        flow = _PendingFlow(assistant)
+
+        decision = flow.handle_pending_follow_up("wipe", "en")
+
+        assert decision.handled is True
+        assert decision.consumed_by == "follow_up:memory_object_name"
+        assert assistant.pending_follow_up is None
+        response = assistant.responses[-1]
+        assert response["source"] == "pending_memory_object_name_saved"
+        assert response["metadata"]["display_name"] == "Vape"
+        assert memory.recall("what objects do you know", language="en") == "I know objects: Vape."
+
+
+def test_guided_object_memory_name_follow_up_rejects_command_like_name() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+        assistant = _Assistant(memory)
+        assistant.pending_follow_up = {"type": "memory_object_name", "language": "pl", "object_hint": "telefon"}
+        flow = _PendingFlow(assistant)
+
+        decision = flow.handle_pending_follow_up("pokaż pulpit", "pl")
+
+        assert decision.handled is True
+        assert decision.consumed_by == "follow_up:memory_object_name"
+        assert assistant.pending_follow_up == {"type": "memory_object_name", "language": "pl", "object_hint": "telefon"}
+        response = assistant.responses[-1]
+        assert response["source"] == "pending_memory_object_name_rejected"
+        assert response["metadata"]["rejection_reason"] == "command_like_object_name"
+        assert memory.recall("jakie obiekty znasz", language="pl") == "Nie znam jeszcze żadnych obiektów."
+
+
+def test_guided_object_memory_name_follow_up_rejects_low_quality_hint_mismatch() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+        assistant = _Assistant(memory)
+        assistant.pending_follow_up = {"type": "memory_object_name", "language": "pl", "object_hint": "telefon"}
+        flow = _PendingFlow(assistant)
+
+        decision = flow.handle_pending_follow_up("ale w form", "pl")
+
+        assert decision.handled is True
+        assert decision.consumed_by == "follow_up:memory_object_name"
+        assert assistant.pending_follow_up == {"type": "memory_object_name", "language": "pl", "object_hint": "telefon"}
+        response = assistant.responses[-1]
+        assert response["source"] == "pending_memory_object_name_rejected"
+        assert response["metadata"]["rejection_reason"] == "low_quality_object_name"
+        assert memory.recall("jakie obiekty znasz", language="pl") == "Nie znam jeszcze żadnych obiektów."
+
+
+def test_guided_object_memory_name_follow_up_captures_object_when_vision_frame_available() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+        assistant = _Assistant(memory)
+        assistant.vision = _FakeVisionBackend()
+        assistant.pending_follow_up = {"type": "memory_object_name", "language": "pl", "object_hint": "telefon"}
+        flow = _PendingFlow(assistant)
+
+        decision = flow.handle_pending_follow_up("mój telefon", "pl")
+
+        assert decision.handled is True
+        response = assistant.responses[-1]
+        assert response["metadata"]["object_capture_ready"] is True
+        assert response["metadata"]["object_capture_saved"] is True
+        assert response["metadata"]["object_asset_id"].startswith("asset_")
+        assert Path(response["metadata"]["object_asset_path"]).exists()
+        assert response["metadata"]["object_capture_width"] == 32
+        assert response["metadata"]["object_capture_height"] == 24
+        assert memory.index_store is not None
+        assert memory.index_store.asset_count() == 1
+        assert response["text"] == "Dobrze. Będę pamiętać ten obiekt jako Telefon."
+
+
 def test_guided_person_memory_name_follow_up_prepares_face_slot_with_index() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
@@ -263,7 +409,7 @@ def test_guided_person_memory_name_follow_up_prepares_face_slot_with_index() -> 
         assert response["metadata"]["person_entity_id"]
         assert Path(response["metadata"]["person_faces_dir"]).exists()
         assert response["metadata"]["next_face_asset_path"].endswith("face_001.jpg")
-        assert response["text"] == "Dobrze, Andrzej. Zapamiętałam Cię jako Andrzej. Przygotowałam miejsce na zdjęcia twarzy."
+        assert response["text"] == "Dobrze, Andrzej. Będę Cię już pamiętać."
 
 
 def test_guided_person_memory_name_follow_up_captures_face_when_vision_frame_available() -> None:
@@ -293,7 +439,7 @@ def test_guided_person_memory_name_follow_up_captures_face_when_vision_frame_ava
         assert response["metadata"]["face_confidence"] == 0.82
         assert memory.index_store is not None
         assert memory.index_store.asset_count() == 1
-        assert response["text"] == "Dobrze, Andrzej. Zapamiętałam Cię jako Andrzej i zapisałam zdjęcie twarzy."
+        assert response["text"] == "Dobrze, Andrzej. Będę Cię już pamiętać."
 
 def test_guided_person_memory_name_follow_up_remembers_user_person() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:

@@ -208,7 +208,7 @@ def _capture_mode_for_active_phase(
                 return "reminder_time"
             if pending_type == "reminder_message":
                 return "reminder_message"
-            if pending_type in {"memory_message", "memory_person_name"}:
+            if pending_type in {"memory_message", "memory_person_name", "memory_object_name"}:
                 return "memory_message"
         return normalized_phase
 

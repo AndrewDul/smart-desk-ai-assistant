@@ -8,6 +8,20 @@ from modules.understanding.parsing.normalization import clean_text
 
 class IntentParserMemoryMixin:
     def _parse_memory_recall(self, normalized: str) -> IntentResult | None:
+        direct_recall_queries = {
+            "jakie obiekty znasz",
+            "jakie rzeczy znasz",
+            "pokaz zapamietane obiekty",
+            "pokaż zapamiętane obiekty",
+            "what objects do you know",
+            "show known objects",
+        }
+        if normalized in direct_recall_queries:
+            return IntentResult.from_action(
+                action="memory_recall",
+                data={"key": normalized},
+            )
+
         for pattern in (
             r"^(?:where are|where is) (?:my |the )?(.+)$",
             r"^where did i put (?:my |the )?(.+)$",
@@ -69,6 +83,29 @@ class IntentParserMemoryMixin:
             return IntentResult.from_action(
                 action="memory_store",
                 data={"guided": True, "person_enrollment": True},
+            )
+
+        object_enrollment_triggers = {
+            "remember this object": "object",
+            "remember this thing": "object",
+            "remember this phone": "phone",
+            "save this object": "object",
+            "save this thing": "object",
+            "save this phone": "phone",
+            "zapamietaj ten obiekt": "obiekt",
+            "zapamiętaj ten obiekt": "obiekt",
+            "zapamietaj te rzecz": "rzecz",
+            "zapamiętaj tę rzecz": "rzecz",
+            "zapamietaj ten telefon": "telefon",
+            "zapamiętaj ten telefon": "telefon",
+            "zapisz ten obiekt": "obiekt",
+            "zapisz ten telefon": "telefon",
+        }
+        object_hint = object_enrollment_triggers.get(normalized)
+        if object_hint:
+            return IntentResult.from_action(
+                action="memory_store",
+                data={"guided": True, "object_enrollment": True, "object_hint": object_hint},
             )
 
         # Bare trigger words → enter guided mode immediately.

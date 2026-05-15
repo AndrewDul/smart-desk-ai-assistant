@@ -30,6 +30,8 @@ htmlcov/
 .idea/
 *.swp
 *.swo
+*.bak
+*.bak-*
 
 # --------------------------------------------------
 # OS files
@@ -41,7 +43,9 @@ Thumbs.db
 # Runtime state (canonical)
 # --------------------------------------------------
 var/data/
+var/log/
 var/logs/
+var/reports/
 var/cache/
 
 # --------------------------------------------------

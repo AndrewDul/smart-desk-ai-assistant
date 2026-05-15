@@ -5688,3 +5688,32 @@ Focused test command:
 python -m pytest -q tests/presentation/visual_shell
 ```
 
+## 2026-05-16 - Memory recall aliases and Vosk grammar hygiene
+
+### Problem
+
+Some English object recall phrases went to CHAT or returned `not found`.
+
+### Cause
+
+Routing and gallery dispatch knew the aliases, but `MemoryService` recall classification did not know all of them yet.
+
+### Fix
+
+I added the missing people/object recall classification aliases and tests.
+
+### Problem
+
+Vosk printed repeated missing-vocabulary warnings for unsupported Polish words.
+
+### Cause
+
+Some broad Polish memory aliases were exported to limited Vosk grammar.
+
+### Fix
+
+I kept those aliases available as fallback/recovery, but excluded them from limited Vosk grammar.
+
+### Note
+
+FasterWhisper input overflow appeared once during manual testing. I did not fix that in this sprint. It should be handled in the next audio/latency sprint.
