@@ -9,17 +9,24 @@ from modules.understanding.parsing.normalization import clean_text
 class IntentParserMemoryMixin:
     def _parse_memory_recall(self, normalized: str) -> IntentResult | None:
         for pattern in (
-            r"^(?:where are|where is) (?:my )?(.+)$",
-            r"^where did i put (?:my )?(.+)$",
+            r"^(?:where are|where is) (?:my |the )?(.+)$",
+            r"^where did i put (?:my |the )?(.+)$",
+            r"^where did i leave (?:my |the )?(.+)$",
+            r"^remind me where (?:my |the )?(.+)$",
             r"^what do you remember about (.+)$",
+            r"^do you remember where (?:my |the )?(.+)$",
             r"^do you remember (.+)$",
             r"^recall (.+)$",
             r"^remember (?:where|what) (.+)$",
             r"^gdzie (?:sa|jest) (?:moje |moj |moja )?(.+)$",
+            r"^gdzie lezy (?:moje |moj |moja )?(.+)$",
             r"^gdzie polozylem (?:moje |moj |moja )?(.+)$",
             r"^gdzie polozylam (?:moje |moj |moja )?(.+)$",
+            r"^przypomnij mi gdzie (?:jest )?(?:moje |moj |moja )?(.+)$",
+            r"^przypomnij gdzie (?:jest )?(?:moje |moj |moja )?(.+)$",
+            r"^pamietasz gdzie (?:jest )?(?:moje |moj |moja )?(.+)$",
             r"^co pamietasz o (.+)$",
-            r"^czy pamietasz (.+)$",
+            r"^czy pamietasz (?:gdzie jest )?(.+)$",
         ):
             match = re.match(pattern, normalized)
             if match:
@@ -53,8 +60,12 @@ class IntentParserMemoryMixin:
         # ("remember" alone, "zapamiętaj" alone, etc.)
         bare_triggers = {
             "remember",
+            "save this",
+            "save to memory",
             "zapamietaj",
             "zapamiętaj",
+            "zapisz to",
+            "zapisz w pamieci",
             "pamietaj",
             "pamiętaj",
         }
@@ -67,8 +78,12 @@ class IntentParserMemoryMixin:
         prefixes = (
             "remember that ",
             "remember ",
+            "save that ",
+            "save ",
             "zapamietaj ze ",
             "zapamietaj ",
+            "zapisz ze ",
+            "zapisz ",
             "pamietaj ze ",
             "pamietaj ",
         )

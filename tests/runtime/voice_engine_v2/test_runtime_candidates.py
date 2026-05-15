@@ -374,3 +374,27 @@ def test_runtime_candidate_adapter_accepts_memory_list_transcript_override() -> 
     assert result.route_decision.primary_intent == "memory_list"
     assert result.route_decision.tool_invocations[0].tool_name == "memory.list"
     assert result.route_decision.metadata["llm_prevented"] is True
+
+
+def test_runtime_candidate_adapter_accepts_memory_recall_transcript_override() -> None:
+    bundle = _bundle(
+        runtime_candidates_enabled=True,
+        allowlist=["memory.recall"],
+    )
+
+    result = bundle.runtime_candidate_adapter.process_transcript(
+        turn_id="turn-candidate-memory-recall",
+        transcript="przypomnij mi gdzie jest mój telefon",
+        language_hint=CommandLanguage.POLISH,
+        started_monotonic=1.0,
+        speech_end_monotonic=1.0,
+    )
+
+    assert result.accepted is True
+    assert result.reason == "accepted"
+    assert result.intent_key == "memory.recall"
+    assert result.route_decision is not None
+    assert result.route_decision.primary_intent == "memory_recall"
+    assert result.route_decision.tool_invocations[0].tool_name == "memory.recall"
+    assert result.route_decision.tool_invocations[0].payload["key"] == "telefon"
+    assert result.route_decision.metadata["llm_prevented"] is True

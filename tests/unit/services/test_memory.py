@@ -114,6 +114,37 @@ class TestMemoryRecords(unittest.TestCase):
         self.assertIsNone(memory_id)
         self.assertEqual(self.memory.list_records(), [])
 
+
+    def test_polish_asr_glued_keys_phrase_is_repaired_before_store(self) -> None:
+        memory_id = self.memory.remember_text(
+            "Klułczesą w kuchni.",
+            language="pl",
+            source="unit_test",
+        )
+
+        records = self.memory.list_records(language="pl")
+        recalled = self.memory.recall("gdzie są moje klucze", language="pl")
+
+        self.assertIsNotNone(memory_id)
+        self.assertEqual(records[0]["original_text"], "klucze są w kuchni")
+        self.assertEqual(records[0]["metadata"].get("raw_transcript"), "Klułczesą w kuchni.")
+        self.assertTrue(records[0]["metadata"].get("memory_text_corrected"))
+        self.assertEqual(recalled, "klucze są w kuchni")
+
+    def test_polish_memory_rejects_observed_english_false_positive(self) -> None:
+        self.assertTrue(
+            self.memory.looks_like_suspicious_memory_text(
+                "Clue chest on the corner.",
+                language="pl",
+            )
+        )
+        self.assertFalse(
+            self.memory.looks_like_suspicious_memory_text(
+                "Clue chest on the corner.",
+                language="en",
+            )
+        )
+
     def test_forget_removes_best_matching_record(self) -> None:
         self.memory.remember_text("my phone is on the desk", language="en")
 

@@ -138,6 +138,7 @@
       "reminder.time_answer",
       "memory.guided_start",
       "memory.list",
+      "memory.recall",
       "focus.start",
       "focus.offer",
       "focus.stop",

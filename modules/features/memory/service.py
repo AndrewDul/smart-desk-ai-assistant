@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import re
 import unicodedata
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
@@ -66,13 +67,18 @@ class MemoryService:
         "inside",
         "is",
         "it",
+        "leave",
+        "left",
+        "look",
         "me",
         "my",
         "near",
         "of",
         "on",
         "please",
+        "put",
         "recall",
+        "remind",
         "remember",
         "tell",
         "the",
@@ -107,6 +113,12 @@ class MemoryService:
         "pod",
         "przy",
         "przypomnij",
+        "sobie",
+        "lezal",
+        "lezy",
+        "polozylem",
+        "polozylam",
+        "powiedz",
         "sa",
         "sie",
         "to",
@@ -123,6 +135,8 @@ class MemoryService:
     ) -> None:
         self.store = store or MemoryRepository()
         self.store.ensure_valid()
+        self._records_cache: list[dict[str, Any]] | None = None
+        self._records_cache_signature: tuple[str, int | None] | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -167,17 +181,23 @@ class MemoryService:
         confidence: float = 1.0,
         metadata: dict[str, Any] | None = None,
     ) -> str | None:
-        original_text = self._compact_original_text(text)
+        original_input_text = self._compact_original_text(text)
+        original_text = self.prepare_memory_text(original_input_text, language=language)
         if not original_text:
             append_log("Memory save skipped: empty text.")
             return None
+
+        record_metadata = dict(metadata or {})
+        if original_input_text and original_input_text != original_text:
+            record_metadata.setdefault("raw_transcript", original_input_text)
+            record_metadata.setdefault("memory_text_corrected", True)
 
         record = self._build_record(
             original_text=original_text,
             language=language,
             source=source,
             confidence=confidence,
-            metadata=metadata,
+            metadata=record_metadata,
         )
         if not record["tokens"]:
             append_log("Memory save skipped: no searchable tokens.")
@@ -200,6 +220,72 @@ class MemoryService:
             f"id={record['id']} language={record['language']} text={record['original_text']}"
         )
         return str(record["id"])
+
+    def prepare_memory_text(
+        self,
+        text: str,
+        *,
+        language: str = "unknown",
+    ) -> str:
+        """Return a display-safe memory phrase before it is stored.
+
+        This is intentionally conservative: normal dictation is preserved,
+        while known short Polish ASR glitches are repaired before they become
+        permanent memory records.
+        """
+
+        compact = self._compact_original_text(text)
+        if not compact:
+            return ""
+
+        normalized_language = self._normalize_language(language)
+        if normalized_language != "pl":
+            return compact
+
+        return self._repair_polish_memory_dictation(compact)
+
+    def looks_like_suspicious_memory_text(
+        self,
+        text: str,
+        *,
+        language: str = "unknown",
+    ) -> bool:
+        compact = self._compact_original_text(text)
+        if not compact:
+            return True
+
+        normalized = self._clean_text(compact)
+        if not normalized:
+            return True
+
+        normalized_language = self._normalize_language(language)
+        if normalized_language == "pl":
+            english_false_positives = {
+                "clue chest on the corner",
+                "close chest on the corner",
+                "blue chest on the corner",
+                "thank you very much",
+                "thanks for watching",
+                "speaking in foreign language",
+            }
+            if normalized in english_false_positives:
+                return True
+
+            tokens = normalized.split()
+            english_location_words = {
+                "clue",
+                "chest",
+                "corner",
+                "phone",
+                "desk",
+                "table",
+                "keys",
+                "kitchen",
+            }
+            if tokens and sum(1 for token in tokens if token in english_location_words) >= max(2, len(tokens) - 1):
+                return True
+
+        return False
 
     def store_text(
         self,
@@ -299,16 +385,26 @@ class MemoryService:
     # ------------------------------------------------------------------
 
     def _load_records(self) -> list[dict[str, Any]]:
+        signature = self._store_signature()
+        if (
+            self._records_cache is not None
+            and self._records_cache_signature == signature
+        ):
+            return deepcopy(self._records_cache)
+
         raw_data = self.store.read()
 
         if isinstance(raw_data, list):
             records = [self._coerce_record(item) for item in raw_data if isinstance(item, dict)]
-            return [record for record in records if record is not None]
+            loaded_records = [record for record in records if record is not None]
+        elif isinstance(raw_data, dict):
+            loaded_records = self._migrate_legacy_dict(raw_data)
+        else:
+            loaded_records = []
 
-        if isinstance(raw_data, dict):
-            return self._migrate_legacy_dict(raw_data)
-
-        return []
+        self._records_cache = deepcopy(loaded_records)
+        self._records_cache_signature = self._store_signature()
+        return deepcopy(loaded_records)
 
     def _save_records(self, records: list[dict[str, Any]]) -> None:
         cleaned_records = [
@@ -317,6 +413,21 @@ class MemoryService:
             if record is not None
         ]
         self.store.write(cleaned_records)
+        self._records_cache = deepcopy(cleaned_records)
+        self._records_cache_signature = self._store_signature()
+
+    def _store_signature(self) -> tuple[str, int | None]:
+        path = getattr(self.store, "path", None)
+        if path is None:
+            return ("memory-store", None)
+
+        try:
+            resolved_path = str(path)
+            stat = path.stat()
+        except OSError:
+            return (str(path), None)
+
+        return (resolved_path, int(getattr(stat, "st_mtime_ns", 0)))
 
     def _migrate_legacy_dict(self, data: dict[Any, Any]) -> list[dict[str, Any]]:
         records: list[dict[str, Any]] = []
@@ -570,6 +681,28 @@ class MemoryService:
     # ------------------------------------------------------------------
     # Normalization
     # ------------------------------------------------------------------
+
+    def _repair_polish_memory_dictation(self, text: str) -> str:
+        compact = self._compact_original_text(text)
+        normalized = self._clean_text(compact)
+        if not normalized:
+            return compact
+
+        repaired = normalized
+        replacements = (
+            (r"\bklu+l?czesa\b", "klucze sa"),
+            (r"\bklulczesa\b", "klucze sa"),
+            (r"\bkluucze\b", "klucze"),
+            (r"\bkluczesa\b", "klucze sa"),
+            (r"\bklucze sa\b", "klucze są"),
+        )
+        for pattern, replacement in replacements:
+            repaired = re.sub(pattern, replacement, repaired)
+
+        if repaired == normalized:
+            return compact
+
+        return self._compact_original_text(repaired)
 
     def _tokenize(self, normalized_text: str) -> list[str]:
         tokens: list[str] = []

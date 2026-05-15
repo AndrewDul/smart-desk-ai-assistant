@@ -451,6 +451,23 @@ class FasterWhisperInputBackend(
             )
         return audio, profile_name, profile
 
+    def _resolve_dictation_preferred_language(
+        self,
+        *,
+        mode: str,
+        metadata: dict[str, Any],
+    ) -> str | None:
+        if str(mode or "").strip().lower() != "memory_message":
+            return None
+
+        forced_language = self._normalize_language(
+            metadata.get("force_language") or metadata.get("preferred_language"),
+            allow_auto=False,
+        )
+        if forced_language in {"pl", "en"}:
+            return forced_language
+        return None
+
 
     def listen(self, timeout: float = 8.0, debug: bool = False) -> str | None:
         try:
@@ -801,7 +818,16 @@ class FasterWhisperInputBackend(
                     error,
                 )
 
-        candidate = self._transcribe_audio_candidate(audio, debug=debug)
+        preferred_language = self._resolve_dictation_preferred_language(
+            mode=mode,
+            metadata=dict(request.metadata or {}),
+        )
+
+        candidate = self._transcribe_audio_candidate(
+            audio,
+            debug=debug,
+            preferred_language=preferred_language,
+        )
         transcription_finished_at = time.monotonic()
 
         if capture_window_shadow_tap:

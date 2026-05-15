@@ -2485,6 +2485,24 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             'memory.guided_start',
+            'save this',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'guided_start'),
+        ),
+        CommandPhrase(
+            'memory.guided_start',
+            'save that',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'guided_start'),
+        ),
+        CommandPhrase(
+            'memory.guided_start',
+            'save to memory',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'guided_start'),
+        ),
+        CommandPhrase(
+            'memory.guided_start',
             'zapamiętaj coś',
             language=CommandLanguage.POLISH,
             tags=('memory', 'guided_start'),
@@ -2504,6 +2522,30 @@ def build_default_command_grammar() -> CommandGrammar:
         CommandPhrase(
             'memory.guided_start',
             'zapamietaj to',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'guided_start'),
+        ),
+        CommandPhrase(
+            'memory.guided_start',
+            'pamiętaj to',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'guided_start'),
+        ),
+        CommandPhrase(
+            'memory.guided_start',
+            'pamietaj to',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'guided_start'),
+        ),
+        CommandPhrase(
+            'memory.guided_start',
+            'zapisz to',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'guided_start'),
+        ),
+        CommandPhrase(
+            'memory.guided_start',
+            'zapisz w pamieci',
             language=CommandLanguage.POLISH,
             tags=('memory', 'guided_start'),
         ),
@@ -2534,6 +2576,18 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             'memory.list',
+            'what did you save',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'list'),
+        ),
+        CommandPhrase(
+            'memory.list',
+            'what have you saved',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'list'),
+        ),
+        CommandPhrase(
+            'memory.list',
             'pokaż pamięć',
             language=CommandLanguage.POLISH,
             tags=('memory', 'list'),
@@ -2553,6 +2607,18 @@ def build_default_command_grammar() -> CommandGrammar:
         CommandPhrase(
             'memory.list',
             'co pamietasz',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'list'),
+        ),
+        CommandPhrase(
+            'memory.list',
+            'pokaz co pamietasz',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'list'),
+        ),
+        CommandPhrase(
+            'memory.list',
+            'pokaz zapamietane',
             language=CommandLanguage.POLISH,
             tags=('memory', 'list'),
         ),
@@ -2594,6 +2660,24 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             'memory.recall',
+            'where did i put',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'recall', 'prefix'),
+        ),
+        CommandPhrase(
+            'memory.recall',
+            'where did i leave',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'recall', 'prefix'),
+        ),
+        CommandPhrase(
+            'memory.recall',
+            'remind me where',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'recall', 'prefix'),
+        ),
+        CommandPhrase(
+            'memory.recall',
             'do you remember',
             language=CommandLanguage.ENGLISH,
             tags=('memory', 'recall', 'prefix'),
@@ -2613,6 +2697,42 @@ def build_default_command_grammar() -> CommandGrammar:
         CommandPhrase(
             'memory.recall',
             'gdzie sa',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'recall', 'prefix'),
+        ),
+        CommandPhrase(
+            'memory.recall',
+            'gdzie lezy',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'recall', 'prefix'),
+        ),
+        CommandPhrase(
+            'memory.recall',
+            'gdzie polozylem',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'recall', 'prefix'),
+        ),
+        CommandPhrase(
+            'memory.recall',
+            'gdzie polozylam',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'recall', 'prefix'),
+        ),
+        CommandPhrase(
+            'memory.recall',
+            'przypomnij gdzie',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'recall', 'prefix'),
+        ),
+        CommandPhrase(
+            'memory.recall',
+            'przypomnij mi gdzie',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'recall', 'prefix'),
+        ),
+        CommandPhrase(
+            'memory.recall',
+            'pamietasz gdzie',
             language=CommandLanguage.POLISH,
             tags=('memory', 'recall', 'prefix'),
         ),

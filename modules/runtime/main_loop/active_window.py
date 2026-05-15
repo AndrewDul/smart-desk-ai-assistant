@@ -546,16 +546,32 @@ def _capture_transcript_with_speech_service(
     if not callable(transcribe):
         return None
 
+    normalized_mode = str(mode or "command").strip() or "command"
+    metadata: dict[str, object] = {
+        "adapter": "active_window",
+        "capture_mode": normalized_mode,
+    }
+    if normalized_mode == "memory_message":
+        pending_follow_up = getattr(assistant, "pending_follow_up", None)
+        if isinstance(pending_follow_up, dict):
+            preferred_language = str(
+                pending_follow_up.get("language")
+                or pending_follow_up.get("lang")
+                or ""
+            ).strip().lower()
+            if preferred_language in {"pl", "en"}:
+                metadata["preferred_language"] = preferred_language
+                metadata["force_language"] = preferred_language
+                metadata["dictation_capture"] = True
+                metadata["dictation_reason"] = "memory_message_follow_up"
+
     try:
         request = TranscriptRequest(
             timeout_seconds=float(timeout),
             debug=bool(debug),
             source=_speech_request_source(assistant),
-            mode=str(mode or "command").strip() or "command",
-            metadata={
-                "adapter": "active_window",
-                "capture_mode": str(mode or "command").strip() or "command",
-            },
+            mode=normalized_mode,
+            metadata=metadata,
         )
         result = transcribe(request)
     except Exception as error:

@@ -684,19 +684,53 @@ class PendingFlowFollowUpMixin:
                 metadata={"follow_up_type": "memory_message"},
             )
 
+        suspicious_method = getattr(memory, "looks_like_suspicious_memory_text", None)
+        if callable(suspicious_method) and suspicious_method(memory_text, language=language):
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Nie jestem pewna, czy dobrze usłyszałam. Powiedz proszę jeszcze raz, co mam zapamiętać.",
+                    "I am not sure I heard that correctly. Please tell me again what I should remember.",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_memory_message_suspicious_retry",
+                metadata={
+                    "follow_up_type": "memory_message",
+                    "raw_text": memory_text,
+                },
+            )
+
+        prepare_method = getattr(memory, "prepare_memory_text", None)
+        prepared_memory_text = memory_text
+        if callable(prepare_method):
+            prepared_memory_text = str(prepare_method(memory_text, language=language) or "").strip()
+        if not prepared_memory_text:
+            return self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Powiedz proszę, co mam zapamiętać.",
+                    "Please tell me what I should remember.",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_memory_message_retry",
+                metadata={"follow_up_type": "memory_message"},
+            )
+
         self.assistant.pending_follow_up = None
 
         try:
             memory_id = remember_text_method(
-                memory_text,
+                prepared_memory_text,
                 language=language,
                 source="guided_memory_follow_up",
             )
         except TypeError:
             try:
-                memory_id = remember_text_method(memory_text, language=language)
+                memory_id = remember_text_method(prepared_memory_text, language=language)
             except TypeError:
-                memory_id = remember_text_method(memory_text)
+                memory_id = remember_text_method(prepared_memory_text)
         except Exception as error:
             LOGGER.warning("Guided memory save failed: %s", error)
             return self.assistant.deliver_text_response(
@@ -715,14 +749,14 @@ class PendingFlowFollowUpMixin:
             "Guided memory saved: language=%s memory_id=%s text=%s",
             language,
             str(memory_id or ""),
-            memory_text,
+            prepared_memory_text,
         )
 
         return self.assistant.deliver_text_response(
             self.assistant._localized(
                 language,
-                f"Zapamiętałam: {memory_text}.",
-                f"I remembered: {memory_text}.",
+                f"Zapamiętałam: {prepared_memory_text}.",
+                f"I remembered: {prepared_memory_text}.",
             ),
             language=language,
             route_kind=RouteKind.ACTION,
@@ -731,6 +765,8 @@ class PendingFlowFollowUpMixin:
                 "follow_up_type": "memory_message",
                 "memory_id": str(memory_id or "").strip(),
                 "language": language,
+                "raw_text": memory_text,
+                "stored_text": prepared_memory_text,
             },
         )
 

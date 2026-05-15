@@ -150,3 +150,32 @@ def test_guided_memory_keeps_polish_and_english_records_separate() -> None:
 
         assert memory.recall("gdzie jest radio", language="pl") == "radio jest w kuchni"
         assert memory.recall("where is radio", language="en") == "radio is in the garage"
+
+def test_polish_guided_memory_retries_observed_english_false_positive() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        assistant = _Assistant(_memory_service(Path(temp_dir) / "memory.json"))
+        assistant.pending_follow_up = {"type": "memory_message", "language": "pl"}
+        flow = _PendingFlow(assistant)
+
+        decision = flow.handle_pending_follow_up("Clue chest on the corner.", "pl")
+
+        assert decision.handled is True
+        assert decision.consumed_by == "follow_up:memory_message"
+        assert assistant.pending_follow_up == {"type": "memory_message", "language": "pl"}
+        assert assistant.responses[-1]["source"] == "pending_memory_message_suspicious_retry"
+        assert assistant.memory.list_records(language="pl") == []
+
+
+def test_polish_guided_memory_repairs_glued_keys_phrase_before_saving() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        assistant = _Assistant(_memory_service(Path(temp_dir) / "memory.json"))
+        assistant.pending_follow_up = {"type": "memory_message", "language": "pl"}
+        flow = _PendingFlow(assistant)
+
+        decision = flow.handle_pending_follow_up("Klułczesą w kuchni.", "pl")
+
+        assert decision.handled is True
+        assert assistant.pending_follow_up is None
+        assert assistant.responses[-1]["source"] == "pending_memory_message_saved"
+        assert assistant.responses[-1]["metadata"]["stored_text"] == "klucze są w kuchni"
+        assert assistant.memory.recall("gdzie są moje klucze", language="pl") == "klucze są w kuchni"

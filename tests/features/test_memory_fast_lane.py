@@ -56,6 +56,14 @@ class TestVoskGrammarPolishFix(unittest.TestCase):
             language=CommandLanguage.ENGLISH,
         )
         self.assertIn("where is", english_vocab)
+        self.assertIn("where did i put", english_vocab)
+
+    def test_polish_memory_recall_supports_common_spoken_prefixes(self) -> None:
+        polish_vocab = self.grammar.to_vosk_vocabulary(
+            language=CommandLanguage.POLISH,
+        )
+        self.assertIn("przypomnij mi gdzie", polish_vocab)
+        self.assertIn("gdzie polozylem", polish_vocab)
 
 
 class TestVoskFastLaneMemoryRecall(unittest.TestCase):
@@ -109,6 +117,16 @@ class TestVoskFastLaneMemoryRecall(unittest.TestCase):
         key = self.builder._extract_recall_key("where is my phone")
 
         self.assertEqual(key, "phone")
+
+    def test_english_where_did_i_put_extracts_key(self) -> None:
+        key = self.builder._extract_recall_key("where did i put my wallet")
+
+        self.assertEqual(key, "wallet")
+
+    def test_polish_przypomnij_where_extracts_key(self) -> None:
+        key = self.builder._extract_recall_key("przypomnij mi gdzie jest mój telefon")
+
+        self.assertEqual(key, "telefon")
 
     def test_bare_where_does_not_trigger_recall(self) -> None:
         # No subject after the prefix → fast lane must not fire.

@@ -10,6 +10,7 @@ class FasterWhisperTranscriptionMixin:
         self,
         audio: np.ndarray,
         debug: bool = False,
+        preferred_language: str | None = None,
     ) -> dict[str, Any] | None:
         self._ensure_faster_whisper_runtime()
         if self._fw_model is None or audio.size == 0:
@@ -25,11 +26,16 @@ class FasterWhisperTranscriptionMixin:
                 print("Skipping transcription: clip too short or too weak after trimming.")
             return None
 
+        forced_primary_language = (
+            self._normalize_language(preferred_language, allow_auto=False)
+            if str(preferred_language or "").strip()
+            else ""
+        )
         primary_candidate = self._transcribe_single_audio(
             prepared_primary,
             debug=debug,
             label="primary",
-            forced_language=None,
+            forced_language=forced_primary_language or None,
         )
 
         if self._accept_candidate(primary_candidate):
@@ -63,7 +69,7 @@ class FasterWhisperTranscriptionMixin:
             prepared_retry,
             debug=debug,
             label="retry",
-            forced_language=None,
+            forced_language=forced_primary_language or None,
         )
         if self._accept_candidate(retry_candidate):
             candidate = dict(retry_candidate)

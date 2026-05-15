@@ -408,7 +408,7 @@ class VoiceEngineV2RuntimeCandidateAdapter:
             intent_key="",
             transcript=request.transcript,
         )
-        if resolved_intent_key not in {"memory.guided_start", "memory.list"}:
+        if resolved_intent_key not in {"memory.guided_start", "memory.list", "memory.recall"}:
             return None
 
         if resolved_intent_key not in self._settings.runtime_candidate_intent_allowlist:
