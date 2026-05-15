@@ -95,6 +95,104 @@ class SQLiteMemoryStore:
             connection.execute("DELETE FROM memory_tokens")
             connection.execute("DELETE FROM memory_records")
             connection.execute("DELETE FROM memory_facts")
+            connection.execute("DELETE FROM memory_relationships")
+            connection.execute("DELETE FROM memory_assets")
+            connection.execute("DELETE FROM memory_entities")
+
+    def replace_all_entities(self, entities: Iterable[dict[str, Any]]) -> None:
+        self.ensure_ready()
+        normalized_entities = [dict(entity) for entity in entities if isinstance(entity, dict)]
+        with self._connect() as connection:
+            connection.execute("DELETE FROM memory_relationships")
+            connection.execute("DELETE FROM memory_assets")
+            connection.execute("DELETE FROM memory_entities")
+            for entity in normalized_entities:
+                self._upsert_entity(connection, entity)
+
+    def upsert_entity(self, entity: dict[str, Any]) -> None:
+        self.ensure_ready()
+        with self._connect() as connection:
+            self._upsert_entity(connection, entity)
+
+    def list_entities(
+        self,
+        *,
+        entity_type: str | None = None,
+        language: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        self.ensure_ready()
+        params: list[Any] = []
+        where_parts: list[str] = []
+        if entity_type:
+            where_parts.append("entity_type = ?")
+            params.append(str(entity_type))
+        if language:
+            where_parts.append("language = ?")
+            params.append(str(language))
+
+        where_sql = "WHERE " + " AND ".join(where_parts) if where_parts else ""
+        sql = f"""
+            SELECT id, entity_type, display_name, aliases_json, language,
+                   metadata_json, created_at_iso, updated_at_iso
+            FROM memory_entities
+            {where_sql}
+            ORDER BY updated_at_iso DESC, display_name ASC
+        """
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(max(1, int(limit)))
+
+        with self._connect() as connection:
+            rows = connection.execute(sql, params).fetchall()
+        return [self._row_to_entity(row) for row in rows]
+
+    def find_entities(
+        self,
+        *,
+        entity_type: str | None = None,
+        query_tokens: Iterable[str] | None = None,
+        language: str | None = None,
+        limit: int = 16,
+    ) -> list[dict[str, Any]]:
+        clean_query_tokens = self._clean_tokens(query_tokens or [])
+        if not entity_type and not clean_query_tokens:
+            return []
+
+        self.ensure_ready()
+        params: list[Any] = []
+        where_parts: list[str] = []
+        if entity_type:
+            where_parts.append("entity_type = ?")
+            params.append(str(entity_type))
+        if language:
+            where_parts.append("language = ?")
+            params.append(str(language))
+
+        token_conditions: list[str] = []
+        for token in clean_query_tokens:
+            token_conditions.append("LOWER(display_name) = ?")
+            params.append(token)
+            token_conditions.append("LOWER(display_name) LIKE ?")
+            params.append(token + "%")
+            token_conditions.append("LOWER(aliases_json) LIKE ?")
+            params.append("%" + token + "%")
+        if token_conditions:
+            where_parts.append("(" + " OR ".join(token_conditions) + ")")
+
+        where_sql = "WHERE " + " AND ".join(where_parts) if where_parts else ""
+        params.append(max(1, int(limit)))
+        sql = f"""
+            SELECT id, entity_type, display_name, aliases_json, language,
+                   metadata_json, created_at_iso, updated_at_iso
+            FROM memory_entities
+            {where_sql}
+            ORDER BY updated_at_iso DESC, display_name ASC
+            LIMIT ?
+        """
+        with self._connect() as connection:
+            rows = connection.execute(sql, params).fetchall()
+        return [self._row_to_entity(row) for row in rows]
 
     def replace_all_facts(self, facts: Iterable[dict[str, Any]]) -> None:
         self.ensure_ready()
@@ -457,6 +555,43 @@ class SQLiteMemoryStore:
             [(token, language, record_id) for token in tokens],
         )
 
+    def _upsert_entity(self, connection: sqlite3.Connection, entity: dict[str, Any]) -> None:
+        entity_id = str(entity.get("id", "") or "").strip()
+        entity_type = str(entity.get("entity_type", "") or "").strip()
+        display_name = str(entity.get("display_name", "") or "").strip()
+        language = str(entity.get("language", "unknown") or "unknown").strip() or "unknown"
+        aliases = self._clean_tokens(entity.get("aliases", []) or [])
+        if not entity_id or not entity_type or not display_name:
+            return
+
+        now = self._now_iso()
+        created_at_iso = str(entity.get("created_at_iso", "") or now)
+        connection.execute(
+            """
+            INSERT INTO memory_entities (
+                id, entity_type, display_name, aliases_json, language,
+                metadata_json, created_at_iso, updated_at_iso
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                entity_type = excluded.entity_type,
+                display_name = excluded.display_name,
+                aliases_json = excluded.aliases_json,
+                language = excluded.language,
+                metadata_json = excluded.metadata_json,
+                updated_at_iso = excluded.updated_at_iso
+            """,
+            (
+                entity_id,
+                entity_type,
+                display_name,
+                json.dumps(aliases, ensure_ascii=False),
+                language,
+                json.dumps(dict(entity.get("metadata", {}) or {}), ensure_ascii=False),
+                created_at_iso,
+                now,
+            ),
+        )
+
     def _upsert_fact(self, connection: sqlite3.Connection, fact: dict[str, Any]) -> None:
         fact_id = str(fact.get("id", "") or "").strip()
         subject_text = str(fact.get("subject_text", "") or "").strip()
@@ -509,6 +644,30 @@ class SQLiteMemoryStore:
             if value and value not in clean:
                 clean.append(value)
         return clean
+
+    @staticmethod
+    def _row_to_entity(row: sqlite3.Row) -> dict[str, Any]:
+        metadata: dict[str, Any]
+        try:
+            metadata = dict(json.loads(row["metadata_json"] or "{}"))
+        except (TypeError, ValueError):
+            metadata = {}
+
+        try:
+            aliases = list(json.loads(row["aliases_json"] or "[]"))
+        except (TypeError, ValueError):
+            aliases = []
+
+        return {
+            "id": str(row["id"]),
+            "entity_type": str(row["entity_type"]),
+            "display_name": str(row["display_name"]),
+            "aliases": [str(alias) for alias in aliases if str(alias).strip()],
+            "language": str(row["language"]),
+            "metadata": metadata,
+            "created_at_iso": str(row["created_at_iso"]),
+            "updated_at_iso": str(row["updated_at_iso"]),
+        }
 
     @staticmethod
     def _row_to_fact(row: sqlite3.Row) -> dict[str, Any]:

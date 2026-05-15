@@ -2635,6 +2635,37 @@ def build_default_command_grammar() -> CommandGrammar:
             tags=('memory', 'list', 'stt_recovery', 'vosk_exclude'),
         ),
 
+        CommandPhrase(
+            'memory.recall',
+            'kogo znasz',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'people', 'recall'),
+        ),
+        CommandPhrase(
+            'memory.recall',
+            'jakie osoby znasz',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'people', 'recall'),
+        ),
+        CommandPhrase(
+            'memory.recall',
+            'pokaz kogo znasz',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'people', 'recall'),
+        ),
+        CommandPhrase(
+            'memory.recall',
+            'who do you know',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'people', 'recall'),
+        ),
+        CommandPhrase(
+            'memory.recall',
+            'show known people',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'people', 'recall'),
+        ),
+
         # ------------------------------------------------------------------
         # Memory recall — fast-lane (Vosk friendly)
         #

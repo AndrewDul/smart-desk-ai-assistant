@@ -329,6 +329,10 @@ class MemoryService:
         return match.original_text
 
     def match(self, key: str, *, language: str | None = None) -> MemoryMatch | None:
+        people_match = self._find_best_indexed_people_query(key, language=language)
+        if people_match is not None:
+            return people_match
+
         fact_match = self._find_best_indexed_structured_fact(key, language=language)
         if fact_match is not None:
             return fact_match
@@ -389,6 +393,60 @@ class MemoryService:
 
     def list_items(self, *, language: str | None = None) -> list[dict[str, Any]]:
         return self.list_records(language=language)
+
+    def list_people(self, *, language: str | None = None) -> list[dict[str, Any]]:
+        normalized_language = self._normalize_language(language)
+        if self.index_store is not None:
+            try:
+                return self.index_store.list_entities(
+                    entity_type="person",
+                    language=normalized_language or None,
+                )
+            except Exception as exc:  # pragma: no cover - defensive runtime fallback
+                append_log(f"Memory people index lookup failed: {exc}")
+                self.index_store = None
+
+        entities = self._build_entities_from_records(self._load_records())
+        if normalized_language:
+            entities = [
+                entity
+                for entity in entities
+                if str(entity.get("language", "unknown") or "unknown") == normalized_language
+            ]
+        return [entity for entity in entities if entity.get("entity_type") == "person"]
+
+    def remember_person(
+        self,
+        display_name: str,
+        *,
+        aliases: list[str] | tuple[str, ...] | None = None,
+        language: str = "unknown",
+        source: str = "person_memory",
+        metadata: dict[str, Any] | None = None,
+    ) -> str | None:
+        clean_display_name = self._compact_original_text(display_name)
+        if not clean_display_name:
+            append_log("Person memory save skipped: empty display name.")
+            return None
+
+        normalized_language = self._normalize_language(language) or "unknown"
+        if normalized_language == "en":
+            memory_text = f"I know person: {clean_display_name}"
+        else:
+            memory_text = f"znam osobę: {clean_display_name}"
+
+        return self.remember_text(
+            memory_text,
+            language=normalized_language,
+            source=source,
+            confidence=1.0,
+            metadata={
+                "memory_kind": "person",
+                "display_name": clean_display_name,
+                "aliases": list(aliases or []),
+                **dict(metadata or {}),
+            },
+        )
 
     def export(self) -> list[dict[str, Any]]:
         return self.list_records()
@@ -529,10 +587,37 @@ class MemoryService:
 
         try:
             self.index_store.replace_all_records(records)
+            self.index_store.replace_all_entities(self._build_entities_from_records(records))
             self.index_store.replace_all_facts(self._build_facts_from_records(records))
         except Exception as exc:  # pragma: no cover - defensive runtime fallback
             append_log(f"Memory SQLite index update failed: {exc}")
             self.index_store = None
+
+    def _find_best_indexed_people_query(
+        self,
+        key: str,
+        *,
+        language: str | None = None,
+    ) -> MemoryMatch | None:
+        normalized_query = self._clean_text(key)
+        if not self._looks_like_people_list_query(normalized_query):
+            return None
+
+        normalized_language = self._normalize_language(language) or "unknown"
+        people = self.list_people(language=normalized_language if normalized_language != "unknown" else None)
+        answer = self._format_known_people_answer(people, language=normalized_language)
+        return MemoryMatch(
+            id="memory_people_list",
+            key=normalized_query,
+            value=answer,
+            original_text=answer,
+            score=1.0,
+            exact=True,
+            language=normalized_language,
+            normalized_query=normalized_query,
+            normalized_text=normalized_query,
+            record={"people": people},
+        )
 
     def _find_best_indexed_structured_fact(
         self,
@@ -631,6 +716,153 @@ class MemoryService:
             return None
 
         return self._find_best_record(candidates, key, language=language)
+
+    # ------------------------------------------------------------------
+    # Structured entity extraction
+    # ------------------------------------------------------------------
+
+    def _build_entities_from_records(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        entities_by_id: dict[str, dict[str, Any]] = {}
+        for record in records:
+            for entity in self._extract_structured_entities(record):
+                entity_id = str(entity.get("id", "") or "")
+                if entity_id:
+                    entities_by_id[entity_id] = entity
+        return list(entities_by_id.values())
+
+    def _extract_structured_entities(self, record: dict[str, Any]) -> list[dict[str, Any]]:
+        entities: list[dict[str, Any]] = []
+        metadata = dict(record.get("metadata", {}) or {})
+        if metadata.get("memory_kind") == "person":
+            entity = self._person_entity_from_metadata(record, metadata)
+            if entity is not None:
+                entities.append(entity)
+
+        name_fact = self._extract_name_fact(record)
+        if name_fact is not None and str(name_fact.get("subject_text")) == "user":
+            entity = self._person_entity_from_name_fact(record, name_fact)
+            if entity is not None:
+                entities.append(entity)
+
+        return entities
+
+    def _person_entity_from_metadata(
+        self,
+        record: dict[str, Any],
+        metadata: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        display_name = self._compact_original_text(metadata.get("display_name", ""))
+        if not display_name:
+            return None
+
+        aliases = [str(alias) for alias in list(metadata.get("aliases", []) or [])]
+        return self._build_person_entity(
+            display_name=display_name,
+            language=str(record.get("language", "unknown") or "unknown"),
+            aliases=aliases,
+            record=record,
+            metadata={
+                "source": "person_memory_metadata",
+                "source_record_id": str(record.get("id", "") or ""),
+            },
+        )
+
+    def _person_entity_from_name_fact(
+        self,
+        record: dict[str, Any],
+        name_fact: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        display_name = self._display_name_from_value(str(name_fact.get("value_text", "") or ""))
+        if not display_name:
+            return None
+
+        language = str(record.get("language", "unknown") or "unknown")
+        aliases = ["user", "me", "myself"] if self._normalize_language(language) == "en" else ["user", "mnie", "sobie", "ja"]
+        return self._build_person_entity(
+            display_name=display_name,
+            language=language,
+            aliases=aliases,
+            record=record,
+            metadata={
+                "source": "user_name_fact",
+                "person_scope": "user",
+                "source_record_id": str(record.get("id", "") or ""),
+            },
+        )
+
+    def _build_person_entity(
+        self,
+        *,
+        display_name: str,
+        language: str,
+        aliases: list[str],
+        record: dict[str, Any],
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        clean_name = self._compact_original_text(display_name)
+        normalized_name = self._normalize_fact_subject(clean_name)
+        normalized_language = self._normalize_language(language) or "unknown"
+        if not clean_name or not normalized_name:
+            return None
+
+        clean_aliases = sorted({
+            alias
+            for alias in (self._normalize_fact_subject(alias) for alias in aliases + [clean_name, normalized_name])
+            if alias
+        })
+        entity_id = self._build_entity_id(
+            entity_type="person",
+            display_name=normalized_name,
+            language=normalized_language,
+        )
+        return {
+            "id": entity_id,
+            "entity_type": "person",
+            "display_name": clean_name,
+            "aliases": clean_aliases,
+            "language": normalized_language,
+            "created_at_iso": str(record.get("created_at_iso", "") or self._now_iso()),
+            "metadata": dict(metadata or {}),
+        }
+
+    def _format_known_people_answer(
+        self,
+        people: list[dict[str, Any]],
+        *,
+        language: str,
+    ) -> str:
+        names: list[str] = []
+        for person in people:
+            name = str(person.get("display_name", "") or "").strip()
+            if name and name not in names:
+                names.append(name)
+
+        if not names:
+            return "I do not know any people yet." if language == "en" else "Nie znam jeszcze żadnych osób."
+
+        preview = ", ".join(names[:8])
+        if len(names) > 8:
+            preview += f" i jeszcze {len(names) - 8}" if language != "en" else f" and {len(names) - 8} more"
+        return f"I know: {preview}." if language == "en" else f"Znam: {preview}."
+
+    @staticmethod
+    def _display_name_from_value(value: str) -> str:
+        clean = " ".join(str(value or "").split()).strip()
+        if not clean:
+            return ""
+        return " ".join(part[:1].upper() + part[1:] for part in clean.split())
+
+    @staticmethod
+    def _build_entity_id(
+        *,
+        entity_type: str,
+        display_name: str,
+        language: str,
+    ) -> str:
+        digest = hashlib.sha1(
+            f"{language}|{entity_type}|{display_name}".encode("utf-8")
+        ).hexdigest()[:16]
+        return f"entity_{digest}"
 
     # ------------------------------------------------------------------
     # Structured fact extraction
@@ -948,6 +1180,21 @@ class MemoryService:
             }
 
         return None
+
+    @staticmethod
+    def _looks_like_people_list_query(normalized_query: str) -> bool:
+        return normalized_query in {
+            "kogo znasz",
+            "jakie osoby znasz",
+            "pokaż kogo znasz",
+            "pokaz kogo znasz",
+            "pokaż osoby które znasz",
+            "pokaz osoby ktore znasz",
+            "who do you know",
+            "show people you know",
+            "show known people",
+            "what people do you know",
+        }
 
     @staticmethod
     def _looks_like_location_query(normalized_query: str) -> bool:

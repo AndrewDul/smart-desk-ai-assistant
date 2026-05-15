@@ -267,8 +267,9 @@ class RuntimeCandidateExecutionPlanBuilder:
         action_payload: dict[str, Any] = {}
         if intent_key == "memory.recall":
             recall_key = self._extract_recall_key(transcript)
-            if recall_key:
-                action_payload = {"key": recall_key, "query": recall_key}
+            recall_query = recall_key or str(transcript or "").strip()
+            if recall_query:
+                action_payload = {"key": recall_query, "query": recall_query}
 
         if intent_key == "system.calculate":
             calculation = evaluate_arithmetic_expression(transcript)
@@ -491,6 +492,12 @@ class RuntimeCandidateExecutionPlanBuilder:
           "co pamietasz": "memory.list",
           "co zapamiętałaś": "memory.list",
           "co zapamietalas": "memory.list",
+          "kogo znasz": "memory.recall",
+          "jakie osoby znasz": "memory.recall",
+          "pokaż kogo znasz": "memory.recall",
+          "pokaz kogo znasz": "memory.recall",
+          "who do you know": "memory.recall",
+          "show known people": "memory.recall",
 }
 
     # Recall is open-ended ("where is my <anything>"), so we cannot enumerate
@@ -690,8 +697,9 @@ class RuntimeCandidateExecutionPlanBuilder:
         action_payload: dict[str, Any] = {}
         if resolved_intent_key == "memory.recall":
             recall_key = self._extract_recall_key(transcript)
-            if recall_key:
-                action_payload = {"key": recall_key, "query": recall_key}
+            recall_query = recall_key or str(transcript or "").strip()
+            if recall_query:
+                action_payload = {"key": recall_query, "query": recall_query}
 
         if resolved_intent_key == "system.calculate":
             calculation = evaluate_arithmetic_expression(transcript)

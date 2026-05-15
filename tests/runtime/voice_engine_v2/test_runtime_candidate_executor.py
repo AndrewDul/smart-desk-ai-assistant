@@ -461,3 +461,22 @@ def test_runtime_candidate_executor_builds_polish_mobile_base_drive_mode_route()
     assert plan.route_decision.primary_intent == "drive_mode_start"
     assert plan.route_decision.tool_invocations[0].tool_name == "mobile_base.drive_mode"
     assert plan.route_decision.metadata["voice_engine_intent_key"] == "mobile_base.drive_mode"
+
+
+def test_runtime_candidate_executor_routes_known_people_query_to_memory_recall() -> None:
+    builder = RuntimeCandidateExecutionPlanBuilder()
+    turn = _turn_result("kogo znasz", language=CommandLanguage.POLISH)
+
+    plan = builder.build_plan(
+        turn_result=turn,
+        transcript="kogo znasz",
+        metadata={"source": "unit_test"},
+    )
+
+    assert plan is not None
+    assert plan.route_decision.kind == RouteKind.ACTION
+    assert plan.route_decision.language == "pl"
+    assert plan.route_decision.primary_intent == "memory_recall"
+    assert plan.route_decision.tool_invocations[0].tool_name == "memory.recall"
+    assert plan.route_decision.tool_invocations[0].payload["key"] == "kogo znasz"
+    assert plan.route_decision.metadata["llm_prevented"] is True

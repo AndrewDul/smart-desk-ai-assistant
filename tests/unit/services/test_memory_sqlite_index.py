@@ -200,3 +200,73 @@ def test_memory_service_can_answer_broad_user_knowledge_query_from_structured_fa
         memory.remember_text("lubię programować", language="pl", source="unit_test")
 
         assert memory.recall("co wiesz o mnie", language="pl") == "lubię programować"
+
+
+def test_sqlite_memory_store_persists_person_entities() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir) / "nexa_memory"
+        store = SQLiteMemoryStore(root=root)
+
+        store.upsert_entity(
+            {
+                "id": "person_andrzej",
+                "entity_type": "person",
+                "display_name": "Andrzej Dul",
+                "aliases": ["andrzej", "andrzej dul"],
+                "language": "pl",
+                "metadata": {"source": "unit_test"},
+            }
+        )
+
+        assert store.entity_count() == 1
+        people = store.list_entities(entity_type="person", language="pl")
+        assert people[0]["display_name"] == "Andrzej Dul"
+        assert "andrzej" in people[0]["aliases"]
+
+        matches = store.find_entities(
+            entity_type="person",
+            query_tokens=["andrzej"],
+            language="pl",
+        )
+        assert matches[0]["display_name"] == "Andrzej Dul"
+
+
+def test_memory_service_creates_user_person_entity_from_name_fact() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        index_store = SQLiteMemoryStore(root=root / "nexa_memory")
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=index_store,
+        )
+
+        memory.remember_text("mam na imię Andrzej", language="pl", source="unit_test")
+
+        people = memory.list_people(language="pl")
+        assert len(people) == 1
+        assert people[0]["display_name"] == "Andrzej"
+        assert memory.recall("kogo znasz", language="pl") == "Znam: Andrzej."
+
+
+def test_memory_service_remember_person_survives_restart() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory_file = root / "memory.json"
+        sqlite_root = root / "nexa_memory"
+
+        first = MemoryService(
+            store=MemoryRepository(path=str(memory_file)),
+            index_store=SQLiteMemoryStore(root=sqlite_root),
+        )
+        first.remember_person("Andrew Dul", aliases=["Andrew"], language="en")
+
+        second = MemoryService(
+            store=MemoryRepository(path=str(memory_file)),
+            index_store=SQLiteMemoryStore(root=sqlite_root),
+        )
+
+        people = second.list_people(language="en")
+        assert len(people) == 1
+        assert people[0]["display_name"] == "Andrew Dul"
+        assert "andrew" in people[0]["aliases"]
+        assert second.recall("who do you know", language="en") == "I know: Andrew Dul."
