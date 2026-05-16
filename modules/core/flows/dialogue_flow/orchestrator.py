@@ -73,8 +73,6 @@ class DialogueFlowOrchestrator(
                     language=lang,
                     reason="dialogue_plan_build_failed",
                 )
-            finally:
-                assistant._thinking_ack_stop()
 
             delivered = bool(
                 assistant.deliver_response_plan(

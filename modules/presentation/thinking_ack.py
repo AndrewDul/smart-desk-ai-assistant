@@ -5,13 +5,12 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from numpy.random import set_state
-
 LOGGER = logging.getLogger(__name__)
 
 
 ThinkingAckCallback = Callable[["ThinkingAckHandle"], None]
 InterruptProbe = Callable[[], bool]
+ThinkingAckStartedCallback = Callable[[str], None]
 
 
 @dataclass(slots=True)
@@ -223,11 +222,13 @@ class ThinkingAckService:
         voice_session: Any | None = None,
         delay_seconds: float = 1.5,
         interrupt_requested: InterruptProbe | None = None,
+        on_started: ThinkingAckStartedCallback | None = None,
     ) -> None:
         self.voice_output = voice_output
         self.voice_session = voice_session
         self.delay_seconds = max(0.0, float(delay_seconds))
         self.interrupt_requested = interrupt_requested
+        self.on_started = on_started
 
         self._lock = threading.RLock()
         self._active_handle: ThinkingAckHandle | None = None
@@ -264,23 +265,32 @@ class ThinkingAckService:
             return self._active_handle
 
     def _handle_started(self, detail: str) -> None:
-        if self.voice_session is None:
-            return
+        if self.voice_session is not None:
+            transition_to_thinking = getattr(self.voice_session, "transition_to_thinking", None)
+            if callable(transition_to_thinking):
+                try:
+                    transition_to_thinking(detail=detail)
+                except Exception as error:
+                    LOGGER.warning(
+                        "Thinking acknowledgement could not update voice session state: %s",
+                        error,
+                    )
+            else:
+                set_state = getattr(self.voice_session, "set_state", None)
+                if callable(set_state):
+                    try:
+                        set_state("thinking", detail=detail)
+                    except Exception as error:
+                        LOGGER.warning(
+                            "Thinking acknowledgement could not update voice session state: %s",
+                            error,
+                        )
 
-        transition_to_thinking = getattr(self.voice_session, "transition_to_thinking", None)
-        if callable(transition_to_thinking):
+        if callable(self.on_started):
             try:
-                transition_to_thinking(detail=detail)
+                self.on_started(detail)
             except Exception as error:
-                LOGGER.warning("Thinking acknowledgement could not update voice session state: %s", logging.error)
-            return
-
-        set_state = getattr(self.voice_session, "set_state", None)
-        if callable(set_state):
-            try:
-                set_state("thinking", detail=detail)
-            except Exception as error:
-                LOGGER.warning("Thinking acknowledgement could not update voice session state: %s", error)
+                LOGGER.warning("Thinking acknowledgement start callback failed: %s", error)
 
     def _handle_finished(self, handle: ThinkingAckHandle) -> None:
         with self._lock:

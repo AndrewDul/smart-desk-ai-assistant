@@ -5739,3 +5739,25 @@ I cached the default `VoskCommandAsrAdapter` / bilingual recognizer stack inside
 ### Note
 
 FasterWhisper input overflow is still a separate audio smoothness topic if it appears again.
+
+## 2026-05-16 - No-silent-wait thinking feedback
+
+### Problem
+
+Slow dialogue/fallback paths could leave NeXa feeling silent while processing.
+
+### Cause
+
+Thinking acknowledgement existed, but it needed better lifecycle wiring and cancellation at real response delivery.
+
+### Fix
+
+I wired the existing `ThinkingAckService` into dialogue/fallback handling and cancel it when response delivery starts.
+
+### Note
+
+Manual runtime did not trigger filler because the conversation response started quickly.
+
+### Note
+
+FasterWhisper input overflow still appeared once and should be handled in a later audio/capture sprint.

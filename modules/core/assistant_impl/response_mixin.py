@@ -86,6 +86,9 @@ class CoreAssistantResponseMixin:
         route_kind_value = getattr(plan.route_kind, "value", str(plan.route_kind))
         self._last_response_stream_report = None
         self._last_response_delivery_snapshot = None
+        stop_thinking_ack = getattr(self, "_thinking_ack_stop", None)
+        if callable(stop_thinking_ack):
+            stop_thinking_ack()
         self.voice_session.transition_to_speaking(
             detail=f"response:{route_kind_value}",
         )

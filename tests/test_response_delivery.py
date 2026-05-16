@@ -54,6 +54,10 @@ class DummyAssistant(CoreAssistantResponseMixin):
         self._last_response_stream_report = None
         self._last_response_delivery_snapshot = None
         self.remembered_turns: list[dict[str, object]] = []
+        self.thinking_ack_stops = 0
+
+    def _thinking_ack_stop(self) -> None:
+        self.thinking_ack_stops += 1
 
     def _display_lines(self, text: str) -> list[str]:
         return [str(text).strip()]
@@ -140,6 +144,7 @@ class ResponseDeliveryTests(unittest.TestCase):
             assistant.voice_out.speak_calls[0]["text"],
             "The timer is already running.",
         )
+        self.assertEqual(assistant.thinking_ack_stops, 1)
 
     def test_deliver_response_plan_falls_back_when_stream_report_is_empty(self) -> None:
         assistant = DummyAssistant(EmptyReportStreamer())

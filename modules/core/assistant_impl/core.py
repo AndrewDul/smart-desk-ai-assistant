@@ -11,6 +11,7 @@ from modules.core.flows.notification_flow import NotificationFlowOrchestrator
 from modules.core.flows.pending_flow import PendingFlowOrchestrator
 from modules.core.session.fast_command_lane import FastCommandLane
 from modules.core.session.visual_shell_command_lane import VisualShellCommandLane
+from modules.core.session.visual_shell_state_feedback import notify_visual_shell_voice_event
 from modules.core.session.interrupt_controller import InteractionInterruptController
 from modules.core.session.voice_session import VoiceSessionController
 
@@ -18,6 +19,7 @@ from modules.presentation.developer_overlay import DeveloperOverlayService
 from modules.presentation.response_streamer import ResponseStreamer
 from modules.presentation.runtime_debug_snapshot import RuntimeDebugSnapshotService
 from modules.presentation.thinking_ack import ThinkingAckService
+from modules.presentation.visual_shell.contracts import VisualEventName
 from modules.presentation.wake_ack import WakeAcknowledgementService
 
 from modules.runtime.audio_runtime_snapshot import AudioRuntimeSnapshotService
@@ -67,6 +69,15 @@ class CoreAssistant(
     """
 
     ASSISTANT_NAME = "NeXa"
+
+    def _notify_thinking_ack_started(self, detail: str) -> None:
+        notify_visual_shell_voice_event(
+            self,
+            VisualEventName.THINKING_STARTED,
+            source="thinking_ack",
+            detail=str(detail or "thinking_ack"),
+            payload={"detail": str(detail or "thinking_ack")},
+        )
 
     def __init__(self) -> None:
         self.settings = load_settings()
@@ -257,6 +268,7 @@ class CoreAssistant(
             voice_output=self.voice_out,
             voice_session=self.voice_session,
             delay_seconds=self.voice_session.thinking_ack_seconds,
+            on_started=self._notify_thinking_ack_started,
         )
 
         self.command_flow = CommandFlowOrchestrator(self)

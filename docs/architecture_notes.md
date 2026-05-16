@@ -16771,3 +16771,23 @@ I fixed the stale PCM risk by setting current PCM before `recognize()` and clear
 I kept fallback safe if Vosk command ASR setup or recognition fails.
 
 I tested the runtime manually and fast-line commands felt instant after the cache patch.
+
+## 2026-05-16 - No-silent-wait thinking feedback
+
+### Summary
+
+I extended the existing `ThinkingAckService` instead of adding a second delay system.
+
+I added a no-silent-wait guard for slower dialogue/fallback paths.
+
+I kept fast-line deterministic commands clean and fast.
+
+I cancel the thinking acknowledgement when real response delivery starts.
+
+I added Visual Shell thinking feedback when the thinking acknowledgement starts.
+
+I added a practical bilingual phrase pool with 29 total phrases.
+
+I added tests for delay, cancel, output-active protection, PL/EN phrases, and Visual Shell thinking callback.
+
+I manually tested that a fast command like `what time is it` still answers immediately without filler.

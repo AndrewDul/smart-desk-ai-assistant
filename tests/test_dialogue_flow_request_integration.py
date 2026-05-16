@@ -54,6 +54,9 @@ class _FakeAssistant:
         self.pending_follow_up = None
         self.last_plan = None
         self.last_delivery_metadata = None
+        self.thinking_ack_starts: list[dict[str, str]] = []
+        self.thinking_ack_stops = 0
+        self.ai_broker_modes: list[str] = []
 
     def _commit_language(self, language: str) -> str:
         return str(language or "en")
@@ -62,12 +65,24 @@ class _FakeAssistant:
         return {"language": preferred_language}
 
     def _thinking_ack_start(self, *, language: str, detail: str) -> None:
-        return None
+        self.thinking_ack_starts.append({"language": language, "detail": detail})
 
     def _thinking_ack_stop(self) -> None:
-        return None
+        self.thinking_ack_stops += 1
+
+    def _enter_ai_broker_conversation_answer_mode(self, *, reason: str) -> None:
+        self.ai_broker_modes.append(f"answer:{reason}")
+
+    def _enter_ai_broker_recovery_window(
+        self,
+        *,
+        reason: str,
+        return_to_mode: str,
+    ) -> None:
+        self.ai_broker_modes.append(f"recovery:{reason}:{return_to_mode}")
 
     def deliver_response_plan(self, plan, *, source: str, remember: bool, extra_metadata: dict | None = None) -> bool:
+        self._thinking_ack_stop()
         self.last_plan = plan
         self.last_delivery_metadata = {
             "source": source,
@@ -128,6 +143,11 @@ class DialogueFlowRequestIntegrationTests(unittest.TestCase):
         self.assertEqual(assistant.dialogue.last_request.kind, RouteKind.MIXED)
         self.assertEqual(assistant.dialogue.last_request.suggested_actions, ["focus_start"])
         self.assertEqual(assistant.dialogue.last_request.immediate_actions, ["timer_start"])
+        self.assertEqual(
+            assistant.thinking_ack_starts,
+            [{"language": "en", "detail": "dialogue_plan"}],
+        )
+        self.assertEqual(assistant.thinking_ack_stops, 1)
         self.assertEqual(assistant.dialogue.last_request.capture_phase, "conversation_after_wake")
         self.assertIsNotNone(flow._last_dialogue_result)
         self.assertTrue(flow._last_dialogue_result.delivered)

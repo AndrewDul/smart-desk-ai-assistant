@@ -69,6 +69,17 @@ _DEFAULT_THINKING_ACKS_EN = (
     "Give me a second.",
     "I'm checking.",
     "Let me think.",
+    "Give me a moment.",
+    "I'm checking that now.",
+    "One second, I'm looking into it.",
+    "I'm thinking it through.",
+    "I'll answer in a moment.",
+    "I'm checking the details.",
+    "Let me look that up.",
+    "I'm working on it.",
+    "One moment, please.",
+    "I'm checking quickly.",
+    "I'm looking at it now.",
 )
 
 _DEFAULT_THINKING_ACKS_PL = (
@@ -76,6 +87,16 @@ _DEFAULT_THINKING_ACKS_PL = (
     "Daj mi sekundę.",
     "Już sprawdzam.",
     "Daj mi pomyśleć.",
+    "Daj mi chwilę.",
+    "Chwileczkę, sprawdzam.",
+    "Moment, szukam tego.",
+    "Zaraz Ci odpowiem.",
+    "Muszę to szybko sprawdzić.",
+    "Już nad tym pracuję.",
+    "Sekundę, sprawdzam szczegóły.",
+    "Już patrzę.",
+    "Moment, zaraz wracam z odpowiedzią.",
+    "Sprawdzam to teraz.",
 )
 
 _DEFAULT_CANCEL_PHRASES = (

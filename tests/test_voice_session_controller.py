@@ -69,6 +69,21 @@ class VoiceSessionControllerTests(unittest.TestCase):
         self.assertEqual(controller.strip_wake_phrase("nexa what time is it"), "what time is it")
         self.assertTrue(controller.looks_like_cancel_request("anuluj to"))
 
+    def test_thinking_acknowledgement_phrase_pool_is_bilingual_and_practical(self) -> None:
+        controller = VoiceSessionController(wake_phrases=("nexa",))
+
+        self.assertEqual(
+            len(controller.thinking_acknowledgements_en)
+            + len(controller.thinking_acknowledgements_pl),
+            29,
+        )
+        self.assertIn("Give me a moment.", controller.thinking_acknowledgements_en)
+        self.assertIn("Daj mi chwilę.", controller.thinking_acknowledgements_pl)
+        self.assertNotEqual(
+            controller.build_thinking_acknowledgement("en"),
+            controller.build_thinking_acknowledgement("en"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

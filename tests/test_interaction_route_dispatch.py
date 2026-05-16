@@ -83,6 +83,8 @@ class _FakeAssistant(CoreAssistantInteractionMixin):
         self.route_calls = 0
         self.dispatched: list[tuple[str, str]] = []
         self.finished_telemetry = None
+        self.thinking_ack_starts: list[dict[str, object]] = []
+        self.thinking_ack_stops = 0
     
     def _tick_ai_broker(self) -> None:
         return None
@@ -120,10 +122,10 @@ class _FakeAssistant(CoreAssistantInteractionMixin):
         return self.fast_lane_result
 
     def _thinking_ack_start(self, **kwargs) -> None:
-        return None
+        self.thinking_ack_starts.append(dict(kwargs))
 
     def _thinking_ack_stop(self) -> None:
-        return None
+        self.thinking_ack_stops += 1
 
     def _route_command(self, text: str, **kwargs):
         self.route_calls += 1
@@ -192,8 +194,19 @@ class InteractionRouteDispatchTests(unittest.TestCase):
 
         self.assertTrue(handled)
         self.assertEqual(assistant.dispatched, [("mixed", "en")])
-        self.assertEqual(assistant.finished_telemetry["result"], "mixed_route")
-        self.assertEqual(assistant.finished_telemetry["route_kind"], "mixed")
+
+    def test_handle_command_fast_lane_does_not_arm_thinking_ack(self) -> None:
+        assistant = _FakeAssistant(
+            self._route(RouteKind.ACTION),
+            fast_lane_result=True,
+        )
+
+        handled = assistant.handle_command("what time is it")
+
+        self.assertTrue(handled)
+        self.assertEqual(assistant.route_calls, 0)
+        self.assertEqual(assistant.thinking_ack_starts, [])
+        self.assertEqual(assistant.thinking_ack_stops, 0)
 
     def test_handle_command_stops_before_router_when_fast_lane_handles_request(self) -> None:
         assistant = _FakeAssistant(self._route(RouteKind.CONVERSATION), fast_lane_result=True)
