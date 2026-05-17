@@ -5783,3 +5783,33 @@ NeXa now asks for repetition, opens a short follow-up window, and repeated fast 
 ### Note
 
 This does not change memory, Vosk aliases, Visual Shell gallery, or LLM streaming.
+
+## 2026-05-17 - Memory forget for people and objects
+
+### Problem
+
+“zapomnij Tomka” was heard correctly but went to CHAT / generic cancel and said there was nothing to cancel.
+
+### Cause
+
+“zapomnij” was treated as a generic cancel marker before `memory.forget` routing could run.
+
+### Fix
+
+I added a targeted guard so “zapomnij <target>” and “forget <target>” are not treated as generic cancel.
+
+### Problem
+
+Memory forget needed to remove people and objects from recall and gallery without unsafe asset deletion.
+
+### Fix
+
+I delete the source memory record and rebuild the SQLite index, while leaving asset files on disk.
+
+### Note
+
+Noisy ASR variants like “zapomnij tą kaw” can return “nothing to remove” and should not delete anything unless they clearly match an existing entity.
+
+### Note
+
+FasterWhisper input overflow still appeared during runtime testing and should be handled in a later audio/capture sprint.

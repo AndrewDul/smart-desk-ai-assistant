@@ -142,7 +142,13 @@ class MemorySkillExecutor(BaseSkillExecutor):
             },
         )
 
-    def forget(self, *, key: str | None, language: str | None = None) -> ExecutorOutcome:
+    def forget(
+        self,
+        *,
+        key: str | None,
+        language: str | None = None,
+        entity_type: str | None = None,
+    ) -> ExecutorOutcome:
         normalized_key = str(key or "").strip()
         if not normalized_key:
             return ExecutorOutcome(ok=False, status="missing_key")
@@ -152,19 +158,49 @@ class MemorySkillExecutor(BaseSkillExecutor):
             return ExecutorOutcome(ok=False, status="unavailable")
 
         try:
-            result = forget_method(normalized_key, language=language)
+            result = forget_method(
+                normalized_key,
+                language=language,
+                entity_type=entity_type,
+            )
         except TypeError:
-            result = forget_method(normalized_key)
+            try:
+                result = forget_method(normalized_key, language=language)
+            except TypeError:
+                result = forget_method(normalized_key)
 
         removed_key = ""
-        if isinstance(result, tuple) and result:
+        result_status = ""
+        result_metadata: dict[str, object] = {}
+        if isinstance(result, dict):
+            result_status = str(result.get("status", "") or "").strip()
+            removed_key = str(
+                result.get("key")
+                or result.get("removed_text")
+                or normalized_key
+            ).strip()
+            result_metadata = dict(result)
+        elif isinstance(result, tuple) and result:
             removed_key = str(result[0] or "").strip()
         elif isinstance(result, str):
             removed_key = str(result).strip()
         elif result:
             removed_key = normalized_key
 
-        if not removed_key:
+        if result_status == "ambiguous":
+            return ExecutorOutcome(
+                ok=False,
+                status="ambiguous",
+                data={"key": normalized_key},
+                metadata={
+                    "source": "memory_service.forget",
+                    "language": str(language or "").strip().lower(),
+                    "entity_type": str(entity_type or "").strip().lower(),
+                    **result_metadata,
+                },
+            )
+
+        if result_status == "not_found" or not removed_key:
             return ExecutorOutcome(
                 ok=False,
                 status="not_found",
@@ -172,6 +208,8 @@ class MemorySkillExecutor(BaseSkillExecutor):
                 metadata={
                     "source": "memory_service.forget",
                     "language": str(language or "").strip().lower(),
+                    "entity_type": str(entity_type or "").strip().lower(),
+                    **result_metadata,
                 },
             )
 
@@ -182,6 +220,8 @@ class MemorySkillExecutor(BaseSkillExecutor):
             metadata={
                 "source": "memory_service.forget",
                 "language": str(language or "").strip().lower(),
+                "entity_type": str(entity_type or "").strip().lower(),
+                **result_metadata,
             },
         )
 

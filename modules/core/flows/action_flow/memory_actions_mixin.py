@@ -725,7 +725,12 @@ class ActionMemoryActionsMixin:
     ) -> bool:
         del route
         key = self._first_present(payload, "key", "subject", "item", "name", "query")
-        outcome = self._get_memory_skill_executor().forget(key=key, language=language)
+        entity_type = self._first_present(payload, "entity_type", "kind", "type")
+        outcome = self._get_memory_skill_executor().forget(
+            key=key,
+            language=language,
+            entity_type=entity_type,
+        )
 
         if outcome.status == "unavailable":
             return self._deliver_feature_unavailable(language=language, action="memory_forget")

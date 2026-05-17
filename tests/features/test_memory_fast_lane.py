@@ -278,6 +278,53 @@ class TestVoskFastLaneMemoryRecall(unittest.TestCase):
         self.assertTrue(outcome.ok)
         self.assertEqual(outcome.data["value"], "my phone is on the desk")
 
+    def test_polish_fast_lane_forget_person_hides_from_people_recall(self) -> None:
+        self.memory.remember_person("Tomek", language="pl", source="unit_test")
+
+        plan = self.builder.build_plan_from_intent(
+            turn_id="t-forget",
+            intent_key="memory.forget",
+            transcript="zapomnij Tomka",
+            language="pl",
+        )
+        payload = plan.route_decision.tool_invocations[0].payload
+
+        executor = MemorySkillExecutor(assistant=SimpleNamespace(memory=self.memory))
+        outcome = executor.forget(
+            key=payload["key"],
+            language="pl",
+            entity_type=payload.get("entity_type"),
+        )
+
+        self.assertTrue(outcome.ok)
+        self.assertEqual(outcome.status, "removed")
+        self.assertEqual(self.memory.recall("kogo znasz", language="pl"), "Nie znam jeszcze żadnych osób.")
+
+    def test_english_fast_lane_forget_object_hides_from_object_recall(self) -> None:
+        self.memory.remember_object("Vape", aliases=["phone"], language="en", source="unit_test")
+
+        plan = self.builder.build_plan_from_intent(
+            turn_id="t-forget-object",
+            intent_key="memory.forget",
+            transcript="forget object Vape",
+            language="en",
+        )
+        payload = plan.route_decision.tool_invocations[0].payload
+
+        executor = MemorySkillExecutor(assistant=SimpleNamespace(memory=self.memory))
+        outcome = executor.forget(
+            key=payload["key"],
+            language="en",
+            entity_type=payload.get("entity_type"),
+        )
+
+        self.assertTrue(outcome.ok)
+        self.assertEqual(outcome.status, "removed")
+        self.assertEqual(
+            self.memory.recall("what objects do you know", language="en"),
+            "I do not know any objects yet.",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

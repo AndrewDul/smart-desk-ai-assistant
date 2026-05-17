@@ -125,6 +125,19 @@ class SQLiteMemoryStore:
         with self._connect() as connection:
             self._upsert_entity(connection, entity)
 
+    def delete_entity(self, entity_id: str) -> bool:
+        clean_id = str(entity_id or "").strip()
+        if not clean_id:
+            return False
+
+        self.ensure_ready()
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "DELETE FROM memory_entities WHERE id = ?",
+                (clean_id,),
+            )
+            return bool(cursor.rowcount)
+
     def list_entities(
         self,
         *,

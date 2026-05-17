@@ -5,7 +5,9 @@ from types import SimpleNamespace
 
 from modules.core.assistant_impl.interaction_mixin import CoreAssistantInteractionMixin
 from modules.core.flows.pending_flow.orchestrator import PendingFlowOrchestrator
+from modules.core.flows.command_flow.language import CommandFlowLanguage
 from modules.runtime.contracts import RouteDecision, RouteKind
+from modules.understanding.parsing.normalization import normalize_text
 
 
 class _FakeInterruptController:
@@ -89,6 +91,7 @@ class _FakeAssistant(CoreAssistantInteractionMixin):
         self.thinking_ack_starts: list[dict[str, object]] = []
         self.thinking_ack_stops = 0
         self.text_responses: list[dict[str, object]] = []
+        self.cancel_calls: list[str] = []
     
     def _tick_ai_broker(self) -> None:
         return None
@@ -104,8 +107,14 @@ class _FakeAssistant(CoreAssistantInteractionMixin):
             "routing_text": text,
             "normalized_text": text.lower(),
             "already_remembered": True,
-            "cancel_requested": False,
+            "cancel_requested": self._test_cancel_requested(text),
         }
+
+    def _test_cancel_requested(self, text: str) -> bool:
+        if CommandFlowLanguage._looks_like_memory_forget_command(text):
+            return False
+        normalized = normalize_text(text)
+        return normalized in {"anuluj", "cancel", "never mind", "nie"}
 
     def _commit_language(self, language: str) -> str:
         self.last_language = str(language or "en")
@@ -158,6 +167,10 @@ class _FakeAssistant(CoreAssistantInteractionMixin):
 
     def _handle_unclear_route(self, route, language: str) -> bool:
         self.dispatched.append(("unclear", language))
+        return True
+
+    def _cancel_active_request(self, lang: str) -> bool:
+        self.cancel_calls.append(lang)
         return True
 
     def _finish_turn_telemetry(self, telemetry):
@@ -294,6 +307,56 @@ class InteractionRouteDispatchTests(unittest.TestCase):
         self.assertEqual(assistant.route_calls, 0)
         self.assertEqual(assistant.text_responses[-1]["text"], "Please repeat the command.")
         self.assertEqual(assistant.finished_telemetry["result"], "pending_flow")
+
+    def test_zapomnij_tomka_reaches_memory_forget_runtime_candidate_not_cancel(self) -> None:
+        route = self._route(RouteKind.ACTION, primary_intent="memory_forget")
+        route.language = "pl"
+        route.metadata["voice_engine_intent_key"] = "memory.forget"
+        route.metadata["llm_prevented"] = True
+        route.metadata["runtime_takeover"] = True
+        route.metadata["faster_whisper_prevented"] = True
+        assistant = _FakeAssistant(route)
+        assistant.voice_engine_v2_runtime_candidate_adapter = _FakeRuntimeCandidateAdapter(route)
+
+        handled = assistant.handle_command("zapomnij Tomka")
+
+        self.assertTrue(handled)
+        self.assertEqual(assistant.cancel_calls, [])
+        self.assertEqual(assistant.dispatched, [("action", "pl")])
+        self.assertEqual(assistant.finished_telemetry["result"], "voice_engine_v2_runtime_candidate")
+
+    def test_zapomnij_tomka_with_punctuation_reaches_memory_forget(self) -> None:
+        route = self._route(RouteKind.ACTION, primary_intent="memory_forget")
+        route.language = "pl"
+        route.metadata["voice_engine_intent_key"] = "memory.forget"
+        route.metadata["llm_prevented"] = True
+        assistant = _FakeAssistant(route)
+        assistant.voice_engine_v2_runtime_candidate_adapter = _FakeRuntimeCandidateAdapter(route)
+
+        handled = assistant.handle_command("Zapomnij Tomka.")
+
+        self.assertTrue(handled)
+        self.assertEqual(assistant.cancel_calls, [])
+        self.assertEqual(assistant.dispatched, [("action", "pl")])
+
+    def test_true_cancel_still_uses_generic_cancel_path(self) -> None:
+        assistant = _FakeAssistant(self._route(RouteKind.CONVERSATION))
+
+        handled = assistant.handle_command("anuluj")
+
+        self.assertTrue(handled)
+        self.assertEqual(assistant.cancel_calls, ["en"])
+        self.assertEqual(assistant.dispatched, [])
+        self.assertEqual(assistant.finished_telemetry["result"], "cancel_request")
+
+    def test_bare_zapomnij_is_not_memory_delete(self) -> None:
+        assistant = _FakeAssistant(self._route(RouteKind.CONVERSATION))
+
+        handled = assistant.handle_command("zapomnij")
+
+        self.assertTrue(handled)
+        self.assertEqual(assistant.cancel_calls, [])
+        self.assertEqual(assistant.dispatched, [("conversation", "en")])
 
     def test_runtime_candidate_exit_marks_action_executed_but_returns_false_to_stop_loop(self) -> None:
         route = self._route(RouteKind.ACTION, primary_intent="system.exit")

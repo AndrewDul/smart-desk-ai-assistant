@@ -14,6 +14,7 @@ _RUNTIME_CANDIDATE_ALLOWLIST = [
     "memory.guided_start",
     "memory.list",
     "memory.recall",
+    "memory.forget",
     "mobile_base.drive_mode",
     "system.current_time",
     "system.current_date",
@@ -422,6 +423,7 @@ def test_runtime_candidate_executor_builds_exit_action_flow_route() -> None:
         "focus.offer",
         "focus.start",
         "focus.stop",
+        "memory.forget",
         "memory.guided_start",
         "memory.list",
         "memory.recall",
@@ -740,3 +742,47 @@ def test_polish_object_recall_aliases_route_to_memory_recall() -> None:
         language=CommandLanguage.POLISH,
         gallery_kind="objects",
     )
+
+
+def test_runtime_candidate_executor_routes_forget_person_with_payload() -> None:
+    builder = RuntimeCandidateExecutionPlanBuilder()
+    turn = _turn_result("zapomnij osobę Tomek", language=CommandLanguage.POLISH)
+
+    plan = builder.build_plan(
+        turn_result=turn,
+        transcript="zapomnij osobę Tomek",
+        metadata={"source": "unit_test"},
+    )
+
+    assert plan is not None
+    assert plan.route_decision.kind == RouteKind.ACTION
+    assert plan.route_decision.language == "pl"
+    assert plan.route_decision.primary_intent == "memory_forget"
+    assert plan.route_decision.tool_invocations[0].tool_name == "memory.forget"
+    assert plan.route_decision.tool_invocations[0].payload == {
+        "key": "tomek",
+        "query": "tomek",
+        "entity_type": "person",
+    }
+    assert plan.route_decision.metadata["llm_prevented"] is True
+
+
+def test_runtime_candidate_executor_routes_forget_object_with_payload() -> None:
+    builder = RuntimeCandidateExecutionPlanBuilder()
+    turn = _turn_result("forget object Vape", language=CommandLanguage.ENGLISH)
+
+    plan = builder.build_plan(
+        turn_result=turn,
+        transcript="forget object Vape",
+        metadata={"source": "unit_test"},
+    )
+
+    assert plan is not None
+    assert plan.route_decision.language == "en"
+    assert plan.route_decision.primary_intent == "memory_forget"
+    assert plan.route_decision.tool_invocations[0].payload == {
+        "key": "vape",
+        "query": "vape",
+        "entity_type": "object",
+    }
+    assert plan.route_decision.metadata["llm_prevented"] is True

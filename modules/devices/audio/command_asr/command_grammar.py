@@ -2623,6 +2623,79 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
 
         CommandPhrase(
+            'memory.forget',
+            'forget phone',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'forget'),
+        ),
+        CommandPhrase(
+            'memory.forget',
+            'forget object phone',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'forget', 'object'),
+        ),
+        CommandPhrase(
+            'memory.forget',
+            'remove phone from memory',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'forget'),
+        ),
+        CommandPhrase(
+            'memory.forget',
+            'delete phone from memory',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'forget'),
+        ),
+        CommandPhrase(
+            'memory.forget',
+            'remove object phone from memory',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'forget', 'object'),
+        ),
+        CommandPhrase(
+            'memory.forget',
+            'delete object phone from memory',
+            language=CommandLanguage.ENGLISH,
+            tags=('memory', 'forget', 'object'),
+        ),
+        CommandPhrase(
+            'memory.forget',
+            'zapomnij telefon',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'forget'),
+        ),
+        CommandPhrase(
+            'memory.forget',
+            'zapomnij obiekt telefon',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'forget', 'object'),
+        ),
+        CommandPhrase(
+            'memory.forget',
+            'usun telefon z pamieci',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'forget', 'vosk_exclude'),
+        ),
+        CommandPhrase(
+            'memory.forget',
+            'usuń telefon z pamięci',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'forget', 'vosk_exclude'),
+        ),
+        CommandPhrase(
+            'memory.forget',
+            'usun obiekt telefon z pamieci',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'forget', 'object', 'vosk_exclude'),
+        ),
+        CommandPhrase(
+            'memory.forget',
+            'usuń obiekt telefon z pamięci',
+            language=CommandLanguage.POLISH,
+            tags=('memory', 'forget', 'object', 'vosk_exclude'),
+        ),
+
+        CommandPhrase(
             'memory.list',
             'memory list',
             language=CommandLanguage.ENGLISH,

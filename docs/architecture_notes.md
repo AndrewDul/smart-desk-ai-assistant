@@ -16821,3 +16821,36 @@ I limited retries so NeXa does not keep listening forever.
 I manually tested that after an unclear command, `what time is it` works without saying the wake word again.
 
 I manually tested cancel/no follow-up and it works.
+
+## 2026-05-17 - Memory forget for people and objects
+
+### Summary
+
+I added memory forget support for people and objects.
+
+I added Polish and English forget phrases.
+
+I made simple forget commands deterministic and fast.
+
+I routed memory forget through `memory.forget` with `llm_prevented=True`.
+
+I added structured forget matching by display name and aliases.
+
+I added safe Polish handling for cases like `Tomka -> Tomek`.
+
+I delete the source memory record and rebuild the SQLite memory index.
+
+I do not delete asset files from disk in this sprint.
+
+I made forgotten people and objects disappear from recall and gallery sources.
+
+I fixed the runtime issue where “zapomnij Tomka” was treated like a generic cancel command.
+
+### Manual runtime test
+
+I tested manually:
+
+```text
+zapomnij Tomka -> MEMORY REMOVED -> Tomek
+kogo znasz -> Znam: Dominika, Andrzej.
+```

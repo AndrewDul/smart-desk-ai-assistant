@@ -352,20 +352,218 @@ class MemoryService:
             return None
         return self._find_best_record(records, key, language=language)
 
-    def forget(self, key: str, *, language: str | None = None) -> tuple[str | None, str | None]:
+    def forget(
+        self,
+        key: str,
+        *,
+        language: str | None = None,
+        entity_type: str | None = None,
+    ) -> dict[str, Any]:
+        structured_result = self._forget_structured_entity(
+            key,
+            language=language,
+            entity_type=entity_type,
+        )
+        if structured_result is not None:
+            return structured_result
+
         records = self._load_records()
         if not records:
-            return None, None
+            return {
+                "status": "not_found",
+                "key": self._compact_original_text(key),
+                "reason": "empty_memory",
+            }
 
         match = self._find_best_record(records, key, language=language)
         if match is None:
-            return None, None
+            return {
+                "status": "not_found",
+                "key": self._compact_original_text(key),
+                "reason": "record_not_found",
+            }
 
         kept = [record for record in records if str(record.get("id", "")) != match.id]
         self._save_records(kept)
 
         append_log(f"Memory deleted: id={match.id} text={match.original_text}")
-        return match.original_text, match.original_text
+        return {
+            "status": "removed",
+            "key": match.original_text,
+            "removed_text": match.original_text,
+            "removed_record_ids": [match.id],
+            "delete_strategy": "record",
+        }
+
+    def _forget_structured_entity(
+        self,
+        key: str,
+        *,
+        language: str | None = None,
+        entity_type: str | None = None,
+    ) -> dict[str, Any] | None:
+        clean_key = self._strip_memory_forget_type_words(key)
+        if not clean_key:
+            return None
+
+        normalized_entity_type = self._normalize_memory_entity_type(entity_type)
+        candidates = self._find_structured_forget_candidates(
+            clean_key,
+            language=language,
+            entity_type=normalized_entity_type,
+        )
+        if not candidates:
+            return None
+
+        if len(candidates) > 1:
+            names = sorted({
+                str(candidate.get("display_name", "") or "").strip()
+                for candidate in candidates
+                if str(candidate.get("display_name", "") or "").strip()
+            })
+            append_log(
+                "Structured memory forget ambiguous: "
+                f"query={clean_key!r} entity_type={normalized_entity_type or '-'} matches={names}"
+            )
+            return {
+                "status": "ambiguous",
+                "key": clean_key,
+                "matches": names,
+                "entity_type": normalized_entity_type,
+            }
+
+        entity = dict(candidates[0])
+        source_record_id = str(
+            dict(entity.get("metadata", {}) or {}).get("source_record_id", "") or ""
+        ).strip()
+        display_name = str(entity.get("display_name", "") or clean_key).strip() or clean_key
+        entity_id = str(entity.get("id", "") or "").strip()
+        removed_record_ids: list[str] = []
+
+        records = self._load_records()
+        if source_record_id:
+            kept = [
+                record
+                for record in records
+                if str(record.get("id", "") or "").strip() != source_record_id
+            ]
+            if len(kept) != len(records):
+                removed_record_ids.append(source_record_id)
+                self._save_records(kept)
+
+        if not removed_record_ids and self.index_store is not None and entity_id:
+            try:
+                if self.index_store.delete_entity(entity_id):
+                    append_log(
+                        "Structured memory entity unlinked without source record: "
+                        f"entity_id={entity_id} display_name={display_name}"
+                    )
+                    return {
+                        "status": "removed",
+                        "key": display_name,
+                        "removed_text": display_name,
+                        "removed_record_ids": [],
+                        "removed_entity_id": entity_id,
+                        "entity_type": str(entity.get("entity_type", "") or ""),
+                        "delete_strategy": "entity_unlink",
+                    }
+            except Exception as exc:  # pragma: no cover - defensive runtime fallback
+                append_log(f"Structured memory entity unlink failed: {exc}")
+
+        if not removed_record_ids:
+            return {
+                "status": "not_found",
+                "key": clean_key,
+                "entity_type": normalized_entity_type,
+                "reason": "source_record_not_found",
+            }
+
+        append_log(
+            "Structured memory deleted: "
+            f"entity_id={entity_id or '-'} type={entity.get('entity_type', '-')}, "
+            f"display_name={display_name}, records={removed_record_ids}"
+        )
+        return {
+            "status": "removed",
+            "key": display_name,
+            "removed_text": display_name,
+            "removed_record_ids": removed_record_ids,
+            "removed_entity_id": entity_id,
+            "entity_type": str(entity.get("entity_type", "") or ""),
+            "delete_strategy": "source_record",
+        }
+
+    def _find_structured_forget_candidates(
+        self,
+        key: str,
+        *,
+        language: str | None = None,
+        entity_type: str,
+    ) -> list[dict[str, Any]]:
+        del language
+        target_values = self._memory_forget_target_variants(key)
+        if not target_values:
+            return []
+
+        search_types = [entity_type] if entity_type in {"person", "object"} else ["person", "object"]
+        matches: list[dict[str, Any]] = []
+        seen_ids: set[str] = set()
+        for search_type in search_types:
+            entries = self.list_people(language=None) if search_type == "person" else self.list_objects(language=None)
+            for entry in entries:
+                entity_id = str(entry.get("id", "") or "").strip()
+                match_id = entity_id or f"{search_type}:{entry.get('display_name', '')}"
+                if match_id in seen_ids:
+                    continue
+                names = [
+                    str(entry.get("display_name", "") or ""),
+                    *[str(alias) for alias in list(entry.get("aliases", []) or [])],
+                ]
+                normalized_names: set[str] = set()
+                for name in names:
+                    normalized_names.update(self._memory_forget_target_variants(name))
+                if target_values.intersection(normalized_names):
+                    seen_ids.add(match_id)
+                    matches.append(dict(entry))
+        return matches
+
+    def _memory_forget_target_variants(self, text: str) -> set[str]:
+        normalized = self._normalize_fact_subject(self._strip_memory_forget_type_words(text))
+        if not normalized:
+            return set()
+
+        variants = {normalized}
+        tokens = normalized.split()
+        if len(tokens) == 1:
+            for variant in self._token_variants(tokens[0]):
+                variants.add(variant)
+            token = tokens[0]
+            if len(token) > 3 and token.endswith("ka"):
+                variants.add(token[:-2] + "ek")
+            if len(token) > 3 and token.endswith("a"):
+                variants.add(token[:-1])
+        return {variant for variant in variants if variant}
+
+    def _strip_memory_forget_type_words(self, text: str) -> str:
+        cleaned = self._clean_text(text)
+        type_words = {"person", "object", "osoba", "osobe", "obiekt"}
+        changed = True
+        while changed and cleaned:
+            changed = False
+            parts = cleaned.split(maxsplit=1)
+            if len(parts) > 1 and parts[0] in type_words:
+                cleaned = parts[1].strip()
+                changed = True
+        return cleaned
+
+    @staticmethod
+    def _normalize_memory_entity_type(entity_type: str | None) -> str:
+        normalized = str(entity_type or "").strip().lower()
+        if normalized in {"person", "people", "osoba", "osobe", "osobę"}:
+            return "person"
+        if normalized in {"object", "item", "thing", "obiekt"}:
+            return "object"
+        return ""
 
     def clear(self) -> int:
         records = self._load_records()

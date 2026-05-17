@@ -108,6 +108,14 @@ class TestMemoryRecords(unittest.TestCase):
 
         self.assertEqual(len(records), 1)
 
+    def test_forget_legacy_record_returns_status_dict(self) -> None:
+        self.memory.remember_text("my phone is on the desk", language="en")
+
+        result = self.memory.forget("phone", language="en")
+
+        self.assertEqual(result["status"], "removed")
+        self.assertEqual(self.memory.recall("where is my phone", language="en"), None)
+
     def test_empty_memory_text_is_ignored(self) -> None:
         memory_id = self.memory.remember_text("   ", language="en")
 
@@ -148,10 +156,11 @@ class TestMemoryRecords(unittest.TestCase):
     def test_forget_removes_best_matching_record(self) -> None:
         self.memory.remember_text("my phone is on the desk", language="en")
 
-        removed_key, removed_value = self.memory.forget("phone", language="en")
+        result = self.memory.forget("phone", language="en")
 
-        self.assertEqual(removed_key, "my phone is on the desk")
-        self.assertEqual(removed_value, "my phone is on the desk")
+        self.assertEqual(result["status"], "removed")
+        self.assertEqual(result["key"], "my phone is on the desk")
+        self.assertEqual(result["removed_text"], "my phone is on the desk")
         self.assertIsNone(self.memory.recall("phone", language="en"))
 
     def test_clear_removes_all_records(self) -> None:

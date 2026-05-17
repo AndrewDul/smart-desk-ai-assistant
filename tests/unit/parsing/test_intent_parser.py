@@ -171,6 +171,47 @@ class TestIntentParser(unittest.TestCase):
         self.assertEqual(result.action, "memory_forget")
         self.assertEqual(result.data["key"], "kluczach")
 
+    def test_memory_forget_required_people_and_object_phrases(self) -> None:
+        cases = {
+            "zapomnij Tomka": ("tomka", None),
+            "zapomnij osobę Tomek": ("tomek", "person"),
+            "zapomnij osobe Tomek": ("tomek", "person"),
+            "usuń Tomka z pamięci": ("tomka", None),
+            "usun Tomka z pamieci": ("tomka", None),
+            "wykasuj Tomka z pamięci": ("tomka", None),
+            "wykasuj Tomka z pamieci": ("tomka", None),
+            "forget Tomek": ("tomek", None),
+            "forget person Tomek": ("tomek", "person"),
+            "remove Tomek from memory": ("tomek", None),
+            "delete Tomek from memory": ("tomek", None),
+            "remove person Tomek from memory": ("tomek", "person"),
+            "delete person Tomek from memory": ("tomek", "person"),
+            "zapomnij Vape": ("vape", None),
+            "zapomnij obiekt Vape": ("vape", "object"),
+            "zapomnij telefon": ("telefon", None),
+            "usuń obiekt Vape z pamięci": ("vape", "object"),
+            "usun obiekt Vape z pamieci": ("vape", "object"),
+            "usuń telefon z pamięci": ("telefon", None),
+            "usun telefon z pamieci": ("telefon", None),
+            "forget Vape": ("vape", None),
+            "forget object Vape": ("vape", "object"),
+            "forget phone": ("phone", None),
+            "remove object Vape from memory": ("vape", "object"),
+            "delete object Vape from memory": ("vape", "object"),
+            "remove phone from memory": ("phone", None),
+            "delete phone from memory": ("phone", None),
+        }
+
+        for phrase, (expected_key, expected_type) in cases.items():
+            with self.subTest(phrase=phrase):
+                result = self.parser.parse(phrase)
+                self.assertEqual(result.action, "memory_forget")
+                self.assertEqual(result.data["key"], expected_key)
+                if expected_type is None:
+                    self.assertNotIn("entity_type", result.data)
+                else:
+                    self.assertEqual(result.data["entity_type"], expected_type)
+
     def test_memory_clear_english(self) -> None:
         result = self.parser.parse("Clear memory")
         self.assertEqual(result.action, "memory_clear")

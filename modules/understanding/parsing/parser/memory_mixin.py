@@ -7,6 +7,15 @@ from modules.understanding.parsing.normalization import clean_text
 
 
 class IntentParserMemoryMixin:
+    _MEMORY_FORGET_TYPE_PREFIXES = {
+        "person": "person",
+        "object": "object",
+        "osoba": "person",
+        "osobe": "person",
+        "osobę": "person",
+        "obiekt": "object",
+    }
+
     def _parse_memory_recall(self, normalized: str) -> IntentResult | None:
         direct_recall_queries = {
             "jakie obiekty znasz",
@@ -54,20 +63,52 @@ class IntentParserMemoryMixin:
 
     def _parse_memory_forget(self, normalized: str) -> IntentResult | None:
         for pattern in (
+            r"^(?:forget)\s+(.+)$",
+            r"^(?:remove|delete)\s+(.+?)\s+from\s+memory$",
+            r"^(?:remove|delete)\s+(person|object)\s+(.+?)\s+from\s+memory$",
             r"^(?:forget|remove from memory|delete from memory)\s+(.+)$",
-            r"^(?:forget|remove|delete)\s+(.+?)\s+from\s+memory$",
-            r"^(?:zapomnij o|usun z pamieci|skasuj z pamieci)\s+(.+)$",
-            r"^(?:usun|skasuj)\s+(.+?)\s+z\s+pamieci$",
+            r"^(?:zapomnij|zapomnij o)\s+(.+)$",
+            r"^(?:usun|usuń|skasuj|wykasuj)\s+(.+?)\s+z\s+(?:pamieci|pamięci)$",
+            r"^(?:usun z pamieci|usuń z pamięci|skasuj z pamieci|skasuj z pamięci)\s+(.+)$",
         ):
             match = re.match(pattern, normalized)
             if match:
-                key = self._cleanup_subject(match.group(1))
+                groups = [group for group in match.groups() if group is not None]
+                explicit_type = ""
+                raw_key = groups[-1] if groups else ""
+                if len(groups) > 1:
+                    explicit_type = self._MEMORY_FORGET_TYPE_PREFIXES.get(groups[0], "")
+
+                key, inferred_type = self._cleanup_memory_forget_target(raw_key)
+                entity_type = explicit_type or inferred_type
                 if key:
+                    data = {"key": key}
+                    if entity_type:
+                        data["entity_type"] = entity_type
                     return IntentResult.from_action(
                         action="memory_forget",
-                        data={"key": key},
+                        data=data,
                     )
         return None
+
+    def _cleanup_memory_forget_target(self, text: str) -> tuple[str, str]:
+        key = self._cleanup_subject(text)
+        if key.startswith("o "):
+            key = key[2:].strip()
+        entity_type = ""
+        changed = True
+        while changed and key:
+            changed = False
+            parts = key.split(maxsplit=1)
+            if not parts:
+                break
+            mapped_type = self._MEMORY_FORGET_TYPE_PREFIXES.get(parts[0])
+            if mapped_type and len(parts) > 1:
+                entity_type = entity_type or mapped_type
+                key = parts[1].strip()
+                changed = True
+        return key, entity_type
+
 
     def _parse_memory_store(self, normalized: str) -> IntentResult | None:
         person_enrollment_triggers = {

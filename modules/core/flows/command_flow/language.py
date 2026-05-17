@@ -219,6 +219,9 @@ class CommandFlowLanguage(CommandFlowHelpers):
         if self._pending_duration_unknown_answer(text):
             return False
 
+        if self._looks_like_memory_forget_command(text):
+            return False
+
         helper = getattr(self.assistant, "_looks_like_cancel_request", None)
         if callable(helper):
             try:
@@ -237,6 +240,25 @@ class CommandFlowLanguage(CommandFlowHelpers):
             return True
 
         return contains_any_phrase(normalized, CANCEL_PHRASES)
+
+    @staticmethod
+    def _looks_like_memory_forget_command(text: str) -> bool:
+        normalized = normalize_text(text)
+        if not normalized:
+            return False
+
+        if normalized in {"zapomnij", "forget it"}:
+            return False
+
+        if normalized.startswith("zapomnij "):
+            target = normalized[len("zapomnij "):].strip()
+            return bool(target and target not in {"to", "o tym"})
+
+        if normalized.startswith("forget "):
+            target = normalized[len("forget "):].strip()
+            return bool(target and target not in {"it", "this", "that"})
+
+        return False
 
     def _pending_duration_unknown_answer(self, text: str) -> bool:
         pending = getattr(self.assistant, "pending_follow_up", None)

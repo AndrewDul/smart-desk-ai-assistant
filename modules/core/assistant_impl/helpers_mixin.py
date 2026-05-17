@@ -115,10 +115,13 @@ class CoreAssistantHelpersMixin:
         return polish_text if self._normalize_lang(lang) == "pl" else english_text
 
     def _looks_like_cancel_request(self, text: str) -> bool:
+        normalized = normalize_text(text)
+        if self._looks_like_memory_forget_command(normalized):
+            return False
+
         if self.voice_session.looks_like_cancel_request(text):
             return True
 
-        normalized = normalize_text(text)
         cancel_markers = {
             "cancel",
             "stop",
@@ -130,6 +133,21 @@ class CoreAssistantHelpersMixin:
             "przestan",
         }
         return normalized in cancel_markers
+
+    @staticmethod
+    def _looks_like_memory_forget_command(normalized: str) -> bool:
+        if not normalized or normalized in {"zapomnij", "forget it"}:
+            return False
+
+        if normalized.startswith("zapomnij "):
+            target = normalized[len("zapomnij "):].strip()
+            return bool(target and target not in {"to", "o tym"})
+
+        if normalized.startswith("forget "):
+            target = normalized[len("forget "):].strip()
+            return bool(target and target not in {"it", "this", "that"})
+
+        return False
 
     def _cancel_active_request(self, lang: str) -> bool:
         had_pending = bool(self.pending_confirmation or self.pending_follow_up)

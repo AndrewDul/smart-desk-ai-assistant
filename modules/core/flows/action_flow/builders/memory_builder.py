@@ -107,6 +107,28 @@ class MemorySkillResponseBuilder(BaseActionResponseBuilder):
                 },
             )
 
+        if outcome_status == "ambiguous":
+            return ActionResponseSpec(
+                action=action,
+                spoken_text=self.localized(
+                    language,
+                    "Nie wiem dokładnie, który wpis mam usunąć.",
+                    "I am not sure which memory entry to remove.",
+                ),
+                display_title="MEMORY",
+                display_lines=self.localized_lines(
+                    language,
+                    ["doprecyzuj wpis"],
+                    ["be more specific"],
+                ),
+                extra_metadata={
+                    **dict(metadata or {}),
+                    "resolved_source": resolved_source,
+                    "key": key,
+                    "phase": "ambiguous",
+                },
+            )
+
         return ActionResponseSpec(
             action=action,
             spoken_text=self.localized(

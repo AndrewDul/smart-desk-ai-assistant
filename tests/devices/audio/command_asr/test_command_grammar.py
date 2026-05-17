@@ -248,6 +248,41 @@ def test_vosk_vocabulary_excludes_small_model_unsupported_natural_aliases() -> N
 
     assert "odsłoń pulpit" not in polish_vocabulary
     assert all("nexa" not in phrase.lower() for phrase in english_vocabulary)
+
+
+def test_default_grammar_recognizes_safe_memory_forget_aliases() -> None:
+    grammar = build_default_command_grammar()
+
+    cases = {
+        "forget phone": (CommandLanguage.ENGLISH, "memory.forget"),
+        "forget object phone": (CommandLanguage.ENGLISH, "memory.forget"),
+        "remove phone from memory": (CommandLanguage.ENGLISH, "memory.forget"),
+        "delete object phone from memory": (CommandLanguage.ENGLISH, "memory.forget"),
+        "zapomnij telefon": (CommandLanguage.POLISH, "memory.forget"),
+        "zapomnij obiekt telefon": (CommandLanguage.POLISH, "memory.forget"),
+        "usun telefon z pamieci": (CommandLanguage.POLISH, "memory.forget"),
+        "usuń obiekt telefon z pamięci": (CommandLanguage.POLISH, "memory.forget"),
+    }
+
+    for phrase, (language, intent_key) in cases.items():
+        result = grammar.match(phrase)
+        assert result.status == CommandRecognitionStatus.MATCHED
+        assert result.intent_key == intent_key
+        assert result.language == language
+
+
+def test_vosk_memory_forget_vocabulary_avoids_arbitrary_names() -> None:
+    grammar = build_default_command_grammar()
+
+    polish_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)
+    english_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH)
+
+    assert "zapomnij tomka" not in polish_vocabulary
+    assert "zapomnij vape" not in polish_vocabulary
+    assert "forget tomek" not in english_vocabulary
+    assert "forget vape" not in english_vocabulary
+    assert "zapomnij telefon" in polish_vocabulary
+    assert "forget phone" in english_vocabulary
     assert all("nexa" not in phrase.lower() for phrase in polish_vocabulary)
 
 

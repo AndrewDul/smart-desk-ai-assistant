@@ -669,3 +669,138 @@ def test_memory_service_object_capture_returns_safe_failure_without_vision_backe
         assert result["reason"] == "vision_backend_unavailable"
         assert memory.index_store is not None
         assert memory.index_store.asset_count() == 0
+
+
+def test_memory_service_forgets_person_by_display_alias_and_genitive() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+
+        memory.remember_person("Tomek", language="pl", source="unit_test")
+
+        result = memory.forget("Tomka", language="pl")
+
+        assert result["status"] == "removed"
+        assert result["entity_type"] == "person"
+        assert result["key"] == "Tomek"
+        assert memory.list_people(language=None) == []
+        assert memory.recall("kogo znasz", language="pl") == "Nie znam jeszcze żadnych osób."
+
+
+def test_memory_service_forgets_person_with_explicit_type_words() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+
+        memory.remember_person("Tomek", language="pl", source="unit_test")
+
+        result = memory.forget("osobę Tomek", language="pl", entity_type="person")
+
+        assert result["status"] == "removed"
+        assert memory.list_people(language=None) == []
+
+
+def test_memory_service_forgets_object_by_display_and_alias() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+
+        memory.remember_object("Vape", aliases=["phone", "telefon"], language="en", source="unit_test")
+
+        result = memory.forget("object Vape", language="en", entity_type="object")
+
+        assert result["status"] == "removed"
+        assert result["entity_type"] == "object"
+        assert memory.list_objects(language=None) == []
+        assert memory.recall("what objects do you know", language="en") == "I do not know any objects yet."
+
+        memory.remember_object("Vape", aliases=["phone", "telefon"], language="en", source="unit_test")
+        alias_result = memory.forget("telefon", language="pl")
+
+        assert alias_result["status"] == "removed"
+        assert memory.list_objects(language=None) == []
+
+
+def test_memory_service_forget_keeps_asset_files_and_hides_gallery_sources() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+
+        slot = memory.prepare_object_image_capture_slot(
+            "telefon",
+            aliases=["phone"],
+            language="pl",
+            owner="user",
+            source="unit_test",
+        )
+        assert slot is not None
+        asset_path = Path(slot["next_object_asset_path"])
+        asset_path.parent.mkdir(parents=True, exist_ok=True)
+        asset_path.write_bytes(b"fake image")
+        asset_id = memory.remember_object_image_asset(
+            "telefon",
+            asset_path,
+            aliases=["phone"],
+            language="pl",
+            caption="telefon reference",
+            owner="user",
+        )
+        assert asset_id is not None
+        assert asset_path.exists()
+
+        result = memory.forget("telefon", language="pl", entity_type="object")
+
+        assert result["status"] == "removed"
+        assert asset_path.exists()
+        assert memory.list_objects(language=None) == []
+        assert memory.list_object_image_assets(display_name="telefon", language="pl") == []
+
+
+def test_memory_service_reteach_after_forget_works() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+
+        memory.remember_person("Tomek", language="pl", source="unit_test")
+        assert memory.forget("Tomka", language="pl")["status"] == "removed"
+
+        memory.remember_person("Tomek", aliases=["tom"], language="en", source="unit_test")
+
+        people = memory.list_people(language=None)
+        assert len(people) == 1
+        assert people[0]["display_name"] == "Tomek"
+        assert "tom" in people[0]["aliases"]
+        assert memory.recall("who do you know", language="en") == "I know: Tomek."
+
+
+def test_memory_service_forget_does_not_delete_ambiguous_entity() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        memory = MemoryService(
+            store=MemoryRepository(path=str(root / "memory.json")),
+            index_store=SQLiteMemoryStore(root=root / "nexa_memory"),
+        )
+
+        memory.remember_person("Vape", language="en", source="unit_test")
+        memory.remember_object("Vape", language="en", source="unit_test")
+
+        result = memory.forget("Vape", language="en")
+
+        assert result["status"] == "ambiguous"
+        assert len(memory.list_people(language=None)) == 1
+        assert len(memory.list_objects(language=None)) == 1

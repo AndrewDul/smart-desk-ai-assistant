@@ -231,6 +231,11 @@ class RuntimeCandidateExecutionPlanBuilder:
                   legacy_action="memory_recall",
                   tool_name="memory.recall",
               ),
+              "memory.forget": RuntimeCandidateActionSpec(
+                  voice_engine_intent_key="memory.forget",
+                  legacy_action="memory_forget",
+                  tool_name="memory.forget",
+              ),
         }
     )
 
@@ -275,6 +280,9 @@ class RuntimeCandidateExecutionPlanBuilder:
             recall_query = recall_key or str(transcript or "").strip()
             if recall_query:
                 action_payload = {"key": recall_query, "query": recall_query}
+
+        if intent_key == "memory.forget":
+            action_payload = self._memory_forget_action_payload(transcript)
 
         if intent_key == "system.calculate":
             calculation = evaluate_arithmetic_expression(transcript)
@@ -807,6 +815,10 @@ class RuntimeCandidateExecutionPlanBuilder:
                 if remainder:
                     return "memory.recall"
 
+        forget_payload = cls._memory_forget_action_payload(transcript)
+        if forget_payload.get("key"):
+            return "memory.forget"
+
         return str(intent_key or "").strip()
 
     @classmethod
@@ -892,6 +904,9 @@ class RuntimeCandidateExecutionPlanBuilder:
             if recall_query:
                 action_payload = {"key": recall_query, "query": recall_query}
 
+        if resolved_intent_key == "memory.forget":
+            action_payload = self._memory_forget_action_payload(transcript)
+
         if resolved_intent_key == "system.calculate":
             calculation = evaluate_arithmetic_expression(transcript)
             if not calculation.ok:
@@ -962,3 +977,67 @@ class RuntimeCandidateExecutionPlanBuilder:
                 "language": language,
             },
         )
+
+    _FORGET_TYPE_PREFIXES: Mapping[str, str] = MappingProxyType(
+        {
+            "person": "person",
+            "object": "object",
+            "osoba": "person",
+            "osobe": "person",
+            "osobę": "person",
+            "obiekt": "object",
+        }
+    )
+
+    @classmethod
+    def _memory_forget_action_payload(cls, transcript: str) -> dict[str, Any]:
+        normalized = cls._normalize_runtime_text(transcript)
+        if not normalized:
+            return {}
+
+        patterns = (
+            ("en", "forget ", ""),
+            ("en", "remove ", " from memory"),
+            ("en", "delete ", " from memory"),
+            ("pl", "zapomnij ", ""),
+            ("pl", "usun ", " z pamieci"),
+            ("pl", "usuń ", " z pamięci"),
+            ("pl", "wykasuj ", " z pamieci"),
+            ("pl", "wykasuj ", " z pamięci"),
+        )
+
+        raw_target = ""
+        for _language, prefix, suffix in patterns:
+            if not normalized.startswith(prefix):
+                continue
+            if suffix and not normalized.endswith(suffix):
+                continue
+            start = len(prefix)
+            end = len(normalized) - len(suffix) if suffix else len(normalized)
+            raw_target = normalized[start:end].strip()
+            break
+
+        if not raw_target:
+            return {}
+
+        target, entity_type = cls._cleanup_memory_forget_target(raw_target)
+        if not target:
+            return {}
+
+        payload: dict[str, Any] = {"key": target, "query": target}
+        if entity_type:
+            payload["entity_type"] = entity_type
+        return payload
+
+    @classmethod
+    def _cleanup_memory_forget_target(cls, target: str) -> tuple[str, str]:
+        cleaned = " ".join(str(target or "").split()).strip()
+        entity_type = ""
+        while cleaned:
+            parts = cleaned.split(maxsplit=1)
+            mapped_type = cls._FORGET_TYPE_PREFIXES.get(parts[0])
+            if not mapped_type or len(parts) == 1:
+                break
+            entity_type = entity_type or mapped_type
+            cleaned = parts[1].strip()
+        return cleaned, entity_type
