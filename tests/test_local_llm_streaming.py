@@ -189,6 +189,20 @@ class LocalLLMStreamingTests(unittest.TestCase):
 
         self.assertEqual(resolved, "qwen2:1.5b")
 
+    def test_resolved_server_model_name_matches_configured_stem_to_available_gguf_id(self) -> None:
+        service = self._build_service()
+        service.server_model_name = "Qwen2.5-1.5B-Instruct-Q4_K_M"
+        service.model_path = "models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
+
+        with mock.patch.object(
+            service,
+            "_fetch_server_model_names",
+            return_value=["Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"],
+        ):
+            resolved = service._resolved_server_model_name()
+
+        self.assertEqual(resolved, "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf")
+
     def test_resolved_server_model_name_falls_back_when_configured_model_is_missing(self) -> None:
         service = self._build_service()
         service.server_model_name = "qwen2.5:1.5b"

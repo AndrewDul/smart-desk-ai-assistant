@@ -192,13 +192,14 @@ class LocalLLMAvailabilityMixin:
         if raw_model:
             expected_names.append(Path(raw_model).stem)
 
-        normalized_available = {name.strip().lower() for name in model_names if str(name).strip()}
-        if not normalized_available or not expected_names:
+        available_names = [name.strip() for name in model_names if str(name).strip()]
+        if not available_names or not expected_names:
             return ""
 
         for expected in expected_names:
-            if str(expected or "").strip().lower() in normalized_available:
-                return ""
+            for available in available_names:
+                if self._server_model_names_match(expected, available):
+                    return ""
 
         return (
             "Configured llama-server model is not listed by /v1/models. "
@@ -346,7 +347,7 @@ class LocalLLMAvailabilityMixin:
                 self.project_root / "vendor" / "llama.cpp" / "build" / "bin" / expanded_command
             )
 
-            if expanded_command != "llama-cli":
+            if expanded_command != "llama-cli" and self.runner in self._CLI_RUNNERS:
                 default_name = "llama-cli"
                 which_default = shutil.which(default_name)
                 if which_default:

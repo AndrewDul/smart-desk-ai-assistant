@@ -167,12 +167,16 @@ class LocalLLMUtilsMixin:
 
         available_set = {name.strip() for name in available_models if str(name).strip()}
         lowered_map = {name.lower(): name for name in available_set}
+        alias_map: dict[str, str] = {}
+        for available in sorted(available_set):
+            for alias in self._server_model_name_aliases(available):
+                alias_map.setdefault(alias, available)
 
-        if explicit and explicit in available_set:
-            return explicit
-
-        if explicit and explicit.lower() in lowered_map:
-            return lowered_map[explicit.lower()]
+        for configured in (explicit, raw_model_path, model_path_stem):
+            for alias in self._server_model_name_aliases(configured):
+                resolved = alias_map.get(alias)
+                if resolved:
+                    return resolved
 
         preferred: list[str] = []
 
@@ -218,7 +222,10 @@ class LocalLLMUtilsMixin:
             if normalized_candidate in available_set:
                 resolved = normalized_candidate
             else:
-                resolved = lowered_map.get(normalized_candidate.lower(), "")
+                resolved = (
+                    lowered_map.get(normalized_candidate.lower(), "")
+                    or alias_map.get(normalized_candidate.lower(), "")
+                )
 
             if resolved:
                 warning_key = f"{explicit}->{resolved}"
@@ -242,6 +249,34 @@ class LocalLLMUtilsMixin:
                 )
                 self._last_server_model_resolution_warning = warning_key
         return first_available
+
+    @staticmethod
+    def _server_model_name_aliases(value: str) -> set[str]:
+        raw = str(value or "").strip()
+        if not raw:
+            return set()
+
+        aliases = {raw.lower()}
+        path = Path(raw)
+        name = path.name.strip()
+        stem = path.stem.strip()
+
+        if name:
+            aliases.add(name.lower())
+        if stem:
+            aliases.add(stem.lower())
+
+        if raw.lower().endswith(".gguf"):
+            aliases.add(raw[:-5].lower())
+        if name.lower().endswith(".gguf"):
+            aliases.add(name[:-5].lower())
+
+        return {alias for alias in aliases if alias}
+
+    def _server_model_names_match(self, configured: str, available: str) -> bool:
+        configured_aliases = self._server_model_name_aliases(configured)
+        available_aliases = self._server_model_name_aliases(available)
+        return bool(configured_aliases and available_aliases and configured_aliases & available_aliases)
 
     @staticmethod
     def _join_url(base_url: str, path: str) -> str:

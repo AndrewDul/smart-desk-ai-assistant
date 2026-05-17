@@ -168,7 +168,7 @@ class LocalLLMHealthTests(unittest.TestCase):
                     return False
 
                 def read(self) -> bytes:
-                    return b'{"data":[{"id":"Qwen2.5-1.5B-Instruct-Q4_K_M"}]}'
+                    return b'{"data":[{"id":"Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"}]}'
 
             with mock.patch.object(service, "_tcp_port_open", return_value=True):
                 with mock.patch("urllib.request.urlopen", return_value=_Response()):
@@ -178,6 +178,29 @@ class LocalLLMHealthTests(unittest.TestCase):
         self.assertEqual(snapshot["readiness_state"], "ready")
         self.assertTrue(snapshot["available"])
         self.assertTrue(snapshot["healthy"])
+
+    def test_llama_server_catalog_accepts_configured_stem_for_available_gguf_id(self) -> None:
+        service = LocalLLMService(
+            {
+                "llm": {
+                    "enabled": True,
+                    "runner": "llama-server",
+                    "server_model_name": "Qwen2.5-1.5B-Instruct-Q4_K_M",
+                    "model_path": "models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
+                }
+            }
+        )
+
+        with mock.patch.object(
+            service,
+            "_fetch_server_model_names",
+            return_value=["Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"],
+        ):
+            error = service._server_model_catalog_error()
+            resolved = service._resolved_server_model_name()
+
+        self.assertEqual(error, "")
+        self.assertEqual(resolved, "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf")
 
     def test_llama_server_with_binary_and_model_but_closed_port_reports_starting(self) -> None:
         with TemporaryDirectory() as temp_dir:
