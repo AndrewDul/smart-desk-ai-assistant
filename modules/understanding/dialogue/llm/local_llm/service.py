@@ -149,8 +149,11 @@ class LocalLLMService(
         llm_cfg = self.settings.get("llm", {}) if isinstance(self.settings, dict) else {}
 
         self.enabled = bool(llm_cfg.get("enabled", False))
-        self.runner = self._normalize_runner(str(llm_cfg.get("runner", "hailo-ollama")))
-        self.command = str(llm_cfg.get("command", "llama-cli")).strip() or "llama-cli"
+        self.runner = self._normalize_runner(str(llm_cfg.get("runner", "llama-server")))
+        raw_command = llm_cfg.get("command")
+        if raw_command is None and self.runner == "llama-server":
+            raw_command = "llama-server"
+        self.command = str(raw_command or "llama-cli").strip() or "llama-cli"
         self.model_path = str(llm_cfg.get("model_path", "")).strip()
 
         self.n_predict = max(int(llm_cfg.get("n_predict", 96)), 16)
@@ -182,14 +185,8 @@ class LocalLLMService(
         )
 
         self.server_url = str(llm_cfg.get("server_url", "http://127.0.0.1:8000")).strip()
-        self.server_chat_path = (
-            str(llm_cfg.get("server_chat_path", "/api/chat")).strip()
-            or "/api/chat"
-        )
-        self.server_health_path = (
-            str(llm_cfg.get("server_health_path", "/hailo/v1/list")).strip()
-            or "/hailo/v1/list"
-        )
+        self.server_chat_path = str(llm_cfg.get("server_chat_path", "")).strip()
+        self.server_health_path = str(llm_cfg.get("server_health_path", "")).strip()
         self.server_api_key = str(llm_cfg.get("server_api_key", "")).strip()
         self.server_model_name = str(llm_cfg.get("server_model_name", "")).strip()
         self.server_use_openai_compat = bool(llm_cfg.get("server_use_openai_compat", False))
@@ -268,6 +265,7 @@ class LocalLLMService(
         self._last_warmup_error = ""
 
         self._backend_available = False
+        self._backend_readiness_state = ""
         self._backend_last_checked_at = 0.0
         self._backend_last_success_at = 0.0
         self._backend_consecutive_failures = 0
@@ -287,16 +285,22 @@ class LocalLLMService(
             self.server_url = "http://127.0.0.1:8000"
 
         if self.runner == "hailo-ollama":
+            if self.command == "llama-cli":
+                self.command = "hailo-ollama"
             if not self.server_health_path:
                 self.server_health_path = "/hailo/v1/list"
             if not self.server_chat_path:
                 self.server_chat_path = "/api/chat"
 
         if self.runner in {"openai-server", "llama-server", "server"}:
+            if self.runner == "llama-server" and self.command == "llama-cli":
+                self.command = "llama-server"
             if not self.server_chat_path:
                 self.server_chat_path = "/v1/chat/completions"
             if not self.server_health_path:
-                self.server_health_path = "/health"
+                self.server_health_path = "/v1/models"
+            if self.runner == "llama-server":
+                self.server_use_openai_compat = True
 
     def mark_generation_started(self) -> None:
         self._last_generation_started_at = time.perf_counter()
@@ -352,6 +356,7 @@ class LocalLLMService(
         self._last_server_model_resolution_warning = ""
 
         self._backend_available = False
+        self._backend_readiness_state = ""
         self._backend_last_checked_at = 0.0
         self._backend_last_success_at = 0.0
         self._backend_consecutive_failures = 0

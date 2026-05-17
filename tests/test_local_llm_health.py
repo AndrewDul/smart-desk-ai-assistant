@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest import mock
 
 from modules.understanding.dialogue.llm.local_llm import LocalLLMService
@@ -87,6 +89,162 @@ class LocalLLMHealthTests(unittest.TestCase):
         ensure.assert_called_once_with(auto_recover=False)
         self.assertTrue(snapshot["refreshed"])
         self.assertEqual(snapshot["state"], "ready")
+
+    def test_llama_server_missing_binary_reports_backend_missing(self) -> None:
+        service = LocalLLMService(
+            {
+                "llm": {
+                    "enabled": True,
+                    "runner": "llama-server",
+                    "command": "missing-llama-server",
+                    "model_path": "models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
+                    "startup_warmup": False,
+                }
+            }
+        )
+
+        snapshot = service.ensure_backend_ready(auto_recover=False)
+
+        self.assertEqual(snapshot["state"], "backend_missing")
+        self.assertEqual(snapshot["readiness_state"], "backend_missing")
+        self.assertFalse(snapshot["available"])
+        self.assertIn("llama-server backend command not found", snapshot["last_error"])
+
+    def test_llama_server_missing_model_reports_model_missing(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            command_path = Path(temp_dir) / "llama-server"
+            command_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            command_path.chmod(0o755)
+
+            service = LocalLLMService(
+                {
+                    "llm": {
+                        "enabled": True,
+                        "runner": "llama-server",
+                        "command": str(command_path),
+                        "model_path": str(Path(temp_dir) / "missing.gguf"),
+                        "startup_warmup": False,
+                    }
+                }
+            )
+
+            snapshot = service.ensure_backend_ready(auto_recover=False)
+
+        self.assertEqual(snapshot["state"], "model_missing")
+        self.assertEqual(snapshot["readiness_state"], "model_missing")
+        self.assertFalse(snapshot["available"])
+        self.assertIn("LLM GGUF model file is missing", snapshot["last_error"])
+
+    def test_llama_server_reachable_openai_models_reports_ready(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            command_path = Path(temp_dir) / "llama-server"
+            command_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            command_path.chmod(0o755)
+            model_path = Path(temp_dir) / "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
+            model_path.write_bytes(b"gguf")
+
+            service = LocalLLMService(
+                {
+                    "llm": {
+                        "enabled": True,
+                        "runner": "llama-server",
+                        "command": str(command_path),
+                        "model_path": str(model_path),
+                        "server_health_path": "/v1/models",
+                        "server_chat_path": "/v1/chat/completions",
+                        "server_model_name": "Qwen2.5-1.5B-Instruct-Q4_K_M",
+                        "startup_warmup": False,
+                    }
+                }
+            )
+
+            class _Response:
+                status = 200
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc, tb):
+                    return False
+
+                def read(self) -> bytes:
+                    return b'{"data":[{"id":"Qwen2.5-1.5B-Instruct-Q4_K_M"}]}'
+
+            with mock.patch.object(service, "_tcp_port_open", return_value=True):
+                with mock.patch("urllib.request.urlopen", return_value=_Response()):
+                    snapshot = service.ensure_backend_ready(auto_recover=False)
+
+        self.assertEqual(snapshot["state"], "ready")
+        self.assertEqual(snapshot["readiness_state"], "ready")
+        self.assertTrue(snapshot["available"])
+        self.assertTrue(snapshot["healthy"])
+
+    def test_llama_server_with_binary_and_model_but_closed_port_reports_starting(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            command_path = Path(temp_dir) / "llama-server"
+            command_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            command_path.chmod(0o755)
+            model_path = Path(temp_dir) / "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
+            model_path.write_bytes(b"gguf")
+
+            service = LocalLLMService(
+                {
+                    "llm": {
+                        "enabled": True,
+                        "runner": "llama-server",
+                        "command": str(command_path),
+                        "model_path": str(model_path),
+                        "startup_warmup": False,
+                    }
+                }
+            )
+
+            with mock.patch.object(service, "_tcp_port_open", return_value=False):
+                snapshot = service.ensure_backend_ready(auto_recover=False)
+
+        self.assertEqual(snapshot["state"], "starting")
+        self.assertEqual(snapshot["readiness_state"], "starting")
+        self.assertFalse(snapshot["available"])
+        self.assertIn("server port is not reachable", snapshot["last_error"])
+
+    def test_llama_server_uses_openai_compatible_chat_path(self) -> None:
+        service = LocalLLMService(
+            {
+                "llm": {
+                    "enabled": True,
+                    "runner": "llama-server",
+                    "server_url": "http://127.0.0.1:8000",
+                    "model_path": "models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
+                    "server_model_name": "Qwen2.5-1.5B-Instruct-Q4_K_M",
+                }
+            }
+        )
+
+        self.assertEqual(service.server_chat_path, "/v1/chat/completions")
+        self.assertEqual(service.server_health_path, "/v1/models")
+        self.assertTrue(service.server_use_openai_compat)
+
+        profile = service._profile_class(
+            prompt_chars=64,
+            n_predict=16,
+            timeout_seconds=2.0,
+            temperature=0.2,
+            top_p=0.9,
+            top_k=20,
+            repeat_penalty=1.0,
+            max_sentences=1,
+            style_hint="test",
+        )
+        candidates = service._server_request_candidates(
+            base_url="http://127.0.0.1:8000",
+            system_prompt="system",
+            user_prompt="hello",
+            profile=profile,
+            stream=True,
+        )
+
+        self.assertEqual(candidates[0]["url"], "http://127.0.0.1:8000/v1/chat/completions")
+        self.assertIn("max_tokens", candidates[0]["payload"])
 
 
 if __name__ == "__main__":

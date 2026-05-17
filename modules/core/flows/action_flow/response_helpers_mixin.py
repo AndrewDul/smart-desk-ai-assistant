@@ -323,7 +323,7 @@ class ActionResponseHelpersMixin:
             spoken_text=spoken_text,
             language=language,
             action=action,
-            immediate_delivery=True,
+            immediate_delivery=False,
         )
 
         plan = ResponsePlan(

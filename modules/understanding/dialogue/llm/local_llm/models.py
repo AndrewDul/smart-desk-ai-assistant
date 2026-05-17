@@ -78,6 +78,7 @@ class LocalLLMHealthSnapshot:
     enabled: bool
     runner: str
     state: str
+    readiness_state: str
     available: bool
     healthy: bool
     warmup_required: bool

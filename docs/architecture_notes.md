@@ -16883,3 +16883,29 @@ I manually tested:
 what time is it -> TIME
 Explain black holes in simple words -> short LLM unavailable fallback
 ```
+
+## 2026-05-17 - Final local LLM runtime provider
+
+### Summary
+
+I added the final local LLM provider path for `llama-server`.
+
+I changed the production example/default LLM provider from broken `hailo-ollama` to `llama-server`.
+
+I kept `hailo-ollama` support as a future acceleration path.
+
+I added clear readiness states for local LLM:
+`disabled`, `backend_missing`, `model_missing`, `starting`, `reachable`, `warming`, `ready`, `degraded`, `failed`.
+
+I added preflight checks for the `llama-server` binary and GGUF model path.
+
+I made `llama-server` use OpenAI-compatible endpoints:
+`/v1/models` and `/v1/chat/completions`.
+
+I kept fast-line routing unchanged.
+
+I did not enable LLM in local config.
+
+I did not change HailoRT or add unsafe library symlinks.
+
+I fixed a small action response prefetch mismatch found by the status tests.

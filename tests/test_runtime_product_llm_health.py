@@ -32,6 +32,34 @@ class _FakeLocalLLM:
         }
 
 
+class _MissingBackendLocalLLM:
+    def describe_backend(self) -> dict[str, object]:
+        return {
+            "runner": "llama-server",
+            "capabilities": ["persistent_service", "healthcheck", "streaming", "warmup"],
+            "server_model_name": "Qwen2.5-1.5B-Instruct-Q4_K_M",
+        }
+
+    def ensure_backend_ready(self, *, auto_recover: bool = False) -> dict[str, object]:
+        return {
+            "enabled": True,
+            "runner": "llama-server",
+            "state": "backend_missing",
+            "readiness_state": "backend_missing",
+            "available": False,
+            "healthy": False,
+            "warmup_required": True,
+            "warmup_ready": False,
+            "health_reason": "llama-server backend command not found",
+            "last_error": "llama-server backend command not found",
+            "capabilities": ["persistent_service", "healthcheck", "streaming", "warmup"],
+            "recovery_allowed": True,
+            "recovery_attempted": bool(auto_recover),
+            "recovery_ok": False,
+            "recovery_error": "",
+        }
+
+
 class _FakeDialogue:
     def __init__(self) -> None:
         self.local_llm = _FakeLocalLLM()
@@ -63,6 +91,30 @@ class RuntimeProductLLMHealthTests(unittest.TestCase):
         self.assertIn("llm", snapshot["services"])
         self.assertEqual(snapshot["services"]["llm"]["state"], "degraded")
         self.assertIn("llm: degraded", snapshot["warnings"])
+
+    def test_evaluate_startup_reports_llama_server_backend_missing(self) -> None:
+        service = RuntimeProductService(
+            settings={
+                "llm": {
+                    "enabled": True,
+                    "runner": "llama-server",
+                }
+            },
+            persist_enabled=False,
+        )
+        service.bind_runtime(runtime=_FakeRuntime(), dialogue=_FakeDialogue())
+        service._dialogue.local_llm = _MissingBackendLocalLLM()
+
+        snapshot = service.evaluate_startup(
+            startup_allowed=True,
+            runtime_warnings=[],
+        )
+
+        self.assertEqual(snapshot["llm_runner"], "llama-server")
+        self.assertEqual(snapshot["llm_state"], "backend_missing")
+        self.assertFalse(snapshot["llm_available"])
+        self.assertIn("llama-server backend command not found", snapshot["llm_health_reason"])
+        self.assertEqual(snapshot["services"]["llm"]["state"], "backend_missing")
 
 
 if __name__ == "__main__":

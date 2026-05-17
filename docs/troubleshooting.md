@@ -5843,3 +5843,37 @@ This sprint does not yet improve sentence chunking, pacing, or streaming quality
 ### Note
 
 Local config still keeps LLM disabled unless I explicitly enable it.
+
+## 2026-05-17 - Final local LLM runtime provider
+
+### Problem
+
+`hailo-ollama` is installed but cannot start because it expects `libhailort.so.5.1.1` and the system has `libhailort.so.5.2.0`.
+
+### Fix/decision
+
+I did not work around this with symlinks. I kept Hailo as a future acceleration path.
+
+### Problem
+
+NeXa needed a clear final local LLM backend path.
+
+### Fix
+
+I added `llama-server` readiness/preflight states and final OpenAI-compatible config.
+
+### Problem
+
+Missing backend or missing GGUF model must be visible.
+
+### Fix
+
+NeXa now reports `backend_missing` or `model_missing` instead of a vague failure.
+
+### Note
+
+This does not install `llama-server` and does not download the Qwen model.
+
+### Note
+
+The next step is to provide `llama-server` and the real GGUF model file.

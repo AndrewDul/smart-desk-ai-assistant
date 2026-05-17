@@ -85,6 +85,19 @@ class LocalLLMAvailabilityMixin:
         if (now - self._server_availability_checked_at) <= cache_seconds:
             return self._server_availability_result
 
+        preflight_state, preflight_error = self._server_backend_preflight_error()
+        if preflight_error:
+            self._server_availability_error = preflight_error
+            self._server_availability_result = False
+            self._server_availability_checked_at = now
+            self._record_backend_availability_result(
+                False,
+                error=preflight_error,
+                readiness_state=preflight_state,
+            )
+            self._log_availability_once(False)
+            return False
+
         base_url = self._normalized_server_base_url()
         if not base_url:
             self._server_availability_error = "Local LLM server URL is empty."
@@ -120,6 +133,11 @@ class LocalLLMAvailabilityMixin:
             )
             self._server_availability_result = False
             self._server_availability_checked_at = now
+            self._record_backend_availability_result(
+                False,
+                error=self._server_availability_error,
+                readiness_state="starting" if self.runner == "llama-server" else "failed",
+            )
             self._log_availability_once(False)
             return False
 
@@ -129,6 +147,18 @@ class LocalLLMAvailabilityMixin:
         for url in candidates:
             ok, error_text = self._probe_server_url(url)
             if ok:
+                model_error = self._server_model_catalog_error()
+                if model_error:
+                    self._server_availability_error = model_error
+                    self._server_availability_result = False
+                    self._server_availability_checked_at = now
+                    self._record_backend_availability_result(
+                        False,
+                        error=model_error,
+                        readiness_state="model_missing",
+                    )
+                    self._log_availability_once(False)
+                    return False
                 self._server_availability_error = ""
                 self._server_availability_result = True
                 self._server_availability_checked_at = now
@@ -145,6 +175,60 @@ class LocalLLMAvailabilityMixin:
         self._log_availability_once(False)
         return False
 
+    def _server_model_catalog_error(self) -> str:
+        if self.runner != "llama-server":
+            return ""
+
+        model_names = self._fetch_server_model_names(force_refresh=True)
+        if not model_names:
+            return ""
+
+        expected_names: list[str] = []
+        explicit_model = str(self.server_model_name or "").strip()
+        if explicit_model:
+            expected_names.append(explicit_model)
+
+        raw_model = str(self.model_path or "").strip()
+        if raw_model:
+            expected_names.append(Path(raw_model).stem)
+
+        normalized_available = {name.strip().lower() for name in model_names if str(name).strip()}
+        if not normalized_available or not expected_names:
+            return ""
+
+        for expected in expected_names:
+            if str(expected or "").strip().lower() in normalized_available:
+                return ""
+
+        return (
+            "Configured llama-server model is not listed by /v1/models. "
+            f"expected={expected_names[0]}, available={', '.join(model_names)}"
+        )
+
+    def _server_backend_preflight_error(self) -> tuple[str, str]:
+        if self.runner != "llama-server":
+            return "", ""
+
+        command_path = self._resolve_command_path()
+        if not command_path:
+            return (
+                "backend_missing",
+                (
+                    "llama-server backend command not found. "
+                    "Build or install llama.cpp llama-server, or set llm.command."
+                ),
+            )
+
+        model_path = self._resolve_model_path()
+        if not model_path:
+            configured = str(self.model_path or "").strip() or "<empty>"
+            return (
+                "model_missing",
+                f"LLM GGUF model file is missing. Check llm.model_path: {configured}",
+            )
+
+        return "", ""
+
     def _server_probe_candidates(self, base_url: str) -> list[str]:
         configured_health = str(self.server_health_path or "").strip() or "/health"
         configured_chat = str(self.server_chat_path or "").strip() or "/api/chat"
@@ -153,6 +237,7 @@ class LocalLLMAvailabilityMixin:
             configured_health,
             configured_chat,
             "/health",
+            "/v1/models",
             "/api/chat",
             "/api/generate",
             "/v1/chat/completions",

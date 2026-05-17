@@ -86,7 +86,7 @@ class LocalLLMUtilsMixin:
             return list(getattr(self, "_server_model_catalog", []))
 
         configured_health = str(getattr(self, "server_health_path", "") or "").strip()
-        candidate_paths = [configured_health, "/hailo/v1/list", "/api/tags"]
+        candidate_paths = [configured_health, "/v1/models", "/hailo/v1/list", "/api/tags"]
 
         seen_urls: set[str] = set()
         urls: list[str] = []
@@ -123,6 +123,8 @@ class LocalLLMUtilsMixin:
                 continue
 
             raw_models = payload.get("models")
+            if raw_models is None:
+                raw_models = payload.get("data")
             if not isinstance(raw_models, list):
                 continue
 
@@ -134,7 +136,11 @@ class LocalLLMUtilsMixin:
                         names.append(name)
                     continue
                 if isinstance(item, dict):
-                    name = str(item.get("name", "") or item.get("model", "")).strip()
+                    name = str(
+                        item.get("id", "")
+                        or item.get("name", "")
+                        or item.get("model", "")
+                    ).strip()
                     if name:
                         names.append(name)
 

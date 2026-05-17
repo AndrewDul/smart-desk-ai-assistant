@@ -43,17 +43,24 @@ class LocalLLMHealthMixin:
         available: bool,
         *,
         error: str = "",
+        readiness_state: str = "",
     ) -> None:
         now = time.monotonic()
         self._backend_last_checked_at = now
         self._backend_available = bool(available)
 
         if available:
+            self._backend_readiness_state = "reachable"
             self._backend_last_success_at = now
             self._backend_consecutive_failures = 0
             self._backend_last_error = ""
             return
 
+        self._backend_readiness_state = (
+            str(readiness_state or self._backend_readiness_state or "failed")
+            .strip()
+            .lower()
+        )
         self._backend_consecutive_failures += 1
         cleaned_error = str(error or "").strip()
         self._backend_last_error = (
@@ -161,18 +168,28 @@ class LocalLLMHealthMixin:
 
         if not self.enabled:
             state = "disabled"
+            readiness_state = "disabled"
             healthy = False
             health_reason = "local llm disabled"
         elif available and warmup_ready:
             state = "ready"
+            readiness_state = "ready"
             healthy = True
             health_reason = f"{self.runner} ready"
         elif available:
             state = "degraded"
+            readiness_state = "warming" if warmup_required else "reachable"
             healthy = False
             health_reason = "backend reachable but startup warmup is not complete"
         else:
-            state = "failed"
+            readiness_state = str(self._backend_readiness_state or "").strip().lower()
+            state = readiness_state if readiness_state in {
+                "backend_missing",
+                "model_missing",
+                "starting",
+                "failed",
+            } else "failed"
+            readiness_state = state
             healthy = False
             health_reason = (
                 self._backend_last_error
@@ -186,6 +203,7 @@ class LocalLLMHealthMixin:
             enabled=bool(self.enabled),
             runner=str(self.runner or "").strip(),
             state=state,
+            readiness_state=readiness_state,
             available=available,
             healthy=healthy,
             warmup_required=warmup_required,

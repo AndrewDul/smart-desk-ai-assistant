@@ -174,6 +174,20 @@ class HealthSystemChecks(HealthCheckHelpers):
 
             return self._info("llm", f"llama-cli fallback ready, model={model_path.name}")
 
+        if runner == "llama-server":
+            command = str(llm_cfg.get("command", "llama-server")).strip() or "llama-server"
+            command_path = self._resolve_command(command)
+            if not command_path:
+                return self._error("llm", f"llama-server command not found: {command}")
+
+            model_raw = str(llm_cfg.get("model_path", "")).strip()
+            if not model_raw:
+                return self._error("llm", "llm model_path is empty")
+
+            model_path = self._resolve_local_path(model_raw)
+            if not model_path.exists():
+                return self._error("llm", f"llm model missing: {model_path}")
+
         if runner in {"llama-server", "server", "ollama-server", "hailo-ollama", "openai-server"}:
             server_url = str(llm_cfg.get("server_url", "")).strip()
             if not self._is_valid_url(server_url):
