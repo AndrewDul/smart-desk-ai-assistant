@@ -16909,3 +16909,29 @@ I did not enable LLM in local config.
 I did not change HailoRT or add unsafe library symlinks.
 
 I fixed a small action response prefetch mismatch found by the status tests.
+
+## 2026-05-17 - llama-server model matching
+
+### Summary
+
+I fixed `llama-server` model matching.
+
+I made the configured model stem match the model id returned by `llama-server` with `.gguf`.
+
+I made these names resolve to the same model:
+
+```text
+Qwen2.5-1.5B-Instruct-Q4_K_M
+Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
+models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
+```
+
+I fixed the `llama-server` preflight so a missing `llama-server` command does not silently fall back to `llama-cli`.
+
+I tested the local `llama-server` backend with the Qwen GGUF model.
+
+I confirmed `LocalLLMService` reports ready with the external model path.
+
+I kept `config/settings.json` out of the commit.
+
+I kept `llama.cpp` and the GGUF model out of the repo.

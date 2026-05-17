@@ -5877,3 +5877,33 @@ This does not install `llama-server` and does not download the Qwen model.
 ### Note
 
 The next step is to provide `llama-server` and the real GGUF model file.
+
+## 2026-05-17 - llama-server model matching
+
+### Problem
+
+`llama-server` returned model id with `.gguf`, while config used the model stem without `.gguf`.
+
+### Fix
+
+I added model alias matching for exact name, filename, path, and stem.
+
+### Problem
+
+Missing `llama-server` could be masked by falling back to `llama-cli`.
+
+### Fix
+
+I stopped that fallback for `llama-server` readiness checks.
+
+### Note
+
+The real GGUF model is stored outside the repo at `~/Models/nexa/`.
+
+### Note
+
+`llama.cpp` is a local runtime artifact and is ignored locally through `.git/info/exclude`.
+
+### Note
+
+P2A streaming polish is still in stash and was not applied in this commit.
