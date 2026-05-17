@@ -5813,3 +5813,33 @@ Noisy ASR variants like “zapomnij tą kaw” can return “nothing to remove�
 ### Note
 
 FasterWhisper input overflow still appeared during runtime testing and should be handled in a later audio/capture sprint.
+
+## 2026-05-17 - Product-grade LLM lifecycle
+
+### Problem
+
+LLM warmup could block startup when enabled.
+
+### Cause
+
+LLM autostart/warmup was tied to the boot lifecycle.
+
+### Fix
+
+I moved LLM lifecycle work into a background path when LLM is enabled.
+
+### Problem
+
+Dialogue could try the LLM even when it was disabled or not ready.
+
+### Fix
+
+I added cached readiness checks and a short fallback response.
+
+### Note
+
+This sprint does not yet improve sentence chunking, pacing, or streaming quality. That is the next LLM streaming polish sprint.
+
+### Note
+
+Local config still keeps LLM disabled unless I explicitly enable it.

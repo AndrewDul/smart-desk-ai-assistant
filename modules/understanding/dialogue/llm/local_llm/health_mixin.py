@@ -281,3 +281,55 @@ class LocalLLMHealthMixin:
             }
         )
         return snapshot
+
+    def cached_backend_readiness(
+        self,
+        *,
+        max_age_seconds: float | None = None,
+        refresh_if_stale: bool = False,
+        auto_recover: bool = False,
+    ) -> dict[str, Any]:
+        """Return readiness without forcing a probe on every dialogue turn."""
+
+        if not self.enabled:
+            snapshot = self.backend_health_snapshot()
+            snapshot.update(
+                {
+                    "cache_hit": True,
+                    "cache_stale": False,
+                    "refreshed": False,
+                }
+            )
+            return snapshot
+
+        ttl = (
+            float(max_age_seconds)
+            if max_age_seconds is not None
+            else float(getattr(self, "readiness_cache_seconds", 3.0) or 3.0)
+        )
+        ttl = max(0.25, ttl)
+
+        age = self._seconds_since(self._backend_last_checked_at)
+        cache_has_value = age is not None
+        cache_fresh = cache_has_value and age <= ttl
+
+        if cache_fresh or not refresh_if_stale:
+            snapshot = self.backend_health_snapshot()
+            snapshot.update(
+                {
+                    "cache_hit": cache_has_value,
+                    "cache_stale": bool(cache_has_value and not cache_fresh),
+                    "refreshed": False,
+                }
+            )
+            return snapshot
+
+        snapshot = self.ensure_backend_ready(auto_recover=auto_recover)
+        snapshot.update(
+            {
+                "cache_hit": False,
+                "cache_stale": bool(cache_has_value),
+                "refreshed": True,
+            }
+        )
+        return snapshot

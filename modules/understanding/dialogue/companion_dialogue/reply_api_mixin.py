@@ -62,6 +62,12 @@ class CompanionDialogueReplyApiMixin:
             if llm_reply is not None:
                 return llm_reply
 
+            local_llm = getattr(self, "local_llm", None)
+            if local_llm is not None and not self._local_llm_ready_for_dialogue(
+                refresh_if_stale=False
+            ):
+                return self._llm_unavailable_reply(lang)
+
         if kind == "unclear":
             contextual_unclear = self._build_unclear_reply(
                 normalized_text=normalized_text,
@@ -188,6 +194,16 @@ class CompanionDialogueReplyApiMixin:
                         "live_chunk_factory": live_payload["factory"],
                         "live_streaming": True,
                     },
+                )
+
+            local_llm = getattr(self, "local_llm", None)
+            if local_llm is not None and not self._local_llm_ready_for_dialogue(
+                refresh_if_stale=False
+            ):
+                return self.reply_to_plan(
+                    self._llm_unavailable_reply(normalized_language),
+                    route_kind=route_kind_value,
+                    stream_mode=selected_stream_mode,
                 )
 
         reply = self.build_reply(route, user_profile)

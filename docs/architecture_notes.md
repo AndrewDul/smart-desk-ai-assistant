@@ -16854,3 +16854,32 @@ I tested manually:
 zapomnij Tomka -> MEMORY REMOVED -> Tomek
 kogo znasz -> Znam: Dominika, Andrzej.
 ```
+
+## 2026-05-17 - Product-grade LLM lifecycle
+
+### Summary
+
+I added a non-blocking LLM lifecycle path.
+
+I moved LLM autostart and warmup away from the blocking boot path.
+
+I added background LLM lifecycle handling when LLM is enabled.
+
+I kept the local config from starting the heavy LLM backend by accident.
+
+I added cached LLM readiness so dialogue does not probe the backend on every turn.
+
+I added a short Polish and English fallback when the LLM is disabled or unavailable.
+
+I fixed ThinkingAck stop so it uses `cancel_active()`.
+
+I kept fast-line/runtime candidate ordering unchanged.
+
+### Manual runtime test
+
+I manually tested:
+
+```text
+what time is it -> TIME
+Explain black holes in simple words -> short LLM unavailable fallback
+```

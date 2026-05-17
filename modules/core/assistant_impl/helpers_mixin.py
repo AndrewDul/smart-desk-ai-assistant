@@ -433,7 +433,7 @@ class CoreAssistantHelpersMixin:
             return
 
     def _thinking_ack_stop(self) -> None:
-        for method_name in ("cancel", "stop", "clear"):
+        for method_name in ("cancel_active", "cancel", "stop", "clear"):
             method = getattr(self.thinking_ack_service, method_name, None)
             if callable(method):
                 method()

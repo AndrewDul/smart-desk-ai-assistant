@@ -197,6 +197,10 @@ class LocalLLMService(
             float(llm_cfg.get("server_connect_timeout_seconds", 3.0)),
             1.0,
         )
+        self.readiness_cache_seconds = max(
+            float(llm_cfg.get("readiness_cache_seconds", 3.0)),
+            0.25,
+        )
 
         self.policy = LocalLLMBackendPolicy(
             require_persistent_backend=bool(llm_cfg.get("require_persistent_backend", True)),

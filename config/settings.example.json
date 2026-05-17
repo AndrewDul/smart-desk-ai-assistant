@@ -250,9 +250,11 @@
     "server_model_name": "qwen2:1.5b",
     "server_use_openai_compat": false,
     "server_connect_timeout_seconds": 2.0,
+    "readiness_cache_seconds": 3.0,
     "require_persistent_backend": true,
     "allow_cli_fallback": false,
     "stream_responses": true,
+    "background_lifecycle_enabled": true,
     "startup_warmup": true,
     "startup_warmup_timeout_seconds": 8.0
   },

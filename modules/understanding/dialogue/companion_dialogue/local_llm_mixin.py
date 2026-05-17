@@ -34,6 +34,70 @@ class CompanionDialogueLocalLLMMixin:
             append_log(f"Local LLM service initialization skipped: {error}")
             return None
 
+    def _llm_unavailable_text(self, language: str) -> str:
+        return self._text(
+            language,
+            "Nie mogę teraz użyć modelu językowego. Spróbuj za chwilę.",
+            "I can’t use the language model right now. Try again in a moment.",
+        )
+
+    def _llm_unavailable_reply(self, language: str) -> DialogueReply:
+        return self._reply(
+            language,
+            self._llm_unavailable_text(language),
+            display_title=self._text(language, "ROZMOWA", "CHAT"),
+            source="local_llm_unavailable",
+        )
+
+    def _local_llm_readiness_snapshot(self, *, refresh_if_stale: bool = False) -> dict[str, Any]:
+        local_llm = getattr(self, "local_llm", None)
+        if local_llm is None:
+            return {
+                "enabled": False,
+                "healthy": False,
+                "available": False,
+                "state": "missing",
+                "health_reason": "local llm service missing",
+            }
+
+        cached_readiness = getattr(local_llm, "cached_backend_readiness", None)
+        if callable(cached_readiness):
+            try:
+                return dict(
+                    cached_readiness(
+                        refresh_if_stale=refresh_if_stale,
+                        auto_recover=False,
+                    )
+                    or {}
+                )
+            except Exception as error:
+                append_log(f"Local LLM cached readiness check failed: {error}")
+
+        snapshot_method = getattr(local_llm, "backend_health_snapshot", None)
+        if callable(snapshot_method):
+            try:
+                return dict(snapshot_method() or {})
+            except Exception as error:
+                append_log(f"Local LLM health snapshot failed: {error}")
+
+        return {
+            "enabled": bool(getattr(local_llm, "enabled", False)),
+            "healthy": False,
+            "available": False,
+            "state": "unknown",
+            "health_reason": "local llm readiness unavailable",
+        }
+
+    def _local_llm_ready_for_dialogue(self, *, refresh_if_stale: bool = False) -> bool:
+        snapshot = self._local_llm_readiness_snapshot(refresh_if_stale=refresh_if_stale)
+        if not bool(snapshot.get("enabled", False)):
+            return False
+        if bool(snapshot.get("healthy", False)):
+            return True
+        if bool(snapshot.get("available", False)) and not bool(snapshot.get("warmup_required", False)):
+            return True
+        return False
+
     def _try_local_llm_stream_payload(
         self,
         *,
@@ -56,14 +120,8 @@ class CompanionDialogueLocalLLMMixin:
         if not safe_text:
             return None
 
-        is_available = getattr(local_llm, "is_available", None)
-        if callable(is_available):
-            try:
-                if not is_available():
-                    return None
-            except Exception as error:
-                append_log(f"Local LLM availability check failed: {error}")
-                return None
+        if not self._local_llm_ready_for_dialogue(refresh_if_stale=False):
+            return None
 
         context = self._build_local_llm_context(
             normalized_text=safe_text,
@@ -151,14 +209,8 @@ class CompanionDialogueLocalLLMMixin:
         if not safe_text:
             return None
 
-        is_available = getattr(local_llm, "is_available", None)
-        if callable(is_available):
-            try:
-                if not is_available():
-                    return None
-            except Exception as error:
-                append_log(f"Local LLM availability check failed: {error}")
-                return None
+        if not self._local_llm_ready_for_dialogue(refresh_if_stale=False):
+            return None
 
         generate_reply = getattr(local_llm, "generate_companion_reply", None)
         if not callable(generate_reply):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import time
 from typing import Any
 
@@ -98,6 +99,54 @@ class CoreAssistantLifecycleMixin:
                 append_log("Local LLM warmup did not complete.")
 
         return result
+
+    def _llm_background_lifecycle_enabled(self) -> bool:
+        llm_cfg = self.settings.get("llm", {}) if isinstance(self.settings, dict) else {}
+        if not bool(llm_cfg.get("enabled", False)):
+            return False
+
+        return bool(llm_cfg.get("background_lifecycle_enabled", True))
+
+    def _run_llm_backend_lifecycle(self) -> None:
+        try:
+            autostart_result = BackendAutostartService(
+                settings=self.settings
+            ).start_llm_backend()
+            append_log(
+                "LLM backend autostart: "
+                f"attempted={autostart_result.attempted}, "
+                f"already_running={autostart_result.already_running}, "
+                f"launched={autostart_result.launched}, "
+                f"ready={autostart_result.ready}, "
+                f"detail={autostart_result.detail}"
+            )
+        except Exception as error:
+            log_exception("LLM backend autostart failed safely", error)
+
+        warmup_result = self._warmup_local_llm_backend()
+        self._refresh_runtime_startup_snapshot_after_llm_warmup(
+            warmup_result=warmup_result,
+        )
+
+    def _start_llm_backend_lifecycle_background(self) -> bool:
+        if not self._llm_background_lifecycle_enabled():
+            append_log("LLM background lifecycle skipped: disabled in settings.")
+            return False
+
+        existing = getattr(self, "_llm_background_lifecycle_thread", None)
+        if existing is not None and existing.is_alive():
+            append_log("LLM background lifecycle already running.")
+            return False
+
+        thread = threading.Thread(
+            target=self._run_llm_backend_lifecycle,
+            name="nexa-llm-lifecycle",
+            daemon=True,
+        )
+        self._llm_background_lifecycle_thread = thread
+        thread.start()
+        append_log("LLM background lifecycle started.")
+        return True
 
     def _refresh_runtime_startup_snapshot_after_llm_warmup(
         self,
@@ -284,27 +333,8 @@ class CoreAssistantLifecycleMixin:
                 f"count={len(prefetched_wake_ack_phrases)}"
             )
 
-        # NEXA_BACKEND_AUTOSTART_BLOCK
-        try:
-            autostart_result = BackendAutostartService(
-                settings=self.settings
-            ).start_llm_backend()
-            append_log(
-                "LLM backend autostart: "
-                f"attempted={autostart_result.attempted}, "
-                f"already_running={autostart_result.already_running}, "
-                f"launched={autostart_result.launched}, "
-                f"ready={autostart_result.ready}, "
-                f"detail={autostart_result.detail}"
-            )
-        except Exception as error:
-            log_exception("LLM backend autostart failed safely", error)
-
         overlay_started_at = time.perf_counter()
-        warmup_result = self._warmup_local_llm_backend()
-        self._refresh_runtime_startup_snapshot_after_llm_warmup(
-            warmup_result=warmup_result,
-        )
+        self._start_llm_backend_lifecycle_background()
 
         min_boot_visual_seconds = max(self.boot_overlay_seconds, 0.8)
         elapsed_since_overlay = time.perf_counter() - overlay_started_at

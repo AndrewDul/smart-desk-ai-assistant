@@ -61,6 +61,33 @@ class LocalLLMHealthTests(unittest.TestCase):
         self.assertTrue(snapshot["available"])
         self.assertEqual(snapshot["state"], "ready")
 
+    def test_cached_backend_readiness_uses_fresh_snapshot_without_probe(self) -> None:
+        service = self._build_service()
+        service._record_backend_availability_result(True, error="")
+        service._record_warmup_result(ok=True, error="")
+
+        with mock.patch.object(service, "is_available", side_effect=AssertionError("probe should not run")):
+            snapshot = service.cached_backend_readiness(refresh_if_stale=False)
+
+        self.assertTrue(snapshot["cache_hit"])
+        self.assertFalse(snapshot["refreshed"])
+        self.assertEqual(snapshot["state"], "ready")
+
+    def test_cached_backend_readiness_can_refresh_stale_snapshot_when_requested(self) -> None:
+        service = self._build_service()
+        service._backend_last_checked_at = 1.0
+        service._backend_available = False
+
+        with mock.patch.object(service, "ensure_backend_ready", return_value={"state": "ready"}) as ensure:
+            snapshot = service.cached_backend_readiness(
+                max_age_seconds=0.25,
+                refresh_if_stale=True,
+            )
+
+        ensure.assert_called_once_with(auto_recover=False)
+        self.assertTrue(snapshot["refreshed"])
+        self.assertEqual(snapshot["state"], "ready")
+
 
 if __name__ == "__main__":
     unittest.main()
