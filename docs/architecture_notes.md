@@ -16791,3 +16791,33 @@ I added a practical bilingual phrase pool with 29 total phrases.
 I added tests for delay, cancel, output-active protection, PL/EN phrases, and Visual Shell thinking callback.
 
 I manually tested that a fast command like `what time is it` still answers immediately without filler.
+
+## 2026-05-17 - Clarification follow-up for unclear commands
+
+### Summary
+
+I added clarification follow-up for unclear commands.
+
+I changed generic unclear responses so they do not go through the LLM.
+
+I made NeXa ask the user to repeat the command:
+- Polish: “Nie zrozumiałam. Możesz powtórzyć?”
+- English: “I didn’t catch that. Can you repeat?”
+
+I used the existing `pending_follow_up` and resume policy flow.
+
+I added a short no-wake follow-up window after unclear input.
+
+I made repeated commands continue through the normal fast-line/router path.
+
+I added cancel/no handling for clarification follow-up.
+
+I added yes/ok handling so NeXa asks once more instead of treating it as a command.
+
+I limited retries so NeXa does not keep listening forever.
+
+### Manual runtime test
+
+I manually tested that after an unclear command, `what time is it` works without saying the wake word again.
+
+I manually tested cancel/no follow-up and it works.

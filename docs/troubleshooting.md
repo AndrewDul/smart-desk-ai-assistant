@@ -5761,3 +5761,25 @@ Manual runtime did not trigger filler because the conversation response started 
 ### Note
 
 FasterWhisper input overflow still appeared once and should be handled in a later audio/capture sprint.
+
+## 2026-05-17 - Clarification follow-up for unclear commands
+
+### Problem
+
+Unclear commands only gave a short “Repeat.” / “Powtórz.” style response and did not give a natural no-wake correction flow.
+
+### Cause
+
+Generic unclear handling could fall through dialogue/LLM and did not set a clarification pending follow-up.
+
+### Fix
+
+I added a deterministic `clarification_repeat` pending flow.
+
+### Result
+
+NeXa now asks for repetition, opens a short follow-up window, and repeated fast commands work without the wake word.
+
+### Note
+
+This does not change memory, Vosk aliases, Visual Shell gallery, or LLM streaming.
