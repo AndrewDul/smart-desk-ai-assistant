@@ -146,6 +146,16 @@ class PendingFlowOrchestrator(
 
         pending_type_before = self._current_pending_type()
 
+        if pending_type_before == "clarification_repeat":
+            clarification_decision = self.handle_pending_follow_up(routing_text, command_lang)
+            if clarification_decision.handled:
+                return self._finalize_pending_decision(
+                    decision=clarification_decision,
+                    command_lang=command_lang,
+                    pending_type_before=pending_type_before,
+                )
+            return PendingFlowDecision(handled=False)
+
         cancel_decision = self.cancel_if_requested(routing_text, command_lang)
         if cancel_decision.handled:
             return self._finalize_pending_decision(

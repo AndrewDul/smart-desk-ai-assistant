@@ -158,8 +158,6 @@ class DialogueFlowOrchestrator(
         assistant = self.assistant
         lang = assistant._commit_language(language)
 
-        assistant.pending_follow_up = None
-
         parser_suggestions = list(route.metadata.get("parser_suggestions", []) or [])
         ask_for_confirmation = getattr(assistant.action_flow, "_ask_for_confirmation", None)
 
@@ -195,7 +193,75 @@ class DialogueFlowOrchestrator(
                 )
             )
 
-        return self.execute_dialogue_route(route, lang)
+        pending_confirmation = getattr(assistant, "pending_confirmation", None)
+        pending_follow_up = getattr(assistant, "pending_follow_up", None)
+        if pending_confirmation or pending_follow_up:
+            return self.execute_dialogue_route(route, lang)
+
+        clarification_context = dict(
+            getattr(assistant, "_last_clarification_repeat_context", {}) or {}
+        )
+        assistant._last_clarification_repeat_context = {}
+        try:
+            retry_count = max(0, int(clarification_context.get("retry_count", 0) or 0))
+        except (TypeError, ValueError):
+            retry_count = 0
+        max_retries = max(1, int(clarification_context.get("max_retries", 1) or 1))
+
+        if clarification_context and retry_count >= max_retries:
+            assistant._return_to_wake_standby_after_response = True
+            return bool(
+                assistant.deliver_text_response(
+                    assistant._localized(
+                        lang,
+                        "Dobrze, anuluję.",
+                        "Okay, I’ll cancel it.",
+                    ),
+                    language=lang,
+                    route_kind=RouteKind.UNCLEAR,
+                    source="dialogue_unclear_clarification_exhausted",
+                    metadata=self._route_memory_metadata(
+                        route,
+                        lang,
+                        source="dialogue_unclear_clarification_exhausted",
+                    ),
+                )
+            )
+
+        next_retry_count = retry_count + 1 if clarification_context else 0
+        assistant.pending_follow_up = {
+            "type": "clarification_repeat",
+            "language": lang,
+            "retry_count": next_retry_count,
+            "max_retries": max_retries,
+            "window_seconds": 5.5,
+        }
+        prompt = (
+            assistant._localized(
+                lang,
+                "Powtórz proszę komendę.",
+                "Please repeat the command.",
+            )
+            if clarification_context
+            else assistant._localized(
+                lang,
+                "Nie zrozumiałam. Możesz powtórzyć?",
+                "I didn’t catch that. Can you repeat?",
+            )
+        )
+        return bool(
+            assistant.deliver_text_response(
+                prompt,
+                language=lang,
+                route_kind=RouteKind.UNCLEAR,
+                source="dialogue_unclear_clarification_prompt",
+                metadata=self._route_memory_metadata(
+                    route,
+                    lang,
+                    source="dialogue_unclear_clarification_prompt",
+                ),
+            )
+        )
 
     def handle_unclear(self, *, route: RouteDecision, language: str) -> bool:
         return self.handle_unclear_route(route=route, language=language)

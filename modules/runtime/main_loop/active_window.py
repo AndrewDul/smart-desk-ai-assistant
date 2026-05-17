@@ -1201,6 +1201,14 @@ def _store_session_continuity_snapshot(
 
 def _start_follow_up_window(assistant: CoreAssistant, state_flags: MainLoopRuntimeState) -> None:
     window_seconds = _follow_up_window_seconds(assistant)
+    pending_follow_up = getattr(assistant, "pending_follow_up", None)
+    if isinstance(pending_follow_up, dict):
+        configured_window = pending_follow_up.get("window_seconds")
+        if configured_window is not None:
+            try:
+                window_seconds = max(2.0, float(configured_window))
+            except (TypeError, ValueError):
+                pass
     assistant.voice_session.open_active_window(
         seconds=window_seconds,
         phase=VOICE_PHASE_FOLLOW_UP,

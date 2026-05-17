@@ -79,6 +79,28 @@ class ResumePolicyServiceTests(unittest.TestCase):
             "follow_up",
         )
 
+    def test_clarification_pending_opens_follow_up_window(self) -> None:
+        assistant = _AssistantProbe()
+        assistant.pending_follow_up = {
+            "type": "clarification_repeat",
+            "language": "pl",
+            "retry_count": 0,
+            "window_seconds": 5.5,
+        }
+        assistant._last_response_delivery_snapshot = {
+            "delivered": True,
+            "full_text_chars": 38,
+            "route_kind": "unclear",
+            "source": "dialogue_unclear_clarification_prompt",
+        }
+
+        decision = self.service.decide(assistant)
+
+        self.assertEqual(decision.action, "follow_up")
+        self.assertEqual(decision.pending_kind, "follow_up")
+        self.assertEqual(decision.pending_type, "clarification_repeat")
+        self.assertEqual(decision.pending_language, "pl")
+
     def test_follow_up_uses_confirmation_reason_when_pending_confirmation_exists(self) -> None:
         assistant = _AssistantProbe()
         assistant.pending_confirmation = {"language": "pl"}

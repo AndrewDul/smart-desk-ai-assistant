@@ -4,6 +4,7 @@ import unittest
 from types import SimpleNamespace
 
 from modules.core.assistant_impl.interaction_mixin import CoreAssistantInteractionMixin
+from modules.core.flows.pending_flow.orchestrator import PendingFlowOrchestrator
 from modules.runtime.contracts import RouteDecision, RouteKind
 
 
@@ -72,6 +73,8 @@ class _FakeAssistant(CoreAssistantInteractionMixin):
         self.fast_lane_result = fast_lane_result
         self.last_language = "en"
         self.pending_confirmation = None
+        self.pending_follow_up = None
+        self.pending_flow_enabled = False
         self._last_input_capture = {
             "input_source": "voice",
             "language": "en",
@@ -85,6 +88,7 @@ class _FakeAssistant(CoreAssistantInteractionMixin):
         self.finished_telemetry = None
         self.thinking_ack_starts: list[dict[str, object]] = []
         self.thinking_ack_stops = 0
+        self.text_responses: list[dict[str, object]] = []
     
     def _tick_ai_broker(self) -> None:
         return None
@@ -104,9 +108,15 @@ class _FakeAssistant(CoreAssistantInteractionMixin):
         }
 
     def _commit_language(self, language: str) -> str:
-        return str(language or "en")
+        self.last_language = str(language or "en")
+        return self.last_language
 
     def _handle_pending_state(self, prepared):
+        if self.pending_flow_enabled:
+            return PendingFlowOrchestrator(self).process(
+                prepared=dict(prepared or {}),
+                language=str(prepared.get("language", "en") or "en"),
+            )
         return None
 
     def _handle_fast_lane(self, prepared):
@@ -152,6 +162,13 @@ class _FakeAssistant(CoreAssistantInteractionMixin):
 
     def _finish_turn_telemetry(self, telemetry):
         self.finished_telemetry = dict(telemetry)
+
+    def _localized(self, language: str, polish_text: str, english_text: str) -> str:
+        return polish_text if str(language or "").startswith("pl") else english_text
+
+    def deliver_text_response(self, text: str, **kwargs) -> bool:
+        self.text_responses.append({"text": str(text), **dict(kwargs)})
+        return True
 
 
 class InteractionRouteDispatchTests(unittest.TestCase):
@@ -221,6 +238,62 @@ class InteractionRouteDispatchTests(unittest.TestCase):
         self.assertEqual(assistant.finished_telemetry["primary_intent"], "ask_time")
         self.assertEqual(assistant.turn_benchmark_service.route_events[0]["route_kind"], "action")
         self.assertEqual(assistant.turn_benchmark_service.route_events[0]["primary_intent"], "ask_time")
+
+    def test_clarification_repeat_allows_repeated_fast_lane_command(self) -> None:
+        assistant = _FakeAssistant(
+            self._route(RouteKind.CONVERSATION),
+            fast_lane_result=True,
+        )
+        assistant.pending_flow_enabled = True
+        assistant.pending_follow_up = {
+            "type": "clarification_repeat",
+            "language": "en",
+            "retry_count": 0,
+            "max_retries": 1,
+        }
+
+        handled = assistant.handle_command("what time is it")
+
+        self.assertTrue(handled)
+        self.assertIsNone(assistant.pending_follow_up)
+        self.assertEqual(assistant.route_calls, 0)
+        self.assertEqual(assistant.finished_telemetry["result"], "fast_lane")
+
+    def test_clarification_repeat_cancel_is_handled_before_router(self) -> None:
+        assistant = _FakeAssistant(self._route(RouteKind.CONVERSATION))
+        assistant.pending_flow_enabled = True
+        assistant.pending_follow_up = {
+            "type": "clarification_repeat",
+            "language": "en",
+            "retry_count": 0,
+            "max_retries": 1,
+        }
+
+        handled = assistant.handle_command("never mind")
+
+        self.assertTrue(handled)
+        self.assertIsNone(assistant.pending_follow_up)
+        self.assertEqual(assistant.route_calls, 0)
+        self.assertEqual(assistant.text_responses[-1]["text"], "Okay, I’ll cancel it.")
+        self.assertEqual(assistant.finished_telemetry["result"], "pending_flow")
+
+    def test_clarification_repeat_yes_prompts_once_without_router(self) -> None:
+        assistant = _FakeAssistant(self._route(RouteKind.CONVERSATION))
+        assistant.pending_flow_enabled = True
+        assistant.pending_follow_up = {
+            "type": "clarification_repeat",
+            "language": "en",
+            "retry_count": 0,
+            "max_retries": 1,
+        }
+
+        handled = assistant.handle_command("ok")
+
+        self.assertTrue(handled)
+        self.assertEqual(assistant.pending_follow_up["retry_count"], 1)
+        self.assertEqual(assistant.route_calls, 0)
+        self.assertEqual(assistant.text_responses[-1]["text"], "Please repeat the command.")
+        self.assertEqual(assistant.finished_telemetry["result"], "pending_flow")
 
     def test_runtime_candidate_exit_marks_action_executed_but_returns_false_to_stop_loop(self) -> None:
         route = self._route(RouteKind.ACTION, primary_intent="system.exit")

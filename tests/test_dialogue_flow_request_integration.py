@@ -54,6 +54,7 @@ class _FakeAssistant:
         self.pending_follow_up = None
         self.last_plan = None
         self.last_delivery_metadata = None
+        self.text_responses: list[dict[str, object]] = []
         self.thinking_ack_starts: list[dict[str, str]] = []
         self.thinking_ack_stops = 0
         self.ai_broker_modes: list[str] = []
@@ -97,7 +98,8 @@ class _FakeAssistant:
     def _display_lines(self, text: str) -> list[str]:
         return [str(text)]
 
-    def deliver_text_response(self, *args, **kwargs) -> bool:
+    def deliver_text_response(self, text: str, **kwargs) -> bool:
+        self.text_responses.append({"text": str(text), **dict(kwargs)})
         return True
 
 
@@ -152,6 +154,59 @@ class DialogueFlowRequestIntegrationTests(unittest.TestCase):
         self.assertIsNotNone(flow._last_dialogue_result)
         self.assertTrue(flow._last_dialogue_result.delivered)
         self.assertEqual(flow._last_dialogue_result.metadata["reply_mode"], "reply_then_offer")
+
+    def test_generic_unclear_polish_prompts_for_repeat_and_sets_follow_up(self) -> None:
+        assistant = _FakeAssistant()
+        flow = DialogueFlowOrchestrator(assistant)
+        route = RouteDecision(
+            turn_id="turn-unclear-pl",
+            raw_text="ble ble",
+            normalized_text="ble ble",
+            language="pl",
+            kind=RouteKind.UNCLEAR,
+            confidence=0.0,
+            primary_intent="unclear",
+            intents=[],
+            conversation_topics=[],
+            tool_invocations=[],
+            notes=["router_returned_none"],
+            metadata={},
+        )
+
+        handled = flow.handle_unclear_route(route=route, language="pl")
+
+        self.assertTrue(handled)
+        self.assertEqual(assistant.text_responses[-1]["text"], "Nie zrozumiałam. Możesz powtórzyć?")
+        self.assertEqual(assistant.pending_follow_up["type"], "clarification_repeat")
+        self.assertEqual(assistant.pending_follow_up["language"], "pl")
+        self.assertEqual(assistant.pending_follow_up["retry_count"], 0)
+        self.assertIsNone(assistant.dialogue.last_request)
+
+    def test_generic_unclear_english_prompts_for_repeat_and_sets_follow_up(self) -> None:
+        assistant = _FakeAssistant()
+        flow = DialogueFlowOrchestrator(assistant)
+        route = RouteDecision(
+            turn_id="turn-unclear-en",
+            raw_text="mumble",
+            normalized_text="mumble",
+            language="en",
+            kind=RouteKind.UNCLEAR,
+            confidence=0.0,
+            primary_intent="unclear",
+            intents=[],
+            conversation_topics=[],
+            tool_invocations=[],
+            notes=["router_returned_none"],
+            metadata={},
+        )
+
+        handled = flow.handle_unclear_route(route=route, language="en")
+
+        self.assertTrue(handled)
+        self.assertEqual(assistant.text_responses[-1]["text"], "I didn’t catch that. Can you repeat?")
+        self.assertEqual(assistant.pending_follow_up["type"], "clarification_repeat")
+        self.assertEqual(assistant.pending_follow_up["language"], "en")
+        self.assertIsNone(assistant.dialogue.last_request)
 
 
 if __name__ == "__main__":

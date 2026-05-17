@@ -26,6 +26,12 @@ class PendingFlowFollowUpMixin:
         lang = self._follow_up_language(command_lang)
         assistant._commit_language(lang)
 
+        if follow_type == "clarification_repeat":
+            return self._handle_clarification_repeat_follow_up(
+                text=routing_text,
+                language=lang,
+            )
+
         if follow_type in {"timer_duration", "focus_duration", "break_duration"}:
             result = self._handle_duration_follow_up(
                 follow_type=follow_type,
@@ -176,6 +182,98 @@ class PendingFlowFollowUpMixin:
 
         assistant.pending_follow_up = None
         LOGGER.warning("Unknown pending follow-up cleared: type=%s", follow_type)
+        return PendingFlowDecision(handled=False)
+
+    def _handle_clarification_repeat_follow_up(
+        self,
+        *,
+        text: str,
+        language: str,
+    ) -> PendingFlowDecision:
+        follow_up = dict(self.assistant.pending_follow_up or {})
+        try:
+            retry_count = max(0, int(follow_up.get("retry_count", 0) or 0))
+        except (TypeError, ValueError):
+            retry_count = 0
+        try:
+            max_retries = max(1, int(follow_up.get("max_retries", 1) or 1))
+        except (TypeError, ValueError):
+            max_retries = 1
+
+        if self._is_no(text) or self._looks_like_cancel_request(text):
+            self.assistant.pending_follow_up = None
+            result = self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Dobrze, anuluję.",
+                    "Okay, I’ll cancel it.",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_clarification_cancelled",
+                metadata={"follow_up_type": "clarification_repeat"},
+            )
+            return PendingFlowDecision(
+                handled=True,
+                response=result,
+                consumed_by="follow_up:clarification_repeat_cancel",
+            )
+
+        if self._is_yes(text):
+            if retry_count >= max_retries:
+                self.assistant.pending_follow_up = None
+                self.assistant._return_to_wake_standby_after_response = True
+                result = self.assistant.deliver_text_response(
+                    self.assistant._localized(
+                        language,
+                        "Dobrze, anuluję.",
+                        "Okay, I’ll cancel it.",
+                    ),
+                    language=language,
+                    route_kind=RouteKind.CONVERSATION,
+                    source="pending_clarification_retry_exhausted",
+                    metadata={"follow_up_type": "clarification_repeat"},
+                )
+                return PendingFlowDecision(
+                    handled=True,
+                    response=result,
+                    consumed_by="follow_up:clarification_repeat_exhausted",
+                )
+
+            self.assistant.pending_follow_up = {
+                **follow_up,
+                "type": "clarification_repeat",
+                "language": language,
+                "retry_count": retry_count + 1,
+                "max_retries": max_retries,
+                "window_seconds": float(follow_up.get("window_seconds", 5.5) or 5.5),
+            }
+            result = self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Powtórz proszę komendę.",
+                    "Please repeat the command.",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_clarification_retry_prompt",
+                metadata={
+                    "follow_up_type": "clarification_repeat",
+                    "retry_count": retry_count + 1,
+                    "max_retries": max_retries,
+                },
+            )
+            return PendingFlowDecision(
+                handled=True,
+                response=result,
+                consumed_by="follow_up:clarification_repeat_retry",
+            )
+
+        self.assistant._last_clarification_repeat_context = {
+            "retry_count": retry_count,
+            "max_retries": max_retries,
+        }
+        self.assistant.pending_follow_up = None
         return PendingFlowDecision(handled=False)
 
     def _handle_duration_follow_up(

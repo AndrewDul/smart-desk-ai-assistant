@@ -64,7 +64,13 @@ class CoreAssistantInteractionMixin:
                 )
                 telemetry["remember_user_ms"] = self._elapsed_ms(remember_started)
 
-            if prepared["cancel_requested"]:
+            pending_follow_up = getattr(self, "pending_follow_up", None)
+            clarification_repeat_pending = (
+                isinstance(pending_follow_up, dict)
+                and str(pending_follow_up.get("type", "") or "").strip()
+                == "clarification_repeat"
+            )
+            if prepared["cancel_requested"] and not clarification_repeat_pending:
                 cancel_started = time.perf_counter()
                 result = self._cancel_active_request(command_lang)
                 telemetry["cancel_ms"] = self._elapsed_ms(cancel_started)

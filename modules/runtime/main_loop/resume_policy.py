@@ -45,6 +45,20 @@ class ResumePolicyService:
             self._store_last_decision(assistant, decision)
             return decision
 
+        if bool(getattr(assistant, "_return_to_wake_standby_after_response", False)):
+            assistant._return_to_wake_standby_after_response = False
+            decision = ResumeWindowDecision(
+                action="standby",
+                reason="clarification_complete",
+                response_delivered=self._response_delivered(assistant),
+                follow_up_required=False,
+                full_text_chars=self._full_text_chars(assistant),
+                route_kind=self._route_kind(assistant),
+                response_source=self._response_source(assistant),
+            )
+            self._store_last_decision(assistant, decision)
+            return decision
+
         pending_kind, pending_type, pending_language = self._pending_context(assistant)
         follow_up_required = bool(pending_kind)
         if follow_up_required:
