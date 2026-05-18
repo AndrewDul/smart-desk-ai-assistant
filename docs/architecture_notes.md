@@ -17003,3 +17003,39 @@ I tested the runtime with reSpeaker selected by name and the local `llama-server
 I confirmed that Polish black-hole questions answered in Polish and a later English “Tell me about black holes” answered in English.
 
 Remaining risk: hardware/USB microphone stability can still affect ASR quality if reSpeaker disconnects or ALSA loses the capture device.
+
+## 2026-05-18 - Diagnostics latency and camera ordering
+
+### Summary
+
+I fixed a latency problem where opening or closing the Diagnostics Center felt much slower than other fast commands like "exit" or "what time is it".
+
+The total round-trip time for `feedback_on` is now around 1.8 seconds and for `feedback_off` around 1.7 seconds, measured end-to-end from command to response delivered.
+
+### Root causes I found
+
+The first root cause was camera ordering. When I called `camera.start()` from inside `turn_on()`, libcamera printed its full startup block to the terminal before the DIAGNOSTICS box appeared to the user. This made it look like the command was still processing even though it was not.
+
+The second root cause was the response display order. The response streamer defers `_show_display_block` until after `_speak_chunk` finishes for single-chunk action responses. This means the DIAGNOSTICS box only appeared after Piper finished synthesising the spoken response, which takes 3–5 seconds on a cold Piper process.
+
+The third root cause was TTS cold synthesis. The spoken phrases "Opening diagnostics." and "Closing diagnostics." (and the Polish equivalents) were not in the Piper prewarm cache. Every first use required a cold synthesis run.
+
+### What I changed
+
+I moved `camera.start()` out of `turn_on()` entirely. The `FeedbackLane` class now has a public `schedule_post_response_camera_start()` method. The action handler `_handle_feedback_on()` calls this method only after `_deliver_simple_action_response()` returns, meaning DIAGNOSTICS is already on screen before libcamera touches stdout.
+
+I added "Opening diagnostics.", "Closing diagnostics.", "Otwieram diagnostykę.", and "Zamykam diagnostykę." to the Piper prewarm phrase list in `tts_pipeline/core.py`. These are synthesised and cached at startup so the first use plays from cache rather than triggering a cold synthesis.
+
+I added visible latency log lines using `print()` alongside `LOGGER.warning()` because the console logger is disabled by default in production. The lines show `turn_on_ms`, `total_action_ms`, route, and camera start policy.
+
+I added new ASR recovery aliases in `fast_command_lane.py` and `command_grammar.py` for Polish and English mishear variants of both open and close commands, including "close systems", "zamień okno", "or almost diagnostica", "all cash diagnostics", and others picked up from real runtime logs.
+
+### Manual proof
+
+I ran the runtime and confirmed:
+- `feedback_on total_action_ms=1816.5`
+- `feedback_off total_action_ms=1717.2`
+- DIAGNOSTICS box appears before `[diagnostics-camera] scheduled`
+- libcamera startup prints after DIAGNOSTICS, not before
+- close command works cleanly
+- exit still works and the launcher cleans up the Visual Shell correctly

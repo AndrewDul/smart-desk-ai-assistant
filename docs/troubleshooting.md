@@ -5995,3 +5995,46 @@ I filtered those malformed context fragments from short-term prompt memory.
 ### Note
 
 If `arecord -l` shows no capture device or `dmesg` shows USB error `-71`, that is hardware/USB stability and should be checked before blaming ASR logic.
+
+## 2026-05-18 - Diagnostics open/close felt much slower than other fast commands
+
+### Problem
+
+Opening and closing the Diagnostics Center took around 13–14 seconds end-to-end. Other fast commands like "exit" or "what time is it" responded in around 2 seconds. The `feedback_on` and `feedback_off` routes were classified by `FastCommandLane` correctly, but the response still felt very slow.
+
+### Symptoms
+
+- The terminal printed a long libcamera initialisation block before the DIAGNOSTICS box appeared.
+- The camera appeared to start before the user saw any response at all.
+- Total time from speaking "show system status" to seeing DIAGNOSTICS was over 10 seconds.
+
+### Root causes
+
+**Camera ordering.** I was calling `camera.start()` inside `turn_on()`, which runs before the spoken response and the DIAGNOSTICS display block are delivered. libcamera prints several lines of startup output to stdout. Because the response streamer defers `_show_display_block` until after `_speak_chunk` finishes for single-chunk action responses (the normal case for fast commands), the camera was printing to the terminal well before the DIAGNOSTICS box was ever shown.
+
+**TTS cold synthesis.** The phrases "Opening diagnostics.", "Closing diagnostics.", "Otwieram diagnostykę.", and "Zamykam diagnostykę." were missing from the Piper prewarm cache. Every first invocation triggered a cold Piper synthesis run, adding 3–5 seconds.
+
+**Log visibility.** The `logging.console_enabled` setting is `False` by default, so `LOGGER.info` and `LOGGER.warning` calls were not visible in the terminal. The latency measurement lines were not being printed.
+
+### Fix
+
+I moved `camera.start()` out of `turn_on()`. I added a `schedule_post_response_camera_start()` method to `FeedbackLane`. The action handler calls this method after `_deliver_simple_action_response()` returns, so DIAGNOSTICS is already rendered before any libcamera output appears.
+
+I added the four diagnostics phrases to `tts_pipeline/core.py` `_common_cache_phrases` so Piper warms them at startup. First-use synthesis is now instant.
+
+I added latency telemetry using `print()` so it is always visible regardless of the logging config. The lines include `turn_on_ms`, `total_action_ms`, route source, and camera start policy.
+
+### Result
+
+- `feedback_on total_action_ms=1816.5`
+- `feedback_off total_action_ms=1717.2`
+- DIAGNOSTICS box appears before `[diagnostics-camera] scheduled`
+- libcamera startup output appears after DIAGNOSTICS, not before
+- All 259 tests pass
+
+### If the problem comes back
+
+- Check that `schedule_post_response_camera_start()` is still being called from `_handle_feedback_on()` after `_deliver_simple_action_response()` returns, not before.
+- Check that the four diagnostics phrases are still in `_common_cache_phrases` in `tts_pipeline/core.py`.
+- Look for `[diagnostics-latency]` lines in the terminal to confirm the route and timing.
+- If `total_action_ms` is back above 5000, check whether the `_status_loop` thread is calling `_publish_status_snapshot()` synchronously inside `turn_on()` — it must not.

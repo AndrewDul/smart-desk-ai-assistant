@@ -287,6 +287,44 @@ def test_main_shell_accepts_current_tcp_command_surface() -> None:
     assert "particle_cloud.set_time_metric(text)" in main_shell
 
 
+def test_feedback_dashboard_accepts_structured_feedback_center_sections() -> None:
+    dashboard = _read_godot("scripts/feedback_dashboard_view.gd")
+    main_shell = _read_godot("scripts/main_shell.gd")
+
+    assert "FEEDBACK CENTER" in dashboard
+    assert "Current Activity" in dashboard
+    assert "CENTER_CARD_ITEM_LIMIT" in dashboard
+    assert "CENTER_CARD_IDS" in dashboard
+    assert "CENTER_PAGE_IDS" in dashboard
+    for page_label in [
+        "Overview",
+        "Activity",
+        "Runtime",
+        "LLM",
+        "Audio",
+        "Benchmarks",
+        "Logs",
+        "Memory",
+        "Vision",
+        "Power",
+    ]:
+        assert f'"{page_label}"' in dashboard
+    assert "FeedbackCenterCard_" in dashboard
+    assert "FeedbackCenterDetailView" in dashboard
+    assert "_center_card_views" in dashboard
+    assert "_center_detail_view" in dashboard
+    assert "func update_statuses(statuses, sections = []) -> void:" in dashboard
+    assert "func _normalize_sections(sections) -> Array:" in dashboard
+    assert "func _layout_center_cards() -> void:" in dashboard
+    assert "func _layout_center_page_nav() -> void:" in dashboard
+    assert "func _set_center_page(page_id: String) -> void:" in dashboard
+    assert "func _render_detail_section(section: Dictionary) -> String:" in dashboard
+    assert "func _render_empty_center_card(card_id: String) -> String:" in dashboard
+    assert "scroll_to_line(line_count - 1)" in dashboard
+    assert "FeedbackCenterView" not in dashboard
+    assert 'payload.get("sections", [])' in main_shell
+
+
 def test_main_shell_keeps_raspberry_pi_rendering_limits() -> None:
     main_shell = _read_godot("scripts/main_shell.gd")
     project_file = _read_godot("project.godot")

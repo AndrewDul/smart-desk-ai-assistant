@@ -97,6 +97,145 @@ class FastCommandLane:
 
     ALL_ACTIONS = TEMPORAL_ACTIONS | DIRECT_ACTIONS
 
+    DIAGNOSTIC_CLOSE_ALIASES = {
+        # English close aliases
+        "feedback mode off",
+        "close feedback",
+        "hide feedback",
+        "close feedback center",
+        "hide feedback center",
+        "close diagnostics",
+        "hide diagnostics",
+        "close diagnostic center",
+        "hide diagnostic center",
+        "close diagnostics center",
+        "hide diagnostics center",
+        "close system status",
+        "hide system status",
+        "close status panel",
+        "hide status panel",
+        "close health panel",
+        "hide health panel",
+        "close logs",
+        "hide logs",
+        "close dashboard",
+        "hide dashboard",
+        "close the window",
+        "hide the window",
+        "close this window",
+        "hide this window",
+        "close panel",
+        "hide panel",
+        "exit diagnostics",
+        "leave diagnostics",
+        # Polish close aliases (normalized — no diacritics)
+        "wylacz feedback",
+        "zamknij feedback",
+        "ukryj feedback",
+        "zamknij centrum feedback",
+        "ukryj centrum feedback",
+        "zamknij diagnostyke",
+        "ukryj diagnostyke",
+        "zamknij centrum diagnostyczne",
+        "ukryj centrum diagnostyczne",
+        "zamknij panel diagnostyczny",
+        "ukryj panel diagnostyczny",
+        "zamknij status systemu",
+        "ukryj status systemu",
+        "zamknij panel statusu",
+        "ukryj panel statusu",
+        "zamknij logi",
+        "ukryj logi",
+        "zamknij dashboard",
+        "ukryj dashboard",
+        "zamknij okno",
+        "ukryj okno",
+        "zamknij to okno",
+        "ukryj to okno",
+        "zamknij panel",
+        "ukryj panel",
+        "wyjdz z diagnostyki",
+        # Polish stt_recovery close variants
+        "zamknij diagnostyka",
+        # English shortened close variants
+        "close window",
+        "close diagnostic",
+        "hide diagnostic",
+        # ASR mishear: "close" → "Klaus"/"Claus"
+        "klaus system status",
+        "claus system status",
+        # "close systems" mishear (drops "status")
+        "close systems",
+        # Polish: "zamknij" mishear → "zamiń"/"zamień"
+        "zamien okno",
+        "zamień okno",
+    }
+
+    DIAGNOSTIC_FEEDBACK_ALIASES = {
+        "open feedback center",
+        "show feedback center",
+        "open diagnostics",
+        "show diagnostics",
+        "diagnostic center",
+        "open diagnostic center",
+        "show diagnostic center",
+        "system status",
+        "show system status",
+        "shows system status",
+        "health check",
+        "show health",
+        "open health panel",
+        "show runtime health",
+        "show logs",
+        "show benchmarks",
+        "show audio diagnostics",
+        "show llm status",
+        "show memory status",
+        "show camera status",
+        "show power status",
+        "otworz feedback",
+        "otworz centrum feedback",
+        "pokaz feedback",
+        "otworz diagnostyke",
+        "pokaz diagnostyke",
+        "pokaz diagnostyka",
+        "pokaz diagnostike",
+        "polkaz diagnostike",
+        "polkaz diagnostyke",
+        "centrum diagnostyczne",
+        "otworz centrum diagnostyczne",
+        "pokaz centrum diagnostyczne",
+        "status systemu",
+        "pokaz status systemu",
+        "sprawdz zdrowie systemu",
+        "pokaz zdrowie systemu",
+        "otworz panel diagnostyczny",
+        "pokaz runtime",
+        "pokaz logi",
+        "pokaz benchmarki",
+        "pokaz diagnostyke audio",
+        "pokaz status llm",
+        "pokaz pamiec",
+        "pokaz status kamery",
+        "pokaz baterie",
+        "pokaz zasilanie",
+        # Polish ASR mishear variants — djagnostyk*, okaz*, pokasz patterns
+        "pokaz djagnostyka",
+        "pokaz djagnostyke",
+        "pokaz djagnostike",
+        "okaze diagnostyka",
+        "okaz diagnostyka",
+        "o kasz diagnostyke",
+        "o kasz diagnostike",
+        "pokasz logi",
+        # English singular variants
+        "open diagnostic",
+        "show diagnostic",
+        # ASR mishear EN
+        "or almost diagnostica",
+        "all cash diagnostics",
+    }
+
     def __init__(
         self,
         *,
@@ -220,6 +359,32 @@ class FastCommandLane:
         if self._looks_like_polish_feedback_command(normalized_text):
             language = "pl"
         interrupts_pending = bool(assistant.pending_confirmation or assistant.pending_follow_up)
+
+        if self._is_diagnostic_close_alias(normalized_text):
+            if self._looks_polish_close_alias(normalized_text):
+                language = "pl"
+            return FastCommandDecision(
+                action="feedback_off",
+                language=language,
+                source="fast_command_lane:diagnostics_close_alias",
+                confidence=0.98,
+                raw_text=raw_text,
+                normalized_text=normalized_text,
+                interrupts_pending=interrupts_pending,
+            )
+
+        if self._is_diagnostic_feedback_alias(normalized_text):
+            if self._looks_polish_diagnostic_alias(normalized_text):
+                language = "pl"
+            return FastCommandDecision(
+                action="feedback_on",
+                language=language,
+                source="fast_command_lane:diagnostics_alias",
+                confidence=0.98,
+                raw_text=raw_text,
+                normalized_text=normalized_text,
+                interrupts_pending=interrupts_pending,
+            )
 
         parser_result = prepared.get("parser_result")
         if parser_result is None:
@@ -405,6 +570,35 @@ class FastCommandLane:
 
         return False
 
+    @classmethod
+    def _is_diagnostic_close_alias(cls, normalized_text: str) -> bool:
+        normalized = str(normalized_text or "").strip()
+        return normalized in cls.DIAGNOSTIC_CLOSE_ALIASES
+
+    @staticmethod
+    def _looks_polish_close_alias(normalized_text: str) -> bool:
+        tokens = set(str(normalized_text or "").split())
+        return bool(tokens & {
+            "zamknij", "ukryj", "wylacz", "wyjdz",
+            "diagnostyke", "diagnostyczne", "diagnostyczny",
+            "okno", "logi", "panel", "dashboard",
+        })
+
+    @classmethod
+    def _is_diagnostic_feedback_alias(cls, normalized_text: str) -> bool:
+        normalized = str(normalized_text or "").strip()
+        return normalized in cls.DIAGNOSTIC_FEEDBACK_ALIASES
+
+    @staticmethod
+    def _looks_polish_diagnostic_alias(normalized_text: str) -> bool:
+        tokens = set(str(normalized_text or "").split())
+        return bool(tokens & {
+            "pokaz", "polkaz", "otworz",
+            "diagnostyke", "diagnostyka", "diagnostike",
+            "diagnostyczne", "systemu", "zdrowie",
+            "logi", "baterie", "zasilanie", "pamiec",
+        })
+
 
     @staticmethod
     def _match_simple_action(normalized_text: str) -> str:
@@ -414,10 +608,43 @@ class FastCommandLane:
 
         direct_map = {
             "feedback on": "feedback_on", "feedback start": "feedback_on",
+            "open feedback center": "feedback_on", "show feedback center": "feedback_on",
+            "open diagnostics": "feedback_on", "show diagnostics": "feedback_on",
+            "diagnostic center": "feedback_on", "open diagnostic center": "feedback_on",
+            "show diagnostic center": "feedback_on", "system status": "feedback_on",
+            "show system status": "feedback_on", "shows system status": "feedback_on",
+            "health check": "feedback_on",
+            "show health": "feedback_on", "open health panel": "feedback_on",
+            "show runtime health": "feedback_on", "show logs": "feedback_on",
+            "show benchmarks": "feedback_on", "show audio diagnostics": "feedback_on",
+            "show llm status": "feedback_on", "show memory status": "feedback_on",
+            "show camera status": "feedback_on", "show power status": "feedback_on",
             "feedback uruchom": "feedback_on", "feedback wlacz": "feedback_on",
             "feedback włącz": "feedback_on", "uruchom feedback": "feedback_on",
             "urucham feedback": "feedback_on", "uruchamiam feedback": "feedback_on",
             "wlacz feedback": "feedback_on", "włącz feedback": "feedback_on",
+            "otworz feedback": "feedback_on", "otworz centrum feedback": "feedback_on",
+            "pokaz feedback": "feedback_on", "otworz diagnostyke": "feedback_on",
+            "pokaz diagnostyke": "feedback_on",
+            "pokaz diagnostyka": "feedback_on", "pokaz diagnostike": "feedback_on",
+            "polkaz diagnostike": "feedback_on", "polkaz diagnostyke": "feedback_on",
+            "pokaz djagnostyka": "feedback_on", "pokaz djagnostyke": "feedback_on",
+            "pokaz djagnostike": "feedback_on",
+            "okaze diagnostyka": "feedback_on", "okaz diagnostyka": "feedback_on",
+            "o kasz diagnostyke": "feedback_on", "o kasz diagnostike": "feedback_on",
+            "pokasz logi": "feedback_on",
+            "open diagnostic": "feedback_on", "show diagnostic": "feedback_on",
+            "or almost diagnostica": "feedback_on", "all cash diagnostics": "feedback_on",
+            "centrum diagnostyczne": "feedback_on",
+            "otworz centrum diagnostyczne": "feedback_on",
+            "pokaz centrum diagnostyczne": "feedback_on",
+            "status systemu": "feedback_on", "pokaz status systemu": "feedback_on",
+            "sprawdz zdrowie systemu": "feedback_on", "pokaz zdrowie systemu": "feedback_on",
+            "otworz panel diagnostyczny": "feedback_on", "pokaz runtime": "feedback_on",
+            "pokaz logi": "feedback_on", "pokaz benchmarki": "feedback_on",
+            "pokaz diagnostyke audio": "feedback_on", "pokaz status llm": "feedback_on",
+            "pokaz pamiec": "feedback_on", "pokaz status kamery": "feedback_on",
+            "pokaz baterie": "feedback_on", "pokaz zasilanie": "feedback_on",
             "tryb feedback": "feedback_on", "feedback mode on": "feedback_on",
             "feedback mode": "feedback_on",
             "feed back on": "feedback_on", "feed the back on": "feedback_on",
@@ -434,6 +661,42 @@ class FastCommandLane:
             "feed the back of": "feedback_off", "sheet back off": "feedback_off",
             "sheets back off": "feedback_off", "fit back off": "feedback_off",
             "fit back of": "feedback_off", "feet back off": "feedback_off",
+            # diagnostics close aliases — EN
+            "close feedback": "feedback_off", "hide feedback": "feedback_off",
+            "close feedback center": "feedback_off", "hide feedback center": "feedback_off",
+            "close diagnostics": "feedback_off", "hide diagnostics": "feedback_off",
+            "close diagnostic center": "feedback_off", "hide diagnostic center": "feedback_off",
+            "close diagnostics center": "feedback_off", "hide diagnostics center": "feedback_off",
+            "close system status": "feedback_off", "hide system status": "feedback_off",
+            "close status panel": "feedback_off", "hide status panel": "feedback_off",
+            "close health panel": "feedback_off", "hide health panel": "feedback_off",
+            "close logs": "feedback_off", "hide logs": "feedback_off",
+            "close dashboard": "feedback_off", "hide dashboard": "feedback_off",
+            "close the window": "feedback_off", "hide the window": "feedback_off",
+            "close this window": "feedback_off", "hide this window": "feedback_off",
+            "close panel": "feedback_off", "hide panel": "feedback_off",
+            "exit diagnostics": "feedback_off", "leave diagnostics": "feedback_off",
+            # diagnostics close aliases — PL
+            "ukryj feedback": "feedback_off",
+            "zamknij centrum feedback": "feedback_off", "ukryj centrum feedback": "feedback_off",
+            "zamknij diagnostyke": "feedback_off", "ukryj diagnostyke": "feedback_off",
+            "zamknij diagnostykę": "feedback_off", "ukryj diagnostykę": "feedback_off",
+            "zamknij centrum diagnostyczne": "feedback_off", "ukryj centrum diagnostyczne": "feedback_off",
+            "zamknij panel diagnostyczny": "feedback_off", "ukryj panel diagnostyczny": "feedback_off",
+            "zamknij status systemu": "feedback_off", "ukryj status systemu": "feedback_off",
+            "zamknij panel statusu": "feedback_off", "ukryj panel statusu": "feedback_off",
+            "zamknij logi": "feedback_off", "ukryj logi": "feedback_off",
+            "zamknij dashboard": "feedback_off", "ukryj dashboard": "feedback_off",
+            "zamknij okno": "feedback_off", "ukryj okno": "feedback_off",
+            "zamknij to okno": "feedback_off", "ukryj to okno": "feedback_off",
+            "zamknij panel": "feedback_off", "ukryj panel": "feedback_off",
+            "wyjdź z diagnostyki": "feedback_off", "wyjdz z diagnostyki": "feedback_off",
+            "zamknij diagnostyka": "feedback_off",
+            "close window": "feedback_off",
+            "close diagnostic": "feedback_off", "hide diagnostic": "feedback_off",
+            "klaus system status": "feedback_off", "claus system status": "feedback_off",
+            "close systems": "feedback_off",
+            "zamien okno": "feedback_off", "zamień okno": "feedback_off",
             "help": "help",
             "show help": "help",
             "so help": "help",

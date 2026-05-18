@@ -20,6 +20,18 @@ class CoreAssistantInteractionMixin:
 
         telemetry = self._start_turn_telemetry(cleaned)
         self._last_fast_lane_route_snapshot = {}
+        append_event = getattr(self, "_append_diagnostics_event", None)
+        if callable(append_event):
+            append_event(
+                "heard",
+                f"Heard: {cleaned}",
+                metadata={
+                    "input_source": telemetry.get("input_source", "voice"),
+                    "capture_phase": telemetry.get("capture_phase", ""),
+                    "stt_mode": telemetry.get("stt_mode", ""),
+                    "stt_backend": telemetry.get("stt_backend", ""),
+                },
+            )
 
         try:
             prepared_started = time.perf_counter()
@@ -149,6 +161,8 @@ class CoreAssistantInteractionMixin:
                 return legacy_result
 
             self.voice_session.transition_to_routing(detail="route_command")
+            if callable(append_event):
+                append_event("routing", "Routing command", metadata={"text": routing_text})
 
             route_context = {
                 "input_source": telemetry.get("input_source", "voice"),

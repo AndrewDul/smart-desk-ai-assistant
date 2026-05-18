@@ -120,6 +120,8 @@ class CoreAssistant(
         self._last_interrupt_snapshot: dict[str, Any] = {}
         self._last_audio_runtime_snapshot: dict[str, Any] = {}
         self._last_ai_broker_snapshot: dict[str, Any] = {}
+        self._diagnostics_events: list[dict[str, Any]] = []
+        self._diagnostics_event_limit = 30
 
         self.turn_benchmark_service = TurnBenchmarkService(
             enabled=bool(benchmark_cfg.get("enabled", True)),

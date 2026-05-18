@@ -389,11 +389,20 @@ class VisualShellController:
             )
         )
 
-    def feedback_status_update(self, *, statuses: dict, source: str = "nexa-runtime") -> bool:
+    def feedback_status_update(
+        self,
+        *,
+        statuses: dict,
+        sections: list[dict] | None = None,
+        source: str = "nexa-runtime",
+    ) -> bool:
+        payload = {"statuses": dict(statuses or {})}
+        if sections is not None:
+            payload["sections"] = [dict(section) for section in sections if isinstance(section, dict)]
         return self.send_command(
             VisualCommand(
                 command=VisualCommandName.FEEDBACK_STATUS_UPDATE,
-                payload={"statuses": dict(statuses or {})},
+                payload=payload,
                 source=source,
             )
         )
@@ -407,4 +416,3 @@ class VisualShellController:
                 source=source,
             )
         )
-

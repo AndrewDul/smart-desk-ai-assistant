@@ -5,7 +5,7 @@ signal visual_transport_error(error_message)
 
 export(int) var port = 8765
 export(String) var bind_address = "127.0.0.1"
-export(int) var max_clients = 8
+export(int) var max_clients = 32
 
 var server = TCP_Server.new()
 var clients = []
@@ -77,11 +77,6 @@ func _accept_pending_clients() -> void:
 			var rejected_peer = server.take_connection()
 			if rejected_peer != null:
 				rejected_peer.disconnect_from_host()
-
-			emit_signal(
-				"visual_transport_error",
-				"Visual Shell TCP receiver rejected client: max client limit reached."
-			)
 			return
 
 		var peer = server.take_connection()
@@ -89,6 +84,7 @@ func _accept_pending_clients() -> void:
 			clients.append({
 				"peer": peer,
 				"buffer": "",
+				"close_after_flush": false,
 			})
 
 
@@ -122,6 +118,8 @@ func _should_keep_client(client: Dictionary) -> bool:
 	var buffer = String(client.get("buffer", ""))
 	if buffer.length() > 0:
 		return true
+	if bool(client.get("close_after_flush", false)):
+		return false
 
 	return peer.get_status() == StreamPeerTCP.STATUS_CONNECTED
 
@@ -140,6 +138,7 @@ func _consume_client_buffer(client: Dictionary) -> void:
 
 		if raw_line.length() > 0:
 			_parse_and_emit_message(raw_line)
+			client["close_after_flush"] = true
 
 	client["buffer"] = buffer
 

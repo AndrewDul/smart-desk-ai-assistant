@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from modules.runtime.contracts import RouteKind, StreamMode, normalize_text
@@ -7,6 +8,34 @@ from modules.shared.logging.logger import log_exception
 
 
 class CoreAssistantHelpersMixin:
+    def _append_diagnostics_event(
+        self,
+        event_type: str,
+        message: str,
+        *,
+        severity: str = "info",
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        events = getattr(self, "_diagnostics_events", None)
+        if not isinstance(events, list):
+            return
+
+        normalized_severity = str(severity or "info").strip().lower()
+        if normalized_severity not in {"ok", "info", "warning", "error", "unknown"}:
+            normalized_severity = "info"
+
+        event = {
+            "ts_ms": int(time.time() * 1000),
+            "type": str(event_type or "event").strip() or "event",
+            "message": str(message or "").strip() or "not available yet",
+            "severity": normalized_severity,
+            "metadata": dict(metadata or {}),
+        }
+        events.append(event)
+        limit = int(getattr(self, "_diagnostics_event_limit", 30) or 30)
+        if limit < 1:
+            limit = 30
+        del events[:-limit]
 
     def _refresh_developer_overlay(self, *, reason: str) -> None:
         overlay_service = getattr(self, "developer_overlay", None)

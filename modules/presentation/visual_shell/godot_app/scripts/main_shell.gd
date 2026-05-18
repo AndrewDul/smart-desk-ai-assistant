@@ -1037,7 +1037,7 @@ func _apply_visual_command(command: String, payload: Dictionary, raw_message: Di
 
     if command == "FEEDBACK_STATUS_UPDATE":
         if feedback_dashboard_view != null and feedback_dashboard_view.has_method("update_statuses"):
-            feedback_dashboard_view.update_statuses(payload.get("statuses", {}))
+            feedback_dashboard_view.update_statuses(payload.get("statuses", {}), payload.get("sections", []))
         return
 
     if command == "FEEDBACK_VISION_FRAME":

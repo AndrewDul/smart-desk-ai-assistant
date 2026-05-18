@@ -101,6 +101,13 @@ class CoreAssistantResponseMixin:
         self.voice_session.transition_to_speaking(
             detail=f"response:{route_kind_value}",
         )
+        append_event = getattr(self, "_append_diagnostics_event", None)
+        if callable(append_event):
+            append_event(
+                "speaking",
+                "Speaking response",
+                metadata={"route_kind": route_kind_value, "response_source": source},
+            )
         notify_visual_shell_voice_event(
             self,
             VisualEventName.SPEAKING_STARTED,
@@ -280,6 +287,18 @@ class CoreAssistantResponseMixin:
                     plan_metadata.get("thinking_ack_cancel_on_first_live_chunk")
                 ),
             }
+            if callable(append_event):
+                append_event(
+                    "response_finished",
+                    "Response delivered",
+                    severity="ok" if delivered else "warning",
+                    metadata={
+                        "route_kind": route_kind_value,
+                        "response_source": source,
+                        "delivered": bool(delivered),
+                        "first_audio_ms": self._last_response_stream_report.first_audio_ms,
+                    },
+                )
 
             append_log(
                 "Response delivery finished: "

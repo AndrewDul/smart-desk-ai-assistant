@@ -1408,13 +1408,13 @@ def build_default_command_grammar() -> CommandGrammar:
             "feedback.on",
             "feedback włącz",
             CommandLanguage.POLISH,
-            tags=("feedback",),
+            tags=("feedback", "vosk_exclude"),
         ),
         CommandPhrase(
             "feedback.on",
             "włącz feedback",
             CommandLanguage.POLISH,
-            tags=("feedback",),
+            tags=("feedback", "vosk_exclude"),
         ),
         CommandPhrase(
             "feedback.off",
@@ -1510,14 +1510,58 @@ def build_default_command_grammar() -> CommandGrammar:
             "feedback.off",
             "feedback wyłącz",
             CommandLanguage.POLISH,
-            tags=("feedback",),
+            tags=("feedback", "vosk_exclude"),
         ),
         CommandPhrase(
             "feedback.off",
             "wyłącz feedback",
             CommandLanguage.POLISH,
-            tags=("feedback",),
+            tags=("feedback", "vosk_exclude"),
         ),
+        # Diagnostics close aliases — English (safe Vosk words)
+        CommandPhrase("feedback.off", "close feedback", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
+        CommandPhrase("feedback.off", "hide feedback", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
+        CommandPhrase("feedback.off", "close the window", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
+        CommandPhrase("feedback.off", "hide the window", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
+        CommandPhrase("feedback.off", "close this window", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
+        CommandPhrase("feedback.off", "hide this window", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
+        CommandPhrase("feedback.off", "close dashboard", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "hide dashboard", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        # Diagnostics close aliases — English (vosk_exclude: unusual words)
+        CommandPhrase("feedback.off", "close diagnostics", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "hide diagnostics", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "close diagnostic center", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "hide diagnostic center", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "close diagnostics center", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "hide diagnostics center", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "close system status", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "hide system status", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "close feedback center", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "hide feedback center", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "exit diagnostics", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "leave diagnostics", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        # Diagnostics close aliases — Polish (safe Vosk words)
+        CommandPhrase("feedback.off", "ukryj feedback", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close")),
+        CommandPhrase("feedback.off", "zamknij okno", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close")),
+        CommandPhrase("feedback.off", "ukryj okno", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close")),
+        CommandPhrase("feedback.off", "zamknij logi", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close")),
+        CommandPhrase("feedback.off", "ukryj logi", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close")),
+        CommandPhrase("feedback.off", "zamknij dashboard", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "ukryj dashboard", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        # Diagnostics close aliases — Polish (vosk_exclude: unusual words)
+        CommandPhrase("feedback.off", "zamknij diagnostykę", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "ukryj diagnostykę", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "zamknij centrum feedback", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "ukryj centrum feedback", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "zamknij centrum diagnostyczne", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "ukryj centrum diagnostyczne", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "zamknij panel diagnostyczny", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "ukryj panel diagnostyczny", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "zamknij status systemu", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "ukryj status systemu", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "zamknij to okno", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "ukryj to okno", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "wyjdź z diagnostyki", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
         CommandPhrase(
             "assistant.identity",
             "jak się nazywasz",
@@ -3481,5 +3525,165 @@ def build_default_command_grammar() -> CommandGrammar:
             )
         )
         existing_memory_recall_aliases.add(normalized_phrase)
+
+    diagnostic_aliases = (
+        ("open feedback center", CommandLanguage.ENGLISH),
+        ("show feedback center", CommandLanguage.ENGLISH),
+        ("open diagnostics", CommandLanguage.ENGLISH),
+        ("show diagnostics", CommandLanguage.ENGLISH),
+        ("diagnostic center", CommandLanguage.ENGLISH),
+        ("open diagnostic center", CommandLanguage.ENGLISH),
+        ("show diagnostic center", CommandLanguage.ENGLISH),
+        ("system status", CommandLanguage.ENGLISH),
+        ("show system status", CommandLanguage.ENGLISH),
+        ("health check", CommandLanguage.ENGLISH),
+        ("show health", CommandLanguage.ENGLISH),
+        ("open health panel", CommandLanguage.ENGLISH),
+        ("show runtime health", CommandLanguage.ENGLISH),
+        ("show logs", CommandLanguage.ENGLISH),
+        ("show benchmarks", CommandLanguage.ENGLISH),
+        ("show audio diagnostics", CommandLanguage.ENGLISH),
+        ("show llm status", CommandLanguage.ENGLISH),
+        ("show memory status", CommandLanguage.ENGLISH),
+        ("show camera status", CommandLanguage.ENGLISH),
+        ("show power status", CommandLanguage.ENGLISH),
+        ("włącz feedback", CommandLanguage.POLISH),
+        ("wlacz feedback", CommandLanguage.POLISH),
+        ("otwórz feedback", CommandLanguage.POLISH),
+        ("otworz feedback", CommandLanguage.POLISH),
+        ("otwórz centrum feedback", CommandLanguage.POLISH),
+        ("otworz centrum feedback", CommandLanguage.POLISH),
+        ("pokaż feedback", CommandLanguage.POLISH),
+        ("pokaz feedback", CommandLanguage.POLISH),
+        ("otwórz diagnostykę", CommandLanguage.POLISH),
+        ("otworz diagnostyke", CommandLanguage.POLISH),
+        ("pokaż diagnostykę", CommandLanguage.POLISH),
+        ("pokaz diagnostyke", CommandLanguage.POLISH),
+        ("centrum diagnostyczne", CommandLanguage.POLISH),
+        ("otwórz centrum diagnostyczne", CommandLanguage.POLISH),
+        ("otworz centrum diagnostyczne", CommandLanguage.POLISH),
+        ("pokaż centrum diagnostyczne", CommandLanguage.POLISH),
+        ("pokaz centrum diagnostyczne", CommandLanguage.POLISH),
+        ("status systemu", CommandLanguage.POLISH),
+        ("pokaż status systemu", CommandLanguage.POLISH),
+        ("pokaz status systemu", CommandLanguage.POLISH),
+        ("sprawdź zdrowie systemu", CommandLanguage.POLISH),
+        ("sprawdz zdrowie systemu", CommandLanguage.POLISH),
+        ("pokaż zdrowie systemu", CommandLanguage.POLISH),
+        ("pokaz zdrowie systemu", CommandLanguage.POLISH),
+        ("otwórz panel diagnostyczny", CommandLanguage.POLISH),
+        ("otworz panel diagnostyczny", CommandLanguage.POLISH),
+        ("pokaż runtime", CommandLanguage.POLISH),
+        ("pokaz runtime", CommandLanguage.POLISH),
+        ("pokaż logi", CommandLanguage.POLISH),
+        ("pokaz logi", CommandLanguage.POLISH),
+        ("pokaż benchmarki", CommandLanguage.POLISH),
+        ("pokaz benchmarki", CommandLanguage.POLISH),
+        ("pokaż diagnostykę audio", CommandLanguage.POLISH),
+        ("pokaz diagnostyke audio", CommandLanguage.POLISH),
+        ("pokaż status llm", CommandLanguage.POLISH),
+        ("pokaz status llm", CommandLanguage.POLISH),
+        ("pokaż pamięć", CommandLanguage.POLISH),
+        ("pokaz pamiec", CommandLanguage.POLISH),
+        ("pokaż status kamery", CommandLanguage.POLISH),
+        ("pokaz status kamery", CommandLanguage.POLISH),
+        ("pokaż baterię", CommandLanguage.POLISH),
+        ("pokaz baterie", CommandLanguage.POLISH),
+        ("pokaż zasilanie", CommandLanguage.POLISH),
+        ("pokaz zasilanie", CommandLanguage.POLISH),
+    )
+    # Pre-register phrases that contain words absent from small Vosk models so the
+    # loop below skips them and they receive vosk_exclude instead.
+    # "wlacz feedback" (Latin l) is distinct from "włącz feedback" (Polish ł) after
+    # normalization because ł is category Ll and is not stripped by NFD decomposition.
+    _vosk_unsafe_diagnostic_on = (
+        ("show runtime health", CommandLanguage.ENGLISH),
+        ("pokaż runtime", CommandLanguage.POLISH),
+        ("pokaz runtime", CommandLanguage.POLISH),
+        ("wlacz feedback", CommandLanguage.POLISH),
+    )
+    for _phrase, _lang in _vosk_unsafe_diagnostic_on:
+        phrases.append(
+            CommandPhrase(
+                "feedback.on",
+                _phrase,
+                language=_lang,
+                tags=("feedback", "diagnostics", "vosk_exclude"),
+            )
+        )
+
+    # ASR mishear / recovery variants — match in grammar but never exported to Vosk.
+    _stt_recovery_diagnostic_on = (
+        ("shows system status", CommandLanguage.ENGLISH),
+        ("pokaz diagnostyka", CommandLanguage.POLISH),
+        ("pokaz diagnostike", CommandLanguage.POLISH),
+        ("polkaz diagnostike", CommandLanguage.POLISH),
+        ("polkaz diagnostyke", CommandLanguage.POLISH),
+        # djagnostyk* mishear variants
+        ("pokaz djagnostyka", CommandLanguage.POLISH),
+        ("pokaz djagnostyke", CommandLanguage.POLISH),
+        ("pokaz djagnostike", CommandLanguage.POLISH),
+        # okaz* / o kasz* mishear variants
+        ("okaze diagnostyka", CommandLanguage.POLISH),
+        ("okaz diagnostyka", CommandLanguage.POLISH),
+        ("o kasz diagnostyke", CommandLanguage.POLISH),
+        ("o kasz diagnostike", CommandLanguage.POLISH),
+        # pokasz logi mishear
+        ("pokasz logi", CommandLanguage.POLISH),
+        # English singular mishear variants
+        ("open diagnostic", CommandLanguage.ENGLISH),
+        ("show diagnostic", CommandLanguage.ENGLISH),
+        # ASR creative mishears EN
+        ("or almost diagnostica", CommandLanguage.ENGLISH),
+        ("all cash diagnostics", CommandLanguage.ENGLISH),
+    )
+    for _phrase, _lang in _stt_recovery_diagnostic_on:
+        phrases.append(
+            CommandPhrase(
+                "feedback.on",
+                _phrase,
+                language=_lang,
+                tags=("feedback", "diagnostics", "stt_recovery", "vosk_exclude"),
+            )
+        )
+
+    _stt_recovery_diagnostic_off = (
+        ("zamknij diagnostyka", CommandLanguage.POLISH),
+        ("close window", CommandLanguage.ENGLISH),
+        ("close diagnostic", CommandLanguage.ENGLISH),
+        ("hide diagnostic", CommandLanguage.ENGLISH),
+        # ASR mishear: "close" → "Klaus" / "Claus"
+        ("klaus system status", CommandLanguage.ENGLISH),
+        ("claus system status", CommandLanguage.ENGLISH),
+        # "close systems" (drops "status" word)
+        ("close systems", CommandLanguage.ENGLISH),
+        # Polish: "zamknij" → "zamiń"/"zamień"
+        ("zamień okno", CommandLanguage.POLISH),
+        ("zamien okno", CommandLanguage.POLISH),
+    )
+    for _phrase, _lang in _stt_recovery_diagnostic_off:
+        phrases.append(
+            CommandPhrase(
+                "feedback.off",
+                _phrase,
+                language=_lang,
+                tags=("feedback", "diagnostics_close", "stt_recovery", "vosk_exclude"),
+            )
+        )
+
+    existing_diagnostic_aliases = {normalize_command_text(phrase.phrase) for phrase in phrases}
+    for phrase, language in diagnostic_aliases:
+        normalized_phrase = normalize_command_text(phrase)
+        if normalized_phrase in existing_diagnostic_aliases:
+            continue
+        phrases.append(
+            CommandPhrase(
+                "feedback.on",
+                phrase,
+                language=language,
+                tags=("feedback", "diagnostics"),
+            )
+        )
+        existing_diagnostic_aliases.add(normalized_phrase)
 
     return CommandGrammar(phrases)

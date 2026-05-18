@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import threading
+import time
 from typing import Any
 
 from modules.shared.logging.logger import get_logger
 
+from .feedback_center_snapshot import build_feedback_center_snapshot
 from .feedback_log_bridge import attach_feedback_log_handler, detach_feedback_log_handler, refresh_feedback_log_targets
 from .feedback_vision_streamer import FeedbackVisionStreamer
 
@@ -15,6 +17,10 @@ LOGGER = get_logger(__name__)
 class FeedbackLane:
     """Coordinator for feedback mode (dashboard + log bridge + vision stream)."""
 
+    # Seconds to wait before starting camera — guarantees DIAGNOSTICS is rendered
+    # in the Visual Shell before libcamera prints to stdout.
+    _CAMERA_START_DELAY_S: float = 0.75
+
     def __init__(self, *, visual_shell_lane: Any, assistant: Any) -> None:
         self._visual_shell_lane = visual_shell_lane
         self._assistant = assistant
@@ -22,6 +28,7 @@ class FeedbackLane:
         self._streamer: FeedbackVisionStreamer | None = None
         self._status_thread: threading.Thread | None = None
         self._status_stop = threading.Event()
+        self._cam_start_pending = threading.Event()
         self._active = False
         self._language = "en"
 
@@ -47,16 +54,8 @@ class FeedbackLane:
 
             cam = self._camera_service()
             if cam is not None:
-                start_method = getattr(cam, "start", None)
-                if callable(start_method):
-                    try:
-                        start_method()
-                    except Exception as error:
-                        LOGGER.warning("Feedback lane: camera start failed safely: %s", error)
-
                 self._streamer = FeedbackVisionStreamer(controller, cam)
                 self._streamer.start()
-                LOGGER.info("Feedback mode: camera source attached to live vision preview.")
             else:
                 LOGGER.warning("Feedback mode: no camera backend found, vision preview will stay empty.")
 
@@ -70,7 +69,6 @@ class FeedbackLane:
             self._active = True
 
         LOGGER.info("Feedback mode: dashboard started.")
-        self._publish_status_snapshot()
         return True
 
     def turn_off(self) -> bool:
@@ -94,6 +92,7 @@ class FeedbackLane:
             self._status_thread = None
             streamer = self._streamer
             self._streamer = None
+            self._cam_start_pending.clear()
             self._active = False
 
         if streamer is not None:
@@ -181,10 +180,47 @@ class FeedbackLane:
 
         refresh_feedback_log_targets()
         statuses = self._collect_statuses()
+        center_snapshot = self._collect_feedback_center_snapshot(controller=controller)
         try:
-            controller.feedback_status_update(statuses=statuses, source="nexa-feedback")
+            controller.feedback_status_update(
+                statuses=statuses,
+                sections=center_snapshot.get("sections", []),
+                source="nexa-feedback",
+            )
         except Exception as error:
             LOGGER.debug("Feedback status update failed safely: %s", error)
+
+    def _collect_feedback_center_snapshot(self, *, controller: Any) -> dict[str, Any]:
+        metrics_provider = getattr(controller, "metrics_provider", None)
+        repo_root = "."
+        assistant = self._assistant
+        settings = getattr(assistant, "settings", {}) if assistant is not None else {}
+        if isinstance(settings, dict):
+            repo_root = str(settings.get("repo_root") or ".")
+        try:
+            return build_feedback_center_snapshot(
+                assistant=assistant,
+                repo_root=repo_root,
+                metrics_provider=metrics_provider,
+            )
+        except Exception as error:
+            LOGGER.debug("Feedback Center snapshot failed safely: %s", error)
+            return {
+                "sections": [
+                    {
+                        "id": "runtime",
+                        "title": "Runtime Health",
+                        "items": [
+                            {
+                                "label": "Feedback Center",
+                                "value": "not available yet",
+                                "hint": "Structured status collection failed safely.",
+                                "severity": "warning",
+                            }
+                        ],
+                    }
+                ]
+            }
 
     def _collect_statuses(self) -> dict:
         assistant = self._assistant
@@ -330,6 +366,70 @@ class FeedbackLane:
 
         set_status("vision_detection", detector_ok, detector_detail)
         return statuses
+
+
+    def schedule_post_response_camera_start(self, delay_seconds: float = 0.25) -> None:
+        """Schedule camera.start() after the spoken/display response is delivered.
+
+        Called from _handle_feedback_on() *after* _deliver_simple_action_response()
+        returns, so DIAGNOSTICS is already on screen before libcamera prints to stdout.
+        """
+        cam = self._camera_service()
+        if cam is None:
+            return
+        saved = self._CAMERA_START_DELAY_S
+        self._CAMERA_START_DELAY_S = delay_seconds
+        self._schedule_delayed_camera_start(cam)
+        self._CAMERA_START_DELAY_S = saved
+
+    def _schedule_delayed_camera_start(self, cam: Any) -> None:
+        """Schedule camera.start() in a background thread after _CAMERA_START_DELAY_S.
+
+        Idempotent: no-op if a start is already pending.  The delay guarantees
+        the Visual Shell has received and rendered DIAGNOSTICS before libcamera
+        prints its initialisation block to stdout.
+        """
+        if self._cam_start_pending.is_set():
+            return
+        if not callable(getattr(cam, "start", None)):
+            return
+        self._cam_start_pending.set()
+        delay = self._CAMERA_START_DELAY_S
+        print(f"[diagnostics-camera] scheduled delay_ms={delay * 1000:.0f}")
+        LOGGER.info("[diagnostics-camera] scheduled delay_ms=%.0f", delay * 1000)
+        threading.Thread(
+            target=self._delayed_camera_worker,
+            args=(cam, delay),
+            name="nexa-feedback-cam-delayed-start",
+            daemon=True,
+        ).start()
+
+    def _delayed_camera_worker(self, cam: Any, delay_seconds: float) -> None:
+        try:
+            time.sleep(delay_seconds)
+
+            if not self._active:
+                LOGGER.info("[diagnostics-camera] skipped (feedback inactive after delay)")
+                return
+
+            worker = getattr(cam, "_worker", None)
+            if worker is not None and bool(getattr(worker, "is_running", False)):
+                LOGGER.info("[diagnostics-camera] skipped (worker already running)")
+                return
+
+            print("[diagnostics-camera] starting delayed camera")
+            LOGGER.info("[diagnostics-camera] starting delayed camera")
+            _t0 = time.monotonic()
+            try:
+                cam.start()
+                elapsed_ms = (time.monotonic() - _t0) * 1000
+                print(f"[diagnostics-camera] started ok=true start_ms={elapsed_ms:.1f}")
+                LOGGER.info("[diagnostics-camera] started ok=true start_ms=%.1f", elapsed_ms)
+            except Exception as error:
+                print(f"[diagnostics-camera] error={error}")
+                LOGGER.warning("[diagnostics-camera] delayed camera start failed: %s", error)
+        finally:
+            self._cam_start_pending.clear()
 
 
 __all__ = ["FeedbackLane"]

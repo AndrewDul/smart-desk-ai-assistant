@@ -575,6 +575,25 @@ def test_default_grammar_recognizes_feedback_mode_commands() -> None:
     assert pl_off_result.language == CommandLanguage.POLISH
 
 
+def test_default_grammar_recognizes_diagnostics_feedback_aliases() -> None:
+    grammar = build_default_command_grammar()
+    cases = [
+        ("open diagnostics", CommandLanguage.ENGLISH),
+        ("show system status", CommandLanguage.ENGLISH),
+        ("show llm status", CommandLanguage.ENGLISH),
+        ("pokaż diagnostykę", CommandLanguage.POLISH),
+        ("pokaz status systemu", CommandLanguage.POLISH),
+        ("pokaż logi", CommandLanguage.POLISH),
+    ]
+
+    for phrase, language in cases:
+        result = grammar.match(phrase)
+
+        assert result.status == CommandRecognitionStatus.MATCHED
+        assert result.intent_key == "feedback.on"
+        assert result.language == language
+
+
 def test_default_grammar_recognizes_feedback_asr_variants() -> None:
     grammar = build_default_command_grammar()
 
@@ -677,3 +696,289 @@ def test_default_grammar_recognizes_rich_identity_and_help_aliases() -> None:
         assert result.status == CommandRecognitionStatus.MATCHED
         assert result.intent_key == intent_key
         assert result.language == language
+
+
+def test_default_grammar_recognizes_diagnostics_close_aliases() -> None:
+    grammar = build_default_command_grammar()
+
+    cases = [
+        ("close feedback", "feedback.off", CommandLanguage.ENGLISH),
+        ("hide feedback", "feedback.off", CommandLanguage.ENGLISH),
+        ("close diagnostics", "feedback.off", CommandLanguage.ENGLISH),
+        ("hide diagnostics", "feedback.off", CommandLanguage.ENGLISH),
+        ("close system status", "feedback.off", CommandLanguage.ENGLISH),
+        ("close the window", "feedback.off", CommandLanguage.ENGLISH),
+        ("hide the window", "feedback.off", CommandLanguage.ENGLISH),
+        ("close this window", "feedback.off", CommandLanguage.ENGLISH),
+        ("exit diagnostics", "feedback.off", CommandLanguage.ENGLISH),
+        ("leave diagnostics", "feedback.off", CommandLanguage.ENGLISH),
+        ("zamknij okno", "feedback.off", CommandLanguage.POLISH),
+        ("ukryj okno", "feedback.off", CommandLanguage.POLISH),
+        ("zamknij logi", "feedback.off", CommandLanguage.POLISH),
+        ("ukryj logi", "feedback.off", CommandLanguage.POLISH),
+        ("zamknij feedback", "feedback.off", CommandLanguage.POLISH),
+        ("ukryj feedback", "feedback.off", CommandLanguage.POLISH),
+        ("zamknij diagnostykę", "feedback.off", CommandLanguage.POLISH),
+        ("ukryj diagnostykę", "feedback.off", CommandLanguage.POLISH),
+        ("wyjdź z diagnostyki", "feedback.off", CommandLanguage.POLISH),
+    ]
+
+    for phrase, intent_key, language in cases:
+        result = grammar.match(phrase)
+        assert result.status == CommandRecognitionStatus.MATCHED, (
+            f"Expected MATCHED for {phrase!r}, got {result.status}"
+        )
+        assert result.intent_key == intent_key, (
+            f"Expected {intent_key!r} for {phrase!r}, got {result.intent_key!r}"
+        )
+        assert result.language == language, (
+            f"Expected language {language} for {phrase!r}, got {result.language}"
+        )
+
+
+def test_diagnostics_close_aliases_not_in_vosk_vocabulary() -> None:
+    grammar = build_default_command_grammar()
+
+    english_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH)
+    polish_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)
+
+    # Complex phrases with unusual words must stay out of Vosk grammar
+    assert "close diagnostics" not in english_vocabulary
+    assert "hide diagnostics" not in english_vocabulary
+    assert "exit diagnostics" not in english_vocabulary
+    assert "leave diagnostics" not in english_vocabulary
+    assert "close system status" not in english_vocabulary
+    assert "zamknij diagnostykę" not in polish_vocabulary
+    assert "wyjdź z diagnostyki" not in polish_vocabulary
+
+    # Simple common-word phrases can optionally be in Vosk grammar
+    # (just verify they match — we only assert exclusion for unusual-word ones)
+
+
+def test_vosk_vocabulary_excludes_runtime_words() -> None:
+    grammar = build_default_command_grammar()
+
+    english_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH)
+    polish_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)
+
+    english_words = {
+        word
+        for phrase in english_vocabulary
+        for word in normalize_command_text(phrase).split()
+    }
+    polish_words = {
+        word
+        for phrase in polish_vocabulary
+        for word in normalize_command_text(phrase).split()
+    }
+
+    assert "runtime" not in english_words
+    assert "runtime" not in polish_words
+    assert "wlacz" not in polish_words
+
+
+def test_default_grammar_recognizes_stt_recovery_diagnostic_on_aliases() -> None:
+    grammar = build_default_command_grammar()
+
+    cases = [
+        ("shows system status", "feedback.on", CommandLanguage.ENGLISH),
+        ("pokaz diagnostyka", "feedback.on", CommandLanguage.POLISH),
+        ("pokaz diagnostike", "feedback.on", CommandLanguage.POLISH),
+        ("polkaz diagnostike", "feedback.on", CommandLanguage.POLISH),
+        ("polkaz diagnostyke", "feedback.on", CommandLanguage.POLISH),
+    ]
+
+    for phrase, intent_key, language in cases:
+        result = grammar.match(phrase)
+        assert result.status == CommandRecognitionStatus.MATCHED, (
+            f"Expected MATCHED for {phrase!r}, got {result.status}"
+        )
+        assert result.intent_key == intent_key, (
+            f"Expected {intent_key!r} for {phrase!r}, got {result.intent_key!r}"
+        )
+        assert result.language == language, (
+            f"Expected language {language} for {phrase!r}, got {result.language}"
+        )
+
+
+def test_stt_recovery_diagnostic_on_aliases_not_in_vosk_vocabulary() -> None:
+    grammar = build_default_command_grammar()
+
+    english_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH)
+    polish_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)
+
+    assert "shows system status" not in english_vocabulary
+    assert "pokaz diagnostyka" not in polish_vocabulary
+    assert "pokaz diagnostike" not in polish_vocabulary
+    assert "polkaz diagnostike" not in polish_vocabulary
+    assert "polkaz diagnostyke" not in polish_vocabulary
+
+
+def test_dashboard_phrases_match_grammar_but_not_in_vosk_vocabulary() -> None:
+    grammar = build_default_command_grammar()
+
+    english_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH)
+    polish_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)
+
+    # dashboard phrases must still match the grammar
+    for phrase in ("close dashboard", "hide dashboard"):
+        result = grammar.match(phrase)
+        assert result.status == CommandRecognitionStatus.MATCHED, (
+            f"Expected MATCHED for {phrase!r}, got {result.status}"
+        )
+        assert result.intent_key == "feedback.off"
+
+    for phrase in ("zamknij dashboard", "ukryj dashboard"):
+        result = grammar.match(phrase)
+        assert result.status == CommandRecognitionStatus.MATCHED, (
+            f"Expected MATCHED for {phrase!r}, got {result.status}"
+        )
+        assert result.intent_key == "feedback.off"
+
+    # but "dashboard" must not appear in Vosk word sets
+    english_words = {
+        word
+        for phrase in english_vocabulary
+        for word in normalize_command_text(phrase).split()
+    }
+    polish_words = {
+        word
+        for phrase in polish_vocabulary
+        for word in normalize_command_text(phrase).split()
+    }
+
+    assert "dashboard" not in english_words
+    assert "dashboard" not in polish_words
+
+
+# --- Session 3: new mishear variants (Part C / Part D) -----------------------
+
+_NEW_FEEDBACK_ON_VARIANTS = [
+    ("pokaz djagnostyka", "pl"),
+    ("pokaz djagnostyke", "pl"),
+    ("pokaz djagnostike", "pl"),
+    ("okaze diagnostyka", "pl"),
+    ("okaz diagnostyka", "pl"),
+    ("o kasz diagnostyke", "pl"),
+    ("o kasz diagnostike", "pl"),
+    ("pokasz logi", "pl"),
+    ("open diagnostic", "en"),
+    ("show diagnostic", "en"),
+]
+
+_NEW_FEEDBACK_OFF_VARIANTS = [
+    ("zamknij diagnostyka", "pl"),
+    ("close window", "en"),
+    ("close diagnostic", "en"),
+    ("hide diagnostic", "en"),
+]
+
+
+def test_grammar_stt_recovery_new_mishear_variants() -> None:
+    grammar = build_default_command_grammar()
+
+    for phrase, lang_code in _NEW_FEEDBACK_ON_VARIANTS:
+        result = grammar.match(phrase)
+        assert result.status == CommandRecognitionStatus.MATCHED, (
+            f"Expected MATCHED for {phrase!r}, got {result.status}"
+        )
+        assert result.intent_key == "feedback.on", (
+            f"Expected intent feedback.on for {phrase!r}, got {result.intent_key!r}"
+        )
+        expected_lang = CommandLanguage.POLISH if lang_code == "pl" else CommandLanguage.ENGLISH
+        assert result.language == expected_lang, (
+            f"Expected language {expected_lang} for {phrase!r}, got {result.language}"
+        )
+
+    for phrase, lang_code in _NEW_FEEDBACK_OFF_VARIANTS:
+        result = grammar.match(phrase)
+        assert result.status == CommandRecognitionStatus.MATCHED, (
+            f"Expected MATCHED for {phrase!r}, got {result.status}"
+        )
+        assert result.intent_key == "feedback.off", (
+            f"Expected intent feedback.off for {phrase!r}, got {result.intent_key!r}"
+        )
+        expected_lang = CommandLanguage.POLISH if lang_code == "pl" else CommandLanguage.ENGLISH
+        assert result.language == expected_lang, (
+            f"Expected language {expected_lang} for {phrase!r}, got {result.language}"
+        )
+
+
+def test_grammar_new_mishear_variants_not_in_vosk_vocabulary() -> None:
+    grammar = build_default_command_grammar()
+
+    english_vocabulary = set(grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH))
+    polish_vocabulary = set(grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH))
+
+    for phrase, lang_code in _NEW_FEEDBACK_ON_VARIANTS + _NEW_FEEDBACK_OFF_VARIANTS:
+        vocab = polish_vocabulary if lang_code == "pl" else english_vocabulary
+        assert phrase not in vocab, (
+            f"stt_recovery+vosk_exclude phrase {phrase!r} must not appear in Vosk vocabulary"
+        )
+
+
+# --- Session 4: "Klaus/Claus system status" ASR close mishear (Part C) -------
+
+
+@pytest.mark.parametrize("phrase", ["klaus system status", "claus system status"])
+def test_grammar_close_mishear_matches_feedback_off(phrase: str) -> None:
+    grammar = build_default_command_grammar()
+    result = grammar.match(phrase)
+
+    assert result.status == CommandRecognitionStatus.MATCHED, (
+        f"Expected MATCHED for {phrase!r}, got {result.status}"
+    )
+    assert result.intent_key == "feedback.off", (
+        f"Expected feedback.off for {phrase!r}, got {result.intent_key!r}"
+    )
+    assert result.language == CommandLanguage.ENGLISH
+
+
+@pytest.mark.parametrize("phrase", ["klaus system status", "claus system status"])
+def test_grammar_close_mishear_not_in_vosk_vocabulary(phrase: str) -> None:
+    grammar = build_default_command_grammar()
+    english_vocabulary = set(grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH))
+
+    assert phrase not in english_vocabulary, (
+        f"stt_recovery phrase {phrase!r} must not appear in Vosk vocabulary"
+    )
+
+
+# --- Session 4: additional alias coverage ------------------------------------
+
+
+@pytest.mark.parametrize("phrase,expected_intent", [
+    ("close systems", "feedback.off"),
+    ("zamień okno", "feedback.off"),
+    ("zamien okno", "feedback.off"),
+    ("or almost diagnostica", "feedback.on"),
+    ("all cash diagnostics", "feedback.on"),
+])
+def test_grammar_session4_aliases_match_correct_intent(phrase: str, expected_intent: str) -> None:
+    grammar = build_default_command_grammar()
+    result = grammar.match(phrase)
+
+    assert result.status == CommandRecognitionStatus.MATCHED, (
+        f"Expected MATCHED for {phrase!r}, got {result.status}"
+    )
+    assert result.intent_key == expected_intent, (
+        f"Expected {expected_intent!r} for {phrase!r}, got {result.intent_key!r}"
+    )
+
+
+@pytest.mark.parametrize("phrase,lang_code", [
+    ("close systems", "en"),
+    ("zamień okno", "pl"),
+    ("zamien okno", "pl"),
+    ("or almost diagnostica", "en"),
+    ("all cash diagnostics", "en"),
+])
+def test_grammar_session4_aliases_not_in_vosk_vocabulary(phrase: str, lang_code: str) -> None:
+    grammar = build_default_command_grammar()
+    vocab = set(grammar.to_vosk_vocabulary(
+        language=CommandLanguage.POLISH if lang_code == "pl" else CommandLanguage.ENGLISH
+    ))
+    normalized = normalize_command_text(phrase)
+    assert phrase not in vocab and normalized not in vocab, (
+        f"stt_recovery+vosk_exclude phrase {phrase!r} must not appear in Vosk vocabulary"
+    )

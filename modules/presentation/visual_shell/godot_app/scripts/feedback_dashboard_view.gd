@@ -22,9 +22,11 @@ const STATUS_HEADER_COLOR = Color(0.75, 0.86, 1.0, 1.0)
 const STATUS_NAME_COLOR = Color(0.86, 0.90, 0.96, 1.0)
 const STATUS_OK_COLOR = Color(0.45, 0.92, 0.65, 1.0)
 const STATUS_NOT_OK_COLOR = Color(1.0, 0.42, 0.46, 1.0)
+const CENTER_CARD_ITEM_LIMIT = 6
 
-const TAB_LOGS_STATUS = 0
-const TAB_VISION = 1
+const TAB_CENTER = 0
+const TAB_LOGS_STATUS = 1
+const TAB_VISION = 2
 const MAX_LOG_ENTRIES = 500
 const LOG_RETENTION_MS = 300000
 
@@ -35,6 +37,43 @@ const CORE_COMPONENT_KEYS = [
 const VISION_COMPONENT_KEYS = [
     "vision_camera", "vision_capture", "vision_pipeline", "vision_detection"
 ]
+
+const CENTER_CARD_IDS = [
+    "overview", "runtime", "llm",
+    "audio", "tests", "memory",
+    "vision", "power", "logs"
+]
+
+const CENTER_PAGE_IDS = [
+    "overview", "activity", "runtime", "llm", "audio", "benchmarks",
+    "logs", "memory", "vision", "power"
+]
+
+const CENTER_PAGE_LABELS = {
+    "overview": "Overview",
+    "activity": "Activity",
+    "runtime": "Runtime",
+    "llm": "LLM",
+    "audio": "Audio",
+    "benchmarks": "Benchmarks",
+    "logs": "Logs",
+    "memory": "Memory",
+    "vision": "Vision",
+    "power": "Power",
+}
+
+const CENTER_PAGE_SECTION = {
+    "overview": "overview",
+    "activity": "activity",
+    "runtime": "runtime",
+    "llm": "llm",
+    "audio": "audio",
+    "benchmarks": "tests",
+    "logs": "logs",
+    "memory": "memory",
+    "vision": "vision",
+    "power": "power",
+}
 
 const COMPONENT_LABELS_EN = {
     "llm": "LLM",
@@ -52,12 +91,18 @@ const COMPONENT_LABELS_EN = {
 }
 
 var _language = "en"
-var _active_tab = TAB_LOGS_STATUS
+var _active_tab = TAB_CENTER
 
 var _panel_rect = Rect2()
+var _tab_center_rect = Rect2()
 var _tab_logs_rect = Rect2()
 var _tab_vision_rect = Rect2()
 
+var _center_panel_rect = Rect2()
+var _center_page_nav_rects = {}
+var _center_page_labels = {}
+var _center_pages_top = 0.0
+var _center_detail_view = null
 var _log_panel_rect = Rect2()
 var _status_panel_rect = Rect2()
 var _vision_panel_rect = Rect2()
@@ -67,9 +112,11 @@ var _content_top = 0.0
 
 var _title_label = null
 var _subtitle_label = null
+var _tab_center_label = null
 var _tab_logs_label = null
 var _tab_vision_label = null
 
+var _center_card_views = {}
 var _logs_header_label = null
 var _logs_view = null
 var _status_header_label = null
@@ -87,6 +134,8 @@ var _vision_statuses = {}
 
 var _main_log_entries = []
 var _vision_log_entries = []
+var _center_sections = []
+var _active_center_page = "overview"
 var _controls_ready = false
 
 
@@ -139,11 +188,14 @@ func layout_for_viewport(viewport_size: Vector2) -> void:
 
     var tab_strip_x = _panel_rect.position.x + padding_x
     var tab_strip_w = _panel_rect.size.x - padding_x * 2.0
-    var tab_w = tab_strip_w * 0.5
+    var tab_w = tab_strip_w / 3.0
 
-    _tab_logs_rect = Rect2(Vector2(tab_strip_x, tab_y), Vector2(tab_w, tab_height))
-    _tab_vision_rect = Rect2(Vector2(tab_strip_x + tab_w, tab_y), Vector2(tab_w, tab_height))
+    _tab_center_rect = Rect2(Vector2(tab_strip_x, tab_y), Vector2(tab_w, tab_height))
+    _tab_logs_rect = Rect2(Vector2(tab_strip_x + tab_w, tab_y), Vector2(tab_w, tab_height))
+    _tab_vision_rect = Rect2(Vector2(tab_strip_x + tab_w * 2.0, tab_y), Vector2(tab_w, tab_height))
 
+    _tab_center_label.rect_position = _tab_center_rect.position
+    _tab_center_label.rect_size = _tab_center_rect.size
     _tab_logs_label.rect_position = _tab_logs_rect.position
     _tab_logs_label.rect_size = _tab_logs_rect.size
     _tab_vision_label.rect_position = _tab_vision_rect.position
@@ -156,6 +208,11 @@ func layout_for_viewport(viewport_size: Vector2) -> void:
     var content_h = _panel_rect.position.y + _panel_rect.size.y - padding_y - _content_top
     var col_gap = max(20.0, content_w * 0.025)
     var col_w = (content_w - col_gap) * 0.5
+
+    _center_panel_rect = Rect2(Vector2(content_x, _content_top), Vector2(content_w, content_h))
+    _layout_center_page_nav()
+    _layout_center_cards()
+    _layout_center_detail_view()
 
     _log_panel_rect = Rect2(Vector2(content_x, _content_top), Vector2(col_w, content_h))
     _status_panel_rect = Rect2(Vector2(content_x + col_w + col_gap, _content_top), Vector2(col_w, content_h))
@@ -235,7 +292,7 @@ func append_log(payload) -> void:
     _append_entry(_main_log_entries, entry)
     _rebuild_log_view(_logs_view, _main_log_entries)
 
-func update_statuses(statuses) -> void:
+func update_statuses(statuses, sections = []) -> void:
     if statuses == null or typeof(statuses) != TYPE_DICTIONARY:
         return
 
@@ -259,6 +316,10 @@ func update_statuses(statuses) -> void:
 
     if _statuses.has("camera") and not _vision_statuses.has("vision_camera"):
         _vision_statuses["vision_camera"] = _statuses["camera"]
+
+    if sections != null and typeof(sections) == TYPE_ARRAY:
+        _center_sections = _normalize_sections(sections)
+        _redraw_center_sections()
 
     _redraw_status_grid()
     _redraw_vision_status_grid()
@@ -290,6 +351,16 @@ func update_vision_frame(payload) -> void:
 func _input(event) -> void:
     if event is InputEventMouseButton and event.pressed and event.button_index == BUTTON_LEFT:
         var mouse_pos = get_local_mouse_position()
+        if _tab_center_rect.has_point(mouse_pos):
+            _set_active_tab(TAB_CENTER)
+            accept_event()
+            return
+        if _active_tab == TAB_CENTER:
+            for page_id in CENTER_PAGE_IDS:
+                if _center_page_nav_rects.has(page_id) and _center_page_nav_rects[page_id].has_point(mouse_pos):
+                    _set_center_page(page_id)
+                    accept_event()
+                    return
         if _tab_logs_rect.has_point(mouse_pos):
             _set_active_tab(TAB_LOGS_STATUS)
             accept_event()
@@ -316,10 +387,24 @@ func _draw() -> void:
         1.0
     )
 
+    _draw_tab(_tab_center_rect, _active_tab == TAB_CENTER)
     _draw_tab(_tab_logs_rect, _active_tab == TAB_LOGS_STATUS)
     _draw_tab(_tab_vision_rect, _active_tab == TAB_VISION)
 
-    if _active_tab == TAB_LOGS_STATUS:
+    if _active_tab == TAB_CENTER:
+        if _active_center_page == "overview":
+            for card_id in CENTER_CARD_IDS:
+                if _center_card_views.has(card_id):
+                    var card = _center_card_views[card_id]
+                    draw_rect(Rect2(card.rect_position, card.rect_size), LOG_PANEL_BG, true)
+                    draw_rect(Rect2(card.rect_position, card.rect_size), COLUMN_DIVIDER_COLOR, false, 1.0)
+        else:
+            draw_rect(Rect2(_center_detail_view.rect_position, _center_detail_view.rect_size), LOG_PANEL_BG, true)
+            draw_rect(Rect2(_center_detail_view.rect_position, _center_detail_view.rect_size), COLUMN_DIVIDER_COLOR, false, 1.0)
+        for page_id in CENTER_PAGE_IDS:
+            if _center_page_nav_rects.has(page_id):
+                _draw_tab(_center_page_nav_rects[page_id], _active_center_page == page_id)
+    elif _active_tab == TAB_LOGS_STATUS:
         draw_rect(_log_panel_rect, LOG_PANEL_BG, true)
         draw_rect(_log_panel_rect, COLUMN_DIVIDER_COLOR, false, 1.0)
         draw_rect(_status_panel_rect, LOG_PANEL_BG, true)
@@ -346,6 +431,7 @@ func _ensure_controls() -> void:
 
     _title_label = _make_label("FeedbackTitle", Label.ALIGN_CENTER, TITLE_COLOR)
     _subtitle_label = _make_label("FeedbackSubtitle", Label.ALIGN_CENTER, SUBTITLE_COLOR)
+    _tab_center_label = _make_label("FeedbackTabCenter", Label.ALIGN_CENTER, TAB_INACTIVE_TEXT)
     _tab_logs_label = _make_label("FeedbackTabLogs", Label.ALIGN_CENTER, TAB_INACTIVE_TEXT)
     _tab_vision_label = _make_label("FeedbackTabVision", Label.ALIGN_CENTER, TAB_INACTIVE_TEXT)
 
@@ -369,6 +455,7 @@ func _ensure_controls() -> void:
 
     add_child(_title_label)
     add_child(_subtitle_label)
+    add_child(_tab_center_label)
     add_child(_tab_logs_label)
     add_child(_tab_vision_label)
     add_child(_logs_header_label)
@@ -383,11 +470,17 @@ func _ensure_controls() -> void:
 
     _build_status_rows()
     _build_vision_status_rows()
+    _build_center_cards()
+    _build_center_page_nav()
+    _center_detail_view = _make_log_view("FeedbackCenterDetailView")
+    _center_detail_view.scroll_following = false
+    add_child(_center_detail_view)
     _seed_statuses()
     _refresh_static_text()
     _refresh_vision_placeholder_text()
     _redraw_status_grid()
     _redraw_vision_status_grid()
+    _redraw_center_sections()
 
     _controls_ready = true
 
@@ -421,6 +514,22 @@ func _build_vision_status_rows() -> void:
         add_child(name_label)
         add_child(value_label)
         _vision_status_rows[key] = {"name": name_label, "value": value_label}
+
+
+func _build_center_cards() -> void:
+    for card_id in CENTER_CARD_IDS:
+        var card = _make_log_view("FeedbackCenterCard_" + str(card_id))
+        card.scroll_active = false
+        card.scroll_following = false
+        add_child(card)
+        _center_card_views[card_id] = card
+
+
+func _build_center_page_nav() -> void:
+    for page_id in CENTER_PAGE_IDS:
+        var label = _make_label("FeedbackCenterPage_" + str(page_id), Label.ALIGN_CENTER, TAB_INACTIVE_TEXT)
+        add_child(label)
+        _center_page_labels[page_id] = label
 
 
 func _seed_statuses() -> void:
@@ -462,6 +571,62 @@ func _layout_vision_status_rows() -> void:
         entry["value"].rect_size = Vector2(w * 0.55, row_h - 4.0)
 
 
+func _layout_center_cards() -> void:
+    if _center_card_views.empty():
+        return
+
+    var top_offset = 78.0
+    var available_rect = Rect2(
+        _center_panel_rect.position + Vector2(0.0, top_offset),
+        Vector2(_center_panel_rect.size.x, _center_panel_rect.size.y - top_offset)
+    )
+    var gap = 12.0
+    var cols = 3
+    var rows = 3
+    var card_w = (available_rect.size.x - gap * float(cols - 1)) / float(cols)
+    var card_h = (available_rect.size.y - gap * float(rows - 1)) / float(rows)
+
+    for i in range(CENTER_CARD_IDS.size()):
+        var card_id = CENTER_CARD_IDS[i]
+        if not _center_card_views.has(card_id):
+            continue
+        var col = i % cols
+        var row = int(i / cols)
+        var card = _center_card_views[card_id]
+        card.rect_position = available_rect.position + Vector2(float(col) * (card_w + gap), float(row) * (card_h + gap))
+        card.rect_size = Vector2(card_w, card_h)
+
+
+func _layout_center_page_nav() -> void:
+    var nav_h = 30.0
+    var gap = 6.0
+    var cols = 5
+    var rows = int(ceil(float(CENTER_PAGE_IDS.size()) / float(cols)))
+    var page_w = (_center_panel_rect.size.x - gap * float(cols - 1)) / float(cols)
+    _center_page_nav_rects.clear()
+
+    for i in range(CENTER_PAGE_IDS.size()):
+        var page_id = CENTER_PAGE_IDS[i]
+        var col = i % cols
+        var row = int(i / cols)
+        var rect = Rect2(
+            _center_panel_rect.position + Vector2(float(col) * (page_w + gap), float(row) * (nav_h + gap)),
+            Vector2(page_w, nav_h)
+        )
+        _center_page_nav_rects[page_id] = rect
+        if _center_page_labels.has(page_id):
+            _center_page_labels[page_id].rect_position = rect.position
+            _center_page_labels[page_id].rect_size = rect.size
+
+
+func _layout_center_detail_view() -> void:
+    if _center_detail_view == null:
+        return
+    var top_offset = 78.0
+    _center_detail_view.rect_position = _center_panel_rect.position + Vector2(0.0, top_offset)
+    _center_detail_view.rect_size = Vector2(_center_panel_rect.size.x, _center_panel_rect.size.y - top_offset)
+
+
 func _redraw_status_grid() -> void:
     for key in CORE_COMPONENT_KEYS:
         var entry = _status_rows[key]
@@ -500,8 +665,9 @@ func _status_color(state) -> Color:
 
 
 func _refresh_static_text() -> void:
-    _title_label.text = "FEEDBACK MODE"
-    _subtitle_label.text = "Live session logs, component statuses, vision preview."
+    _title_label.text = "FEEDBACK CENTER"
+    _subtitle_label.text = "Product health, LLM readiness, audio capture, memory, vision, power, and logs."
+    _tab_center_label.text = "CENTER"
     _tab_logs_label.text = "SYSTEM LOGS & STATUS"
     _tab_vision_label.text = "VISION"
 
@@ -511,6 +677,7 @@ func _refresh_static_text() -> void:
     _vision_logs_header_label.text = "VISION LOG"
     _vision_status_header_label.text = "VISION STATUS"
 
+    _tab_center_label.add_color_override("font_color", TAB_ACTIVE_TEXT if _active_tab == TAB_CENTER else TAB_INACTIVE_TEXT)
     _tab_logs_label.add_color_override("font_color", TAB_ACTIVE_TEXT if _active_tab == TAB_LOGS_STATUS else TAB_INACTIVE_TEXT)
     _tab_vision_label.add_color_override("font_color", TAB_ACTIVE_TEXT if _active_tab == TAB_VISION else TAB_INACTIVE_TEXT)
 
@@ -520,7 +687,7 @@ func _refresh_vision_placeholder_text() -> void:
 
 
 func _set_active_tab(tab_id) -> void:
-    if tab_id != TAB_LOGS_STATUS and tab_id != TAB_VISION:
+    if tab_id != TAB_CENTER and tab_id != TAB_LOGS_STATUS and tab_id != TAB_VISION:
         return
     _active_tab = tab_id
     _refresh_static_text()
@@ -529,9 +696,20 @@ func _set_active_tab(tab_id) -> void:
 
 
 func _apply_tab_visibility() -> void:
+    var center_visible = _active_tab == TAB_CENTER
     var logs_visible = _active_tab == TAB_LOGS_STATUS
     var vision_visible = _active_tab == TAB_VISION
 
+    for card_id in CENTER_CARD_IDS:
+        if _center_card_views.has(card_id):
+            _center_card_views[card_id].visible = center_visible and _active_center_page == "overview"
+    for page_id in CENTER_PAGE_IDS:
+        if _center_page_labels.has(page_id):
+            _center_page_labels[page_id].visible = center_visible
+            _center_page_labels[page_id].text = String(CENTER_PAGE_LABELS.get(page_id, page_id))
+            _center_page_labels[page_id].add_color_override("font_color", TAB_ACTIVE_TEXT if _active_center_page == page_id else TAB_INACTIVE_TEXT)
+    if _center_detail_view != null:
+        _center_detail_view.visible = center_visible and _active_center_page != "overview"
     _logs_header_label.visible = logs_visible
     _logs_view.visible = logs_visible
     _status_header_label.visible = logs_visible
@@ -550,6 +728,168 @@ func _apply_tab_visibility() -> void:
     for key2 in VISION_COMPONENT_KEYS:
         _vision_status_rows[key2]["name"].visible = vision_visible
         _vision_status_rows[key2]["value"].visible = vision_visible
+
+
+func _normalize_sections(sections) -> Array:
+    var normalized = []
+    for section in sections:
+        if typeof(section) != TYPE_DICTIONARY:
+            continue
+        var items = []
+        var raw_items = section.get("items", [])
+        if typeof(raw_items) == TYPE_ARRAY:
+            for item in raw_items:
+                if typeof(item) == TYPE_DICTIONARY:
+                    items.append({
+                        "label": String(item.get("label", "")).strip_edges(),
+                        "value": String(item.get("value", "not available yet")).strip_edges(),
+                        "hint": String(item.get("hint", "")).strip_edges(),
+                        "severity": String(item.get("severity", "info")).strip_edges().to_lower(),
+                    })
+        normalized.append({
+            "id": String(section.get("id", "")).strip_edges(),
+            "title": String(section.get("title", "Status")).strip_edges(),
+            "items": items,
+        })
+    return normalized
+
+
+func _redraw_center_sections() -> void:
+    if _center_card_views.empty():
+        return
+
+    if _center_sections.empty():
+        for card_id in CENTER_CARD_IDS:
+            if _center_card_views.has(card_id):
+                _center_card_views[card_id].bbcode_text = _render_empty_center_card(card_id)
+        return
+
+    var rendered_sections = {}
+    for section in _center_sections:
+        var section_id = String(section.get("id", "")).strip_edges().to_lower()
+        if not _center_card_views.has(section_id):
+            continue
+        var title = _center_section_title(section)
+        var combined = ""
+        combined += "[b][color=#dcecff]" + _escape_bbcode(title) + "[/color][/b]\\n"
+        combined += "[color=#39506c]------------------------------[/color]\\n"
+        var items = section.get("items", [])
+        if typeof(items) != TYPE_ARRAY or items.empty():
+            combined += "[color=#8ea4bf]  not available yet[/color]\\n\\n"
+        else:
+            var rendered = 0
+            for item in items:
+                if rendered >= CENTER_CARD_ITEM_LIMIT:
+                    break
+                var severity = String(item.get("severity", "info")).strip_edges().to_lower()
+                var color = _severity_color_hex(severity)
+                combined += "[color=#8ea4bf]" + _escape_bbcode(item.get("label", "")) + ":[/color] "
+                combined += "[color=" + color + "]" + _escape_bbcode(item.get("value", "not available yet")) + "[/color]\\n"
+                rendered += 1
+        _center_card_views[section_id].bbcode_text = combined
+        rendered_sections[section_id] = true
+
+    for card_id2 in CENTER_CARD_IDS:
+        if not rendered_sections.has(card_id2) and _center_card_views.has(card_id2):
+            _center_card_views[card_id2].bbcode_text = _render_empty_center_card(card_id2)
+    _redraw_center_detail_page()
+
+
+func _render_empty_center_card(card_id: String) -> String:
+    return "[b][color=#dcecff]" + _escape_bbcode(_fallback_center_card_title(card_id)) + "[/color][/b]\\n[color=#8ea4bf]not available yet[/color]"
+
+
+func _fallback_center_card_title(card_id: String) -> String:
+    if card_id == "overview":
+        return "Current Activity"
+    if card_id == "activity":
+        return "Recent Activity"
+    if card_id == "llm":
+        return "LLM Backend"
+    if card_id == "audio":
+        return "Audio / ASR"
+    if card_id == "tests":
+        return "Benchmarks"
+    if card_id == "logs":
+        return "Logs"
+    if card_id == "memory":
+        return "Memory"
+    if card_id == "vision":
+        return "Camera / Vision / Pan-Tilt"
+    if card_id == "power":
+        return "Power / Battery"
+    return "Runtime Health"
+
+
+func _center_section_title(section) -> String:
+    var section_id = String(section.get("id", "")).strip_edges().to_lower()
+    if section_id == "overview":
+        return "Current Activity"
+    return String(section.get("title", "Status")).strip_edges()
+
+
+func _set_center_page(page_id: String) -> void:
+    if not CENTER_PAGE_IDS.has(page_id):
+        return
+    _active_center_page = page_id
+    _redraw_center_detail_page()
+    _apply_tab_visibility()
+    update()
+
+
+func _redraw_center_detail_page() -> void:
+    if _center_detail_view == null:
+        return
+    if _active_center_page == "overview":
+        _center_detail_view.bbcode_text = ""
+        return
+    var section_id = String(CENTER_PAGE_SECTION.get(_active_center_page, _active_center_page))
+    var section = _find_center_section(section_id)
+    if section.empty():
+        _center_detail_view.bbcode_text = _render_empty_center_card(section_id)
+        return
+    _center_detail_view.bbcode_text = _render_detail_section(section)
+
+
+func _find_center_section(section_id: String) -> Dictionary:
+    for section in _center_sections:
+        if typeof(section) == TYPE_DICTIONARY and String(section.get("id", "")) == section_id:
+            return section
+    return {}
+
+
+func _render_detail_section(section: Dictionary) -> String:
+    var title = _center_section_title(section)
+    var combined = "[b][color=#dcecff]" + _escape_bbcode(title) + "[/color][/b]\\n"
+    combined += "[color=#39506c]------------------------------------------------------------[/color]\\n\\n"
+    var items = section.get("items", [])
+    if typeof(items) != TYPE_ARRAY or items.empty():
+        return combined + "[color=#8ea4bf]not available yet[/color]"
+    for item in items:
+        if typeof(item) != TYPE_DICTIONARY:
+            continue
+        var label = String(item.get("label", "")).strip_edges()
+        var value = String(item.get("value", "not available yet")).strip_edges()
+        var severity = String(item.get("severity", "info")).strip_edges().to_lower()
+        var hint = String(item.get("hint", "")).strip_edges()
+        combined += "[color=#8ea4bf]" + _escape_bbcode(label) + "[/color]\\n"
+        combined += "  [color=" + _severity_color_hex(severity) + "]" + _escape_bbcode(value) + "[/color]\\n"
+        if hint != "":
+            combined += "  [color=#5f7088]" + _escape_bbcode(hint) + "[/color]\\n"
+        combined += "\\n"
+    return combined
+
+
+func _severity_color_hex(severity: String) -> String:
+    if severity == "ok":
+        return "#74eba5"
+    if severity == "warning":
+        return "#ffc870"
+    if severity == "error":
+        return "#ff6c70"
+    if severity == "unknown":
+        return "#8ea4bf"
+    return "#dde6f2"
 
 
 func _append_entry(target_entries, entry) -> void:
@@ -598,7 +938,9 @@ func _rebuild_log_view(target_view, entries) -> void:
     target_view.bbcode_text = combined
 
     if should_follow:
-        target_view.scroll_to_line(target_view.get_line_count())
+        var line_count = target_view.get_line_count()
+        if line_count > 1:
+            target_view.scroll_to_line(line_count - 1)
     elif scrollbar != null:
         scrollbar.value = previous_scroll
 

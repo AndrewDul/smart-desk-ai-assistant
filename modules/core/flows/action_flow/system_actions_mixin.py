@@ -1429,34 +1429,60 @@ class ActionSystemActionsMixin:
 
         lane, _assistant = self._resolve_feedback_lane()
         ok = False
+        _t0 = time.monotonic()
+        _turn_on_ms = 0.0
+        _route_label = getattr(resolved, "source", "unknown")
 
         if lane is not None:
             try:
                 ok = bool(lane.turn_on(language=language))
             except Exception as error:
                 self.LOGGER.warning("Feedback turn_on failed safely: %s", error)
+            _turn_on_ms = (time.monotonic() - _t0) * 1000
 
         spoken = self._localized(
             language,
-            "Włączam tryb feedback.",
-            "Feedback mode on.",
+            "Otwieram diagnostykę.",
+            "Opening diagnostics.",
         )
 
-        return self._deliver_simple_action_response(
+        result = self._deliver_simple_action_response(
             language=language,
             action="feedback_on",
             spoken_text=spoken,
-            display_title=self._localized(language, "FEEDBACK", "FEEDBACK"),
+            display_title=self._localized(language, "DIAGNOSTYKA", "DIAGNOSTICS"),
             display_lines=self._localized_lines(
                 language,
-                ["uruchomiono", "logi i statusy live"],
-                ["enabled", "live logs and status"],
+                ["centrum diagnostyczne", "logi i statusy live"],
+                ["diagnostics center", "live logs and status"],
             ),
             extra_metadata={
-                "resolved_source": getattr(resolved, "source", ""),
+                "resolved_source": _route_label,
                 "feedback_started": ok,
+                "camera_init_triggered": False,
             },
         )
+
+        # Camera start is scheduled AFTER response delivery so that DIAGNOSTICS
+        # is always visible before libcamera prints to stdout.
+        if ok and lane is not None:
+            lane.schedule_post_response_camera_start()
+
+        _total_ms = (time.monotonic() - _t0) * 1000
+        _lat_line = (
+            f"[diagnostics-latency] command=feedback_on"
+            f" route={_route_label}"
+            f" turn_on_ms={_turn_on_ms:.1f}"
+            f" total_action_ms={_total_ms:.1f}"
+            f" ok={ok}"
+            f" camera_start_policy=post_response"
+            f" camera_init_triggered=false"
+            f" llm_prevented=true"
+        )
+        print(_lat_line)
+        self.LOGGER.warning(_lat_line)
+
+        return result
 
     def _handle_feedback_off(
         self,
@@ -1470,31 +1496,49 @@ class ActionSystemActionsMixin:
 
         lane, _assistant = self._resolve_feedback_lane()
         ok = False
+        _t0 = time.monotonic()
+        _turn_off_ms = 0.0
+        _route_label_off = getattr(resolved, "source", "unknown")
 
         if lane is not None:
             try:
                 ok = bool(lane.turn_off())
             except Exception as error:
                 self.LOGGER.warning("Feedback turn_off failed safely: %s", error)
+            _turn_off_ms = (time.monotonic() - _t0) * 1000
 
         spoken = self._localized(
             language,
-            "Wyłączam tryb feedback.",
-            "Feedback mode off.",
+            "Zamykam diagnostykę.",
+            "Closing diagnostics.",
         )
 
-        return self._deliver_simple_action_response(
+        result = self._deliver_simple_action_response(
             language=language,
             action="feedback_off",
             spoken_text=spoken,
-            display_title=self._localized(language, "FEEDBACK", "FEEDBACK"),
+            display_title=self._localized(language, "DIAGNOSTYKA", "DIAGNOSTICS"),
             display_lines=self._localized_lines(
                 language,
                 ["zamknięto"],
                 ["closed"],
             ),
             extra_metadata={
-                "resolved_source": getattr(resolved, "source", ""),
+                "resolved_source": _route_label_off,
                 "feedback_stopped": ok,
             },
         )
+
+        _total_ms_off = (time.monotonic() - _t0) * 1000
+        _lat_line_off = (
+            f"[diagnostics-latency] command=feedback_off"
+            f" route={_route_label_off}"
+            f" turn_off_ms={_turn_off_ms:.1f}"
+            f" total_action_ms={_total_ms_off:.1f}"
+            f" ok={ok}"
+            f" llm_prevented=true"
+        )
+        print(_lat_line_off)
+        self.LOGGER.warning(_lat_line_off)
+
+        return result

@@ -627,8 +627,15 @@ def test_runtime_candidate_executor_builds_feedback_mode_routes() -> None:
     builder = RuntimeCandidateExecutionPlanBuilder()
     cases = [
         ("feedback on", CommandLanguage.ENGLISH, "feedback.on", "feedback_on"),
+        ("open diagnostics", CommandLanguage.ENGLISH, "feedback.on", "feedback_on"),
+        ("show system status", CommandLanguage.ENGLISH, "feedback.on", "feedback_on"),
+        ("system status", CommandLanguage.ENGLISH, "feedback.on", "feedback_on"),
+        ("show llm status", CommandLanguage.ENGLISH, "feedback.on", "feedback_on"),
         ("feedback off", CommandLanguage.ENGLISH, "feedback.off", "feedback_off"),
         ("uruchom feedback", CommandLanguage.POLISH, "feedback.on", "feedback_on"),
+        ("pokaż diagnostykę", CommandLanguage.POLISH, "feedback.on", "feedback_on"),
+        ("pokaż status systemu", CommandLanguage.POLISH, "feedback.on", "feedback_on"),
+        ("pokaż logi", CommandLanguage.POLISH, "feedback.on", "feedback_on"),
         ("zamknij feedback", CommandLanguage.POLISH, "feedback.off", "feedback_off"),
     ]
 
