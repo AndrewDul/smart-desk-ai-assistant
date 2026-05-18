@@ -25,6 +25,7 @@ class FeedbackCenterSnapshotBuilder:
         sections = [
             self._overview_section(activity_payload=current_activity),
             self._activity_section(events=recent_activity_events),
+            self._performance_section(),
             self._runtime_section(),
             self._llm_section(),
             self._audio_section(),
@@ -128,6 +129,199 @@ class FeedbackCenterSnapshotBuilder:
                 )
             )
         return _section("activity", "Recent Activity", items)
+
+    def _performance_section(self) -> dict[str, Any]:
+        capture = dict(getattr(self.assistant, "_last_input_capture", {}) or {})
+        route_snapshot = self._last_route_snapshot()
+        response_snapshot = dict(getattr(self.assistant, "_last_response_delivery_snapshot", {}) or {})
+        benchmark_snapshot = self._benchmark_snapshot()
+        latest_sample = dict(benchmark_snapshot.get("latest_sample", {}) or {})
+        summary = dict(benchmark_snapshot.get("summary", {}) or {})
+
+        items: list[dict[str, Any]] = [
+            _item(
+                "Last command",
+                _first_present(latest_sample.get("user_text_preview"), capture.get("text"), "unavailable"),
+                "Heard text from the latest completed or captured command.",
+            ),
+            _item(
+                "Language",
+                _first_present(latest_sample.get("language"), capture.get("language"), getattr(self.assistant, "last_language", ""), "unavailable"),
+                "Language attached to the latest turn.",
+            ),
+            _item(
+                "STT backend",
+                _first_present(latest_sample.get("stt_backend_label"), capture.get("backend"), capture.get("engine"), "unavailable"),
+                "Speech-to-text backend from cached runtime state.",
+            ),
+            _item(
+                "Route / source",
+                _first_present(latest_sample.get("route_kind"), route_snapshot.get("route_kind"), response_snapshot.get("route_kind"), response_snapshot.get("source"), "unavailable"),
+                "Latest command route or response source.",
+            ),
+            _item(
+                "Canonical intent",
+                _first_present(latest_sample.get("canonical_intent"), latest_sample.get("primary_intent"), route_snapshot.get("canonical_intent"), route_snapshot.get("primary_intent"), "not measured yet"),
+                "Canonical intent when the router or benchmark exposes it.",
+            ),
+            _item(
+                "LLM prevented",
+                _bool_or_unavailable(latest_sample.get("llm_prevented")),
+                "Whether the latest command explicitly avoided LLM routing.",
+            ),
+            _item(
+                "Result / status",
+                _first_present(latest_sample.get("result"), response_snapshot.get("status"), response_snapshot.get("source"), "unavailable"),
+                "Latest completed result or response status.",
+            ),
+        ]
+
+        timing_pairs = [
+            ("action_ms", latest_sample.get("skill_latency_ms")),
+            ("turn_on_ms", latest_sample.get("wake_to_listen_ms")),
+            ("turn_off_ms", latest_sample.get("response_total_ms")),
+            ("total_action_ms", _first_present(latest_sample.get("total_action_ms"), latest_sample.get("total_turn_ms"), summary.get("last_total_turn_ms"))),
+            ("TTS first audio", _first_present(response_snapshot.get("first_audio_ms"), latest_sample.get("response_first_audio_ms"))),
+            ("route_to_first_audio", _first_present(latest_sample.get("route_to_first_audio_ms"), response_snapshot.get("route_to_first_audio_ms"))),
+            ("skill_to_first_audio", latest_sample.get("skill_to_first_audio_ms")),
+            ("total response time", latest_sample.get("response_total_ms")),
+        ]
+        has_timing = False
+        for label, value in timing_pairs:
+            rendered = _metric(value)
+            if rendered != "not available yet":
+                has_timing = True
+            items.append(_item(label, rendered if rendered != "not available yet" else "not measured yet", "Latest cached turn timing."))
+
+        event_items = self._performance_event_items(latest_sample)
+        if event_items:
+            items.extend(event_items)
+        else:
+            items.append(
+                _item(
+                    "Recent timing events",
+                    "No timing data yet" if not has_timing else "not measured yet",
+                    "Recent timing event rows appear here after a measured turn.",
+                    "unknown",
+                )
+            )
+
+        slowest_items = self._slowest_operation_items(latest_sample)
+        if slowest_items:
+            items.extend(slowest_items)
+        else:
+            items.append(
+                _item(
+                    "Slowest recent operations",
+                    "No timing data yet" if not has_timing else "not measured yet",
+                    "Slow operation ranking is derived only from cached benchmark metrics.",
+                    "unknown",
+                )
+            )
+
+        items.extend(self._subsystem_performance_items(latest_sample=latest_sample, response_snapshot=response_snapshot))
+
+        if not latest_sample and not has_timing:
+            items.insert(
+                0,
+                _item(
+                    "Timing data",
+                    "No timing data yet",
+                    "Diagnostics did not find a completed in-memory turn benchmark.",
+                    "unknown",
+                ),
+            )
+
+        return _section("performance", "Performance / Timings", items)
+
+    def _performance_event_items(self, latest_sample: dict[str, Any]) -> list[dict[str, Any]]:
+        event_specs = [
+            ("Voice", "wake", "Wake to listen", latest_sample.get("wake_to_listen_ms"), latest_sample.get("wake_source")),
+            ("STT", "speech", "Listen to speech", latest_sample.get("listen_to_speech_ms"), latest_sample.get("stt_backend_label")),
+            ("Routing", "route", "Speech to route", latest_sample.get("speech_to_route_ms"), latest_sample.get("route_kind")),
+            ("Actions", "skill", "Skill execution", latest_sample.get("skill_execution_window_ms"), latest_sample.get("skill_status")),
+            ("TTS", "response", "Response first audio", latest_sample.get("response_first_audio_ms"), latest_sample.get("response_source")),
+            ("LLM", "llm", "LLM first chunk", latest_sample.get("llm_first_chunk_ms"), latest_sample.get("llm_source")),
+        ]
+        items: list[dict[str, Any]] = []
+        for category, event, label, duration, metadata in event_specs:
+            rendered = _metric(duration)
+            if rendered == "not available yet":
+                continue
+            status = _first_present(latest_sample.get("result"), latest_sample.get("skill_status"), "measured")
+            summary = _short_summary(
+                {
+                    "category": category,
+                    "event": event,
+                    "operation": label,
+                    "duration_ms": duration,
+                    "status": status,
+                    "metadata": metadata,
+                }
+            )
+            items.append(_item(f"Event: {category} / {label}", summary, "Cached timing event from the latest completed turn."))
+        return items[:8]
+
+    def _slowest_operation_items(self, latest_sample: dict[str, Any]) -> list[dict[str, Any]]:
+        candidates = [
+            ("Wake to listen", latest_sample.get("wake_to_listen_ms")),
+            ("Listen to speech", latest_sample.get("listen_to_speech_ms")),
+            ("Speech to route", latest_sample.get("speech_to_route_ms")),
+            ("Route to first audio", latest_sample.get("route_to_first_audio_ms")),
+            ("Skill execution", latest_sample.get("skill_execution_window_ms")),
+            ("Skill to first audio", latest_sample.get("skill_to_first_audio_ms")),
+            ("Response first audio", latest_sample.get("response_first_audio_ms")),
+            ("Response total", latest_sample.get("response_total_ms")),
+            ("LLM first chunk", latest_sample.get("llm_first_chunk_ms")),
+            ("LLM total", latest_sample.get("llm_total_ms")),
+            ("Total turn", latest_sample.get("total_turn_ms")),
+        ]
+        ranked: list[tuple[float, str]] = []
+        for label, value in candidates:
+            parsed = _safe_positive_float(value)
+            if parsed is not None:
+                ranked.append((parsed, label))
+        ranked.sort(reverse=True)
+
+        route = _first_present(latest_sample.get("route_kind"), latest_sample.get("primary_intent"), "")
+        created = str(latest_sample.get("created_at_iso") or "").strip()
+        suffix = ", ".join(str(part) for part in (f"when={created}" if created else "", f"route={route}" if route else "") if part)
+        return [
+            _item(
+                f"Slow op: {label}",
+                f"{duration:.1f} ms" + (f" ({suffix})" if suffix else ""),
+                "Slowest cached operation from the latest benchmark sample.",
+                "warning" if duration >= 1000.0 else "info",
+            )
+            for duration, label in ranked[:5]
+        ]
+
+    def _subsystem_performance_items(
+        self,
+        *,
+        latest_sample: dict[str, Any],
+        response_snapshot: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        subsystem_specs = [
+            ("Voice", _first_present(latest_sample.get("wake_latency_ms"), latest_sample.get("wake_to_listen_ms"))),
+            ("STT", latest_sample.get("stt_latency_ms")),
+            ("Command routing", latest_sample.get("speech_to_route_ms")),
+            ("Actions", _first_present(latest_sample.get("skill_latency_ms"), latest_sample.get("skill_execution_window_ms"))),
+            ("TTS", _first_present(response_snapshot.get("first_audio_ms"), latest_sample.get("response_first_audio_ms"))),
+            ("Visual Shell", response_snapshot.get("visual_shell_ms")),
+            ("Camera", latest_sample.get("camera_ms")),
+            ("Vision", latest_sample.get("vision_ms")),
+            ("Memory", latest_sample.get("memory_ms")),
+            ("LLM", _first_present(latest_sample.get("llm_first_chunk_ms"), latest_sample.get("llm_total_ms"))),
+        ]
+        return [
+            _item(
+                f"Subsystem: {name}",
+                _metric(value) if _metric(value) != "not available yet" else "not measured yet",
+                "Subsystem timing is shown only when already measured by runtime telemetry.",
+            )
+            for name, value in subsystem_specs
+        ]
 
     def _runtime_section(self) -> dict[str, Any]:
         runtime_snapshot = self._runtime_product_snapshot()
@@ -331,6 +525,20 @@ class FeedbackCenterSnapshotBuilder:
         snapshot_method = getattr(runtime_product, "snapshot", None)
         if callable(snapshot_method):
             return _safe_dict_call(snapshot_method)
+        return {}
+
+    def _benchmark_snapshot(self) -> dict[str, Any]:
+        service = getattr(self.assistant, "turn_benchmark_service", None)
+
+        latest_snapshot = getattr(service, "latest_snapshot", None)
+        if callable(latest_snapshot):
+            return _safe_dict_call(latest_snapshot)
+
+        latest_summary = getattr(service, "latest_summary", None)
+        if callable(latest_summary):
+            summary = _safe_dict_call(latest_summary)
+            return {"latest_sample": {}, "summary": summary, "overlay_lines": []}
+
         return {}
 
     def _last_route_snapshot(self) -> dict[str, Any]:
@@ -553,6 +761,40 @@ def _metric(value: object, *, suffix: str = "ms") -> str:
     if number <= 0.0:
         return "not available yet"
     return f"{number:.1f} {suffix}"
+
+
+def _safe_positive_float(value: object) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0.0 else None
+
+
+def _bool_or_unavailable(value: object) -> str:
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    return "unavailable"
+
+
+def _short_summary(payload: dict[str, Any]) -> str:
+    parts: list[str] = []
+    category = str(payload.get("category") or "").strip()
+    operation = str(payload.get("operation") or "").strip()
+    duration = _metric(payload.get("duration_ms"))
+    status = str(payload.get("status") or "").strip()
+    metadata = str(payload.get("metadata") or "").strip()
+    if category:
+        parts.append(f"category={category}")
+    if operation:
+        parts.append(f"operation={operation}")
+    if duration != "not available yet":
+        parts.append(f"duration={duration}")
+    if status:
+        parts.append(f"status={status}")
+    if metadata:
+        parts.append(f"metadata={metadata[:80]}")
+    return "; ".join(parts) or "not measured yet"
 
 
 def _is_positive_number(value: object) -> bool:

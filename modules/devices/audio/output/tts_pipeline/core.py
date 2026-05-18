@@ -204,8 +204,11 @@ class TTSPipeline(
                 "Przypomnienie.",
                 "Nazywam się NeXa.",
                 "Mogę z Tobą porozmawiać, pomóc Ci coś zapamiętać, podać czas, pokazać pulpit oraz przedstawić status runtime, testy i benchmarki.",
+                "Chwileczkę, sprawdzam to.",
                 "Otwieram diagnostykę.",
-                "Zamykam diagnostykę.",
+                "Diagnostyka jest otwarta.",
+                "Zamknęłam diagnostykę.",
+                "Jestem NeXa, Twoja lokalna asystentka.",
             ],
             "en": [
                 "Okay.",
@@ -220,8 +223,11 @@ class TTSPipeline(
                 "Reminder.",
                 "My name is NeXa.",
                 "I can talk with you, help you remember something, tell you the time, show the desktop, and report runtime status, tests, and benchmarks.",
+                "One moment, I’m checking that.",
                 "Opening diagnostics.",
-                "Closing diagnostics.",
+                "Diagnostics are open.",
+                "Diagnostics closed.",
+                "I’m NeXa, your local assistant.",
             ],
         }
 

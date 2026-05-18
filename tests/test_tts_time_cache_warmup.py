@@ -76,3 +76,25 @@ def test_default_common_cache_includes_natural_help_responses() -> None:
 
     assert "I can talk with you, help you remember something, tell you the time, show the desktop, and report runtime status, tests, and benchmarks." in pipeline._common_cache_phrases["en"]
     assert "Mogę z Tobą porozmawiać, pomóc Ci coś zapamiętać, podać czas, pokazać pulpit oraz przedstawić status runtime, testy i benchmarki." in pipeline._common_cache_phrases["pl"]
+
+
+def test_default_common_cache_includes_diagnostics_voice_polish_phrases() -> None:
+    pipeline = TTSPipeline(enabled=False, preferred_engine="piper")
+
+    for phrase in (
+        "One moment, I’m checking that.",
+        "Opening diagnostics.",
+        "Diagnostics are open.",
+        "Diagnostics closed.",
+        "I’m NeXa, your local assistant.",
+    ):
+        assert phrase in pipeline._common_cache_phrases["en"]
+
+    for phrase in (
+        "Chwileczkę, sprawdzam to.",
+        "Otwieram diagnostykę.",
+        "Diagnostyka jest otwarta.",
+        "Zamknęłam diagnostykę.",
+        "Jestem NeXa, Twoja lokalna asystentka.",
+    ):
+        assert phrase in pipeline._common_cache_phrases["pl"]

@@ -17039,3 +17039,35 @@ I ran the runtime and confirmed:
 - libcamera startup prints after DIAGNOSTICS, not before
 - close command works cleanly
 - exit still works and the launcher cleans up the Visual Shell correctly
+
+## 2026-05-18 - Runtime Performance Observatory and natural fast phrases
+
+### Summary
+
+I added a lightweight Performance / Timings page to the Diagnostics Center.
+
+The goal is to make NeXa easier to inspect during real runtime use without slowing down the assistant. The Diagnostics Center can now show cached timing information from the existing turn benchmark service, including the last command, route/source, canonical intent when available, LLM prevention status, response timing fields, recent timing rows, slowest cached operations, and subsystem timing placeholders.
+
+### What I changed
+
+I added a new performance section to the feedback center snapshot builder. The section reads already available runtime data only. It uses the existing in-memory turn_benchmark_service.latest_snapshot() when available and falls back to safe placeholders such as No timing data yet, not measured yet, or unavailable.
+
+I added the Performance page to the Godot Diagnostics Center UI so it can be opened from the diagnostics pages without adding another overview card.
+
+I did not add a new hot-path telemetry recorder in this sprint. I did not add disk writes, camera calls, vision calls, STT calls, LLM calls, or memory calls just to collect performance data.
+
+I also added a small set of natural deterministic Piper prewarm phrases in Polish and English, including diagnostics, waiting, and identity phrases. These phrases are meant to make NeXa sound more natural while keeping deterministic responses fast.
+
+### Runtime proof
+
+I ran the product runtime after the change and confirmed that Diagnostics still opens and closes quickly:
+
+feedback_on total_action_ms=1869.9
+feedback_off total_action_ms=1591.0
+
+I also confirmed that DIAGNOSTICS appears before the camera start and before libcamera output, and that exit still closes the runtime while the product launcher cleans up the Visual Shell.
+
+### Remaining work
+
+Some timing rows still show not measured yet until the runtime exposes more detailed metrics for those subsystems. Camera, Vision, Memory, Visual Shell, and some STT/VAD timing fields can be expanded later if safe hooks already exist or can be added without slowing down NeXa.
+

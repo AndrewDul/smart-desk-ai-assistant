@@ -45,7 +45,7 @@ const CENTER_CARD_IDS = [
 ]
 
 const CENTER_PAGE_IDS = [
-    "overview", "activity", "runtime", "llm", "audio", "benchmarks",
+    "overview", "activity", "runtime", "llm", "audio", "performance", "benchmarks",
     "logs", "memory", "vision", "power"
 ]
 
@@ -55,6 +55,7 @@ const CENTER_PAGE_LABELS = {
     "runtime": "Runtime",
     "llm": "LLM",
     "audio": "Audio",
+    "performance": "Performance",
     "benchmarks": "Benchmarks",
     "logs": "Logs",
     "memory": "Memory",
@@ -68,6 +69,7 @@ const CENTER_PAGE_SECTION = {
     "runtime": "runtime",
     "llm": "llm",
     "audio": "audio",
+    "performance": "performance",
     "benchmarks": "tests",
     "logs": "logs",
     "memory": "memory",
@@ -808,6 +810,8 @@ func _fallback_center_card_title(card_id: String) -> String:
         return "LLM Backend"
     if card_id == "audio":
         return "Audio / ASR"
+    if card_id == "performance":
+        return "Performance / Timings"
     if card_id == "tests":
         return "Benchmarks"
     if card_id == "logs":

@@ -51,6 +51,14 @@ class FakeMemory:
 
 
 @dataclass(slots=True)
+class FakeTurnBenchmarkService:
+    snapshot: dict[str, Any]
+
+    def latest_snapshot(self) -> dict[str, Any]:
+        return dict(self.snapshot)
+
+
+@dataclass(slots=True)
 class FakeMetricsProvider:
     def read_battery(self) -> BatteryReading | None:
         return BatteryReading(percent=81, source="unit-test")
@@ -72,6 +80,8 @@ class FakeAssistant:
     _last_response_delivery_snapshot: dict[str, Any] = None
     _last_fast_lane_route_snapshot: dict[str, Any] = None
     _diagnostics_events: list[dict[str, Any]] = None
+    turn_benchmark_service: FakeTurnBenchmarkService | None = None
+    vision: Any = None
 
     def __post_init__(self) -> None:
         self.settings = {"voice_input": {"engine": "faster_whisper", "device_name_contains": "reSpeaker"}}
@@ -97,6 +107,13 @@ class FakeAssistant:
             {"ts_ms": 1, "type": "standby", "message": "Waiting for wake word", "severity": "ok"},
             {"ts_ms": 2, "type": "heard", "message": "Heard: Tell me about black holes", "severity": "info"},
         ]
+        self.turn_benchmark_service = FakeTurnBenchmarkService(
+            {
+                "latest_sample": {},
+                "summary": {},
+                "overlay_lines": [],
+            }
+        )
 
 
 def _section(snapshot: dict[str, Any], section_id: str) -> dict[str, Any]:
@@ -116,6 +133,7 @@ def test_feedback_center_snapshot_builds_required_sections(tmp_path: Path) -> No
     assert [section["id"] for section in snapshot["sections"]] == [
         "overview",
         "activity",
+        "performance",
         "runtime",
         "llm",
         "audio",
@@ -142,6 +160,12 @@ def test_feedback_center_snapshot_builds_required_sections(tmp_path: Path) -> No
     assert power_values["Battery level"] == "81%"
     activity_values = {item["label"]: item["value"] for item in _section(snapshot, "activity")["items"]}
     assert activity_values["Heard"] == "Heard: Tell me about black holes"
+    performance_values = {
+        item["label"]: item["value"] for item in _section(snapshot, "performance")["items"]
+    }
+    assert performance_values["Last command"] == "Tell me about black holes"
+    assert performance_values["Route / source"] == "conversation"
+    assert performance_values["TTS first audio"] == "540.0 ms"
 
 
 def test_feedback_center_snapshot_handles_missing_sources(tmp_path: Path) -> None:
@@ -157,6 +181,11 @@ def test_feedback_center_snapshot_handles_missing_sources(tmp_path: Path) -> Non
     # On hardware the live metrics provider can read a real battery; accept any non-empty value.
     battery_value = _section(snapshot, "power")["items"][0]["value"]
     assert isinstance(battery_value, str) and battery_value
+    performance_values = {
+        item["label"]: item["value"] for item in _section(snapshot, "performance")["items"]
+    }
+    assert performance_values["Timing data"] == "No timing data yet"
+    assert performance_values["Last command"] == "unavailable"
 
 
 def test_feedback_center_snapshot_marks_ready_idle_activity(tmp_path: Path) -> None:
@@ -188,3 +217,85 @@ def test_feedback_center_snapshot_caps_recent_activity_events(tmp_path: Path) ->
 
     assert len(snapshot["recent_activity_events"]) == 30
     assert snapshot["recent_activity_events"][0]["message"] == "event 10"
+
+
+def test_feedback_center_snapshot_includes_cached_benchmark_timings(tmp_path: Path) -> None:
+    assistant = FakeAssistant()
+    assistant.turn_benchmark_service = FakeTurnBenchmarkService(
+        {
+            "latest_sample": {
+                "created_at_iso": "2026-05-18T10:00:00+00:00",
+                "user_text_preview": "open diagnostics",
+                "language": "en",
+                "stt_backend_label": "faster_whisper",
+                "route_kind": "action",
+                "primary_intent": "diagnostics_open",
+                "canonical_intent": "diagnostics.open",
+                "llm_prevented": True,
+                "result": "action_route",
+                "total_turn_ms": 1816.0,
+                "response_first_audio_ms": 145.0,
+                "route_to_first_audio_ms": 220.0,
+                "skill_to_first_audio_ms": 180.0,
+                "response_total_ms": 310.0,
+                "wake_to_listen_ms": 40.0,
+                "listen_to_speech_ms": 520.0,
+                "speech_to_route_ms": 18.0,
+                "skill_execution_window_ms": 70.0,
+                "skill_status": "accepted",
+                "response_source": "action",
+            },
+            "summary": {"last_total_turn_ms": 1816.0},
+            "overlay_lines": [],
+        }
+    )
+
+    snapshot = build_feedback_center_snapshot(
+        assistant=assistant,
+        repo_root=tmp_path,
+        metrics_provider=FakeMetricsProvider(),
+    )
+
+    performance_values = {
+        item["label"]: item["value"] for item in _section(snapshot, "performance")["items"]
+    }
+    assert performance_values["Last command"] == "open diagnostics"
+    assert performance_values["Canonical intent"] == "diagnostics.open"
+    assert performance_values["LLM prevented"] == "yes"
+    assert performance_values["total_action_ms"] == "1816.0 ms"
+    assert performance_values["route_to_first_audio"] == "220.0 ms"
+    assert performance_values["skill_to_first_audio"] == "180.0 ms"
+    assert "duration=520.0 ms" in performance_values["Event: STT / Listen to speech"]
+    assert "1816.0 ms" in performance_values["Slow op: Total turn"]
+    assert performance_values["Subsystem: STT"] == "not measured yet"
+
+
+def test_feedback_center_snapshot_does_not_start_heavy_services(tmp_path: Path) -> None:
+    class HeavyServiceGuard:
+        def __init__(self) -> None:
+            self.started = False
+
+        def status(self) -> dict[str, Any]:
+            return {"backend": "guarded"}
+
+        def start(self) -> None:
+            self.started = True
+            raise AssertionError("snapshot must not start camera")
+
+        def capture(self) -> None:
+            raise AssertionError("snapshot must not capture vision")
+
+        def generate(self) -> None:
+            raise AssertionError("snapshot must not call LLM generation")
+
+    assistant = FakeAssistant()
+    guard = HeavyServiceGuard()
+    assistant.vision = guard
+
+    build_feedback_center_snapshot(
+        assistant=assistant,
+        repo_root=tmp_path,
+        metrics_provider=FakeMetricsProvider(),
+    )
+
+    assert guard.started is False
