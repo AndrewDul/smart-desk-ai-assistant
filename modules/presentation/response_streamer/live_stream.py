@@ -29,6 +29,14 @@ class ResponseStreamerLiveStream(ResponseStreamerHelpers):
         except (TypeError, ValueError):
             return 0.0
 
+    @staticmethod
+    def _chunk_metric_ms(chunk: AssistantChunk, key: str) -> float:
+        metadata = dict(getattr(chunk, "metadata", {}) or {})
+        try:
+            return max(0.0, float(metadata.get(key, 0.0) or 0.0))
+        except (TypeError, ValueError):
+            return 0.0
+
     def _execute_live_stream(self, plan: ResponsePlan) -> StreamExecutionReport:
         prepared_chunks = self._prepare_chunks(plan)
         display_title, display_lines = self._resolve_display_content(plan, prepared_chunks)
@@ -39,18 +47,68 @@ class ResponseStreamerLiveStream(ResponseStreamerHelpers):
         first_sentence_latency_s: float | None = None
         first_chunk_latency_ms = 0.0
         first_chunk_started_at_monotonic = 0.0
+        first_token_latency_ms = 0.0
+        first_token_started_at_monotonic = 0.0
+        first_speakable_chunk_latency_ms = 0.0
+        first_speakable_chunk_started_at_monotonic = 0.0
 
         spoken_count = 0
         full_text_parts: list[str] = []
         dynamic_display_pool: list[str] = list(display_lines)
         display_shown = False
+        last_display_signature: tuple[str, tuple[str, ...]] | None = None
+        deferred_fallback_display_lines: list[str] = []
         chunk_kinds: list[str] = []
+        first_live_chunk_notified = False
+
+        def _notify_first_live_chunk() -> None:
+            nonlocal first_live_chunk_notified
+            if first_live_chunk_notified:
+                return
+            first_live_chunk_notified = True
+            callback = dict(getattr(plan, "metadata", {}) or {}).get("on_first_live_chunk")
+            if not callable(callback):
+                return
+            try:
+                callback()
+            except Exception as error:
+                LOGGER.warning("Live response first chunk callback failed: %s", error)
+
+        def _show_or_update_dynamic_display(lines: list[str]) -> None:
+            nonlocal display_shown
+            nonlocal last_display_signature
+            nonlocal deferred_fallback_display_lines
+
+            if not lines:
+                return
+
+            signature = (display_title, tuple(lines))
+            if signature == last_display_signature:
+                return
+
+            if not display_shown:
+                display_shown = self._show_display_block(display_title, lines)
+            elif not self._display_supports_live_update():
+                deferred_fallback_display_lines = list(lines)
+                return
+            else:
+                display_shown = bool(
+                    self._show_or_update_live_display_block(display_title, lines)
+                    or display_shown
+                )
+
+            if display_shown:
+                last_display_signature = signature
 
         def _track_spoken_chunk(chunk: AssistantChunk, speak_call_started_at: float) -> None:
             nonlocal first_audio_latency_s
             nonlocal first_sentence_latency_s
             nonlocal first_chunk_latency_ms
             nonlocal first_chunk_started_at_monotonic
+            nonlocal first_token_latency_ms
+            nonlocal first_token_started_at_monotonic
+            nonlocal first_speakable_chunk_latency_ms
+            nonlocal first_speakable_chunk_started_at_monotonic
 
             actual_first_audio_started_at = self._resolve_chunk_first_audio_started_at(
                 speak_call_started_at=speak_call_started_at,
@@ -58,17 +116,38 @@ class ResponseStreamerLiveStream(ResponseStreamerHelpers):
             if first_audio_latency_s is None:
                 first_audio_latency_s = max(0.0, actual_first_audio_started_at - response_started_at)
 
+            chunk_token_latency_ms = self._chunk_metric_ms(chunk, "first_token_latency_ms")
+            if first_token_latency_ms <= 0.0 and chunk_token_latency_ms > 0.0:
+                first_token_latency_ms = chunk_token_latency_ms
+                first_token_started_at_monotonic = (
+                    response_started_at + (chunk_token_latency_ms / 1000.0)
+                )
+
+            chunk_speakable_latency_ms = self._chunk_metric_ms(
+                chunk,
+                "first_speakable_chunk_latency_ms",
+            )
+            if first_speakable_chunk_latency_ms <= 0.0 and chunk_speakable_latency_ms > 0.0:
+                first_speakable_chunk_latency_ms = chunk_speakable_latency_ms
+                first_speakable_chunk_started_at_monotonic = (
+                    response_started_at + (chunk_speakable_latency_ms / 1000.0)
+                )
+
             chunk_first_latency_ms = self._chunk_first_latency_ms(chunk)
             if first_chunk_latency_ms <= 0.0 and chunk_first_latency_ms > 0.0:
                 first_chunk_latency_ms = chunk_first_latency_ms
                 first_chunk_started_at_monotonic = (
                     response_started_at + (chunk_first_latency_ms / 1000.0)
                 )
+                if first_speakable_chunk_latency_ms <= 0.0:
+                    first_speakable_chunk_latency_ms = chunk_first_latency_ms
+                    first_speakable_chunk_started_at_monotonic = first_chunk_started_at_monotonic
 
             if first_sentence_latency_s is None and self._is_sentence_chunk_kind(chunk.kind):
                 first_sentence_latency_s = max(0.0, actual_first_audio_started_at - response_started_at)
 
         for chunk in prepared_chunks:
+            _notify_first_live_chunk()
             speak_call_started_at = time.monotonic()
             spoken_ok = self._speak_live_chunk(chunk)
             if not spoken_ok:
@@ -85,37 +164,45 @@ class ResponseStreamerLiveStream(ResponseStreamerHelpers):
 
             _track_spoken_chunk(chunk, speak_call_started_at)
 
-            if not display_shown:
-                display_shown = self._show_display_block(
-                    display_title,
-                    self._resolve_live_display_lines(dynamic_display_pool),
-                )
+            current_display_lines = self._resolve_live_display_lines(dynamic_display_pool)
+            _show_or_update_dynamic_display(current_display_lines)
 
-        for chunk in live_chunks:
+        live_iterator = iter(live_chunks)
+        current_chunk = self._next_live_chunk(live_iterator)
+        while current_chunk is not None:
+            next_chunk = self._next_live_chunk(live_iterator)
             if self._interrupted():
                 break
 
+            next_hint = self._live_next_hint(next_chunk)
+            _notify_first_live_chunk()
             speak_call_started_at = time.monotonic()
-            spoken_ok = self._speak_live_chunk(chunk)
+            spoken_ok = self._speak_live_chunk(current_chunk, next_hint=next_hint)
             if not spoken_ok:
                 if self._interrupted():
                     break
+                current_chunk = next_chunk
                 continue
 
             spoken_count += 1
-            chunk_kinds.append(chunk.kind.value)
-            cleaned = clean_response_text(chunk.text)
+            chunk_kinds.append(current_chunk.kind.value)
+            cleaned = clean_response_text(current_chunk.text)
             if cleaned:
                 full_text_parts.append(cleaned)
                 self._extend_dynamic_display_pool(dynamic_display_pool, cleaned)
 
-            _track_spoken_chunk(chunk, speak_call_started_at)
+            _track_spoken_chunk(current_chunk, speak_call_started_at)
 
-            if not display_shown:
-                display_shown = self._show_display_block(
-                    display_title,
-                    self._resolve_live_display_lines(dynamic_display_pool),
-                )
+            current_display_lines = self._resolve_live_display_lines(dynamic_display_pool)
+            _show_or_update_dynamic_display(current_display_lines)
+
+            current_chunk = next_chunk
+
+        if display_shown and deferred_fallback_display_lines:
+            final_signature = (display_title, tuple(deferred_fallback_display_lines))
+            if final_signature != last_display_signature:
+                if self._show_display_block(display_title, deferred_fallback_display_lines):
+                    last_display_signature = final_signature
 
         if not display_shown:
             self._show_display_block(
@@ -131,13 +218,16 @@ class ResponseStreamerLiveStream(ResponseStreamerHelpers):
 
         LOGGER.info(
             "Live response plan executed: turn_id=%s, route_kind=%s, stream_mode=%s, "
-            "spoken_chunks=%s, first_audio_latency=%.3fs, first_chunk_ms=%.1f, "
+            "spoken_chunks=%s, first_audio_ms=%.1f, first_token_latency_ms=%.1f, "
+            "first_speakable_chunk_latency_ms=%.1f, first_chunk_latency_ms=%.1f, "
             "first_sentence_latency=%.3fs, total_elapsed=%.3fs",
             plan.turn_id,
             self._route_kind_value(plan),
             self._stream_mode_value(plan),
             spoken_count,
-            first_audio_latency_s if first_audio_latency_s is not None else -1.0,
+            (first_audio_latency_s * 1000.0) if first_audio_latency_s is not None else -1.0,
+            first_token_latency_ms,
+            first_speakable_chunk_latency_ms,
             first_chunk_latency_ms,
             first_sentence_latency_s if first_sentence_latency_s is not None else -1.0,
             total_elapsed,
@@ -150,7 +240,10 @@ class ResponseStreamerLiveStream(ResponseStreamerHelpers):
             display_title=display_title,
             display_lines=self._resolve_live_display_lines(dynamic_display_pool),
             first_audio_latency_ms=(first_audio_latency_s or 0.0) * 1000.0,
+            first_audio_ms=(first_audio_latency_s or 0.0) * 1000.0,
             first_chunk_latency_ms=first_chunk_latency_ms,
+            first_token_latency_ms=first_token_latency_ms,
+            first_speakable_chunk_latency_ms=first_speakable_chunk_latency_ms,
             first_sentence_latency_ms=(first_sentence_latency_s or 0.0) * 1000.0,
             total_elapsed_ms=total_elapsed * 1000.0,
             started_at_monotonic=response_started_at,
@@ -160,6 +253,8 @@ class ResponseStreamerLiveStream(ResponseStreamerHelpers):
                 else 0.0
             ),
             first_chunk_started_at_monotonic=first_chunk_started_at_monotonic,
+            first_token_started_at_monotonic=first_token_started_at_monotonic,
+            first_speakable_chunk_started_at_monotonic=first_speakable_chunk_started_at_monotonic,
             first_sentence_started_at_monotonic=(
                 response_started_at + first_sentence_latency_s
                 if first_sentence_latency_s is not None
@@ -255,11 +350,60 @@ class ResponseStreamerLiveStream(ResponseStreamerHelpers):
             metadata=metadata,
         )
 
-    def _speak_live_chunk(self, chunk: AssistantChunk) -> bool:
+    def _next_live_chunk(self, chunks: Iterator[AssistantChunk]) -> AssistantChunk | None:
+        try:
+            return next(chunks)
+        except StopIteration:
+            return None
+        except Exception as error:
+            LOGGER.exception("Live chunk iterator failed while preparing lookahead: %s", error)
+            return None
+
+    def _live_next_hint(self, chunk: AssistantChunk | None) -> tuple[str, str] | None:
+        if chunk is None:
+            return None
+        text = clean_response_text(chunk.text)
+        if not text or len(text) > self.prefetch_max_chars:
+            return None
+        return text, chunk.language
+
+    def _show_or_update_live_display_block(self, title: str, lines: list[str]) -> bool:
+        for method_name in ("update_block", "replace_block", "update_overlay"):
+            method = getattr(self.display, method_name, None)
+            if not callable(method):
+                continue
+            try:
+                method(title, lines, duration=self.default_display_seconds)
+                return True
+            except TypeError:
+                try:
+                    method(title, lines)
+                    return True
+                except Exception as error:
+                    LOGGER.warning("Display %s failed: %s", method_name, error)
+                    return False
+            except Exception as error:
+                LOGGER.warning("Display %s failed: %s", method_name, error)
+                return False
+
+        return self._show_display_block(title, lines)
+
+    def _display_supports_live_update(self) -> bool:
+        return any(
+            callable(getattr(self.display, method_name, None))
+            for method_name in ("update_block", "replace_block", "update_overlay")
+        )
+
+    def _speak_live_chunk(
+        self,
+        chunk: AssistantChunk,
+        *,
+        next_hint: tuple[str, str] | None = None,
+    ) -> bool:
         text = clean_response_text(chunk.text)
         if not text:
             return False
-        return self._speak_chunk(chunk, text, next_hint=None)
+        return self._speak_chunk(chunk, text, next_hint=next_hint)
 
     def _extend_dynamic_display_pool(self, pool: list[str], text: str) -> None:
         cleaned = clean_response_text(text)
@@ -270,14 +414,18 @@ class ResponseStreamerLiveStream(ResponseStreamerHelpers):
             pool.extend(self._sentence_units(cleaned))
             return
 
-        pool.extend(self._sentence_units(cleaned))
+        for unit in self._sentence_units(cleaned):
+            if pool and pool[-1] == unit:
+                continue
+            pool.append(unit)
         del pool[self.max_display_lines * 2 :]
 
     def _resolve_live_display_lines(self, pool: list[str]) -> list[str]:
         if not pool:
             return []
+        recent_pool = pool[-self.max_display_lines :]
         return self._build_display_lines_from_chunks(
-            [AssistantChunk(text=text, sequence_index=index) for index, text in enumerate(pool)]
+            [AssistantChunk(text=text, sequence_index=index) for index, text in enumerate(recent_pool)]
         )
 
 

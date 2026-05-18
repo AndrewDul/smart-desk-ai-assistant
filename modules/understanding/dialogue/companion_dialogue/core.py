@@ -51,6 +51,9 @@ class CompanionDialogueService(
         self.default_stream_mode = self._resolve_stream_mode(
             streaming_cfg.get("dialogue_stream_mode", "sentence")
         )
+        self.live_llm_sentence_streaming_enabled = bool(
+            streaming_cfg.get("live_llm_sentence_streaming_enabled", True)
+        )
 
         self._humour_index = 0
         self._riddle_index = 0

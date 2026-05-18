@@ -5907,3 +5907,45 @@ The real GGUF model is stored outside the repo at `~/Models/nexa/`.
 ### Note
 
 P2A streaming polish is still in stash and was not applied in this commit.
+
+## 2026-05-18 - Local LLM P2A streaming polish
+
+### Problem
+
+Local LLM backend was ready, but early runtime output was short, noisy, or reused previous action context.
+
+### Fix
+
+I filtered action-flow responses from LLM prompt memory and improved live streaming/display behavior.
+
+### Problem
+
+“Tell me about...” was sent to LLM without a topic.
+
+### Fix
+
+I added a clarification follow-up and topic completion path.
+
+### Problem
+
+Some Polish ASR outputs were slightly corrupted, like “czarny dziury”, “soto są czarne dziur”, “stucznej”, and “oczcznej”.
+
+### Fix
+
+I added narrow normalization for those repeated cases.
+
+### Problem
+
+Black hole answers could be factually weak.
+
+### Fix
+
+I added prompt grounding that black holes are real astrophysical objects/regions.
+
+### Note
+
+`llama-server` and the Qwen GGUF model are local runtime artifacts and must stay out of git.
+
+### Note
+
+Remaining risk is ASR/endpointing, especially input overflow and random background captures.

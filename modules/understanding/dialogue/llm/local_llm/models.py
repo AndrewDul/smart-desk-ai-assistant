@@ -31,6 +31,8 @@ class LocalLLMChunk:
     kind: ChunkKind = ChunkKind.CONTENT
     metadata: dict[str, Any] = field(default_factory=dict)
     first_chunk_latency_ms: float = 0.0
+    first_token_latency_ms: float = 0.0
+    first_speakable_chunk_latency_ms: float = 0.0
 
 
 @dataclass(slots=True)

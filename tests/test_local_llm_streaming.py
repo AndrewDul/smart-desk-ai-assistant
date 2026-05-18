@@ -45,6 +45,86 @@ class LocalLLMStreamingTests(unittest.TestCase):
         self.assertEqual(ready, ["This is the first complete sentence."])
         self.assertEqual(tail, "This tail is still growing")
 
+    def test_system_prompt_keeps_science_grounded(self) -> None:
+        service = self._build_service()
+        context = service._coerce_context(
+            {
+                "topics": ["knowledge_query"],
+                "route_kind": "conversation",
+            },
+            user_text="co to są czarne dziury",
+        )
+        profile = service._build_generation_profile(
+            language="pl",
+            context=context,
+            user_prompt="co to są czarne dziury",
+        )
+
+        prompt = service._build_system_prompt(
+            language="pl",
+            context=context,
+            profile=profile,
+        )
+
+        self.assertIn("realne obiekty lub obszary astrofizyczne", prompt)
+        self.assertIn("nie opisuj jako istniejących tylko w matematyce", prompt)
+        self.assertIn("oczywisty błąd ASR", prompt)
+        self.assertIn("nie powtarzaj błędnej frazy", prompt)
+
+    def test_split_ready_stream_chunks_emits_one_sentence_at_a_time(self) -> None:
+        service = self._build_service()
+
+        ready, tail = service._split_ready_stream_chunks(
+            "First complete sentence. Second complete sentence. Third is still growing",
+            language="en",
+            final_flush=False,
+        )
+
+        self.assertEqual(
+            ready,
+            ["First complete sentence.", "Second complete sentence."],
+        )
+        self.assertEqual(tail, "Third is still growing")
+
+    def test_split_ready_stream_chunks_avoids_abbreviation_boundary(self) -> None:
+        service = self._build_service()
+
+        ready, tail = service._split_ready_stream_chunks(
+            "Dr. Smith explains black holes. Next sentence is growing",
+            language="en",
+            final_flush=False,
+        )
+
+        self.assertEqual(ready, ["Dr. Smith explains black holes."])
+        self.assertEqual(tail, "Next sentence is growing")
+
+    def test_split_ready_stream_chunks_handles_decimal_sentence(self) -> None:
+        service = self._build_service()
+
+        ready, tail = service._split_ready_stream_chunks(
+            "The value is 3.14. This sentence is growing",
+            language="en",
+            final_flush=False,
+        )
+
+        self.assertEqual(ready, ["The value is 3.14."])
+        self.assertEqual(tail, "This sentence is growing")
+
+    def test_split_ready_stream_chunks_uses_clause_before_hard_space_fallback(self) -> None:
+        service = self._build_service()
+        service.stream_sentence_min_chars = 18
+        service.stream_sentence_soft_max_chars = 64
+
+        ready, tail = service._split_ready_stream_chunks(
+            "Black holes bend spacetime in extreme ways, and this explanation can continue without a full stop yet",
+            language="en",
+            final_flush=False,
+            emitted_count=1,
+        )
+
+        self.assertEqual(ready, ["Black holes bend spacetime in extreme ways,"])
+        self.assertTrue(tail.startswith("and this explanation"))
+
     def test_chunk_full_text_reply_emits_ordered_chunks(self) -> None:
         service = self._build_service()
 

@@ -193,6 +193,56 @@ class DialogueFlowOrchestrator(
                 )
             )
 
+        if bool(route.metadata.get("incomplete_dialogue_query")):
+            assistant.pending_follow_up = {
+                "type": "clarification_repeat",
+                "language": lang,
+                "retry_count": 0,
+                "max_retries": 1,
+                "window_seconds": 5.5,
+                "source": "incomplete_dialogue_query",
+            }
+            return bool(
+                assistant.deliver_text_response(
+                    assistant._localized(
+                        lang,
+                        "O czym mam opowiedzieć?",
+                        "Tell you about what?",
+                    ),
+                    language=lang,
+                    route_kind=RouteKind.UNCLEAR,
+                    source="dialogue_incomplete_query_clarification",
+                    metadata=self._route_memory_metadata(
+                        route,
+                        lang,
+                        source="dialogue_incomplete_query_clarification",
+                    ),
+                )
+            )
+
+        if bool(route.metadata.get("partial_polish_dialogue_topic")):
+            assistant.pending_follow_up = {
+                "type": "clarification_repeat",
+                "language": "pl",
+                "retry_count": 0,
+                "max_retries": 1,
+                "window_seconds": 5.5,
+                "source": "partial_polish_dialogue_topic",
+            }
+            return bool(
+                assistant.deliver_text_response(
+                    "O sztucznej czym? Chodzi Ci o sztuczną inteligencję?",
+                    language="pl",
+                    route_kind=RouteKind.UNCLEAR,
+                    source="dialogue_partial_polish_topic_clarification",
+                    metadata=self._route_memory_metadata(
+                        route,
+                        "pl",
+                        source="dialogue_partial_polish_topic_clarification",
+                    ),
+                )
+            )
+
         pending_confirmation = getattr(assistant, "pending_confirmation", None)
         pending_follow_up = getattr(assistant, "pending_follow_up", None)
         if pending_confirmation or pending_follow_up:

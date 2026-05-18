@@ -15,6 +15,27 @@ from .models import LocalLLMChunk
 
 class LocalLLMStreamingMixin:
     _STREAM_BOUNDARY_RE = re.compile(r"(?<=[.!?])\s+")
+    _STREAM_CLAUSE_MARKERS = (",", ";", ":")
+    _STREAM_ABBREVIATIONS = {
+        "e.g.",
+        "i.e.",
+        "etc.",
+        "mr.",
+        "mrs.",
+        "ms.",
+        "dr.",
+        "prof.",
+        "sr.",
+        "jr.",
+        "st.",
+        "vs.",
+        "np.",
+        "itd.",
+        "itp.",
+        "m.in.",
+        "tzn.",
+        "tzw.",
+    }
 
     def mark_first_chunk_received(self, first_chunk_latency_ms: float) -> None:
         self._last_first_chunk_latency_ms = max(0.0, float(first_chunk_latency_ms or 0.0))
@@ -191,7 +212,7 @@ class LocalLLMStreamingMixin:
         )
 
         request_started_at = time.perf_counter()
-        first_chunk_latency_ms = 0.0
+        first_token_latency_ms = 0.0
         pending_buffer = ""
         raw_full_text_parts: list[str] = []
         emitted_count = 0
@@ -222,9 +243,9 @@ class LocalLLMStreamingMixin:
                         preserve_token_spacing=True,
                     )
                     if text_delta:
-                        if first_chunk_latency_ms <= 0.0:
-                            first_chunk_latency_ms = (time.perf_counter() - request_started_at) * 1000.0
-                            self.mark_first_chunk_received(first_chunk_latency_ms)
+                        if first_token_latency_ms <= 0.0:
+                            first_token_latency_ms = (time.perf_counter() - request_started_at) * 1000.0
+                            self.mark_first_chunk_received(first_token_latency_ms)
 
                         raw_full_text_parts.append(text_delta)
                         pending_buffer = f"{pending_buffer}{text_delta}"
@@ -245,6 +266,11 @@ class LocalLLMStreamingMixin:
                             )
                             if not cleaned:
                                 continue
+                            first_speakable_chunk_latency_ms = 0.0
+                            if emitted_count == 0:
+                                first_speakable_chunk_latency_ms = (
+                                    time.perf_counter() - request_started_at
+                                ) * 1000.0
                             yield LocalLLMChunk(
                                 text=cleaned,
                                 language=language,
@@ -254,8 +280,17 @@ class LocalLLMStreamingMixin:
                                 flush=True,
                                 speak_now=True,
                                 kind=ChunkKind.CONTENT,
-                                metadata={"source": source, "live": True},
-                                first_chunk_latency_ms=first_chunk_latency_ms if emitted_count == 0 else 0.0,
+                                metadata={
+                                    "source": source,
+                                    "live": True,
+                                    "first_token_latency_ms": (
+                                        first_token_latency_ms if emitted_count == 0 else 0.0
+                                    ),
+                                    "first_speakable_chunk_latency_ms": first_speakable_chunk_latency_ms,
+                                },
+                                first_chunk_latency_ms=first_speakable_chunk_latency_ms,
+                                first_token_latency_ms=first_token_latency_ms if emitted_count == 0 else 0.0,
+                                first_speakable_chunk_latency_ms=first_speakable_chunk_latency_ms,
                             )
                             emitted_count += 1
 
@@ -279,6 +314,9 @@ class LocalLLMStreamingMixin:
             final_chunk=True,
         )
         if tail_text:
+            first_speakable_chunk_latency_ms = 0.0
+            if emitted_count == 0:
+                first_speakable_chunk_latency_ms = (time.perf_counter() - request_started_at) * 1000.0
             yield LocalLLMChunk(
                 text=tail_text,
                 language=language,
@@ -288,8 +326,16 @@ class LocalLLMStreamingMixin:
                 flush=True,
                 speak_now=True,
                 kind=ChunkKind.CONTENT,
-                metadata={"source": source, "live": True, "tail": True},
-                first_chunk_latency_ms=first_chunk_latency_ms if emitted_count == 0 else 0.0,
+                metadata={
+                    "source": source,
+                    "live": True,
+                    "tail": True,
+                    "first_token_latency_ms": first_token_latency_ms if emitted_count == 0 else 0.0,
+                    "first_speakable_chunk_latency_ms": first_speakable_chunk_latency_ms,
+                },
+                first_chunk_latency_ms=first_speakable_chunk_latency_ms,
+                first_token_latency_ms=first_token_latency_ms if emitted_count == 0 else 0.0,
+                first_speakable_chunk_latency_ms=first_speakable_chunk_latency_ms,
             )
             emitted_count += 1
 
@@ -337,8 +383,15 @@ class LocalLLMStreamingMixin:
                     flush=True,
                     speak_now=True,
                     kind=ChunkKind.CONTENT,
-                    metadata={"source": source, "live": False},
+                    metadata={
+                        "source": source,
+                        "live": False,
+                        "first_token_latency_ms": first_chunk_latency_ms if index == 0 else 0.0,
+                        "first_speakable_chunk_latency_ms": first_chunk_latency_ms if index == 0 else 0.0,
+                    },
                     first_chunk_latency_ms=first_chunk_latency_ms if index == 0 else 0.0,
+                    first_token_latency_ms=first_chunk_latency_ms if index == 0 else 0.0,
+                    first_speakable_chunk_latency_ms=first_chunk_latency_ms if index == 0 else 0.0,
                 )
 
         return _generator()
@@ -351,8 +404,6 @@ class LocalLLMStreamingMixin:
         final_flush: bool = False,
         emitted_count: int = 0,
     ) -> tuple[list[str], str]:
-        del language
-
         cleaned_buffer = str(buffer_text or "")
         if not cleaned_buffer.strip():
             return [], ""
@@ -392,16 +443,15 @@ class LocalLLMStreamingMixin:
             and len(normalized_remainder) >= self.stream_sentence_soft_max_chars
             and " " in normalized_remainder
         ):
-            split_at = normalized_remainder.rfind(" ", 0, self.stream_sentence_soft_max_chars)
-            if split_at >= self.stream_sentence_min_chars:
-                head = clean_response_text(normalized_remainder[:split_at])
-                tail = clean_response_text(normalized_remainder[split_at:])
-                if head:
+            soft_split = self._find_soft_stream_split(normalized_remainder)
+            if soft_split >= self.stream_sentence_min_chars:
+                head = clean_response_text(normalized_remainder[:soft_split])
+                tail = clean_response_text(normalized_remainder[soft_split:])
+                if head and tail:
                     ready.append(head)
                     return ready, tail
 
         return ready, remainder
-
 
     def _split_fast_first_stream_chunk(self, text: str) -> tuple[str, str] | None:
         normalized = clean_response_text(text)
@@ -411,15 +461,11 @@ class LocalLLMStreamingMixin:
         if len(normalized) < self.stream_first_chunk_soft_max_chars:
             return None
 
-        split_at = -1
-        for marker in (",", ";", ":"):
-            marker_index = normalized.rfind(
-                marker,
-                self.stream_first_chunk_min_chars,
-                self.stream_first_chunk_soft_max_chars + 1,
-            )
-            if marker_index >= self.stream_first_chunk_min_chars:
-                split_at = max(split_at, marker_index + 1)
+        split_at = self._find_clause_split(
+            normalized,
+            min_chars=self.stream_first_chunk_min_chars,
+            max_chars=self.stream_first_chunk_soft_max_chars,
+        )
 
         if split_at < self.stream_first_chunk_min_chars:
             split_at = normalized.rfind(
@@ -439,22 +485,88 @@ class LocalLLMStreamingMixin:
 
         return head, tail
 
-
-
     def _find_stream_boundary(self, text: str) -> int:
         cleaned = str(text or "")
         if not cleaned:
             return -1
 
-        matches = list(self._STREAM_BOUNDARY_RE.finditer(cleaned))
-        if matches:
-            return matches[-1].end()
+        for match in self._STREAM_BOUNDARY_RE.finditer(cleaned):
+            boundary = match.end()
+            punctuation_index = match.start() - 1
+            if self._is_safe_sentence_boundary(cleaned, punctuation_index, boundary):
+                return boundary
 
         stripped = cleaned.rstrip()
         if stripped and stripped[-1] in ".!?":
+            punctuation_index = len(stripped) - 1
+            if not self._is_safe_sentence_boundary(stripped, punctuation_index, len(stripped)):
+                return -1
             return len(stripped)
 
         return -1
+
+    def _is_safe_sentence_boundary(
+        self,
+        text: str,
+        punctuation_index: int,
+        boundary: int,
+    ) -> bool:
+        if punctuation_index < 0 or punctuation_index >= len(text):
+            return False
+
+        punctuation = text[punctuation_index]
+        if punctuation == ".":
+            previous_char = text[punctuation_index - 1] if punctuation_index > 0 else ""
+            next_char = text[punctuation_index + 1] if punctuation_index + 1 < len(text) else ""
+            if previous_char.isdigit() and next_char.isdigit():
+                return False
+
+            prefix = text[: punctuation_index + 1].strip().lower()
+            last_token = prefix.split()[-1] if prefix.split() else ""
+            if last_token in self._STREAM_ABBREVIATIONS:
+                return False
+            if re.fullmatch(r"[a-ząćęłńóśźż]\.", last_token):
+                return False
+
+        tail = text[boundary:].lstrip()
+        if tail and tail[0].islower():
+            return False
+
+        return True
+
+    def _find_soft_stream_split(self, text: str) -> int:
+        normalized = clean_response_text(text)
+        if not normalized:
+            return -1
+
+        clause_split = self._find_clause_split(
+            normalized,
+            min_chars=self.stream_sentence_min_chars,
+            max_chars=self.stream_sentence_soft_max_chars,
+        )
+        if clause_split >= self.stream_sentence_min_chars:
+            return clause_split
+
+        hard_max = max(
+            self.stream_sentence_soft_max_chars + 32,
+            self.stream_sentence_min_chars + 16,
+        )
+        if len(normalized) < hard_max:
+            return -1
+
+        split_at = normalized.rfind(" ", self.stream_sentence_min_chars, hard_max + 1)
+        if split_at >= self.stream_sentence_min_chars:
+            return split_at
+        return -1
+
+    def _find_clause_split(self, text: str, *, min_chars: int, max_chars: int) -> int:
+        normalized = str(text or "")
+        split_at = -1
+        for marker in self._STREAM_CLAUSE_MARKERS:
+            marker_index = normalized.rfind(marker, min_chars, max_chars + 1)
+            if marker_index >= min_chars:
+                split_at = max(split_at, marker_index + 1)
+        return split_at
 
     def _sanitize_stream_text(
         self,

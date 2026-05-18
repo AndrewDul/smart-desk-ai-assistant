@@ -269,12 +269,72 @@ class PendingFlowFollowUpMixin:
                 consumed_by="follow_up:clarification_repeat_retry",
             )
 
+        if str(follow_up.get("source", "") or "").strip() == "incomplete_dialogue_query":
+            return self._handle_incomplete_dialogue_topic_follow_up(
+                text=text,
+                language=language,
+                follow_up=follow_up,
+            )
+
         self.assistant._last_clarification_repeat_context = {
             "retry_count": retry_count,
             "max_retries": max_retries,
         }
         self.assistant.pending_follow_up = None
         return PendingFlowDecision(handled=False)
+
+    def _handle_incomplete_dialogue_topic_follow_up(
+        self,
+        *,
+        text: str,
+        language: str,
+        follow_up: dict[str, Any],
+    ) -> PendingFlowDecision:
+        topic = self._clean_incomplete_dialogue_topic(text)
+        if not topic:
+            self.assistant.pending_follow_up = {
+                **follow_up,
+                "type": "clarification_repeat",
+                "language": language,
+            }
+            return PendingFlowDecision(handled=False)
+
+        completed_text = self._complete_incomplete_dialogue_query(
+            topic=topic,
+            language=language,
+        )
+        self.assistant.pending_follow_up = None
+        handle_command = getattr(self.assistant, "handle_command", None)
+        if not callable(handle_command):
+            return PendingFlowDecision(handled=False)
+
+        result = bool(handle_command(completed_text))
+        return PendingFlowDecision(
+            handled=True,
+            response=result,
+            consumed_by="follow_up:incomplete_dialogue_topic",
+            metadata={
+                "follow_up_type": "clarification_repeat",
+                "source": "incomplete_dialogue_query",
+                "topic": topic,
+                "completed_text": completed_text,
+            },
+        )
+
+    @staticmethod
+    def _clean_incomplete_dialogue_topic(text: str) -> str:
+        cleaned = re.sub(r"\s+", " ", str(text or "").strip())
+        cleaned = re.sub(r"^[\s.?!,;:]+|[\s.?!,;:]+$", "", cleaned)
+        return cleaned
+
+    @staticmethod
+    def _complete_incomplete_dialogue_query(*, topic: str, language: str) -> str:
+        normalized = re.sub(r"\s+", " ", str(topic or "").strip().lower())
+        if str(language or "").strip().lower().startswith("pl"):
+            if normalized in {"czarne dziury", "czarne dziur", "czarny dziury"}:
+                return "Opowiedz mi o czarnych dziurach."
+            return f"Opowiedz mi o {topic}."
+        return f"Tell me about {topic}."
 
     def _handle_duration_follow_up(
         self,

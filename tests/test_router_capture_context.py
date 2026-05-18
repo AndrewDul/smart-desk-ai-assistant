@@ -71,6 +71,101 @@ class RouterCaptureContextTests(unittest.TestCase):
         self.assertEqual(route.metadata["capture_backend"], "wake_inline_command")
         self.assertIn("capture_phase:inline_command_after_wake", route.notes)
 
+    def test_polish_black_hole_questions_route_to_dialogue(self) -> None:
+        router = SemanticCompanionRouter(
+            _FakeParser(
+                IntentResult.unclear(
+                    normalized_text="",
+                    confidence=0.24,
+                )
+            )
+        )
+
+        phrases = [
+            "co to są czarne dziury",
+            "czym są czarne dziury",
+            "powiedz mi czym są czarne dziury",
+            "opowiedz krótko czym są czarne dziury",
+            "wyjaśnij prostymi słowami czym są czarne dziury",
+        ]
+
+        for phrase in phrases:
+            with self.subTest(phrase=phrase):
+                route = router.route(phrase)
+
+                self.assertEqual(route.kind, RouteKind.CONVERSATION)
+                self.assertEqual(route.language, "pl")
+                self.assertEqual(route.primary_intent, "knowledge_query")
+                self.assertEqual(route.conversation_topics, ["knowledge_query"])
+
+    def test_incomplete_tell_me_about_routes_to_unclear_clarification(self) -> None:
+        router = SemanticCompanionRouter(
+            _FakeParser(
+                IntentResult.unclear(
+                    normalized_text="tell me about...",
+                    confidence=0.24,
+                )
+            )
+        )
+
+        route = router.route("Tell me about...")
+
+        self.assertEqual(route.kind, RouteKind.UNCLEAR)
+        self.assertEqual(route.primary_intent, "incomplete_dialogue_query")
+        self.assertTrue(route.metadata["incomplete_dialogue_query"])
+        self.assertIn("incomplete_dialogue_query", route.notes)
+
+    def test_polish_artificial_intelligence_asr_variants_normalize_to_dialogue(self) -> None:
+        router = SemanticCompanionRouter(
+            _FakeParser(
+                IntentResult.unclear(
+                    normalized_text="",
+                    confidence=0.24,
+                )
+            )
+        )
+
+        phrases = [
+            "Powiedz mi coś o stucznej",
+            "Powiedz mi coś oczcznej",
+            "Opowiedz mi coś o stucznej",
+            "Powiedz mi coś o szczucznej",
+            "Powiedz mi coś o sztucznej.",
+        ]
+
+        for phrase in phrases:
+            with self.subTest(phrase=phrase):
+                route = router.route(phrase)
+
+                self.assertEqual(route.kind, RouteKind.CONVERSATION)
+                self.assertEqual(route.language, "pl")
+                self.assertEqual(route.primary_intent, "knowledge_query")
+                self.assertIn("coś o sztucznej inteligencji", route.normalized_text)
+
+    def test_polish_black_hole_asr_variants_are_normalized_to_dialogue(self) -> None:
+        router = SemanticCompanionRouter(
+            _FakeParser(
+                IntentResult.unclear(
+                    normalized_text="",
+                    confidence=0.24,
+                )
+            )
+        )
+
+        cases = {
+            "Soto są czarne dziur": "co to są czarne dziury",
+            "Co to są czarny dziury": "co to są czarne dziury",
+        }
+
+        for phrase, expected_normalized in cases.items():
+            with self.subTest(phrase=phrase):
+                route = router.route(phrase)
+
+                self.assertEqual(route.kind, RouteKind.CONVERSATION)
+                self.assertEqual(route.language, "pl")
+                self.assertEqual(route.primary_intent, "knowledge_query")
+                self.assertEqual(route.normalized_text, expected_normalized)
+
 
 if __name__ == "__main__":
     unittest.main()

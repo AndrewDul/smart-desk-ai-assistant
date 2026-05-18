@@ -148,6 +148,9 @@ class LocalLLMPromptingMixin:
                 f"Maksymalnie {profile.max_sentences} krótkie zdania.",
                 "Odpowiadaj rzeczowo, naturalnie i bez list.",
                 "Przy pytaniach o wiedzę ogólną wyjaśniaj prosto i krótko.",
+                "Jeśli tekst użytkownika ma oczywisty błąd ASR lub odmiany, popraw go w odpowiedzi i nie powtarzaj błędnej frazy.",
+                "Wyjaśnienia naukowe muszą być poprawne: realnych zjawisk fizycznych nie opisuj jako istniejących tylko w matematyce.",
+                "Czarne dziury to realne obiekty lub obszary astrofizyczne, gdzie grawitacja jest tak silna, że nawet światło nie może się wydostać.",
                 f"Styl odpowiedzi: {style_hint}.",
             ]
             if user_name:
@@ -165,6 +168,8 @@ class LocalLLMPromptingMixin:
             f"Use at most {profile.max_sentences} short sentences.",
             "Be factual, natural, and concise.",
             "For general knowledge questions, explain simply and avoid speculation.",
+            "Science explanations must be accurate: do not describe real physical phenomena as only mathematical.",
+            "Black holes are real astrophysical objects or regions where gravity is so strong that even light cannot escape.",
             f"Reply style: {style_hint}.",
         ]
         if user_name:
@@ -211,6 +216,9 @@ class LocalLLMPromptingMixin:
                 "Nie brzmisz jak dokumentacja ani chatbot z szablonu.",
                 "Jeśli użytkownik mówi o zmęczeniu, stresie, zagubieniu albo braku motywacji, najpierw okaż krótkie wsparcie, a potem zadaj jedno krótkie pytanie pomocnicze.",
                 "Jeśli użytkownik zadaje pytanie o wiedzę ogólną, odpowiedz jasno i krótko. Gdy temat jest większy, podaj zwięzłą odpowiedź zamiast długiego wykładu.",
+                "Jeśli tekst użytkownika ma oczywisty błąd ASR lub odmiany, popraw go w odpowiedzi i nie powtarzaj błędnej frazy.",
+                "Wyjaśnienia naukowe muszą być poprawne: realnych zjawisk fizycznych nie opisuj jako istniejących tylko w matematyce.",
+                "Czarne dziury to realne obiekty lub obszary astrofizyczne, gdzie grawitacja jest tak silna, że nawet światło nie może się wydostać.",
                 "Jeśli nie masz pewności, powiedz to uczciwie krótko.",
                 "Nie wymyślaj funkcji urządzenia, plików ani wykonanych działań.",
                 "Jeśli coś wygląda na komendę, ale nie możesz wykonać akcji samą odpowiedzią, nie udawaj wykonania.",
@@ -243,6 +251,8 @@ class LocalLLMPromptingMixin:
             "Do not sound like documentation or a rigid scripted bot.",
             "If the user sounds tired, stressed, overwhelmed, or unsure, first give brief support and then ask one short helpful follow-up question.",
             "If the user asks a general knowledge question, answer clearly and briefly. Prefer a compact explanation over a long lecture.",
+            "Science explanations must be accurate: do not describe real physical phenomena as only mathematical.",
+            "Black holes are real astrophysical objects or regions where gravity is so strong that even light cannot escape.",
             "If you are uncertain, say so briefly and honestly.",
             "Do not invent device capabilities, file changes, or completed actions.",
             "If something looks like a command but cannot be executed by a text reply alone, do not pretend it was done.",

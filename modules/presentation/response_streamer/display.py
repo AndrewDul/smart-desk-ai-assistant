@@ -77,13 +77,24 @@ class ResponseStreamerDisplay(ResponseStreamerHelpers):
             if len(compact) <= self.max_display_chars_per_line:
                 lines.append(compact)
             else:
-                shortened = compact[: self.max_display_chars_per_line - 3].rstrip() + "..."
-                lines.append(shortened)
+                lines.append(self._shorten_display_line(compact))
 
             if len(lines) >= self.max_display_lines:
                 break
 
         return lines
+
+    def _shorten_display_line(self, text: str) -> str:
+        compact = clean_response_text(text)
+        if len(compact) <= self.max_display_chars_per_line:
+            return compact
+
+        limit = max(5, self.max_display_chars_per_line - 3)
+        shortened = compact[:limit].rstrip()
+        space_index = shortened.rfind(" ")
+        if space_index >= max(6, limit // 2):
+            shortened = shortened[:space_index].rstrip()
+        return f"{shortened}..."
 
     def _show_display_block(self, title: str, lines: list[str]) -> bool:
         if not title or not lines:

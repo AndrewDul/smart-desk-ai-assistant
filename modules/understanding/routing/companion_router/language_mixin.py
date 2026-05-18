@@ -16,11 +16,22 @@ class CompanionRouterLanguageMixin:
         english_score = 0
 
         polish_markers = {
+            "co",
+            "czym",
+            "sa",
+            "są",
+            "czarne",
+            "dziury",
             "jestem",
             "czuje",
             "pomoz",
             "pomoc",
+            "opowiedz",
             "powiedz",
+            "wyjasnij",
+            "wyjaśnij",
+            "wytlumacz",
+            "wytłumacz",
             "zagadke",
             "zwierzetach",
             "przypomnij",

@@ -37,7 +37,15 @@ class CompanionRouterConversationHeuristicsMixin:
         if any(re.search(pattern, normalized_text) for pattern in MATH_PATTERNS):
             return True
 
-        if raw_lower.startswith(("explain ", "wyjasnij ", "wyjaśnij ", "wytlumacz ", "wytłumacz ")):
+        if raw_lower.startswith((
+            "explain ",
+            "wyjasnij ",
+            "wyjaśnij ",
+            "wytlumacz ",
+            "wytłumacz ",
+            "powiedz mi ",
+            "opowiedz ",
+        )):
             return True
 
         return False

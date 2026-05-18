@@ -170,14 +170,16 @@ class CompanionDialogueReplyApiMixin:
         normalized_text = str(getattr(route, "normalized_text", "") or "").strip()
 
         if route_kind_value in {"conversation", "mixed", "unclear"}:
-            live_payload = self._try_local_llm_stream_payload(
-                normalized_text=normalized_text,
-                language=normalized_language,
-                topics=conversation_topics,
-                user_profile=user_profile,
-                route_kind=route_kind_value,
-                stream_mode=selected_stream_mode,
-            )
+            live_payload = None
+            if bool(getattr(self, "live_llm_sentence_streaming_enabled", True)):
+                live_payload = self._try_local_llm_stream_payload(
+                    normalized_text=normalized_text,
+                    language=normalized_language,
+                    topics=conversation_topics,
+                    user_profile=user_profile,
+                    route_kind=route_kind_value,
+                    stream_mode=selected_stream_mode,
+                )
             if live_payload is not None:
                 return ResponsePlan(
                     turn_id=create_turn_id("reply"),

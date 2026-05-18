@@ -87,7 +87,16 @@ class CoreAssistantResponseMixin:
         self._last_response_stream_report = None
         self._last_response_delivery_snapshot = None
         stop_thinking_ack = getattr(self, "_thinking_ack_stop", None)
-        if callable(stop_thinking_ack):
+        if has_live_stream and callable(stop_thinking_ack):
+            def _stop_thinking_ack_on_first_live_chunk() -> None:
+                append_log(
+                    "Live LLM first speakable chunk reached; cancelling ThinkingAck before speech."
+                )
+                stop_thinking_ack()
+
+            plan.metadata["on_first_live_chunk"] = _stop_thinking_ack_on_first_live_chunk
+            plan.metadata["thinking_ack_cancel_on_first_live_chunk"] = True
+        elif callable(stop_thinking_ack):
             stop_thinking_ack()
         self.voice_session.transition_to_speaking(
             detail=f"response:{route_kind_value}",
@@ -263,6 +272,13 @@ class CoreAssistantResponseMixin:
                 "extra_metadata": safe_extra_metadata,
                 "plan_metadata": plan_metadata,
                 "full_text_chars": len(remembered_text),
+                "first_token_latency_ms": self._last_response_stream_report.first_token_latency_ms,
+                "first_speakable_chunk_latency_ms": self._last_response_stream_report.first_speakable_chunk_latency_ms,
+                "first_audio_ms": self._last_response_stream_report.first_audio_ms,
+                "route_to_first_audio_ms": self._last_response_stream_report.first_audio_ms,
+                "thinking_ack_cancel_on_first_live_chunk": bool(
+                    plan_metadata.get("thinking_ack_cancel_on_first_live_chunk")
+                ),
             }
 
             append_log(
@@ -274,6 +290,11 @@ class CoreAssistantResponseMixin:
                 f"chars={len(remembered_text)}, "
                 f"display_title={display_title or '-'}, "
                 f"display_lines={len(display_lines)}, "
+                f"first_token_latency_ms={self._last_response_stream_report.first_token_latency_ms:.1f}, "
+                f"first_speakable_chunk_latency_ms={self._last_response_stream_report.first_speakable_chunk_latency_ms:.1f}, "
+                f"first_audio_ms={self._last_response_stream_report.first_audio_ms:.1f}, "
+                f"route_to_first_audio_ms={self._last_response_stream_report.first_audio_ms:.1f}, "
+                f"thinking_ack_cancel_on_first_live_chunk={bool(plan_metadata.get('thinking_ack_cancel_on_first_live_chunk'))}, "
                 f"elapsed_ms={(time.perf_counter() - started_at) * 1000.0:.1f}"
             )
 
@@ -412,6 +433,10 @@ class CoreAssistantResponseMixin:
             base_report,
             "first_audio_latency_ms",
         )
+        first_audio_ms = self._report_float(
+            base_report,
+            "first_audio_ms",
+        )
         first_chunk_started_at_monotonic = self._report_float(
             base_report,
             "first_chunk_started_at_monotonic",
@@ -419,6 +444,22 @@ class CoreAssistantResponseMixin:
         first_chunk_latency_ms = self._report_float(
             base_report,
             "first_chunk_latency_ms",
+        )
+        first_token_started_at_monotonic = self._report_float(
+            base_report,
+            "first_token_started_at_monotonic",
+        )
+        first_token_latency_ms = self._report_float(
+            base_report,
+            "first_token_latency_ms",
+        )
+        first_speakable_chunk_started_at_monotonic = self._report_float(
+            base_report,
+            "first_speakable_chunk_started_at_monotonic",
+        )
+        first_speakable_chunk_latency_ms = self._report_float(
+            base_report,
+            "first_speakable_chunk_latency_ms",
         )
         first_sentence_started_at_monotonic = self._report_float(
             base_report,
@@ -437,6 +478,8 @@ class CoreAssistantResponseMixin:
                 0.0,
                 (first_audio_started_at_monotonic - started_at_monotonic) * 1000.0,
             )
+        if first_audio_ms <= 0.0:
+            first_audio_ms = first_audio_latency_ms
 
         if first_chunk_started_at_monotonic <= 0.0 and started_at_monotonic > 0.0 and first_chunk_latency_ms > 0.0:
             first_chunk_started_at_monotonic = started_at_monotonic + (first_chunk_latency_ms / 1000.0)
@@ -446,6 +489,46 @@ class CoreAssistantResponseMixin:
                 0.0,
                 (first_chunk_started_at_monotonic - started_at_monotonic) * 1000.0,
             )
+
+        if (
+            first_token_started_at_monotonic <= 0.0
+            and started_at_monotonic > 0.0
+            and first_token_latency_ms > 0.0
+        ):
+            first_token_started_at_monotonic = started_at_monotonic + (first_token_latency_ms / 1000.0)
+
+        if (
+            first_token_latency_ms <= 0.0
+            and first_token_started_at_monotonic > 0.0
+            and started_at_monotonic > 0.0
+        ):
+            first_token_latency_ms = max(
+                0.0,
+                (first_token_started_at_monotonic - started_at_monotonic) * 1000.0,
+            )
+
+        if (
+            first_speakable_chunk_started_at_monotonic <= 0.0
+            and started_at_monotonic > 0.0
+            and first_speakable_chunk_latency_ms > 0.0
+        ):
+            first_speakable_chunk_started_at_monotonic = (
+                started_at_monotonic + (first_speakable_chunk_latency_ms / 1000.0)
+            )
+
+        if (
+            first_speakable_chunk_latency_ms <= 0.0
+            and first_speakable_chunk_started_at_monotonic > 0.0
+            and started_at_monotonic > 0.0
+        ):
+            first_speakable_chunk_latency_ms = max(
+                0.0,
+                (first_speakable_chunk_started_at_monotonic - started_at_monotonic) * 1000.0,
+            )
+
+        if first_speakable_chunk_latency_ms <= 0.0 and first_chunk_latency_ms > 0.0:
+            first_speakable_chunk_latency_ms = first_chunk_latency_ms
+            first_speakable_chunk_started_at_monotonic = first_chunk_started_at_monotonic
 
         if first_sentence_started_at_monotonic <= 0.0 and started_at_monotonic > 0.0 and first_sentence_latency_ms > 0.0:
             first_sentence_started_at_monotonic = started_at_monotonic + (first_sentence_latency_ms / 1000.0)
@@ -485,12 +568,17 @@ class CoreAssistantResponseMixin:
             display_title=safe_display_title,
             display_lines=safe_display_lines,
             first_audio_latency_ms=first_audio_latency_ms,
+            first_audio_ms=first_audio_ms,
             first_chunk_latency_ms=first_chunk_latency_ms,
+            first_token_latency_ms=first_token_latency_ms,
+            first_speakable_chunk_latency_ms=first_speakable_chunk_latency_ms,
             first_sentence_latency_ms=first_sentence_latency_ms,
             total_elapsed_ms=total_elapsed_ms,
             started_at_monotonic=started_at_monotonic,
             first_audio_started_at_monotonic=first_audio_started_at_monotonic,
             first_chunk_started_at_monotonic=first_chunk_started_at_monotonic,
+            first_token_started_at_monotonic=first_token_started_at_monotonic,
+            first_speakable_chunk_started_at_monotonic=first_speakable_chunk_started_at_monotonic,
             first_sentence_started_at_monotonic=first_sentence_started_at_monotonic,
             finished_at_monotonic=finished_at_monotonic,
             chunk_kinds=safe_chunk_kinds,

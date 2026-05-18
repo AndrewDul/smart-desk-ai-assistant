@@ -10,12 +10,17 @@ class StreamExecutionReport:
     display_title: str
     display_lines: list[str]
     first_audio_latency_ms: float = 0.0
+    first_audio_ms: float = 0.0
     first_chunk_latency_ms: float = 0.0
+    first_token_latency_ms: float = 0.0
+    first_speakable_chunk_latency_ms: float = 0.0
     first_sentence_latency_ms: float = 0.0
     total_elapsed_ms: float = 0.0
     started_at_monotonic: float = 0.0
     first_audio_started_at_monotonic: float = 0.0
     first_chunk_started_at_monotonic: float = 0.0
+    first_token_started_at_monotonic: float = 0.0
+    first_speakable_chunk_started_at_monotonic: float = 0.0
     first_sentence_started_at_monotonic: float = 0.0
     finished_at_monotonic: float = 0.0
     chunk_kinds: list[str] = field(default_factory=list)

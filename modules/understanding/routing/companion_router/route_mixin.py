@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from modules.runtime.contracts import (
@@ -39,6 +40,62 @@ class CompanionRouterRouteMixin:
             notes.append(f"capture_backend:{capture_backend}")
         return notes
 
+    @staticmethod
+    def _normalize_polish_knowledge_asr(text: str) -> str:
+        normalized = str(text or "").strip()
+        if not normalized:
+            return normalized
+
+        corrected = re.sub(
+            r"\bsoto\s+s[ąa]\s+czarne\s+dziur(?:y)?\b",
+            "co to są czarne dziury",
+            normalized,
+        )
+        corrected = re.sub(
+            r"\b(powiedz|opowiedz)\s+mi\s+co[sś]\s+o\s+(?:stucznej|sztucznej|szczucznej)\b",
+            r"\1 mi coś o sztucznej inteligencji",
+            corrected,
+        )
+        corrected = re.sub(
+            r"\b(powiedz|opowiedz)\s+mi\s+co[sś]\s+oczcznej\b",
+            r"\1 mi coś o sztucznej inteligencji",
+            corrected,
+        )
+        corrected = re.sub(
+            r"\bsztucznej inteligencji[\s.?!,;:]*$",
+            "sztucznej inteligencji",
+            corrected,
+        )
+        corrected = re.sub(r"\bczarne\s+dziur\b", "czarne dziury", corrected)
+        corrected = re.sub(r"\bczarny\s+dziury\b", "czarne dziury", corrected)
+        corrected = re.sub(
+            r"\bco\s+to\s+s[ąa]\s+czarne\s+dziury\b",
+            "co to są czarne dziury",
+            corrected,
+        )
+        return corrected
+
+    @staticmethod
+    def _incomplete_dialogue_prompt_kind(normalized_text: str) -> str:
+        stripped = re.sub(r"[\s.?!,;:]+$", "", str(normalized_text or "").strip())
+        if stripped in {"tell me about"}:
+            return "tell_about_topic"
+        if stripped in {"opowiedz mi o", "opowiedz o", "powiedz mi o"}:
+            return "tell_about_topic"
+        return ""
+
+    @staticmethod
+    def _partial_polish_topic_kind(normalized_text: str) -> str:
+        stripped = re.sub(r"[\s.?!,;:]+$", "", str(normalized_text or "").strip())
+        if stripped in {
+            "powiedz mi cos o sztucznej",
+            "powiedz mi coś o sztucznej",
+            "opowiedz mi cos o sztucznej",
+            "opowiedz mi coś o sztucznej",
+        }:
+            return "partial_artificial_topic"
+        return ""
+
     def route(
         self,
         text: str,
@@ -46,7 +103,7 @@ class CompanionRouterRouteMixin:
         context: dict[str, Any] | None = None,
     ) -> RouteDecision:
         raw_text = str(text or "").strip()
-        normalized_text = normalize_text(raw_text)
+        normalized_text = self._normalize_polish_knowledge_asr(normalize_text(raw_text))
         language = self._resolve_language(normalized_text, preferred_language)
 
         route_context = self._normalize_route_context(context)
@@ -66,6 +123,48 @@ class CompanionRouterRouteMixin:
                 tool_invocations=[],
                 notes=["empty_input", *context_notes],
                 metadata=dict(route_context),
+            )
+
+        incomplete_prompt_kind = self._incomplete_dialogue_prompt_kind(normalized_text)
+        if incomplete_prompt_kind:
+            return RouteDecision(
+                turn_id=create_turn_id(),
+                raw_text=raw_text,
+                normalized_text=normalized_text,
+                language=language,
+                kind=RouteKind.UNCLEAR,
+                confidence=0.86,
+                primary_intent="incomplete_dialogue_query",
+                intents=[],
+                conversation_topics=[],
+                tool_invocations=[],
+                notes=[*context_notes, "incomplete_dialogue_query"],
+                metadata={
+                    **route_context,
+                    "incomplete_dialogue_query": True,
+                    "clarification_prompt_kind": incomplete_prompt_kind,
+                },
+            )
+
+        partial_polish_topic_kind = self._partial_polish_topic_kind(normalized_text)
+        if partial_polish_topic_kind:
+            return RouteDecision(
+                turn_id=create_turn_id(),
+                raw_text=raw_text,
+                normalized_text=normalized_text,
+                language="pl",
+                kind=RouteKind.UNCLEAR,
+                confidence=0.84,
+                primary_intent="partial_dialogue_topic",
+                intents=[],
+                conversation_topics=[],
+                tool_invocations=[],
+                notes=[*context_notes, "partial_polish_dialogue_topic"],
+                metadata={
+                    **route_context,
+                    "partial_polish_dialogue_topic": True,
+                    "clarification_prompt_kind": partial_polish_topic_kind,
+                },
             )
 
         parser_result = self.parser.parse(raw_text)

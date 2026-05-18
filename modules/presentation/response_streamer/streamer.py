@@ -186,6 +186,7 @@ class ResponseStreamer(
             display_title=display_title,
             display_lines=display_lines,
             first_audio_latency_ms=(first_audio_latency_s or 0.0) * 1000.0,
+            first_audio_ms=(first_audio_latency_s or 0.0) * 1000.0,
             first_chunk_latency_ms=0.0,
             first_sentence_latency_ms=(first_sentence_latency_s or 0.0) * 1000.0,
             total_elapsed_ms=total_elapsed * 1000.0,

@@ -16935,3 +16935,39 @@ I confirmed `LocalLLMService` reports ready with the external model path.
 I kept `config/settings.json` out of the commit.
 
 I kept `llama.cpp` and the GGUF model out of the repo.
+
+## 2026-05-18 - Local LLM P2A streaming polish
+
+### Summary
+
+I finished the local LLM P2A streaming polish on the real `llama-server` backend.
+
+I kept fast-line commands separate from LLM.
+
+I added live LLM streaming with one-chunk lookahead and `prepare_next` for TTS.
+
+I added telemetry for `first_token_latency_ms`, `first_speakable_chunk_latency_ms`, `first_audio_ms`, and `route_to_first_audio_ms`.
+
+I fixed the live LLM path so ThinkingAck is not cancelled too early; it now cancels when the first real live chunk arrives.
+
+I fixed short-term conversation memory so action responses like TIME do not leak into the LLM prompt.
+
+I improved live display refresh so it shows newer useful text and avoids noisy repeated display updates when possible.
+
+I added incomplete dialogue query handling:
+
+```text
+Tell me about... -> Tell you about what?
+```
+
+I made the follow-up topic continue without the wake word.
+
+I added narrow Polish ASR normalization for black hole and artificial intelligence questions.
+
+I added factual grounding so NeXa does not describe black holes as only mathematical objects.
+
+I kept `llama.cpp` and the GGUF model outside the repo.
+
+I tested with the real local Qwen GGUF model through `llama-server`.
+
+I did not solve full ASR/endpointing yet; that remains a separate audio sprint.

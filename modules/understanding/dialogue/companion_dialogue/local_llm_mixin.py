@@ -160,8 +160,16 @@ class CompanionDialogueLocalLLMMixin:
                         }
                     )
                     first_chunk_latency_ms = float(getattr(raw_chunk, "first_chunk_latency_ms", 0.0) or 0.0)
+                    first_token_latency_ms = float(getattr(raw_chunk, "first_token_latency_ms", 0.0) or 0.0)
+                    first_speakable_chunk_latency_ms = float(
+                        getattr(raw_chunk, "first_speakable_chunk_latency_ms", 0.0) or 0.0
+                    )
                     if first_chunk_latency_ms > 0.0:
                         metadata["first_chunk_latency_ms"] = first_chunk_latency_ms
+                    if first_token_latency_ms > 0.0:
+                        metadata["first_token_latency_ms"] = first_token_latency_ms
+                    if first_speakable_chunk_latency_ms > 0.0:
+                        metadata["first_speakable_chunk_latency_ms"] = first_speakable_chunk_latency_ms
 
                     yield AssistantChunk(
                         text=text,

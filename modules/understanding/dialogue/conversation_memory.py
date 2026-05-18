@@ -372,6 +372,7 @@ class ConversationMemory:
     def _update_state_locked(self, turn: ConversationTurn) -> None:
         self._state.preferred_language = turn.language
 
+        source = str(turn.metadata.get("source", "") or "").strip().lower()
         route_kind = str(turn.metadata.get("route_kind", "") or "").strip().lower()
         if route_kind:
             self._state.last_route_kind = route_kind
@@ -404,6 +405,9 @@ class ConversationMemory:
                 )
 
         elif turn.role == "assistant":
+            if route_kind == "action" or source.startswith("action_flow:"):
+                self._state.pending_question = ""
+                return
             if self._looks_like_answer(turn.text):
                 self._state.pending_question = ""
 
@@ -424,6 +428,11 @@ class ConversationMemory:
             return ""
 
         if source == "system" and route_kind in {"system_boot", "startup"}:
+            return ""
+
+        if turn.role == "assistant" and (
+            route_kind == "action" or source.startswith("action_flow:")
+        ):
             return ""
 
         if phase in {"retry_yes_no", "reprompt_silence"}:
