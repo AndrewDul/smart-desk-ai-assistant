@@ -10,6 +10,7 @@ from modules.core.calculator.simple_arithmetic import (
 )
 from modules.presentation.status_debug_presenter.service import StatusDebugPresenterService
 from modules.runtime.contracts import RouteDecision, RouteKind
+from modules.runtime.turn_timeline import current_turn_id, log_turn_timeline
 
 from .models import ResolvedAction, SkillRequest, SkillResult
 
@@ -1467,6 +1468,11 @@ class ActionSystemActionsMixin:
         # is always visible before libcamera prints to stdout.
         if ok and lane is not None:
             lane.schedule_post_response_camera_start()
+            log_turn_timeline(
+                self.assistant,
+                event="camera_scheduled",
+                delay_ms=250.0,
+            )
 
         _total_ms = (time.monotonic() - _t0) * 1000
         _lat_line = (
@@ -1475,9 +1481,15 @@ class ActionSystemActionsMixin:
             f" turn_on_ms={_turn_on_ms:.1f}"
             f" total_action_ms={_total_ms:.1f}"
             f" ok={ok}"
+            f" visual_shell_open_policy=lightweight_shell"
             f" camera_start_policy=post_response"
             f" camera_init_triggered=false"
             f" llm_prevented=true"
+            + (
+                f" turn_id={current_turn_id(self.assistant)}"
+                if current_turn_id(self.assistant)
+                else ""
+            )
         )
         print(_lat_line)
         self.LOGGER.warning(_lat_line)

@@ -37,6 +37,11 @@ SYSTEM_INTENT_DEFINITIONS: dict[str, CommandIntentDefinition] = {
         domain=CommandIntentDomain.SYSTEM,
         action="exit",
     ),
+    "system.status": CommandIntentDefinition(
+        key="system.status",
+        domain=CommandIntentDomain.SYSTEM,
+        action="status",
+    ),
     "feedback.on": CommandIntentDefinition(
         key="feedback.on",
         domain=CommandIntentDomain.SYSTEM,

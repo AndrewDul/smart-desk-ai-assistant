@@ -4,6 +4,7 @@ import time
 from typing import TYPE_CHECKING
 
 from modules.core.session.voice_session import VOICE_PHASE_COMMAND
+from modules.runtime.turn_timeline import log_turn_timeline
 from modules.shared.logging.logger import append_log
 
 from .active_window import (
@@ -110,13 +111,24 @@ def run_assistant_loop(
             continue
 
         print(f"Heard: {heard_text}")
+        log_turn_timeline(
+            assistant,
+            event="heard_printed",
+            text=heard_text,
+        )
         append_log(f"Accepted transcript in active session: {heard_text}")
 
         state_flags.remember_accepted_transcript(normalized_command)
         state_flags.reset_active_counters()
 
         assistant.voice_session.transition_to_routing(detail="dispatching_command")
+        log_turn_timeline(assistant, event="route_dispatch_started")
         should_continue = assistant.handle_command(heard_text)
+        log_turn_timeline(
+            assistant,
+            event="turn_complete",
+            continue_runtime=bool(should_continue),
+        )
 
         if not should_continue:
             assistant.voice_session.transition_to_shutdown(detail="main_loop_exit")

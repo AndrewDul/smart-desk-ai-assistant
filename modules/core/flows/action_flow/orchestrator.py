@@ -4,6 +4,7 @@ import inspect
 import time
 from typing import Any
 
+from modules.runtime.turn_timeline import log_turn_timeline
 from modules.runtime.contracts import (
     EntityValue,
     IntentMatch,
@@ -285,6 +286,13 @@ class ActionFlowOrchestrator(
             request.capture_backend,
             request.confidence,
             sorted(request.payload.keys()),
+        )
+        log_turn_timeline(
+            self.assistant,
+            event="action_started",
+            action=request.action,
+            route_kind=request.route_kind,
+            canonical_intent=request.primary_intent,
         )
         self._note_skill_started(request=request)
 

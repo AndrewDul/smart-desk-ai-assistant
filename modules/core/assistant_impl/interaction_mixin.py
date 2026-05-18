@@ -5,6 +5,7 @@ import time
 from typing import Any
 
 
+from modules.runtime.turn_timeline import log_turn_timeline
 from modules.shared.logging.logger import append_log, log_exception
 
 
@@ -35,6 +36,7 @@ class CoreAssistantInteractionMixin:
 
         try:
             prepared_started = time.perf_counter()
+            log_turn_timeline(self, event="normalization_started", text=cleaned)
             prepared = self._prepare_command(
                 cleaned,
                 source=telemetry.get("input_source", "voice"),
@@ -44,6 +46,12 @@ class CoreAssistantInteractionMixin:
                 capture_metadata=dict(telemetry.get("capture_metadata", {}) or {}),
             )
             telemetry["prepare_ms"] = self._elapsed_ms(prepared_started)
+            log_turn_timeline(
+                self,
+                event="normalization_finished",
+                prepare_ms=telemetry["prepare_ms"],
+                normalized=prepared.get("normalized_text", ""),
+            )
 
             if prepared["ignore"]:
                 telemetry["result"] = "ignored"
@@ -100,6 +108,7 @@ class CoreAssistantInteractionMixin:
                 return bool(pending_result)
 
             candidate_started = time.perf_counter()
+            log_turn_timeline(self, event="route_started", router="voice_engine_v2_candidate")
             candidate_result = self._try_handle_voice_engine_v2_runtime_candidate(
                 telemetry=telemetry,
                 prepared=prepared,
@@ -115,6 +124,7 @@ class CoreAssistantInteractionMixin:
                 return bool(candidate_result)
 
             fast_lane_started = time.perf_counter()
+            log_turn_timeline(self, event="route_started", router="fast_lane")
             fast_lane_result = self._handle_fast_lane(prepared)
             telemetry["fast_lane_ms"] = self._elapsed_ms(fast_lane_started)
 
@@ -148,6 +158,14 @@ class CoreAssistantInteractionMixin:
 
                 telemetry["result"] = "fast_lane"
                 telemetry["handled"] = bool(fast_lane_result)
+                log_turn_timeline(
+                    self,
+                    event="route_finished",
+                    route=telemetry.get("route_kind", ""),
+                    canonical_intent=telemetry.get("primary_intent", ""),
+                    llm_prevented=telemetry.get("route_kind") == "action",
+                    route_ms=telemetry["fast_lane_ms"],
+                )
                 legacy_result = bool(fast_lane_result)
                 self._observe_voice_engine_v2_shadow_turn(
                     telemetry=telemetry,
@@ -172,6 +190,7 @@ class CoreAssistantInteractionMixin:
             }
 
             routing_started = time.perf_counter()
+            log_turn_timeline(self, event="route_started", router="legacy_router")
             # Router itself is fast (deterministic + optional semantic classifier).
             # Thinking-ack here used to fire for every non-fast-lane turn, which
             # caused audible overlap with the real reply. The dialogue flow arms
@@ -208,6 +227,14 @@ class CoreAssistantInteractionMixin:
             telemetry["topics"] = list(getattr(route, "conversation_topics", []) or [])
             telemetry["route_notes"] = list(getattr(route, "notes", []) or [])
             telemetry["route_metadata"] = dict(getattr(route, "metadata", {}) or {})
+            log_turn_timeline(
+                self,
+                event="route_finished",
+                route=telemetry["route_kind"],
+                canonical_intent=telemetry["primary_intent"],
+                llm_prevented=telemetry["route_kind"] == "action",
+                route_ms=telemetry["router_ms"],
+            )
 
             route_metadata = dict(getattr(route, "metadata", {}) or {})
             telemetry["capture_phase"] = str(
@@ -240,6 +267,12 @@ class CoreAssistantInteractionMixin:
                     log_exception("Route decision logging failed", error)
 
             dispatch_started = time.perf_counter()
+            if route.kind == self._route_kind_action():
+                log_turn_timeline(
+                    self,
+                    event="action_started",
+                    action=telemetry.get("primary_intent", ""),
+                )
 
             if route.kind == self._route_kind_action():
                 self.pending_confirmation = None
@@ -428,8 +461,20 @@ class CoreAssistantInteractionMixin:
         self._clear_voice_engine_v2_candidate_context()
         self._mark_voice_engine_v2_candidate_routing(route)
         self._commit_language(str(getattr(route, "language", language) or language))
+        log_turn_timeline(
+            self,
+            event="route_finished",
+            route=str(getattr(route.kind, "value", route.kind)),
+            canonical_intent=str(getattr(route, "primary_intent", "") or ""),
+            llm_prevented=True,
+        )
 
         execution_started = time.perf_counter()
+        log_turn_timeline(
+            self,
+            event="action_started",
+            action=str(getattr(route, "primary_intent", "") or ""),
+        )
         action_result = bool(self._execute_action_route(route, str(route.language or language)))
         telemetry["voice_engine_v2_candidate_execution_ms"] = self._elapsed_ms(
             execution_started

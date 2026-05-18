@@ -19,6 +19,7 @@ class MainLoopRuntimeState:
     active_ignored_count: int = 0
     last_transcript_normalized: str | None = None
     last_transcript_time: float | None = None
+    active_turn_id: str = ""
 
     def reset_active_counters(self) -> None:
         self.active_empty_count = 0

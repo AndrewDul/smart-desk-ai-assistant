@@ -32,6 +32,12 @@ from modules.shared.logging.logger import append_log
 from modules.runtime.voice_engine_v2.realtime_audio_bus_probe import (
     probe_realtime_audio_bus,
 )
+from modules.runtime.turn_timeline import (
+    current_timeline_started_at,
+    current_turn_id,
+    log_turn_timeline,
+    start_turn_timeline,
+)
 from .backend_helpers import (
     _assistant_output_blocks_input,
     _follow_up_window_seconds,
@@ -452,6 +458,12 @@ def _acknowledge_wake(
             f"ack_ms={wake_ack_latency_ms:.1f}"
         )
         print("Wake phrase detected. Waiting for command...")
+        log_turn_timeline(
+            assistant,
+            event="wake_banner_printed",
+            ack_ms=wake_ack_latency_ms,
+            strategy=wake_ack_strategy,
+        )
         return
 
     wake_ack_service = getattr(assistant, "wake_ack_service", None)
@@ -502,6 +514,12 @@ def _acknowledge_wake(
         f"{wake_ack} | strategy={wake_ack_strategy} | ack_ms={wake_ack_latency_ms:.1f}"
     )
     print("Wake phrase detected. Waiting for command...")
+    log_turn_timeline(
+        assistant,
+        event="wake_banner_printed",
+        ack_ms=wake_ack_latency_ms,
+        strategy=wake_ack_strategy,
+    )
 
 
 def _return_to_wake_gate(
@@ -566,6 +584,10 @@ def _capture_transcript_with_speech_service(
         "adapter": "active_window",
         "capture_mode": normalized_mode,
     }
+    turn_id = current_turn_id(assistant)
+    if turn_id:
+        metadata["turn_id"] = turn_id
+        metadata["timeline_started_at_monotonic"] = current_timeline_started_at(assistant)
     if normalized_mode == "memory_message":
         pending_follow_up = getattr(assistant, "pending_follow_up", None)
         if isinstance(pending_follow_up, dict):
@@ -897,6 +919,15 @@ def _accept_standby_wake(
     inline_command: str | None = None,
     wake_event: WakeDetectionResult | None = None,
 ) -> bool:
+    turn_id = start_turn_timeline(
+        assistant,
+        event="wake_detected",
+        source=source_label,
+        backend=str(getattr(wake_event, "metadata", {}).get("backend_label", "") or source_label)
+        if wake_event is not None
+        else source_label,
+    )
+    state_flags.active_turn_id = turn_id
     safe_inline_command = _sanitize_inline_command(inline_command, assistant)
     if inline_command and safe_inline_command is None:
         append_log(
@@ -905,10 +936,10 @@ def _accept_standby_wake(
         )
 
     _note_turn_benchmark_wake_detected(
-    assistant,
-    source=source_label,
-    wake_event=wake_event,
-)
+        assistant,
+        source=source_label,
+        wake_event=wake_event,
+    )
 
     state_flags.reset_wake_detection()
     state_flags.hide_standby_banner()
@@ -1062,6 +1093,12 @@ def _active_command_timeout(assistant: CoreAssistant) -> float:
 def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRuntimeState) -> str | None:
     prefetched = state_flags.consume_prefetched_command()
     if prefetched:
+        log_turn_timeline(
+            assistant,
+            event="command_text_produced",
+            backend="wake_inline_command",
+            text=prefetched,
+        )
         _remember_input_capture(
             assistant,
             text=prefetched,
@@ -1109,6 +1146,12 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
         phase=active_phase,
     )
 
+    log_turn_timeline(
+        assistant,
+        event="listening_started",
+        phase=active_phase,
+        capture_mode=capture_mode,
+    )
     assistant.voice_session.transition_to_listening(
         detail=f"active_window:{active_phase}",
         phase=_voice_phase_for_active_phase(active_phase),
@@ -1125,6 +1168,12 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
         },
     )
     print("\nListening for your request...")
+    log_turn_timeline(
+        assistant,
+        event="listening_prompt_printed",
+        phase=active_phase,
+        capture_mode=capture_mode,
+    )
 
     _observe_voice_engine_v2_pre_stt_shadow(
         assistant,
@@ -1140,11 +1189,22 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
         capture_handoff=capture_handoff,
     )
 
+    log_turn_timeline(
+        assistant,
+        event="capture_request_started",
+        phase=active_phase,
+        capture_mode=capture_mode,
+    )
     transcript = _capture_transcript_for_assistant(
         assistant,
         timeout=_active_command_timeout(assistant),
         debug=bool(getattr(assistant, "voice_debug", False)),
         mode=capture_mode,
+    )
+    log_turn_timeline(
+        assistant,
+        event="capture_request_finished",
+        transcript_present=transcript is not None,
     )
 
     _observe_voice_engine_v2_vad_timing_bridge_after_capture(
@@ -1166,6 +1226,14 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
     heard_text = transcript.text
     cleaned = heard_text.strip()
     if cleaned:
+        metadata = dict(getattr(transcript, "metadata", {}) or {})
+        log_turn_timeline(
+            assistant,
+            event="command_text_produced",
+            backend=str(metadata.get("backend_label", "") or ""),
+            mode=str(metadata.get("mode", active_phase) or active_phase),
+            text=cleaned,
+        )
         _note_turn_benchmark_speech_finalized(
             assistant,
             text=cleaned,

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from modules.runtime.contracts import InputSource, TranscriptRequest, TranscriptResult
+from modules.runtime.turn_timeline import render_turn_timeline_line
 
 import numpy as np
 import sounddevice as sd
@@ -722,10 +723,23 @@ class FasterWhisperInputBackend(
         timeout = max(0.1, float(request.timeout_seconds))
         debug = bool(request.debug)
         mode = str(request.mode or "command").strip().lower() or "command"
+        request_metadata = dict(request.metadata or {})
+        turn_id = str(request_metadata.get("turn_id", "") or "").strip()
+        timeline_started_at = _safe_float(
+            request_metadata.get("timeline_started_at_monotonic"),
+            default=0.0,
+        )
         overflow_count_before = int(getattr(self, "_audio_callback_overflow_count", 0) or 0)
         status_count_before = int(getattr(self, "_audio_callback_status_count", 0) or 0)
 
         try:
+            _print_turn_timeline(
+                turn_id=turn_id,
+                timeline_started_at=timeline_started_at,
+                event="vad_or_capture_started",
+                backend="faster_whisper",
+                mode=mode,
+            )
             audio, capture_profile_name, capture_profile = self._record_with_capture_profile(
                 mode=mode,
                 timeout_seconds=timeout,
@@ -738,6 +752,14 @@ class FasterWhisperInputBackend(
             return None
 
         capture_finished_at = time.monotonic()
+        _print_turn_timeline(
+            turn_id=turn_id,
+            timeline_started_at=timeline_started_at,
+            event="capture_finished",
+            backend="faster_whisper",
+            listening_ms=max(0.0, (capture_finished_at - started_at) * 1000.0),
+            mode=mode,
+        )
         overflow_count_after = int(getattr(self, "_audio_callback_overflow_count", 0) or 0)
         status_count_after = int(getattr(self, "_audio_callback_status_count", 0) or 0)
 
@@ -803,6 +825,13 @@ class FasterWhisperInputBackend(
                 "publish_stage": "before_transcription",
             }
 
+        _print_turn_timeline(
+            turn_id=turn_id,
+            timeline_started_at=timeline_started_at,
+            event="stt_started",
+            backend="vosk_pre_whisper_candidate",
+            mode=mode,
+        )
         pre_whisper_candidate = self._try_voice_engine_v2_vosk_pre_whisper_candidate(
             audio=audio,
             request=request,
@@ -813,7 +842,26 @@ class FasterWhisperInputBackend(
             capture_window_shadow_tap=capture_window_shadow_tap,
             started_at=started_at,
         )
+        _print_turn_timeline(
+            turn_id=turn_id,
+            timeline_started_at=timeline_started_at,
+            event="stt_finished",
+            backend="vosk_pre_whisper_candidate",
+            stt_ms=max(0.0, (time.monotonic() - capture_finished_at) * 1000.0),
+            accepted=bool(pre_whisper_candidate.get("accepted", False)),
+        )
         if bool(pre_whisper_candidate.get("accepted", False)):
+            _print_turn_timeline(
+                turn_id=turn_id,
+                timeline_started_at=timeline_started_at,
+                event="stt_finished",
+                backend="vosk_command_asr",
+                stt_ms=max(0.0, (time.monotonic() - capture_finished_at) * 1000.0),
+                full_stt_prevented=True,
+                transcript=pre_whisper_candidate.get("transcript")
+                or pre_whisper_candidate.get("normalized_text")
+                or "",
+            )
             try:
                 return self._transcript_result_from_vosk_pre_whisper_candidate(
                     candidate=pre_whisper_candidate,
@@ -840,12 +888,27 @@ class FasterWhisperInputBackend(
             metadata=dict(request.metadata or {}),
         )
 
+        _print_turn_timeline(
+            turn_id=turn_id,
+            timeline_started_at=timeline_started_at,
+            event="stt_started",
+            backend="faster_whisper",
+            mode=mode,
+        )
         candidate = self._transcribe_audio_candidate(
             audio,
             debug=debug,
             preferred_language=preferred_language,
         )
         transcription_finished_at = time.monotonic()
+        _print_turn_timeline(
+            turn_id=turn_id,
+            timeline_started_at=timeline_started_at,
+            event="stt_finished",
+            backend="faster_whisper",
+            stt_ms=max(0.0, (transcription_finished_at - capture_finished_at) * 1000.0),
+            mode=mode,
+        )
 
         if capture_window_shadow_tap:
             capture_window_shadow_tap["transcription_finished_at_monotonic"] = (
@@ -1029,3 +1092,32 @@ class FasterWhisperInputBackend(
     @staticmethod
     def list_audio_devices() -> None:
         print(sd.query_devices())
+
+
+def _safe_float(value: object, *, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _print_turn_timeline(
+    *,
+    turn_id: str,
+    timeline_started_at: float,
+    event: str,
+    **fields: object,
+) -> None:
+    event_time = time.perf_counter()
+    if timeline_started_at > 0.0:
+        fields = {
+            "delta_ms": f"{max(0.0, (event_time - timeline_started_at) * 1000.0):.1f}",
+            **fields,
+        }
+    print(
+        render_turn_timeline_line(
+            turn_id=turn_id or "-",
+            event=event,
+            **fields,
+        )
+    )

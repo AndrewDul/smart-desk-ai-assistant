@@ -1521,21 +1521,23 @@ def build_default_command_grammar() -> CommandGrammar:
         # Diagnostics close aliases — English (safe Vosk words)
         CommandPhrase("feedback.off", "close feedback", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
         CommandPhrase("feedback.off", "hide feedback", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
+        CommandPhrase("feedback.off", "close window", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
         CommandPhrase("feedback.off", "close the window", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
         CommandPhrase("feedback.off", "hide the window", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
         CommandPhrase("feedback.off", "close this window", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
         CommandPhrase("feedback.off", "hide this window", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
         CommandPhrase("feedback.off", "close dashboard", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
         CommandPhrase("feedback.off", "hide dashboard", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
-        # Diagnostics close aliases — English (vosk_exclude: unusual words)
-        CommandPhrase("feedback.off", "close diagnostics", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
-        CommandPhrase("feedback.off", "hide diagnostics", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        # Diagnostics close aliases — English.
+        CommandPhrase("feedback.off", "close diagnostics", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
+        CommandPhrase("feedback.off", "hide diagnostics", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
         CommandPhrase("feedback.off", "close diagnostic center", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
         CommandPhrase("feedback.off", "hide diagnostic center", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
         CommandPhrase("feedback.off", "close diagnostics center", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
         CommandPhrase("feedback.off", "hide diagnostics center", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
-        CommandPhrase("feedback.off", "close system status", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
-        CommandPhrase("feedback.off", "hide system status", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        CommandPhrase("feedback.off", "close system status", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
+        CommandPhrase("feedback.off", "hide system status", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
+        CommandPhrase("feedback.off", "close systems", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close")),
         CommandPhrase("feedback.off", "close feedback center", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
         CommandPhrase("feedback.off", "hide feedback center", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
         CommandPhrase("feedback.off", "exit diagnostics", CommandLanguage.ENGLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
@@ -1548,9 +1550,9 @@ def build_default_command_grammar() -> CommandGrammar:
         CommandPhrase("feedback.off", "ukryj logi", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close")),
         CommandPhrase("feedback.off", "zamknij dashboard", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
         CommandPhrase("feedback.off", "ukryj dashboard", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
-        # Diagnostics close aliases — Polish (vosk_exclude: unusual words)
-        CommandPhrase("feedback.off", "zamknij diagnostykę", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
-        CommandPhrase("feedback.off", "ukryj diagnostykę", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
+        # Diagnostics close aliases — Polish.
+        CommandPhrase("feedback.off", "zamknij diagnostykę", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close")),
+        CommandPhrase("feedback.off", "ukryj diagnostykę", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close")),
         CommandPhrase("feedback.off", "zamknij centrum feedback", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
         CommandPhrase("feedback.off", "ukryj centrum feedback", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
         CommandPhrase("feedback.off", "zamknij centrum diagnostyczne", CommandLanguage.POLISH, tags=("feedback", "diagnostics_close", "vosk_exclude")),
@@ -1690,6 +1692,22 @@ def build_default_command_grammar() -> CommandGrammar:
             "turn off nexa",
             CommandLanguage.ENGLISH,
             tags=("system", "exit", "vosk_exclude"),
+        ),
+
+        # Legacy system status. Keep this distinct from diagnostics aliases:
+        # "status" routes to the old status action, while "system status" and
+        # "show system status" open the Diagnostics center.
+        CommandPhrase(
+            "system.status",
+            "status",
+            CommandLanguage.ENGLISH,
+            tags=("system", "status"),
+        ),
+        CommandPhrase(
+            "system.status",
+            "stan",
+            CommandLanguage.POLISH,
+            tags=("system", "status"),
         ),
 
         # Focus mode.
@@ -3536,6 +3554,7 @@ def build_default_command_grammar() -> CommandGrammar:
         ("show diagnostic center", CommandLanguage.ENGLISH),
         ("system status", CommandLanguage.ENGLISH),
         ("show system status", CommandLanguage.ENGLISH),
+        ("shows system status", CommandLanguage.ENGLISH),
         ("health check", CommandLanguage.ENGLISH),
         ("show health", CommandLanguage.ENGLISH),
         ("open health panel", CommandLanguage.ENGLISH),
@@ -3559,6 +3578,12 @@ def build_default_command_grammar() -> CommandGrammar:
         ("otworz diagnostyke", CommandLanguage.POLISH),
         ("pokaż diagnostykę", CommandLanguage.POLISH),
         ("pokaz diagnostyke", CommandLanguage.POLISH),
+        ("pokaż diagnostyka", CommandLanguage.POLISH),
+        ("pokaz diagnostyka", CommandLanguage.POLISH),
+        ("pokaż djagnostykę", CommandLanguage.POLISH),
+        ("pokaz djagnostyke", CommandLanguage.POLISH),
+        ("o kasz diagnostykę", CommandLanguage.POLISH),
+        ("o kasz diagnostyke", CommandLanguage.POLISH),
         ("centrum diagnostyczne", CommandLanguage.POLISH),
         ("otwórz centrum diagnostyczne", CommandLanguage.POLISH),
         ("otworz centrum diagnostyczne", CommandLanguage.POLISH),
@@ -3614,19 +3639,15 @@ def build_default_command_grammar() -> CommandGrammar:
 
     # ASR mishear / recovery variants — match in grammar but never exported to Vosk.
     _stt_recovery_diagnostic_on = (
-        ("shows system status", CommandLanguage.ENGLISH),
-        ("pokaz diagnostyka", CommandLanguage.POLISH),
         ("pokaz diagnostike", CommandLanguage.POLISH),
         ("polkaz diagnostike", CommandLanguage.POLISH),
         ("polkaz diagnostyke", CommandLanguage.POLISH),
         # djagnostyk* mishear variants
         ("pokaz djagnostyka", CommandLanguage.POLISH),
-        ("pokaz djagnostyke", CommandLanguage.POLISH),
         ("pokaz djagnostike", CommandLanguage.POLISH),
         # okaz* / o kasz* mishear variants
         ("okaze diagnostyka", CommandLanguage.POLISH),
         ("okaz diagnostyka", CommandLanguage.POLISH),
-        ("o kasz diagnostyke", CommandLanguage.POLISH),
         ("o kasz diagnostike", CommandLanguage.POLISH),
         # pokasz logi mishear
         ("pokasz logi", CommandLanguage.POLISH),
@@ -3649,14 +3670,12 @@ def build_default_command_grammar() -> CommandGrammar:
 
     _stt_recovery_diagnostic_off = (
         ("zamknij diagnostyka", CommandLanguage.POLISH),
-        ("close window", CommandLanguage.ENGLISH),
         ("close diagnostic", CommandLanguage.ENGLISH),
         ("hide diagnostic", CommandLanguage.ENGLISH),
         # ASR mishear: "close" → "Klaus" / "Claus"
         ("klaus system status", CommandLanguage.ENGLISH),
         ("claus system status", CommandLanguage.ENGLISH),
         # "close systems" (drops "status" word)
-        ("close systems", CommandLanguage.ENGLISH),
         # Polish: "zamknij" → "zamiń"/"zamień"
         ("zamień okno", CommandLanguage.POLISH),
         ("zamien okno", CommandLanguage.POLISH),

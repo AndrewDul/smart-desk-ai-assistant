@@ -1023,7 +1023,12 @@ func _apply_visual_command(command: String, payload: Dictionary, raw_message: Di
         return
 
     if command == "SHOW_FEEDBACK":
-        display_feedback_dashboard(String(payload.get("language", "en")))
+        print(
+            "[turn-timeline] turn_id=",
+            String(payload.get("turn_id", "-")),
+            " event=godot_show_feedback_received"
+        )
+        display_feedback_dashboard(String(payload.get("language", "en")), String(payload.get("turn_id", "-")))
         return
 
     if command == "HIDE_FEEDBACK":
@@ -1038,6 +1043,11 @@ func _apply_visual_command(command: String, payload: Dictionary, raw_message: Di
     if command == "FEEDBACK_STATUS_UPDATE":
         if feedback_dashboard_view != null and feedback_dashboard_view.has_method("update_statuses"):
             feedback_dashboard_view.update_statuses(payload.get("statuses", {}), payload.get("sections", []))
+            print(
+                "[turn-timeline] turn_id=",
+                String(payload.get("turn_id", "-")),
+                " event=full_dashboard_populated"
+            )
         return
 
     if command == "FEEDBACK_VISION_FRAME":
@@ -1252,7 +1262,8 @@ func _setup_feedback_dashboard() -> void:
     feedback_dashboard_layer.add_child(feedback_dashboard_view)
 
 
-func display_feedback_dashboard(language: String) -> void:
+func display_feedback_dashboard(language: String, turn_id: String = "-") -> void:
+    var started_msec := OS.get_ticks_msec()
     if feedback_dashboard_view == null:
         _setup_feedback_dashboard()
 
@@ -1264,13 +1275,41 @@ func display_feedback_dashboard(language: String) -> void:
     if feedback_dashboard_view != null:
         feedback_dashboard_view.visible = true
         feedback_dashboard_view.show()
-        if feedback_dashboard_view.has_method("set_language"):
-            feedback_dashboard_view.set_language(language)
+        if feedback_dashboard_view.has_method("show_loading_shell"):
+            feedback_dashboard_view.show_loading_shell(language)
         if feedback_dashboard_view.has_method("layout_for_viewport"):
             feedback_dashboard_view.layout_for_viewport(get_viewport_rect().size)
         feedback_dashboard_view.raise()
 
     update()
+    print(
+        "[turn-timeline] turn_id=",
+        turn_id,
+        " event=godot_show_called visible_method_ms=",
+        OS.get_ticks_msec() - started_msec
+    )
+    print(
+        "[visual-shell-latency] command=show_feedback_visible visible_ms=",
+        OS.get_ticks_msec() - started_msec,
+        " policy=lightweight_shell turn_id=",
+        turn_id
+    )
+    call_deferred("_finish_feedback_dashboard_open", language, turn_id)
+
+
+func _finish_feedback_dashboard_open(language: String, turn_id: String = "-") -> void:
+    # TODO: replace this local handling timestamp with a Python-visible ACK
+    # when the Visual Shell transport grows a reply channel.
+    yield(get_tree(), "idle_frame")
+    if feedback_dashboard_view == null or not feedback_dashboard_view.visible:
+        return
+    if feedback_dashboard_view.has_method("set_language"):
+        feedback_dashboard_view.set_language(language)
+    if feedback_dashboard_view.has_method("layout_for_viewport"):
+        feedback_dashboard_view.layout_for_viewport(get_viewport_rect().size)
+    feedback_dashboard_view.raise()
+    update()
+    print("[turn-timeline] turn_id=", turn_id, " event=godot_after_idle_frame")
 
 func hide_feedback_dashboard() -> void:
     if feedback_dashboard_view != null:

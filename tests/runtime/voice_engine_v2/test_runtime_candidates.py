@@ -139,7 +139,58 @@ def test_runtime_candidate_adapter_rejects_non_allowlisted_exit_by_default() -> 
     assert result.route_decision is None
 
 
-def test_runtime_candidate_adapter_rejects_exit_even_when_requested_by_override() -> None:
+def test_pre_whisper_vosk_candidate_accepts_safe_diagnostics_without_config_allowlist() -> None:
+    bundle = _bundle(runtime_candidates_enabled=True)
+
+    result = bundle.runtime_candidate_adapter.process_vosk_shadow_result(
+        turn_id="turn-pre-whisper-diagnostics",
+        result_metadata=_safe_vosk_shadow_result(
+            transcript="show system status",
+            normalized_text="show system status",
+            language="en",
+        ),
+        started_monotonic=1.0,
+        speech_end_monotonic=2.0,
+        metadata={
+            "source": "vosk_pre_whisper_candidate",
+            "candidate_stage": "vosk_pre_whisper_candidate",
+        },
+    )
+
+    assert result.accepted is True
+    assert result.intent_key == "feedback.on"
+    assert result.route_decision is not None
+    assert result.route_decision.primary_intent == "feedback_on"
+    assert result.metadata["full_stt_prevented"] is True
+
+
+def test_pre_whisper_vosk_candidate_rejects_unknown_phrase_without_bypass() -> None:
+    bundle = _bundle(runtime_candidates_enabled=True)
+
+    result = bundle.runtime_candidate_adapter.process_vosk_shadow_result(
+        turn_id="turn-pre-whisper-unknown",
+        result_metadata=_safe_vosk_shadow_result(
+            transcript="show me a random thing",
+            normalized_text="show me a random thing",
+            language="en",
+            recognized=False,
+            command_matched=False,
+            confidence=0.0,
+        ),
+        started_monotonic=1.0,
+        speech_end_monotonic=2.0,
+        metadata={
+            "source": "vosk_pre_whisper_candidate",
+            "candidate_stage": "vosk_pre_whisper_candidate",
+        },
+    )
+
+    assert result.accepted is False
+    assert result.reason == "vosk_shadow_result_not_recognized"
+    assert result.route_decision is None
+
+
+def test_runtime_candidate_adapter_accepts_exit_when_explicitly_allowlisted() -> None:
     bundle = _bundle(
         runtime_candidates_enabled=True,
         allowlist=["assistant.identity", "system.current_time", "system.exit"],
@@ -153,10 +204,11 @@ def test_runtime_candidate_adapter_rejects_exit_even_when_requested_by_override(
         speech_end_monotonic=1.0,
     )
 
-    assert result.accepted is False
-    assert result.reason == "intent_not_allowlisted:system.exit"
+    assert result.accepted is True
+    assert result.reason == "accepted"
     assert result.intent_key == "system.exit"
-    assert result.route_decision is None
+    assert result.route_decision is not None
+    assert result.route_decision.primary_intent == "exit"
 
 
 def test_runtime_candidate_adapter_falls_back_for_ambiguous_show_shell_outputs() -> None:

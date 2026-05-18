@@ -17071,3 +17071,27 @@ I also confirmed that DIAGNOSTICS appears before the camera start and before lib
 
 Some timing rows still show not measured yet until the runtime exposes more detailed metrics for those subsystems. Camera, Vision, Memory, Visual Shell, and some STT/VAD timing fields can be expanded later if safe hooks already exist or can be added without slowing down NeXa.
 
+## 2026-05-18 - Vosk-fast diagnostics command path
+
+### Summary
+
+I fixed the real Diagnostics startup delay. The slow part was not Visual Shell rendering anymore. The delay was before `Heard:` because Vosk/pre-Whisper recognized the diagnostics phrase but the runtime candidate adapter rejected `feedback.on` and `feedback.off` as not allowlisted, so the command fell through to full FasterWhisper.
+
+### What I changed
+
+I added a narrow safe pre-Whisper built-in allowlist for deterministic local commands. It only accepts known Vosk command results when the command is recognized, matched, has a known language, has safe confidence, and comes from the Vosk pre-Whisper candidate path.
+
+I added `system.status` so `status` remains the old status command and does not open Diagnostics. I also made the safe diagnostics phrases Vosk-fast, including `show system status`, `shows system status`, `close system status`, `close systems`, `close window`, `close diagnostics`, `pokaż diagnostykę`, `pokaż diagnostyka`, `pokaż djagnostykę`, `o kasz diagnostykę`, and `zamknij diagnostykę`.
+
+I kept the lightweight Visual Shell open path and the runtime turn timeline instrumentation. The timeline now proves whether a command used Vosk/pre-Whisper or fell through to FasterWhisper.
+
+### Runtime proof
+
+I ran the product runtime with the real microphone path. `show system status` was accepted by Vosk/pre-Whisper and produced `backend=vosk_command_asr`, `full_stt_prevented=true`, with transcript `shows system status`. Visual Shell opened with `show_feedback_send send_ms=0.6` and `show_feedback_visible visible_ms=3`.
+
+`zamknij okno` also used `backend=vosk_command_asr` with `full_stt_prevented=true`, and `exit` still closed the runtime cleanly.
+
+### Remaining work
+
+There is still a Vosk vocabulary warning for `djagnostykę`. It does not block the command path, but it can be cleaned later by keeping unsupported mishear words in text recovery instead of Vosk grammar if the warning becomes noisy.
+

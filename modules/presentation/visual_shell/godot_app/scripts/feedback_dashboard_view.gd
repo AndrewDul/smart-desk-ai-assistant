@@ -23,6 +23,7 @@ const STATUS_NAME_COLOR = Color(0.86, 0.90, 0.96, 1.0)
 const STATUS_OK_COLOR = Color(0.45, 0.92, 0.65, 1.0)
 const STATUS_NOT_OK_COLOR = Color(1.0, 0.42, 0.46, 1.0)
 const CENTER_CARD_ITEM_LIMIT = 6
+const LEGACY_FEEDBACK_CENTER_LABEL = "FEEDBACK CENTER"
 
 const TAB_CENTER = 0
 const TAB_LOGS_STATUS = 1
@@ -139,6 +140,7 @@ var _vision_log_entries = []
 var _center_sections = []
 var _active_center_page = "overview"
 var _controls_ready = false
+var _has_status_payload = false
 
 
 func _ready() -> void:
@@ -154,6 +156,22 @@ func set_language(language: String) -> void:
     _redraw_status_grid()
     _redraw_vision_status_grid()
     _refresh_vision_placeholder_text()
+    update()
+
+
+func show_loading_shell(language: String) -> void:
+    _language = String(language).strip_edges().to_lower()
+    _ensure_controls()
+    _has_status_payload = false
+    _center_sections = []
+    _active_center_page = "overview"
+    _seed_statuses()
+    _refresh_static_text()
+    _refresh_vision_placeholder_text()
+    _redraw_status_grid()
+    _redraw_vision_status_grid()
+    _redraw_center_sections()
+    _apply_tab_visibility()
     update()
 
 
@@ -299,6 +317,8 @@ func update_statuses(statuses, sections = []) -> void:
         return
 
     _ensure_controls()
+    _has_status_payload = true
+    _refresh_static_text()
 
     for key in statuses.keys():
         var normalized_key = String(key)
@@ -667,8 +687,8 @@ func _status_color(state) -> Color:
 
 
 func _refresh_static_text() -> void:
-    _title_label.text = "FEEDBACK CENTER"
-    _subtitle_label.text = "Product health, LLM readiness, audio capture, memory, vision, power, and logs."
+    _title_label.text = "Diagnostics center"
+    _subtitle_label.text = "Live status" if _has_status_payload else "Loading live status..."
     _tab_center_label.text = "CENTER"
     _tab_logs_label.text = "SYSTEM LOGS & STATUS"
     _tab_vision_label.text = "VISION"

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 
+from modules.shared.logging.logger import get_logger
+from modules.runtime.turn_timeline import render_turn_timeline_line
 from modules.presentation.visual_shell.contracts import (
     VisualCommand,
     VisualCommandName,
@@ -15,6 +18,8 @@ from modules.presentation.visual_shell.controller.voice_command_router import (
 )
 from modules.presentation.visual_shell.service import VisualShellSystemMetricsProvider
 from modules.presentation.visual_shell.transport.ipc_client import VisualShellTransport
+
+LOGGER = get_logger(__name__)
 
 
 @dataclass(slots=True)
@@ -365,14 +370,50 @@ class VisualShellController:
         results = [self.send_command(command) for command in commands]
         return all(results)
 
-    def show_feedback(self, *, language: str = "en", source: str = "nexa-runtime") -> bool:
-        return self.send_command(
+    def show_feedback(
+        self,
+        *,
+        language: str = "en",
+        source: str = "nexa-runtime",
+        turn_id: str = "",
+    ) -> bool:
+        started = time.monotonic()
+        safe_turn_id = str(turn_id or "").strip()
+        if safe_turn_id:
+            print(
+                render_turn_timeline_line(
+                    turn_id=safe_turn_id,
+                    event="show_feedback_send_started",
+                )
+            )
+        payload = {"language": str(language or "en")}
+        if safe_turn_id:
+            payload["turn_id"] = safe_turn_id
+        result = self.send_command(
             VisualCommand(
                 command=VisualCommandName.SHOW_FEEDBACK,
-                payload={"language": str(language or "en")},
+                payload=payload,
                 source=source,
             )
         )
+        elapsed_ms = (time.monotonic() - started) * 1000
+        if safe_turn_id:
+            print(
+                render_turn_timeline_line(
+                    turn_id=safe_turn_id,
+                    event="show_feedback_send_finished",
+                    send_ms=elapsed_ms,
+                    ok=result,
+                )
+            )
+        line = (
+            "[visual-shell-latency] command=show_feedback_send "
+            f"send_ms={elapsed_ms:.1f} ok={result} payload=lightweight"
+            + (f" turn_id={safe_turn_id}" if safe_turn_id else "")
+        )
+        print(line)
+        LOGGER.info(line)
+        return result
 
     def hide_feedback(self, *, source: str = "nexa-runtime") -> bool:
         return self.send_command(
@@ -395,8 +436,11 @@ class VisualShellController:
         statuses: dict,
         sections: list[dict] | None = None,
         source: str = "nexa-runtime",
+        turn_id: str = "",
     ) -> bool:
         payload = {"statuses": dict(statuses or {})}
+        if str(turn_id or "").strip():
+            payload["turn_id"] = str(turn_id or "").strip()
         if sections is not None:
             payload["sections"] = [dict(section) for section in sections if isinstance(section, dict)]
         return self.send_command(

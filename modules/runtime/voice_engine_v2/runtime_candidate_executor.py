@@ -86,6 +86,11 @@ class RuntimeCandidateExecutionPlanBuilder:
                 legacy_action="exit",
                 tool_name="system.exit",
             ),
+            "system.status": RuntimeCandidateActionSpec(
+                voice_engine_intent_key="system.status",
+                legacy_action="status",
+                tool_name="system.status",
+            ),
             "system.temperature": RuntimeCandidateActionSpec(
                 voice_engine_intent_key="system.temperature",
                 legacy_action="show_temperature",

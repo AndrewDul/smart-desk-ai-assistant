@@ -23,6 +23,18 @@ from modules.runtime.voice_engine_v2.runtime_candidate_telemetry import (
     VoiceEngineV2RuntimeCandidateTelemetryWriter,
 )
 
+_PRE_WHISPER_BUILTIN_INTENT_ALLOWLIST = frozenset(
+    {
+        "feedback.on",
+        "feedback.off",
+        "system.current_time",
+        "system.current_date",
+        "system.calculate",
+        "system.exit",
+        "system.status",
+    }
+)
+
 
 @dataclass(frozen=True, slots=True)
 class VoiceEngineV2RuntimeCandidateRequest:
@@ -544,8 +556,15 @@ class VoiceEngineV2RuntimeCandidateAdapter:
             )
 
         intent_key = turn_result.intent.key
+        intent_allowlisted = (
+            intent_key in self._settings.runtime_candidate_intent_allowlist
+            or self._is_safe_pre_whisper_builtin_request(
+                request=request,
+                intent_key=intent_key,
+            )
+        )
         if (
-            intent_key not in self._settings.runtime_candidate_intent_allowlist
+            not intent_allowlisted
             or intent_key not in self._execution_plan_builder.supported_intents
         ):
             return self._finalize(
@@ -625,6 +644,40 @@ class VoiceEngineV2RuntimeCandidateAdapter:
             or bool(metadata.get("faster_whisper_bypassed", False))
             or capture_backend == "vosk_command_asr"
         )
+
+    def _is_safe_pre_whisper_builtin_request(
+        self,
+        *,
+        request: VoiceEngineV2RuntimeCandidateRequest,
+        intent_key: str,
+    ) -> bool:
+        """Allow narrow deterministic built-ins to bypass stale config allowlists."""
+
+        if intent_key not in _PRE_WHISPER_BUILTIN_INTENT_ALLOWLIST:
+            return False
+
+        metadata = dict(request.metadata or {})
+        if not self._request_is_live_vosk_takeover(metadata):
+            return False
+
+        shadow_result = metadata.get("vosk_shadow_result")
+        if not isinstance(shadow_result, Mapping):
+            return False
+
+        if not bool(shadow_result.get("recognized", False)):
+            return False
+        if not bool(shadow_result.get("command_matched", False)):
+            return False
+
+        try:
+            confidence = float(shadow_result.get("confidence", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return False
+        if confidence < 0.80:
+            return False
+
+        language = str(shadow_result.get("language", "") or "").strip().lower()
+        return language in {"en", "pl"}
 
 
     @staticmethod

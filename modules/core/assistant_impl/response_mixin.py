@@ -16,6 +16,7 @@ from modules.runtime.contracts import (
     RouteKind,
     create_turn_id,
 )
+from modules.runtime.turn_timeline import log_turn_timeline
 from modules.shared.logging.logger import append_log, log_exception
 
 
@@ -100,6 +101,12 @@ class CoreAssistantResponseMixin:
             stop_thinking_ack()
         self.voice_session.transition_to_speaking(
             detail=f"response:{route_kind_value}",
+        )
+        log_turn_timeline(
+            self,
+            event="tts_started",
+            route_kind=route_kind_value,
+            source=source,
         )
         append_event = getattr(self, "_append_diagnostics_event", None)
         if callable(append_event):
@@ -262,6 +269,30 @@ class CoreAssistantResponseMixin:
                 display_title=display_title,
                 display_lines=display_lines,
                 default_chunk_kinds=["content"] if remembered_text else [],
+            )
+            first_audio_started_at = float(
+                getattr(
+                    self._last_response_stream_report,
+                    "first_audio_started_at_monotonic",
+                    0.0,
+                )
+                or 0.0
+            )
+            if first_audio_started_at > 0.0:
+                log_turn_timeline(
+                    self,
+                    event="tts_first_audio",
+                    event_time=first_audio_started_at,
+                    first_audio_ms=float(
+                        getattr(self._last_response_stream_report, "first_audio_ms", 0.0)
+                        or 0.0
+                    ),
+                )
+            log_turn_timeline(
+                self,
+                event="tts_finished",
+                response_ms=max(0.0, (finished_at - started_at) * 1000.0),
+                delivered=bool(delivered),
             )
 
             plan_metadata = dict(getattr(plan, "metadata", {}) or {})

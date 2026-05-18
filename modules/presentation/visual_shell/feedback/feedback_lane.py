@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 from modules.shared.logging.logger import get_logger
+from modules.runtime.turn_timeline import current_turn_id, log_turn_timeline
 
 from .feedback_center_snapshot import build_feedback_center_snapshot
 from .feedback_log_bridge import attach_feedback_log_handler, detach_feedback_log_handler, refresh_feedback_log_targets
@@ -20,6 +21,10 @@ class FeedbackLane:
     # Seconds to wait before starting camera — guarantees DIAGNOSTICS is rendered
     # in the Visual Shell before libcamera prints to stdout.
     _CAMERA_START_DELAY_S: float = 0.75
+    # Give Godot at least one render opportunity before sending the first
+    # structured status payload. Large RichTextLabel updates are intentionally
+    # stage 2, after the lightweight diagnostics shell is visible.
+    _FIRST_STATUS_SNAPSHOT_DELAY_S: float = 0.35
 
     def __init__(self, *, visual_shell_lane: Any, assistant: Any) -> None:
         self._visual_shell_lane = visual_shell_lane
@@ -45,28 +50,36 @@ class FeedbackLane:
                 return False
 
             try:
-                controller.show_feedback(language=self._language, source="nexa-feedback")
+                controller.show_feedback(
+                    language=self._language,
+                    source="nexa-feedback",
+                    turn_id=current_turn_id(self._assistant),
+                )
             except Exception as error:
                 LOGGER.warning("Feedback lane: show_feedback failed safely: %s", error)
                 return False
 
             attach_feedback_log_handler(controller)
 
+            if self._active:
+                LOGGER.info("Feedback mode: dashboard already active; refreshed shell only.")
+                return True
+
+            self._status_stop.clear()
+            self._active = True
+
             cam = self._camera_service()
             if cam is not None:
                 self._streamer = FeedbackVisionStreamer(controller, cam)
-                self._streamer.start()
             else:
                 LOGGER.warning("Feedback mode: no camera backend found, vision preview will stay empty.")
 
-            self._status_stop.clear()
             self._status_thread = threading.Thread(
                 target=self._status_loop,
                 name="nexa-feedback-status",
                 daemon=True,
             )
             self._status_thread.start()
-            self._active = True
 
         LOGGER.info("Feedback mode: dashboard started.")
         return True
@@ -165,6 +178,8 @@ class FeedbackLane:
         return None
 
     def _status_loop(self) -> None:
+        if self._status_stop.wait(timeout=self._FIRST_STATUS_SNAPSHOT_DELAY_S):
+            return
         while not self._status_stop.is_set():
             try:
                 self._publish_status_snapshot()
@@ -179,13 +194,36 @@ class FeedbackLane:
             return
 
         refresh_feedback_log_targets()
+        log_turn_timeline(self._assistant, event="status_snapshot_started")
         statuses = self._collect_statuses()
         center_snapshot = self._collect_feedback_center_snapshot(controller=controller)
+        sections = center_snapshot.get("sections", [])
+        send_started = time.monotonic()
         try:
             controller.feedback_status_update(
                 statuses=statuses,
-                sections=center_snapshot.get("sections", []),
+                sections=sections,
                 source="nexa-feedback",
+                turn_id=current_turn_id(self._assistant),
+            )
+            send_ms = (time.monotonic() - send_started) * 1000
+            line = (
+                "[visual-shell-latency] command=feedback_status_send "
+                f"send_ms={send_ms:.1f} sections={len(sections)} statuses={len(statuses)}"
+                + (
+                    f" turn_id={current_turn_id(self._assistant)}"
+                    if current_turn_id(self._assistant)
+                    else ""
+                )
+            )
+            print(line)
+            LOGGER.info(line)
+            log_turn_timeline(
+                self._assistant,
+                event="status_payload_sent",
+                send_ms=send_ms,
+                sections=len(sections),
+                statuses=len(statuses),
             )
         except Exception as error:
             LOGGER.debug("Feedback status update failed safely: %s", error)
@@ -197,13 +235,56 @@ class FeedbackLane:
         settings = getattr(assistant, "settings", {}) if assistant is not None else {}
         if isinstance(settings, dict):
             repo_root = str(settings.get("repo_root") or ".")
+        started = time.monotonic()
         try:
-            return build_feedback_center_snapshot(
+            snapshot = build_feedback_center_snapshot(
                 assistant=assistant,
                 repo_root=repo_root,
                 metrics_provider=metrics_provider,
             )
+            elapsed_ms = (time.monotonic() - started) * 1000
+            sections = snapshot.get("sections", [])
+            item_count = 0
+            for section in sections:
+                if isinstance(section, dict):
+                    items = section.get("items", [])
+                    if isinstance(items, list):
+                        item_count += len(items)
+            line = (
+                "[feedback-snapshot-latency] "
+                f"build_ms={elapsed_ms:.1f} sections={len(sections)} items={item_count}"
+                + (
+                    f" turn_id={current_turn_id(assistant)}"
+                    if current_turn_id(assistant)
+                    else ""
+                )
+            )
+            print(line)
+            LOGGER.info(line)
+            log_turn_timeline(
+                assistant,
+                event="status_snapshot_finished",
+                build_ms=elapsed_ms,
+                sections=len(sections),
+                items=item_count,
+            )
+            return snapshot
         except Exception as error:
+            elapsed_ms = (time.monotonic() - started) * 1000
+            line = (
+                "[feedback-snapshot-latency] "
+                f"build_ms={elapsed_ms:.1f} sections=1 items=1 error=true"
+            )
+            print(line)
+            LOGGER.info(line)
+            log_turn_timeline(
+                assistant,
+                event="status_snapshot_finished",
+                build_ms=elapsed_ms,
+                sections=1,
+                items=1,
+                error=True,
+            )
             LOGGER.debug("Feedback Center snapshot failed safely: %s", error)
             return {
                 "sections": [
@@ -415,6 +496,7 @@ class FeedbackLane:
             worker = getattr(cam, "_worker", None)
             if worker is not None and bool(getattr(worker, "is_running", False)):
                 LOGGER.info("[diagnostics-camera] skipped (worker already running)")
+                self._start_vision_streamer_if_needed()
                 return
 
             print("[diagnostics-camera] starting delayed camera")
@@ -425,11 +507,21 @@ class FeedbackLane:
                 elapsed_ms = (time.monotonic() - _t0) * 1000
                 print(f"[diagnostics-camera] started ok=true start_ms={elapsed_ms:.1f}")
                 LOGGER.info("[diagnostics-camera] started ok=true start_ms=%.1f", elapsed_ms)
+                self._start_vision_streamer_if_needed()
             except Exception as error:
                 print(f"[diagnostics-camera] error={error}")
                 LOGGER.warning("[diagnostics-camera] delayed camera start failed: %s", error)
         finally:
             self._cam_start_pending.clear()
+
+    def _start_vision_streamer_if_needed(self) -> None:
+        streamer = self._streamer
+        if streamer is None:
+            return
+        try:
+            streamer.start()
+        except Exception as error:
+            LOGGER.debug("Feedback vision streamer start failed safely: %s", error)
 
 
 __all__ = ["FeedbackLane"]

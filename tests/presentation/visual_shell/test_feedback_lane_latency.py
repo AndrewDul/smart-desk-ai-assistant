@@ -225,6 +225,72 @@ def test_feedback_on_does_not_call_publish_snapshot_synchronously() -> None:
     lane.turn_off()
 
 
+def test_feedback_on_does_not_build_feedback_center_snapshot_synchronously() -> None:
+    """turn_on() must not build the heavy structured snapshot inline."""
+    lane = _make_lane(cam=None)
+
+    with patch.object(lane, "_status_loop"), \
+         patch("modules.presentation.visual_shell.feedback.feedback_lane.build_feedback_center_snapshot") as mock_build:
+        lane.turn_on()
+        mock_build.assert_not_called()
+
+    lane.turn_off()
+
+
+def test_status_loop_can_publish_full_snapshot_after_open_delay() -> None:
+    """The full diagnostics payload remains available through the status path."""
+    lane = _make_lane(cam=None)
+    lane._FIRST_STATUS_SNAPSHOT_DELAY_S = 0.01
+    controller = lane._controller()
+
+    with patch("modules.presentation.visual_shell.feedback.feedback_lane.build_feedback_center_snapshot") as mock_build:
+        mock_build.return_value = {
+            "sections": [
+                {
+                    "id": "performance",
+                    "title": "Performance / Timings",
+                    "items": [
+                        {
+                            "label": "Timing data",
+                            "value": "not measured yet",
+                            "hint": "loaded after shell open",
+                            "severity": "unknown",
+                        }
+                    ],
+                }
+            ]
+        }
+        lane.turn_on()
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline and not controller.feedback_status_update.called:
+            time.sleep(0.01)
+
+    assert controller.feedback_status_update.called
+    _, kwargs = controller.feedback_status_update.call_args
+    assert kwargs["sections"][0]["id"] == "performance"
+    lane.turn_off()
+
+
+def test_performance_snapshot_builder_does_not_block_basic_shell_open() -> None:
+    """A slow performance/snapshot source must not delay turn_on()."""
+    lane = _make_lane(cam=None)
+
+    def slow_snapshot(*args, **kwargs):
+        del args, kwargs
+        time.sleep(0.25)
+        return {"sections": []}
+
+    with patch.object(lane, "_status_loop"), \
+         patch("modules.presentation.visual_shell.feedback.feedback_lane.build_feedback_center_snapshot", side_effect=slow_snapshot):
+        started = time.monotonic()
+        result = lane.turn_on()
+        elapsed = time.monotonic() - started
+
+    assert result is True
+    assert elapsed < 0.1
+    lane.turn_off()
+
+
 def test_feedback_on_returns_true_with_camera_present() -> None:
     """turn_on() must return True and create a streamer when camera is present."""
     cam = FakeCameraService()
@@ -249,6 +315,18 @@ def test_feedback_on_returns_true_without_camera() -> None:
     assert result is True
     assert lane._streamer is None
 
+    lane.turn_off()
+
+
+def test_repeated_feedback_on_refreshes_shell_without_new_status_loop() -> None:
+    lane = _make_lane(cam=None)
+
+    with patch.object(lane, "_publish_status_snapshot"):
+        assert lane.turn_on() is True
+        first_thread = lane._status_thread
+        assert lane.turn_on() is True
+
+    assert lane._status_thread is first_thread
     lane.turn_off()
 
 

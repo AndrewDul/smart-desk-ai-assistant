@@ -594,6 +594,49 @@ def test_default_grammar_recognizes_diagnostics_feedback_aliases() -> None:
         assert result.language == language
 
 
+def test_diagnostics_core_aliases_are_vosk_fast_vocabulary() -> None:
+    grammar = build_default_command_grammar()
+    english_vocabulary = set(grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH))
+    polish_vocabulary = set(grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH))
+
+    for phrase in (
+        "show system status",
+        "shows system status",
+        "open diagnostics",
+        "show diagnostics",
+        "close system status",
+        "close systems",
+        "close window",
+        "close diagnostics",
+        "what time is it",
+        "status",
+        "exit",
+    ):
+        assert phrase in english_vocabulary
+
+    for phrase in (
+        "pokaż diagnostykę",
+        "pokaż diagnostyka",
+        "pokaż djagnostykę",
+        "o kasz diagnostykę",
+        "zamknij okno",
+        "zamknij diagnostykę",
+        "która godzina",
+        "stan",
+    ):
+        assert phrase in polish_vocabulary
+
+
+def test_status_alone_maps_to_legacy_status_not_diagnostics() -> None:
+    grammar = build_default_command_grammar()
+
+    result = grammar.match("status")
+
+    assert result.status == CommandRecognitionStatus.MATCHED
+    assert result.intent_key == "system.status"
+    assert result.intent_key != "feedback.on"
+
+
 def test_default_grammar_recognizes_feedback_asr_variants() -> None:
     grammar = build_default_command_grammar()
 
@@ -743,12 +786,8 @@ def test_diagnostics_close_aliases_not_in_vosk_vocabulary() -> None:
     polish_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)
 
     # Complex phrases with unusual words must stay out of Vosk grammar
-    assert "close diagnostics" not in english_vocabulary
-    assert "hide diagnostics" not in english_vocabulary
     assert "exit diagnostics" not in english_vocabulary
     assert "leave diagnostics" not in english_vocabulary
-    assert "close system status" not in english_vocabulary
-    assert "zamknij diagnostykę" not in polish_vocabulary
     assert "wyjdź z diagnostyki" not in polish_vocabulary
 
     # Simple common-word phrases can optionally be in Vosk grammar
@@ -807,8 +846,6 @@ def test_stt_recovery_diagnostic_on_aliases_not_in_vosk_vocabulary() -> None:
     english_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.ENGLISH)
     polish_vocabulary = grammar.to_vosk_vocabulary(language=CommandLanguage.POLISH)
 
-    assert "shows system status" not in english_vocabulary
-    assert "pokaz diagnostyka" not in polish_vocabulary
     assert "pokaz diagnostike" not in polish_vocabulary
     assert "polkaz diagnostike" not in polish_vocabulary
     assert "polkaz diagnostyke" not in polish_vocabulary
@@ -868,7 +905,6 @@ _NEW_FEEDBACK_ON_VARIANTS = [
 
 _NEW_FEEDBACK_OFF_VARIANTS = [
     ("zamknij diagnostyka", "pl"),
-    ("close window", "en"),
     ("close diagnostic", "en"),
     ("hide diagnostic", "en"),
 ]
@@ -967,7 +1003,6 @@ def test_grammar_session4_aliases_match_correct_intent(phrase: str, expected_int
 
 
 @pytest.mark.parametrize("phrase,lang_code", [
-    ("close systems", "en"),
     ("zamień okno", "pl"),
     ("zamien okno", "pl"),
     ("or almost diagnostica", "en"),

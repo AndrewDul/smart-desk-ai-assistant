@@ -327,3 +327,35 @@ def test_visual_shell_controller_sends_feedback_commands() -> None:
             "source": "unit-test",
         },
     ]
+
+
+def test_visual_shell_controller_show_feedback_is_lightweight() -> None:
+    transport = InMemoryVisualShellTransport()
+    controller = VisualShellController(transport=transport)
+
+    assert controller.show_feedback(language="en", source="unit-test") is True
+
+    assert transport.sent_messages == [
+        {
+            "command": "SHOW_FEEDBACK",
+            "payload": {"language": "en"},
+            "source": "unit-test",
+        }
+    ]
+    assert "statuses" not in transport.sent_messages[0]["payload"]
+    assert "sections" not in transport.sent_messages[0]["payload"]
+
+
+def test_visual_shell_controller_show_feedback_can_carry_turn_id() -> None:
+    transport = InMemoryVisualShellTransport()
+    controller = VisualShellController(transport=transport)
+
+    assert controller.show_feedback(language="en", source="unit-test", turn_id="turn-1") is True
+
+    assert transport.sent_messages == [
+        {
+            "command": "SHOW_FEEDBACK",
+            "payload": {"language": "en", "turn_id": "turn-1"},
+            "source": "unit-test",
+        }
+    ]
