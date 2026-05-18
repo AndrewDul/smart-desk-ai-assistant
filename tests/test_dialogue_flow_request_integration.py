@@ -318,6 +318,47 @@ class DialogueFlowRequestIntegrationTests(unittest.TestCase):
         self.assertEqual(assistant.completed_commands, ["Opowiedz mi o czarnych dziurach."])
         self.assertEqual(decision.consumed_by, "follow_up:incomplete_dialogue_topic")
 
+    def test_conversation_repair_follow_up_completes_open_dialogue_capture(self) -> None:
+        assistant = _FakeAssistant()
+        assistant.pending_follow_up = {
+            "type": "conversation_repair",
+            "language": "en",
+            "prefix_text": "Explain black holes in",
+            "source": "incomplete_open_dialogue_capture",
+        }
+        flow = PendingFlowOrchestrator(assistant)
+
+        decision = flow.process_pending_state(
+            routing_text="simple words",
+            command_lang="en",
+        )
+
+        self.assertTrue(decision.handled)
+        self.assertIsNone(assistant.pending_follow_up)
+        self.assertEqual(assistant.completed_commands, ["Explain black holes in simple words."])
+        self.assertEqual(decision.consumed_by, "follow_up:conversation_repair")
+
+    def test_conversation_repair_follow_up_can_be_cancelled(self) -> None:
+        assistant = _FakeAssistant()
+        assistant.pending_follow_up = {
+            "type": "conversation_repair",
+            "language": "pl",
+            "prefix_text": "Wyjaśnij czarne dziury w",
+            "source": "incomplete_open_dialogue_capture",
+        }
+        flow = PendingFlowOrchestrator(assistant)
+
+        decision = flow.handle_pending_follow_up(
+            routing_text="anuluj",
+            command_lang="pl",
+        )
+
+        self.assertTrue(decision.handled)
+        self.assertIsNone(assistant.pending_follow_up)
+        self.assertEqual(assistant.text_responses[-1]["text"], "Dobrze, anuluję.")
+        self.assertEqual(assistant.completed_commands, [])
+        self.assertEqual(decision.consumed_by, "follow_up:conversation_repair_cancel")
+
 
 if __name__ == "__main__":
     unittest.main()

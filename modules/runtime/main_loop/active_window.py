@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import re
 
 from typing import TYPE_CHECKING
 
@@ -20,7 +21,13 @@ from modules.core.session.visual_shell_state_feedback import (
     notify_visual_shell_voice_event,
 )
 from modules.presentation.visual_shell.contracts import VisualEventName
-from modules.runtime.contracts import InputSource, TranscriptRequest, TranscriptResult, WakeDetectionResult
+from modules.runtime.contracts import (
+    InputSource,
+    RouteKind,
+    TranscriptRequest,
+    TranscriptResult,
+    WakeDetectionResult,
+)
 from modules.shared.logging.logger import append_log
 from modules.runtime.voice_engine_v2.realtime_audio_bus_probe import (
     probe_realtime_audio_bus,
@@ -204,6 +211,14 @@ def _capture_mode_for_active_phase(
         pending_follow_up = getattr(assistant, "pending_follow_up", None)
         if isinstance(pending_follow_up, dict):
             pending_type = str(pending_follow_up.get("type", "") or "").strip().lower()
+            pending_source = str(pending_follow_up.get("source", "") or "").strip().lower()
+            if pending_type == "conversation_repair":
+                return "conversation_repair"
+            if pending_type == "clarification_repeat" and pending_source in {
+                "incomplete_dialogue_query",
+                "partial_polish_dialogue_topic",
+            }:
+                return "conversation_repair"
             if pending_type == "reminder_time":
                 return "reminder_time"
             if pending_type == "reminder_message":
@@ -564,6 +579,18 @@ def _capture_transcript_with_speech_service(
                 metadata["force_language"] = preferred_language
                 metadata["dictation_capture"] = True
                 metadata["dictation_reason"] = "memory_message_follow_up"
+    elif normalized_mode in {"follow_up", "conversation_repair"}:
+        pending_follow_up = getattr(assistant, "pending_follow_up", None)
+        if isinstance(pending_follow_up, dict):
+            preferred_language = str(
+                pending_follow_up.get("language")
+                or pending_follow_up.get("lang")
+                or ""
+            ).strip().lower()
+            if preferred_language in {"pl", "en"}:
+                metadata["preferred_language"] = preferred_language
+                metadata["force_language"] = preferred_language
+                metadata["follow_up_language_preferred"] = True
 
     try:
         request = TranscriptRequest(
@@ -1161,6 +1188,112 @@ def _listen_for_active_command(assistant: CoreAssistant, state_flags: MainLoopRu
             },
         )
     return cleaned or None
+
+
+def _repair_language_for_text(assistant: CoreAssistant, text: str) -> str:
+    normalized = str(text or "").strip().lower()
+    polish_markers = {
+        "co",
+        "czym",
+        "powiedz",
+        "opowiedz",
+        "wyjasnij",
+        "wyjaśnij",
+        "czarne",
+        "dziury",
+        "sztucznej",
+        "inteligencji",
+    }
+    tokens = set(re.sub(r"[^\w\s]", " ", normalized).split())
+    if tokens & polish_markers:
+        return "pl"
+    last_language = str(getattr(assistant, "last_language", "") or "").strip().lower()
+    return "pl" if last_language.startswith("pl") else "en"
+
+
+def _looks_like_incomplete_open_dialogue_query(text: str) -> bool:
+    normalized = re.sub(r"\s+", " ", str(text or "").strip().lower())
+    normalized = re.sub(r"[\s.?!,;:]+$", "", normalized)
+    if not normalized:
+        return False
+
+    open_prefixes = (
+        "explain ",
+        "tell me about ",
+        "can you explain ",
+        "powiedz mi ",
+        "opowiedz mi ",
+        "wyjasnij ",
+        "wyjaśnij ",
+        "wytlumacz ",
+        "wytłumacz ",
+    )
+    if normalized in {"tell me about", "opowiedz mi o", "powiedz mi o"}:
+        return True
+    if not normalized.startswith(open_prefixes):
+        return False
+
+    tail_token = normalized.split()[-1]
+    return tail_token in {
+        "in",
+        "about",
+        "of",
+        "for",
+        "to",
+        "with",
+        "the",
+        "a",
+        "an",
+        "o",
+        "w",
+        "we",
+        "na",
+        "z",
+        "ze",
+        "dla",
+        "czym",
+    }
+
+
+def _handle_incomplete_open_dialogue_capture(
+    assistant: CoreAssistant,
+    state_flags: MainLoopRuntimeState,
+    heard_text: str,
+) -> bool:
+    if not _looks_like_incomplete_open_dialogue_query(heard_text):
+        return False
+
+    language = _repair_language_for_text(assistant, heard_text)
+    assistant.pending_follow_up = {
+        "type": "conversation_repair",
+        "language": language,
+        "prefix_text": str(heard_text or "").strip(),
+        "window_seconds": 6.5,
+        "source": "incomplete_open_dialogue_capture",
+    }
+    assistant._return_to_wake_standby_after_response = False
+    state_flags.reset_active_counters()
+    append_log(
+        "Incomplete open dialogue capture detected; opening conversation repair window: "
+        f"text={heard_text}"
+    )
+    return bool(
+        assistant.deliver_text_response(
+            assistant._localized(
+                language,
+                "Dokończ proszę pytanie.",
+                "Please finish the question.",
+            ),
+            language=language,
+            route_kind=RouteKind.UNCLEAR,
+            source="active_capture_conversation_repair_prompt",
+            remember=False,
+            metadata={
+                "follow_up_type": "conversation_repair",
+                "source_text": str(heard_text or "").strip(),
+            },
+        )
+    )
 
 
 def _store_session_continuity_snapshot(

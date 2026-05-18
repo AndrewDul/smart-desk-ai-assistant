@@ -72,6 +72,30 @@ def test_resolve_input_device_selection_falls_back_from_invalid_index_to_default
     assert selection.reason == "using current default input device"
 
 
+def test_resolve_input_device_selection_does_not_select_output_only_explicit_index(monkeypatch):
+    fake_sd = FakeSoundDeviceModule(
+        devices=[
+            {"name": "HDMI Output", "max_input_channels": 0, "default_samplerate": 48000},
+            {"name": "reSpeaker XVF3800 4-Mic Array", "max_input_channels": 2, "default_samplerate": 16000},
+        ],
+        default_input_index=1,
+        supported_rates={16000, 48000},
+    )
+    monkeypatch.setattr(
+        "modules.devices.audio.input.shared.device_selector.sd",
+        fake_sd,
+    )
+
+    selection = resolve_input_device_selection(
+        device_index=0,
+        device_name_contains=None,
+    )
+
+    assert selection.device == 1
+    assert selection.name == "reSpeaker XVF3800 4-Mic Array"
+    assert selection.reason == "using current default input device"
+
+
 def test_resolve_supported_input_sample_rate_uses_fallback_rate(monkeypatch):
     fake_sd = FakeSoundDeviceModule(
         devices=[

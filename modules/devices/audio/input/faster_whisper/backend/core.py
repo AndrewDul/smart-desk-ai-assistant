@@ -208,6 +208,9 @@ class FasterWhisperInputBackend(
         self.model_size_or_path = str(model_size_or_path or "small").strip() or "small"
 
         self.audio_queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=48)
+        self._audio_callback_overflow_count = 0
+        self._audio_callback_status_count = 0
+        self._audio_callback_last_status_log_monotonic = 0.0
         self.audio_coordinator: AssistantAudioCoordinator | None = None
         self._realtime_audio_bus_shadow_tap: Any | None = None
         self._realtime_audio_bus_shadow_tap_enabled = False
@@ -351,6 +354,15 @@ class FasterWhisperInputBackend(
                     "pre_roll_seconds": max(base_profile["pre_roll_seconds"], 0.45),
                 },
             ),
+            "conversation_repair": self._merge_capture_profile(
+                base_profile,
+                {
+                    "timeout_seconds": max(base_profile["timeout_seconds"], 6.8),
+                    "end_silence_seconds": max(base_profile["end_silence_seconds"], 0.65),
+                    "min_speech_seconds": max(base_profile["min_speech_seconds"], 0.18),
+                    "pre_roll_seconds": max(base_profile["pre_roll_seconds"], 0.42),
+                },
+            ),
             "wake_fallback": self._merge_capture_profile(
                 base_profile,
                 {
@@ -457,7 +469,8 @@ class FasterWhisperInputBackend(
         mode: str,
         metadata: dict[str, Any],
     ) -> str | None:
-        if str(mode or "").strip().lower() != "memory_message":
+        normalized_mode = str(mode or "").strip().lower()
+        if normalized_mode not in {"memory_message", "follow_up", "conversation_repair"}:
             return None
 
         forced_language = self._normalize_language(
@@ -709,6 +722,8 @@ class FasterWhisperInputBackend(
         timeout = max(0.1, float(request.timeout_seconds))
         debug = bool(request.debug)
         mode = str(request.mode or "command").strip().lower() or "command"
+        overflow_count_before = int(getattr(self, "_audio_callback_overflow_count", 0) or 0)
+        status_count_before = int(getattr(self, "_audio_callback_status_count", 0) or 0)
 
         try:
             audio, capture_profile_name, capture_profile = self._record_with_capture_profile(
@@ -723,6 +738,8 @@ class FasterWhisperInputBackend(
             return None
 
         capture_finished_at = time.monotonic()
+        overflow_count_after = int(getattr(self, "_audio_callback_overflow_count", 0) or 0)
+        status_count_after = int(getattr(self, "_audio_callback_status_count", 0) or 0)
 
         tap_snapshot_at_capture_finished: dict[str, Any] = {}
         try:
@@ -902,6 +919,18 @@ class FasterWhisperInputBackend(
         metadata.setdefault(
             "capture_elapsed_seconds",
             max(0.0, capture_finished_at - started_at),
+        )
+        metadata.setdefault(
+            "audio_callback_overflow_count",
+            max(0, overflow_count_after - overflow_count_before),
+        )
+        metadata.setdefault(
+            "audio_callback_overflow_total",
+            overflow_count_after,
+        )
+        metadata.setdefault(
+            "audio_callback_status_count",
+            max(0, status_count_after - status_count_before),
         )
         if tap_snapshot_at_capture_finished:
             metadata.setdefault(

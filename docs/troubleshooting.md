@@ -5949,3 +5949,49 @@ I added prompt grounding that black holes are real astrophysical objects/regions
 ### Note
 
 Remaining risk is ASR/endpointing, especially input overflow and random background captures.
+
+## 2026-05-18 - ASR endpointing and capture-quality polish
+
+### Problem
+
+Open-ended LLM speech could be cut too early.
+
+### Fix
+
+I added conversation repair and longer capture timing for dialogue repair.
+
+### Problem
+
+Ghost/background phrases could be accepted as real commands.
+
+### Fix
+
+I added narrow text-gate filtering for repeated bad phrases.
+
+### Problem
+
+Numeric audio device indexes were fragile.
+
+### Fix
+
+I updated the example config to select reSpeaker by name.
+
+### Problem
+
+A bad Polish turn could force the next English question to answer in Polish.
+
+### Fix
+
+I made clear current-turn language markers override stale previous language and cleared stale dialogue repair context for fresh commands.
+
+### Problem
+
+Malformed ASR text like “Torna jury” could poison later LLM prompt context.
+
+### Fix
+
+I filtered those malformed context fragments from short-term prompt memory.
+
+### Note
+
+If `arecord -l` shows no capture device or `dmesg` shows USB error `-71`, that is hardware/USB stability and should be checked before blaming ASR logic.

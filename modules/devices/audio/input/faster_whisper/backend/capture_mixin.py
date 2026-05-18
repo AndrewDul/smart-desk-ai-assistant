@@ -237,7 +237,26 @@ class FasterWhisperCaptureMixin:
         callback_started_at = time.monotonic()
 
         if status:
-            self.LOGGER.warning("FasterWhisper audio callback status: %s", status)
+            self._audio_callback_status_count = int(
+                getattr(self, "_audio_callback_status_count", 0) or 0
+            ) + 1
+            status_text = str(status)
+            if "overflow" in status_text.lower():
+                self._audio_callback_overflow_count = int(
+                    getattr(self, "_audio_callback_overflow_count", 0) or 0
+                ) + 1
+
+            last_log = float(getattr(self, "_audio_callback_last_status_log_monotonic", 0.0) or 0.0)
+            should_log = (callback_started_at - last_log) >= 2.0
+            if should_log:
+                self._audio_callback_last_status_log_monotonic = callback_started_at
+                self.LOGGER.warning(
+                    "FasterWhisper audio callback status: %s "
+                    "(overflow_total=%s, status_total=%s)",
+                    status,
+                    int(getattr(self, "_audio_callback_overflow_count", 0) or 0),
+                    int(getattr(self, "_audio_callback_status_count", 0) or 0),
+                )
         try:
             if indata.ndim == 2:
                 raw_mono = indata[:, 0].copy()

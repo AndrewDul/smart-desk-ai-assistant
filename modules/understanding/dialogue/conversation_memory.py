@@ -427,6 +427,9 @@ class ConversationMemory:
         if source in {"system_boot", "system_shutdown"}:
             return ""
 
+        if self._looks_like_malformed_asr_context(text):
+            return ""
+
         if source == "system" and route_kind in {"system_boot", "startup"}:
             return ""
 
@@ -550,6 +553,22 @@ class ConversationMemory:
             return True
 
         if source in {"ack", "listening_ack"} and len(normalized) <= 24:
+            return True
+
+        return False
+
+    @classmethod
+    def _looks_like_malformed_asr_context(cls, text: str) -> bool:
+        normalized = cls._normalize_for_compare(text)
+        if not normalized:
+            return True
+
+        malformed_markers = {
+            "torna jury",
+            "torne jury",
+            "tornę jury",
+        }
+        if any(marker in normalized for marker in malformed_markers):
             return True
 
         return False

@@ -98,6 +98,46 @@ class RouterCaptureContextTests(unittest.TestCase):
                 self.assertEqual(route.primary_intent, "knowledge_query")
                 self.assertEqual(route.conversation_topics, ["knowledge_query"])
 
+    def test_clear_english_query_overrides_previous_polish_language_hint(self) -> None:
+        router = SemanticCompanionRouter(
+            _FakeParser(
+                IntentResult.unclear(
+                    normalized_text="",
+                    confidence=0.24,
+                )
+            )
+        )
+
+        phrases = [
+            "Tell me about black holes",
+            "Explain black holes",
+            "What are black holes",
+        ]
+
+        for phrase in phrases:
+            with self.subTest(phrase=phrase):
+                route = router.route(phrase, preferred_language="pl")
+
+                self.assertEqual(route.kind, RouteKind.CONVERSATION)
+                self.assertEqual(route.language, "en")
+                self.assertEqual(route.primary_intent, "knowledge_query")
+
+    def test_clear_polish_query_overrides_previous_english_language_hint(self) -> None:
+        router = SemanticCompanionRouter(
+            _FakeParser(
+                IntentResult.unclear(
+                    normalized_text="",
+                    confidence=0.24,
+                )
+            )
+        )
+
+        route = router.route("Co to są czarne dziury", preferred_language="en")
+
+        self.assertEqual(route.kind, RouteKind.CONVERSATION)
+        self.assertEqual(route.language, "pl")
+        self.assertEqual(route.primary_intent, "knowledge_query")
+
     def test_incomplete_tell_me_about_routes_to_unclear_clarification(self) -> None:
         router = SemanticCompanionRouter(
             _FakeParser(
@@ -155,6 +195,10 @@ class RouterCaptureContextTests(unittest.TestCase):
         cases = {
             "Soto są czarne dziur": "co to są czarne dziury",
             "Co to są czarny dziury": "co to są czarne dziury",
+            "Obec mi oczarnych cura": "opowiedz mi o czarnych dziurach",
+            "Obec mi o czarnych cura": "opowiedz mi o czarnych dziurach",
+            "Opowiedz mi oczarnych cura": "opowiedz mi o czarnych dziurach",
+            "Powiedz mi oczarnych cura": "opowiedz mi o czarnych dziurach",
         }
 
         for phrase, expected_normalized in cases.items():

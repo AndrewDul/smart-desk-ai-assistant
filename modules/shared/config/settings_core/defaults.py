@@ -58,6 +58,32 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "whisper_cli_path": "whisper.cpp/build/bin/whisper-cli",
         "model_path": "models/ggml-base.bin",
         "vad_model_path": "models/ggml-silero-v6.2.0.bin",
+        "capture_profiles": {
+            "reminder_time": {
+                "timeout_seconds": 1.8,
+                "end_silence_seconds": 0.14,
+                "min_speech_seconds": 0.06,
+                "pre_roll_seconds": 0.08,
+            },
+            "reminder_message": {
+                "timeout_seconds": 2.6,
+                "end_silence_seconds": 0.18,
+                "min_speech_seconds": 0.08,
+                "pre_roll_seconds": 0.10,
+            },
+            "memory_message": {
+                "timeout_seconds": 4.2,
+                "end_silence_seconds": 0.42,
+                "min_speech_seconds": 0.10,
+                "pre_roll_seconds": 0.16,
+            },
+            "conversation_repair": {
+                "timeout_seconds": 6.8,
+                "end_silence_seconds": 0.65,
+                "min_speech_seconds": 0.18,
+                "pre_roll_seconds": 0.42,
+            },
+        },
     },
     "voice_engine": {
         "enabled": False,

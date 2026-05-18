@@ -220,6 +220,14 @@ def _is_low_value_noise(text: str, assistant: CoreAssistant) -> bool:
     silence_hallucinations = {
         "thank you",
         "thanks for watching",
+        "we are the best",
+        "we ll see you in the next video",
+        "well see you in the next video",
+        "we will see you in the next video",
+        "i m going to the right",
+        "im going to the right",
+        "i am going to the right",
+        "or yet me or",
         "you",
         "bye",
         "foreign",
@@ -251,6 +259,11 @@ def _is_low_value_noise(text: str, assistant: CoreAssistant) -> bool:
     }
 
     if normalized in filler_words or normalized in silence_hallucinations:
+        return True
+
+    phrase_normalized = re.sub(r"[^a-z0-9\s]", " ", normalized)
+    phrase_normalized = re.sub(r"\s+", " ", phrase_normalized).strip()
+    if phrase_normalized in silence_hallucinations:
         return True
 
     if _looks_like_non_speech_description(normalized):

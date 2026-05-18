@@ -16971,3 +16971,35 @@ I kept `llama.cpp` and the GGUF model outside the repo.
 I tested with the real local Qwen GGUF model through `llama-server`.
 
 I did not solve full ASR/endpointing yet; that remains a separate audio sprint.
+
+## 2026-05-18 - ASR endpointing and capture-quality polish
+
+### Summary
+
+I finished the ASR endpointing and capture-quality polish for the local LLM runtime.
+
+I kept fast-line commands on the fast path.
+
+I added adaptive conversation repair for incomplete open-ended dialogue captures.
+
+I added longer `conversation_repair` capture timing without slowing short deterministic commands.
+
+I added ghost/background phrase filtering for repeated bad transcripts.
+
+I added overflow telemetry for FasterWhisper capture.
+
+I improved PL/EN handling so a clear current turn can override stale previous language.
+
+I fixed stale dialogue follow-up cleanup so a fresh wake-word command is not captured by an old repair context.
+
+I improved short-term conversation memory filtering for malformed ASR context like “Torna jury”.
+
+I changed the example audio config to prefer reSpeaker by name instead of a fragile numeric device index.
+
+I added narrow Polish ASR recovery cases for repeated real-world mistakes around black holes.
+
+I tested the runtime with reSpeaker selected by name and the local `llama-server` backend.
+
+I confirmed that Polish black-hole questions answered in Polish and a later English “Tell me about black holes” answered in English.
+
+Remaining risk: hardware/USB microphone stability can still affect ASR quality if reSpeaker disconnects or ALSA loses the capture device.

@@ -35,7 +35,7 @@ class FasterWhisperRichTranscribeTests(unittest.TestCase):
 
         backend.LOGGER = _Logger()
         backend._record_until_silence = lambda timeout=8.0, debug=False, **kwargs: np.ones(16000, dtype=np.float32)
-        backend._transcribe_audio_candidate = lambda audio, debug=False: {
+        backend._transcribe_audio_candidate = lambda audio, debug=False, **kwargs: {
             "text": "cześć nexa",
             "language": "pl",
             "language_probability": 0.87,
@@ -107,7 +107,7 @@ class FasterWhisperRichTranscribeTests(unittest.TestCase):
 
         backend.LOGGER = _Logger()
         backend._record_until_silence = lambda timeout=8.0, debug=False, **kwargs: np.ones(16000, dtype=np.float32)
-        backend._transcribe_audio_candidate = lambda audio, debug=False: None
+        backend._transcribe_audio_candidate = lambda audio, debug=False, **kwargs: None
 
         result = FasterWhisperInputBackend.transcribe(
             backend,
@@ -162,7 +162,7 @@ class FasterWhisperRichTranscribeTests(unittest.TestCase):
             return np.ones(12000, dtype=np.float32)
 
         backend._record_until_silence = _record_until_silence
-        backend._transcribe_audio_candidate = lambda audio, debug=False: {
+        backend._transcribe_audio_candidate = lambda audio, debug=False, **kwargs: {
             "text": "yes, delete it",
             "language": "en",
             "language_probability": 0.92,
@@ -238,7 +238,7 @@ class FasterWhisperRichTranscribeTests(unittest.TestCase):
             return np.ones(11000, dtype=np.float32)
 
         backend._record_until_silence = _record_until_silence
-        backend._transcribe_audio_candidate = lambda audio, debug=False: {
+        backend._transcribe_audio_candidate = lambda audio, debug=False, **kwargs: {
             "text": "set a timer for ten minutes",
             "language": "en",
             "language_probability": 0.93,
@@ -266,6 +266,85 @@ class FasterWhisperRichTranscribeTests(unittest.TestCase):
         self.assertAlmostEqual(capture_calls[0]["pre_roll_seconds"], 0.14)
         assert result is not None
         self.assertEqual(result.metadata["capture_profile"], "wake_command")
+
+    def test_transcribe_uses_conversation_repair_profile_and_reports_overflow_delta(self) -> None:
+        backend = object.__new__(FasterWhisperInputBackend)
+        backend.sample_rate = 16000
+        backend.language = "auto"
+        backend.max_record_seconds = 8.0
+        backend._audio_callback_overflow_count = 2
+        backend._audio_callback_status_count = 3
+        backend.capture_profiles = {
+            "default": {
+                "timeout_seconds": 6.5,
+                "end_silence_seconds": 0.6,
+                "min_speech_seconds": 0.2,
+                "pre_roll_seconds": 0.45,
+            },
+            "conversation_repair": {
+                "timeout_seconds": 6.8,
+                "end_silence_seconds": 0.65,
+                "min_speech_seconds": 0.18,
+                "pre_roll_seconds": 0.42,
+            },
+        }
+
+        class _Logger:
+            def warning(self, *args, **kwargs) -> None:
+                return None
+
+        backend.LOGGER = _Logger()
+        capture_calls: list[dict[str, float | bool]] = []
+        preferred_languages: list[str | None] = []
+
+        def _record_until_silence(timeout=8.0, debug=False, **kwargs):
+            backend._audio_callback_overflow_count += 1
+            backend._audio_callback_status_count += 2
+            capture_calls.append(
+                {
+                    "timeout": float(timeout),
+                    "end_silence_seconds": float(kwargs["end_silence_seconds"]),
+                    "min_speech_seconds": float(kwargs["min_speech_seconds"]),
+                    "pre_roll_seconds": float(kwargs["pre_roll_seconds"]),
+                }
+            )
+            return np.ones(16000, dtype=np.float32)
+
+        def _transcribe_audio_candidate(audio, debug=False, preferred_language=None):
+            preferred_languages.append(preferred_language)
+            return {
+                "text": "czarne dziury",
+                "language": "pl",
+                "language_probability": 0.9,
+                "elapsed": 0.21,
+                "forced_language": preferred_language or "",
+                "path": "primary",
+                "engine": "faster_whisper",
+            }
+
+        backend._record_until_silence = _record_until_silence
+        backend._transcribe_audio_candidate = _transcribe_audio_candidate
+
+        result = FasterWhisperInputBackend.transcribe(
+            backend,
+            TranscriptRequest(
+                timeout_seconds=8.0,
+                debug=False,
+                source=InputSource.VOICE,
+                mode="conversation_repair",
+                metadata={"preferred_language": "pl", "force_language": "pl"},
+            ),
+        )
+
+        self.assertEqual(len(capture_calls), 1)
+        self.assertAlmostEqual(capture_calls[0]["timeout"], 6.8)
+        self.assertAlmostEqual(capture_calls[0]["end_silence_seconds"], 0.65)
+        self.assertEqual(preferred_languages, ["pl"])
+        assert result is not None
+        self.assertEqual(result.metadata["capture_profile"], "conversation_repair")
+        self.assertEqual(result.metadata["audio_callback_overflow_count"], 1)
+        self.assertEqual(result.metadata["audio_callback_overflow_total"], 3)
+        self.assertEqual(result.metadata["audio_callback_status_count"], 2)
 
 
 if __name__ == "__main__":

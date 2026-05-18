@@ -24,7 +24,7 @@
     "wake_barge_in_min_output_age_seconds": 0.75,
     "wake_barge_in_resume_timeout_seconds": 1.5,
     "wake_barge_in_refractory_seconds": 1.5,
-    "device_index": 2,
+    "device_index": null,
     "device_name_contains": "reSpeaker",
     "timeout_seconds": 7,
     "active_listen_window_seconds": 6.0,
@@ -82,6 +82,12 @@
         "end_silence_seconds": 0.42,
         "min_speech_seconds": 0.1,
         "pre_roll_seconds": 0.16
+      },
+      "conversation_repair": {
+        "timeout_seconds": 6.8,
+        "end_silence_seconds": 0.65,
+        "min_speech_seconds": 0.18,
+        "pre_roll_seconds": 0.42
       }
     }
   },

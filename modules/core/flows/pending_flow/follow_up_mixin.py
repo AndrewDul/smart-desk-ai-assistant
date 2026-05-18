@@ -32,6 +32,12 @@ class PendingFlowFollowUpMixin:
                 language=lang,
             )
 
+        if follow_type == "conversation_repair":
+            return self._handle_conversation_repair_follow_up(
+                text=routing_text,
+                language=lang,
+            )
+
         if follow_type in {"timer_duration", "focus_duration", "break_duration"}:
             result = self._handle_duration_follow_up(
                 follow_type=follow_type,
@@ -335,6 +341,68 @@ class PendingFlowFollowUpMixin:
                 return "Opowiedz mi o czarnych dziurach."
             return f"Opowiedz mi o {topic}."
         return f"Tell me about {topic}."
+
+    def _handle_conversation_repair_follow_up(
+        self,
+        *,
+        text: str,
+        language: str,
+    ) -> PendingFlowDecision:
+        follow_up = dict(self.assistant.pending_follow_up or {})
+
+        if self._is_no(text) or self._looks_like_cancel_request(text):
+            self.assistant.pending_follow_up = None
+            result = self.assistant.deliver_text_response(
+                self.assistant._localized(
+                    language,
+                    "Dobrze, anuluję.",
+                    "Okay, I’ll cancel it.",
+                ),
+                language=language,
+                route_kind=RouteKind.CONVERSATION,
+                source="pending_conversation_repair_cancelled",
+                metadata={"follow_up_type": "conversation_repair"},
+            )
+            return PendingFlowDecision(
+                handled=True,
+                response=result,
+                consumed_by="follow_up:conversation_repair_cancel",
+            )
+
+        continuation = self._clean_incomplete_dialogue_topic(text)
+        prefix = self._clean_incomplete_dialogue_topic(str(follow_up.get("prefix_text", "") or ""))
+        if not continuation or not prefix:
+            self.assistant.pending_follow_up = None
+            return PendingFlowDecision(handled=False)
+
+        completed_text = self._join_conversation_repair_text(prefix, continuation)
+        self.assistant.pending_follow_up = None
+        handle_command = getattr(self.assistant, "handle_command", None)
+        if not callable(handle_command):
+            return PendingFlowDecision(handled=False)
+
+        result = bool(handle_command(completed_text))
+        return PendingFlowDecision(
+            handled=True,
+            response=result,
+            consumed_by="follow_up:conversation_repair",
+            metadata={
+                "follow_up_type": "conversation_repair",
+                "prefix_text": prefix,
+                "continuation": continuation,
+                "completed_text": completed_text,
+            },
+        )
+
+    @staticmethod
+    def _join_conversation_repair_text(prefix: str, continuation: str) -> str:
+        left = re.sub(r"[\s.?!,;:]+$", "", str(prefix or "").strip())
+        right = re.sub(r"^[\s.?!,;:]+", "", str(continuation or "").strip())
+        if not left:
+            return right
+        if not right:
+            return left
+        return f"{left} {right}."
 
     def _handle_duration_follow_up(
         self,

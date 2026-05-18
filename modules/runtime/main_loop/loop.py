@@ -10,6 +10,7 @@ from .active_window import (
     _active_phase,
     _banner_for_phase,
     _handle_ignored_active_transcript,
+    _handle_incomplete_open_dialogue_capture,
     _handle_no_speech_capture,
     _listen_for_active_command,
     _listen_for_wake,
@@ -101,6 +102,11 @@ def run_assistant_loop(
         if not normalized_command:
             if _handle_ignored_active_transcript(assistant, state_flags):
                 continue
+            continue
+
+        if _handle_incomplete_open_dialogue_capture(assistant, state_flags, heard_text):
+            _rearm_after_command(assistant, state_flags)
+            _ensure_wake_capture_released(assistant)
             continue
 
         print(f"Heard: {heard_text}")

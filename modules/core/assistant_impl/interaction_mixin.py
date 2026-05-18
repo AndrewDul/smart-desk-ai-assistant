@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 from typing import Any
 
@@ -78,6 +79,7 @@ class CoreAssistantInteractionMixin:
                 return result
 
             pending_started = time.perf_counter()
+            self._clear_stale_dialogue_follow_up_for_fresh_command(prepared)
             pending_result = self._handle_pending_state(prepared)
             telemetry["pending_ms"] = self._elapsed_ms(pending_started)
 
@@ -175,6 +177,16 @@ class CoreAssistantInteractionMixin:
                 language=command_lang,
                 context=route_context,
             )
+            normalize_lang = getattr(self, "_normalize_lang", None)
+            if callable(normalize_lang):
+                route_lang = normalize_lang(getattr(route, "language", command_lang))
+            else:
+                route_lang = str(getattr(route, "language", command_lang) or command_lang).strip().lower()
+                route_lang = route_lang if route_lang in {"pl", "en"} else command_lang
+            if route_lang != command_lang:
+                command_lang = self._commit_language(route_lang)
+                telemetry["language"] = command_lang
+                telemetry["language_overridden_by_route"] = True
 
             telemetry["route_kind"] = getattr(route.kind, "value", str(route.kind))
             telemetry["route_confidence"] = float(getattr(route, "confidence", 0.0) or 0.0)
@@ -247,6 +259,67 @@ class CoreAssistantInteractionMixin:
 
         finally:
             self._finish_turn_telemetry(telemetry)
+
+    def _clear_stale_dialogue_follow_up_for_fresh_command(self, prepared: dict[str, Any]) -> None:
+        capture_phase = str(prepared.get("capture_phase", "") or "").strip().lower()
+        capture_mode = str(prepared.get("capture_mode", "") or "").strip().lower()
+        if capture_phase in {"follow_up", "grace"} or capture_mode in {
+            "follow_up",
+            "conversation_repair",
+        }:
+            return
+
+        pending_follow_up = getattr(self, "pending_follow_up", None)
+        if not isinstance(pending_follow_up, dict):
+            return
+
+        pending_type = str(pending_follow_up.get("type", "") or "").strip().lower()
+        pending_source = str(pending_follow_up.get("source", "") or "").strip().lower()
+        if pending_type not in {"clarification_repeat", "conversation_repair"}:
+            return
+        if pending_source and pending_source not in {
+            "incomplete_dialogue_query",
+            "partial_polish_dialogue_topic",
+            "incomplete_open_dialogue_capture",
+        }:
+            return
+
+        routing_text = str(
+            prepared.get("routing_text")
+            or prepared.get("raw_text")
+            or ""
+        ).strip()
+        if not self._looks_like_fresh_standalone_dialogue_command(routing_text):
+            return
+
+        self.pending_follow_up = None
+        append_log(
+            "Cleared stale dialogue follow-up before fresh standalone command: "
+            f"type={pending_type or 'unknown'}, source={pending_source or 'unknown'}, text={routing_text}"
+        )
+
+    @staticmethod
+    def _looks_like_fresh_standalone_dialogue_command(text: str) -> bool:
+        normalized = str(text or "").strip().lower()
+        normalized = re.sub(r"[\s.?!,;:]+$", "", normalized)
+        if not normalized:
+            return False
+
+        english_prefixes = (
+            "tell me about ",
+            "explain ",
+            "what are ",
+            "what is ",
+        )
+        polish_prefixes = (
+            "co to ",
+            "czym ",
+            "powiedz mi ",
+            "opowiedz mi ",
+            "wyjasnij ",
+            "wyjaśnij ",
+        )
+        return normalized.startswith(english_prefixes) or normalized.startswith(polish_prefixes)
 
     def _try_handle_voice_engine_v2_runtime_candidate(
         self,

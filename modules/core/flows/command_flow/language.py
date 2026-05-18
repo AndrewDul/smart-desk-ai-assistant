@@ -51,6 +51,19 @@ class CommandFlowLanguage(CommandFlowHelpers):
         "ktora",
         "która",
         "pomoc",
+        "co",
+        "czym",
+        "sa",
+        "są",
+        "czarne",
+        "dziury",
+        "dziurach",
+        "powiedz",
+        "opowiedz",
+        "wyjasnij",
+        "wyjaśnij",
+        "wytlumacz",
+        "wytłumacz",
         "stan",
         "tak",
         "nie",
@@ -81,6 +94,16 @@ class CommandFlowLanguage(CommandFlowHelpers):
         "close",
         "what",
         "who",
+        "where",
+        "when",
+        "why",
+        "how",
+        "tell",
+        "about",
+        "explain",
+        "black",
+        "holes",
+        "are",
         "help",
         "status",
         "yes",
@@ -162,6 +185,29 @@ class CommandFlowLanguage(CommandFlowHelpers):
             polish_hits += 2
         if contains_any_phrase(lowered, {"what time", "what day", "what date"}):
             english_hits += 2
+        if contains_any_phrase(
+            lowered,
+            {
+                "tell me about",
+                "explain",
+                "what are",
+                "black holes",
+            },
+        ):
+            english_hits += 2
+        if contains_any_phrase(
+            lowered,
+            {
+                "co to sa",
+                "co to są",
+                "czym sa",
+                "czym są",
+                "czarne dziury",
+                "powiedz mi",
+                "opowiedz mi",
+            },
+        ):
+            polish_hits += 2
 
         if lowered in {normalize_text(item) for item in MICRO_REPLY_PHRASES}:
             if lowered in {normalize_text(item) for item in self._POLISH_SHORT_PHRASES}:

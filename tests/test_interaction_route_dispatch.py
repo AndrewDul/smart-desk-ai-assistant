@@ -74,6 +74,9 @@ class _FakeAssistant(CoreAssistantInteractionMixin):
         self.route = route
         self.fast_lane_result = fast_lane_result
         self.last_language = "en"
+        self.prepared_language = "en"
+        self.prepared_capture_phase = "inline_command_after_wake"
+        self.prepared_capture_mode = "command"
         self.pending_confirmation = None
         self.pending_follow_up = None
         self.pending_flow_enabled = False
@@ -99,10 +102,10 @@ class _FakeAssistant(CoreAssistantInteractionMixin):
     def _prepare_command(self, text: str, **kwargs):
         return {
             "ignore": False,
-            "language": "en",
+            "language": self.prepared_language,
             "source": SimpleNamespace(value="voice"),
-            "capture_phase": "inline_command_after_wake",
-            "capture_mode": "command",
+            "capture_phase": self.prepared_capture_phase,
+            "capture_mode": self.prepared_capture_mode,
             "capture_backend": "faster-whisper",
             "routing_text": text,
             "normalized_text": text.lower(),
@@ -119,6 +122,10 @@ class _FakeAssistant(CoreAssistantInteractionMixin):
     def _commit_language(self, language: str) -> str:
         self.last_language = str(language or "en")
         return self.last_language
+
+    def _normalize_lang(self, language: str) -> str:
+        normalized = str(language or "").strip().lower()
+        return normalized if normalized in {"pl", "en"} else "en"
 
     def _handle_pending_state(self, prepared):
         if self.pending_flow_enabled:
@@ -356,6 +363,45 @@ class InteractionRouteDispatchTests(unittest.TestCase):
 
         self.assertTrue(handled)
         self.assertEqual(assistant.cancel_calls, [])
+        self.assertEqual(assistant.dispatched, [("conversation", "en")])
+
+    def test_route_language_overrides_previous_polish_command_language(self) -> None:
+        route = self._route(RouteKind.CONVERSATION, primary_intent="knowledge_query")
+        route.raw_text = "Tell me about black holes."
+        route.normalized_text = "tell me about black holes"
+        route.language = "en"
+        assistant = _FakeAssistant(route)
+        assistant.last_language = "pl"
+        assistant.prepared_language = "pl"
+
+        handled = assistant.handle_command("Tell me about black holes.")
+
+        self.assertTrue(handled)
+        self.assertEqual(assistant.dispatched, [("conversation", "en")])
+        self.assertEqual(assistant.last_language, "en")
+        self.assertTrue(assistant.finished_telemetry["language_overridden_by_route"])
+
+    def test_fresh_standalone_english_command_clears_stale_polish_dialogue_follow_up(self) -> None:
+        route = self._route(RouteKind.CONVERSATION, primary_intent="knowledge_query")
+        route.raw_text = "Tell me about black holes."
+        route.normalized_text = "tell me about black holes"
+        route.language = "en"
+        assistant = _FakeAssistant(route)
+        assistant.pending_flow_enabled = True
+        assistant.last_language = "pl"
+        assistant.prepared_language = "pl"
+        assistant.pending_follow_up = {
+            "type": "conversation_repair",
+            "language": "pl",
+            "prefix_text": "Co to są tornę",
+            "source": "incomplete_open_dialogue_capture",
+        }
+
+        handled = assistant.handle_command("Tell me about black holes.")
+
+        self.assertTrue(handled)
+        self.assertIsNone(assistant.pending_follow_up)
+        self.assertEqual(assistant.route_calls, 1)
         self.assertEqual(assistant.dispatched, [("conversation", "en")])
 
     def test_runtime_candidate_exit_marks_action_executed_but_returns_false_to_stop_loop(self) -> None:

@@ -62,6 +62,16 @@ class CompanionRouterRouteMixin:
             corrected,
         )
         corrected = re.sub(
+            r"\b(?:obec|powiedz|opowiedz)\s+mi\s+o?\s*czarnych\s+cura\b",
+            "opowiedz mi o czarnych dziurach",
+            corrected,
+        )
+        corrected = re.sub(
+            r"\b(?:obec|powiedz|opowiedz)\s+mi\s+oczarnych\s+cura\b",
+            "opowiedz mi o czarnych dziurach",
+            corrected,
+        )
+        corrected = re.sub(
             r"\bsztucznej inteligencji[\s.?!,;:]*$",
             "sztucznej inteligencji",
             corrected,
