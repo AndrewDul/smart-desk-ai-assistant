@@ -17138,3 +17138,68 @@ Open-question ASR quality remains a separate blocker. The tiny/int8 Whisper mode
 - `speak_presence()` must use `blocking=False` on `_presence_playback_lock`. If it blocks, a slow presence phrase will delay the start of the next heartbeat cycle.
 - The `on_first_audio` callback must be idempotent (guarded by a `nonlocal` flag). It fires from a sounddevice callback thread or a process-poll thread, both of which can race.
 
+---
+
+## 2026-05-19 - Focus Mode Desk Presence v1
+
+### What was added
+
+Focus Mode now tracks desk presence using raw camera perception counts (face count, people/body count) in addition to the existing presence signal. The core design principle: **a hidden face, turned head, or downward gaze must never be treated as the user leaving**. Only a person physically absent from camera view long enough — confirmed by a completed pan-tilt scan — escalates to AWAY_CONFIRMED and produces a reminder.
+
+### New states
+
+| State | Meaning |
+|---|---|
+| `PROBABLY_PRESENT` | People detected but no face — user likely looking away, reading, leaning |
+| `ABSENT` | No person detected; stable duration below the scan threshold |
+| `AWAY_PENDING_SCAN` | Absent long enough to trigger a scan, but scan not yet completed (or blocked) |
+| `AWAY_CONFIRMED` | Scan completed with verified hardware movement and found nobody |
+
+`PROBABLY_PRESENT` is intentionally non-escalating. No reminder fires for it.
+
+### Decision engine priority
+
+1. **ON_TASK** — face present + desk/computer/phone signals active
+2. **PROBABLY_PRESENT** — `people_count > 0` and `face_count == 0` (body without face — user turned/hidden)
+3. **PHONE_DISTRACTION** — phone session active, no face required
+4. **ABSENT** — `people_count == 0`, no desk/computer/study context
+5. **UNCERTAIN** — fallback
+
+Desk objects alone (`desk_active=True` but `people_count=0`) map to ABSENT, not PROBABLY_PRESENT. Study or computer activity without any detected person also maps to ABSENT.
+
+### Derived state machine (`_apply_derived_presence_states`)
+
+Runs after the 1 Hz tick. Converts ABSENT → AWAY_PENDING_SCAN after `absence_pending_scan_after_seconds` (default 10 s). Transition to AWAY_CONFIRMED requires a completed micro-scan that: (a) executed at least one `move_delta()` with `movement_executed=True`; (b) observed nobody during the scan.
+
+If the scan is blocked (hardware gates prevent movement, pan-tilt backend is None, or `pan_tilt_scan_enabled=False`), the state stays `AWAY_PENDING_SCAN` indefinitely — it never advances to `AWAY_CONFIRMED`.
+
+### Micro-scan safety
+
+- `pan_tilt_scan_enabled: bool = False` by default. No physical movement happens unless explicitly enabled.
+- The scan checks `movement_executed` in each `move_delta()` result. If no movement was executed across all scan steps, result is `"blocked"`, not `"not_found"`.
+- `NullPanTiltBackend` (fallback) lacks `move_delta()` and `center()`. The service uses `getattr(pan_tilt, "move_delta", None)` — if None, no call is made, scan is blocked.
+- The service's own pan-tilt calls go through the backend's existing safety gates (`_serial_write_enabled()` in the Waveshare backend checks: enabled, hardware_enabled, motion_enabled, not dry_run, calibration_ready, device_exists). None of those gates are bypassed.
+
+### Builder wiring
+
+`pan_tilt` is now built before `focus_vision` in `RuntimeBuilder.build()` so the backend is available at construction time. `_build_focus_vision()` in `features_mixin.py` accepts `pan_tilt_backend: Any = None` and passes it to `FocusVisionSentinelService`. `config/settings.json` is unchanged; `pan_tilt_scan_enabled` remains `false`.
+
+### Reminder policy
+
+Reminders fire only for `AWAY_CONFIRMED`. `ABSENT` and `AWAY_PENDING_SCAN` never trigger a reminder. This prevents false absence alerts when the scan is blocked, the backend is unavailable, or pan-tilt is disabled.
+
+### Evidence extraction
+
+`FocusVisionObservationReader` now extracts `face_count` and `people_count` from `metadata.perception`. Two extraction paths: scalar (`perception.face_count` / `perception.people_count`) or list fallback (`len(perception.faces)` / `len(perception.people)`). `person_without_face` is a derived bool: `people_count > 0 and face_count == 0`.
+
+### Diagnostics (feedback_center_snapshot)
+
+The vision section in the Godot dashboard now shows 14 focus-presence items: state, stable seconds, confidence, face_count, people_count, person_without_face, scan_available, scan_state, scan_result, micro_scan_blocked_reason, reminder_allowed, absence_last_sent.
+
+### Test coverage (2026-05-19)
+
+- 51 focus vision unit tests: decision engine, observation reader, state machine, reminder policy, service derived-state logic, micro-scan blocked/found/not_found paths
+- 6 builder integration tests including: wires pan_tilt_backend, scan disabled → no move_delta call, movement_executed=False keeps state AWAY_PENDING_SCAN
+- Targeted suite: **281 passed** (0 failures in sprint files)
+- Pre-existing failures in broader suite (38 total): pan-tilt hardware tests (`tests/devices/pan_tilt/`), OpenCV Haar face detector (`tests/vision/unit/perception/face/`), and `test_unfinished_visual_shell_intents_are_not_public` — all confirmed pre-existing via `git stash` check, none caused by this sprint.
+

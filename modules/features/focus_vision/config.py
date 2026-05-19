@@ -90,6 +90,7 @@ class FocusVisionConfig:
     cache_miss_force_refresh_cooldown_seconds: float = 2.0
     max_observation_age_seconds: float = 8.0
     pan_tilt_scan_enabled: bool = False
+    absence_pending_scan_after_seconds: float = 10.0
 
     @classmethod
     def from_mapping(cls, raw: dict[str, Any] | None) -> "FocusVisionConfig":
@@ -116,6 +117,7 @@ class FocusVisionConfig:
             cache_miss_force_refresh_cooldown_seconds=_as_float(payload.get("cache_miss_force_refresh_cooldown_seconds"), defaults.cache_miss_force_refresh_cooldown_seconds, minimum=0.0),
             max_observation_age_seconds=_as_float(payload.get("max_observation_age_seconds"), defaults.max_observation_age_seconds, minimum=0.0),
             pan_tilt_scan_enabled=_as_bool(payload.get("pan_tilt_scan_enabled"), defaults.pan_tilt_scan_enabled),
+            absence_pending_scan_after_seconds=_as_float(payload.get("absence_pending_scan_after_seconds"), defaults.absence_pending_scan_after_seconds, minimum=1.0),
         )
 
     def status(self) -> dict[str, Any]:
@@ -137,6 +139,7 @@ class FocusVisionConfig:
             "cache_miss_force_refresh_cooldown_seconds": self.cache_miss_force_refresh_cooldown_seconds,
             "max_observation_age_seconds": self.max_observation_age_seconds,
             "pan_tilt_scan_enabled": self.pan_tilt_scan_enabled,
+            "absence_pending_scan_after_seconds": self.absence_pending_scan_after_seconds,
         }
 
 

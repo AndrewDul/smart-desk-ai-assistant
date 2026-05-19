@@ -50,8 +50,8 @@ def test_reminder_policy_emits_polish_absence_reminder_after_threshold() -> None
     policy = FocusVisionReminderPolicy(config=config)
     policy.start_session(started_at=0.0)
     machine = FocusVisionStateMachine()
-    machine.update(_decision(FocusVisionState.ABSENT, 10.0))
-    snapshot = machine.update(_decision(FocusVisionState.ABSENT, 16.0))
+    machine.update(_decision(FocusVisionState.AWAY_CONFIRMED, 10.0))
+    snapshot = machine.update(_decision(FocusVisionState.AWAY_CONFIRMED, 16.0))
 
     reminder = policy.evaluate(snapshot, language="pl", now=16.0)
 
@@ -115,8 +115,8 @@ def test_reminder_policy_accepts_absent_alias_for_absence_reminders() -> None:
     policy = FocusVisionReminderPolicy(config=config)
     policy.start_session(started_at=0.0)
     machine = FocusVisionStateMachine()
-    machine.update(_decision(FocusVisionState.ABSENT, 10.0))
-    snapshot = machine.update(_decision(FocusVisionState.ABSENT, 16.0))
+    machine.update(_decision(FocusVisionState.AWAY_CONFIRMED, 10.0))
+    snapshot = machine.update(_decision(FocusVisionState.AWAY_CONFIRMED, 16.0))
 
     reminder = policy.evaluate(snapshot, language="en", now=16.0)
 

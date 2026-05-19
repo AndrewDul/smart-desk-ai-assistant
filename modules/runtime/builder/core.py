@@ -105,15 +105,16 @@ class RuntimeBuilder(
         voice_output, voice_output_status = self._build_voice_output(voice_output_cfg)
         display, display_status = self._build_display(display_cfg)
         vision, vision_status = self._build_vision(vision_cfg)
+        pan_tilt, pan_tilt_status = self._build_pan_tilt(pan_tilt_cfg)
         focus_vision, focus_vision_status = self._build_focus_vision(
             focus_vision_cfg,
             vision_backend=vision,
+            pan_tilt_backend=pan_tilt,
         )
         ai_broker, ai_broker_status = self._build_ai_broker(
             ai_broker_cfg,
             vision_backend=vision,
         )
-        pan_tilt, pan_tilt_status = self._build_pan_tilt(pan_tilt_cfg)
         vision_tracking, vision_tracking_status = self._build_vision_tracking(
             vision_tracking_cfg,
             vision_backend=vision,

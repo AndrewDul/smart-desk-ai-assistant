@@ -13,6 +13,9 @@ class FocusVisionState(str, Enum):
     ABSENT = "absent"
     PHONE_DISTRACTION = "phone_distraction"
     UNCERTAIN = "uncertain"
+    PROBABLY_PRESENT = "probably_present"
+    AWAY_PENDING_SCAN = "away_pending_scan"
+    AWAY_CONFIRMED = "away_confirmed"
 
 
 class FocusVisionReminderKind(str, Enum):
@@ -45,6 +48,9 @@ class FocusVisionEvidence:
     captured_at: float = 0.0
     labels: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
+    face_count: int = 0
+    people_count: int = 0
+    person_without_face: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -67,6 +73,9 @@ class FocusVisionEvidence:
             "captured_at": self.captured_at,
             "labels": list(self.labels),
             "metadata": dict(self.metadata),
+            "face_count": self.face_count,
+            "people_count": self.people_count,
+            "person_without_face": self.person_without_face,
         }
 
 

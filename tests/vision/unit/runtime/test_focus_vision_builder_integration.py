@@ -75,6 +75,114 @@ class FocusVisionBuilderIntegrationTests(unittest.TestCase):
         self.assertTrue(status.fallback_used)
         self.assertEqual(status.selected_backend, "null_focus_vision")
 
+    def test_builder_wires_pan_tilt_backend_to_focus_vision_service(self) -> None:
+        builder = _FocusVisionBuilderProbe()
+        sentinel = object()
+
+        service, status = builder._build_focus_vision(
+            {"enabled": True, "dry_run": True},
+            vision_backend=_FakeVisionBackend(),
+            pan_tilt_backend=sentinel,
+        )
+
+        self.assertIsNotNone(service)
+        self.assertTrue(status.ok)
+        self.assertIs(service.pan_tilt_backend, sentinel)
+
+    def test_scan_disabled_means_no_move_delta_call(self) -> None:
+        from unittest.mock import MagicMock
+
+        from modules.features.focus_vision import (
+            FocusVisionConfig,
+            FocusVisionSentinelService,
+            FocusVisionState,
+            FocusVisionStateSnapshot,
+        )
+        from modules.features.focus_vision.models import FocusVisionDecision, FocusVisionEvidence
+
+        pan_tilt = MagicMock()
+        config = FocusVisionConfig(
+            enabled=True,
+            dry_run=False,
+            pan_tilt_scan_enabled=False,
+            absence_pending_scan_after_seconds=5.0,
+            startup_grace_seconds=0.0,
+        )
+        service = FocusVisionSentinelService(
+            vision_backend=MagicMock(),
+            config=config,
+            pan_tilt_backend=pan_tilt,
+        )
+        now = 100.0
+        snapshot = FocusVisionStateSnapshot(
+            current_state=FocusVisionState.ABSENT,
+            stable_seconds=15.0,
+            state_started_at=now - 15.0,
+            updated_at=now,
+            decision=FocusVisionDecision(
+                state=FocusVisionState.ABSENT,
+                confidence=0.8,
+                reasons=("test",),
+                observed_at=now,
+                evidence=FocusVisionEvidence(),
+            ),
+        )
+        service._apply_derived_presence_states(snapshot, now)
+        pan_tilt.move_delta.assert_not_called()
+
+    def test_movement_not_executed_keeps_state_away_pending_not_confirmed(self) -> None:
+        from unittest.mock import MagicMock
+
+        from modules.features.focus_vision import (
+            FocusVisionConfig,
+            FocusVisionSentinelService,
+            FocusVisionState,
+            FocusVisionStateSnapshot,
+        )
+        from modules.features.focus_vision.models import FocusVisionDecision, FocusVisionEvidence
+
+        pan_tilt = MagicMock()
+        pan_tilt.move_delta.return_value = {"movement_executed": False, "ok": False}
+        pan_tilt.center.return_value = {"ok": True}
+
+        vision_backend = MagicMock()
+        vision_backend.latest_observation.return_value = None
+
+        config = FocusVisionConfig(
+            enabled=True,
+            dry_run=False,
+            pan_tilt_scan_enabled=True,
+            absence_pending_scan_after_seconds=5.0,
+            startup_grace_seconds=0.0,
+        )
+        service = FocusVisionSentinelService(
+            vision_backend=vision_backend,
+            config=config,
+            pan_tilt_backend=pan_tilt,
+        )
+        service._run_micro_scan()
+        self.assertEqual(service._micro_scan_result, "blocked",
+                         "movement_executed=False must produce 'blocked', never 'not_found'")
+
+        now = 200.0
+        service._micro_scan_state = service._micro_scan_result
+        snapshot = FocusVisionStateSnapshot(
+            current_state=FocusVisionState.ABSENT,
+            stable_seconds=20.0,
+            state_started_at=now - 20.0,
+            updated_at=now,
+            decision=FocusVisionDecision(
+                state=FocusVisionState.ABSENT,
+                confidence=0.8,
+                reasons=("test",),
+                observed_at=now,
+                evidence=FocusVisionEvidence(),
+            ),
+        )
+        result = service._apply_derived_presence_states(snapshot, now)
+        self.assertNotEqual(result.current_state, FocusVisionState.AWAY_CONFIRMED,
+                            "blocked scan must never become AWAY_CONFIRMED")
+
 
 if __name__ == "__main__":
     unittest.main()

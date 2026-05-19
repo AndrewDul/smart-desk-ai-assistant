@@ -6081,3 +6081,43 @@ Calling `cancel()` on `PresenceHeartbeatManager` stops the heartbeat but the rea
 ### Fix
 
 `stop_presence_playback()` in `control_mixin.py` must only touch `_presence_stop_requested` and drain `_active_presence_output_stream` / `_active_presence_processes`. It must never call `stop_playback()` or set `_stop_requested`.
+
+---
+
+## 2026-05-19 - Focus Mode Desk Presence v1: blocked scan must not confirm away
+
+### Problem
+
+After the initial implementation, a blocked pan-tilt scan (hardware gates preventing movement, backend unavailable, or `pan_tilt_scan_enabled=False`) was advancing the state directly to `AWAY_CONFIRMED`. This caused false absence reminders when the user was still at the desk but the camera could not confirm their position via pan-tilt.
+
+### Cause
+
+The `_apply_derived_presence_states()` logic treated "scan not available" the same as "scan completed and found nobody". Any time `stable_seconds >= absence_pending_scan_after_seconds`, the state became `AWAY_CONFIRMED` regardless of whether a real scan had run.
+
+### Fix
+
+Strict state machine: only `scan_state == "not_found"` (after a completed scan with at least one `movement_executed=True`) advances to `AWAY_CONFIRMED`. All other scan outcomes (`"blocked"`, `"scanning"`, `"idle"`) stay at `AWAY_PENDING_SCAN`. The `_micro_scan_result` is set to `"blocked"` if `move_delta()` returns `movement_executed=False` across all steps, even when a pan-tilt backend is present.
+
+### How to verify scan is actually running
+
+1. Check `pan_tilt_scan_enabled: true` in `config/settings.json` — default is `false`.
+2. Check `service.status()["scan_available"]` — `True` only when config enabled AND backend is non-None.
+3. Check `service._micro_scan_state` — progresses `idle → scanning → not_found/found/blocked`.
+4. Check `service._micro_scan_blocked_reason` — populated when scan cannot proceed: `"pan_tilt_scan_disabled"`, `"pan_tilt_backend_missing"`, or `"movement_not_executed"`.
+5. Check `service._micro_scan_result` — `"none"` until a scan completes, then `"not_found"`, `"found"`, or `"blocked"`.
+
+### Reminder fires unexpectedly for AWAY_PENDING_SCAN
+
+Reminder policy only fires for `AWAY_CONFIRMED`. If a reminder fires while state is `AWAY_PENDING_SCAN`, check `FocusVisionReminderPolicy._kind_for_snapshot()` — it must return `None` for any state other than `AWAY_CONFIRMED` (absence) and `PHONE_DISTRACTION`.
+
+### User still at desk but Focus Mode shows AWAY_CONFIRMED
+
+Most likely cause: scan ran, hardware moved, but camera still did not detect the user. Check:
+- Is `pan_tilt_scan_enabled: true` in settings? If so, the scan physically moved the camera and observed nobody.
+- Is the user within the camera's field of view after the pan sweep? The scan sweeps ±12° horizontally only.
+- Is `face_count` or `people_count` > 0 in the latest observation? If yes, state should not be ABSENT at all — check the decision engine path.
+
+### person_without_face maps to PROBABLY_PRESENT but Focus Mode still warnings
+
+`PROBABLY_PRESENT` does not trigger any reminder. Warnings during `PROBABLY_PRESENT` would come from the `PHONE_DISTRACTION` path if phone usage is also active. Check `reminder.kind.value` in the reminder object.
+

@@ -7,7 +7,8 @@ from typing import Any, Callable
 
 from .config import FocusVisionConfig
 from .decision_engine import FocusVisionDecisionEngine
-from .models import FocusVisionReminder, FocusVisionStateSnapshot
+from .models import FocusVisionReminder, FocusVisionState, FocusVisionStateSnapshot
+from .observation_reader import FocusVisionObservationReader
 from .reminder_policy import FocusVisionReminderPolicy
 from .state_machine import FocusVisionStateMachine
 from .telemetry import FocusVisionTelemetryWriter
@@ -40,6 +41,7 @@ class FocusVisionSentinelService:
     reminder_policy: FocusVisionReminderPolicy | None = None
     telemetry: FocusVisionTelemetryWriter | None = None
     reminder_handler: Callable[[FocusVisionReminder], None] | None = None
+    pan_tilt_backend: Any = None
 
     _thread: threading.Thread | None = field(default=None, init=False)
     _stop_event: threading.Event = field(default_factory=threading.Event, init=False)
@@ -60,6 +62,11 @@ class FocusVisionSentinelService:
     _last_force_refresh_error: str | None = field(default=None, init=False)
     _last_force_refresh_returned_observation: bool = field(default=False, init=False)
     _delivered_reminder_count: int = field(default=0, init=False)
+    _micro_scan_state: str = field(default="idle", init=False)
+    _micro_scan_requested_at: float | None = field(default=None, init=False)
+    _micro_scan_completed_at: float | None = field(default=None, init=False)
+    _micro_scan_result: str = field(default="none", init=False)
+    _micro_scan_blocked_reason: str = field(default="", init=False)
 
     def __post_init__(self) -> None:
         if self.reminder_policy is None:
@@ -90,6 +97,11 @@ class FocusVisionSentinelService:
             self._last_force_refresh_error = None
             self._last_force_refresh_reason = None
             self._last_force_refresh_returned_observation = False
+            self._micro_scan_state = "idle"
+            self._micro_scan_requested_at = None
+            self._micro_scan_completed_at = None
+            self._micro_scan_result = "none"
+            self._micro_scan_blocked_reason = ""
             assert self.reminder_policy is not None
             self.reminder_policy.start_session(started_at=time.monotonic())
             self._thread = threading.Thread(
@@ -120,6 +132,7 @@ class FocusVisionSentinelService:
             observation = self._latest_observation_for_decision(current_time=current_time)
             decision = self.decision_engine.decide(observation, observed_at=current_time)
             snapshot = self.state_machine.update(decision)
+            snapshot = self._apply_derived_presence_states(snapshot, current_time)
             assert self.reminder_policy is not None
             reminder = self.reminder_policy.evaluate(snapshot, language=self._language, now=current_time)
             delivered = False
@@ -168,6 +181,15 @@ class FocusVisionSentinelService:
                 "last_force_refresh_returned_observation": self._last_force_refresh_returned_observation,
                 "delivered_reminder_count": self._delivered_reminder_count,
                 "reminder_handler_attached": self.reminder_handler is not None,
+                "micro_scan_state": self._micro_scan_state,
+                "micro_scan_result": self._micro_scan_result,
+                "micro_scan_blocked_reason": self._micro_scan_blocked_reason,
+                "micro_scan_requested_at": self._micro_scan_requested_at,
+                "micro_scan_completed_at": self._micro_scan_completed_at,
+                "pan_tilt_backend_attached": self.pan_tilt_backend is not None,
+                "scan_available": (
+                    self.config.pan_tilt_scan_enabled and self.pan_tilt_backend is not None
+                ),
                 "last_result": None if self._last_result is None else self._last_result.to_dict(),
                 "policy": policy_status,
             }
@@ -331,9 +353,166 @@ class FocusVisionSentinelService:
             }
         )
 
+    def _apply_derived_presence_states(
+        self, snapshot: FocusVisionStateSnapshot, now: float
+    ) -> FocusVisionStateSnapshot:
+        if snapshot.current_state != FocusVisionState.ABSENT:
+            with self._lock:
+                if self._micro_scan_state not in ("idle",):
+                    self._micro_scan_state = "idle"
+                    self._micro_scan_requested_at = None
+                    self._micro_scan_blocked_reason = ""
+            return snapshot
+
+        if snapshot.stable_seconds < self.config.absence_pending_scan_after_seconds:
+            return snapshot
+
+        with self._lock:
+            scan_state = self._micro_scan_state
+
+        if scan_state == "idle":
+            if self.config.pan_tilt_scan_enabled and self.pan_tilt_backend is not None:
+                self._trigger_micro_scan(now)
+            else:
+                reason = (
+                    "pan_tilt_scan_disabled"
+                    if not self.config.pan_tilt_scan_enabled
+                    else "pan_tilt_backend_missing"
+                )
+                with self._lock:
+                    self._micro_scan_state = "blocked"
+                    self._micro_scan_result = "blocked"
+                    self._micro_scan_blocked_reason = reason
+            return _replace_snapshot_state(snapshot, FocusVisionState.AWAY_PENDING_SCAN)
+
+        if scan_state == "scanning":
+            return _replace_snapshot_state(snapshot, FocusVisionState.AWAY_PENDING_SCAN)
+
+        if scan_state == "not_found":
+            return _replace_snapshot_state(snapshot, FocusVisionState.AWAY_CONFIRMED)
+
+        if scan_state == "blocked":
+            return _replace_snapshot_state(snapshot, FocusVisionState.AWAY_PENDING_SCAN)
+
+        if scan_state == "found":
+            with self._lock:
+                self._micro_scan_state = "idle"
+                self._micro_scan_result = "found"
+                self._micro_scan_blocked_reason = ""
+            return snapshot
+
+        return snapshot
+
+    def _trigger_micro_scan(self, now: float) -> None:
+        with self._lock:
+            self._micro_scan_state = "scanning"
+            self._micro_scan_requested_at = now
+        thread = threading.Thread(
+            target=self._run_micro_scan,
+            name="nexa-focus-micro-scan",
+            daemon=True,
+        )
+        thread.start()
+
+    def _run_micro_scan(self) -> None:
+        result = "blocked"
+        try:
+            pan_tilt = self.pan_tilt_backend
+            if pan_tilt is None:
+                result = "blocked"
+                return
+
+            any_movement_executed = False
+
+            def _try_move(pan_delta: float) -> None:
+                nonlocal any_movement_executed
+                move = getattr(pan_tilt, "move_delta", None)
+                if callable(move):
+                    try:
+                        move_result = move(pan_delta_degrees=pan_delta, tilt_delta_degrees=0.0)
+                        if isinstance(move_result, dict) and bool(move_result.get("movement_executed")):
+                            any_movement_executed = True
+                    except Exception:
+                        pass
+
+            def _try_center() -> None:
+                center = getattr(pan_tilt, "center", None)
+                if callable(center):
+                    try:
+                        center()
+                    except Exception:
+                        pass
+
+            def _check_person() -> bool:
+                get_obs = getattr(self.vision_backend, "latest_observation", None)
+                if not callable(get_obs):
+                    return False
+                try:
+                    obs = get_obs(force_refresh=True)
+                except Exception:
+                    return False
+                if obs is None:
+                    return False
+                ev = FocusVisionObservationReader().read(obs)
+                return bool(ev.people_count > 0 or ev.face_count > 0 or ev.presence_active)
+
+            found = False
+
+            if self._stop_event.is_set():
+                result = "blocked"
+                return
+            _try_move(-12.0)
+            time.sleep(1.5)
+            if _check_person():
+                found = True
+
+            if self._stop_event.is_set():
+                _try_center()
+                result = "blocked"
+                return
+            _try_center()
+            time.sleep(0.5)
+            if _check_person():
+                found = True
+
+            if self._stop_event.is_set():
+                result = "blocked"
+                return
+            _try_move(12.0)
+            time.sleep(1.5)
+            if _check_person():
+                found = True
+
+            _try_center()
+
+            if not any_movement_executed:
+                result = "blocked"
+            else:
+                result = "found" if found else "not_found"
+
+        except Exception:
+            result = "blocked"
+        finally:
+            with self._lock:
+                self._micro_scan_state = result
+                self._micro_scan_completed_at = time.monotonic()
+                self._micro_scan_result = result
+
     @staticmethod
     def _normalize_language(language: str) -> str:
         return "pl" if str(language or "").lower().startswith("pl") else "en"
+
+
+def _replace_snapshot_state(
+    snapshot: FocusVisionStateSnapshot, new_state: FocusVisionState
+) -> FocusVisionStateSnapshot:
+    return FocusVisionStateSnapshot(
+        current_state=new_state,
+        stable_seconds=snapshot.stable_seconds,
+        state_started_at=snapshot.state_started_at,
+        updated_at=snapshot.updated_at,
+        decision=snapshot.decision,
+    )
 
 
 __all__ = ["FocusVisionSentinelService", "FocusVisionTickResult"]

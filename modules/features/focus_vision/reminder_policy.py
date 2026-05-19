@@ -85,7 +85,7 @@ class FocusVisionReminderPolicy:
 
     @staticmethod
     def _kind_for_snapshot(snapshot: FocusVisionStateSnapshot) -> FocusVisionReminderKind | None:
-        if snapshot.current_state == FocusVisionState.ABSENT:
+        if snapshot.current_state == FocusVisionState.AWAY_CONFIRMED:
             return FocusVisionReminderKind.ABSENCE
         if snapshot.current_state == FocusVisionState.PHONE_DISTRACTION:
             return FocusVisionReminderKind.PHONE_DISTRACTION

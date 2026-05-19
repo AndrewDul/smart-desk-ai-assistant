@@ -503,6 +503,8 @@ class FeedbackCenterSnapshotBuilder:
         pan_tilt = metadata.get("pan_tilt_backend") or "not available yet"
         tracking = metadata.get("vision_tracking_status") or "not available yet"
 
+        focus_items = self._focus_presence_items(metadata)
+
         return _section(
             "vision",
             "Camera / Vision / Pan-Tilt",
@@ -514,8 +516,69 @@ class FeedbackCenterSnapshotBuilder:
                 _item("Latest observation age", _metric(cam_status.get("latest_observation_age_seconds"), suffix="s"), "Age of latest observation when available."),
                 _item("Pan-tilt status", pan_tilt, "Pan-tilt backend or status metadata."),
                 _item("Tracking status", tracking, "Vision tracking readiness/status metadata."),
+                *focus_items,
             ],
         )
+
+    def _focus_presence_items(self, runtime_metadata: dict[str, Any]) -> list[dict[str, Any]]:
+        sentinel = runtime_metadata.get("focus_vision_sentinel")
+        if sentinel is None:
+            sentinel = getattr(self.assistant, "focus_vision_sentinel", None)
+        if sentinel is None:
+            return []
+
+        svc_status = _safe_dict_call(getattr(sentinel, "status", None))
+        if not svc_status:
+            return []
+
+        last_result = svc_status.get("last_result") or {}
+        snapshot = last_result.get("snapshot") or {}
+        decision = snapshot.get("decision") or {}
+        evidence = decision.get("evidence") or {}
+        policy = svc_status.get("policy") or {}
+
+        current_state = snapshot.get("current_state") or "not available yet"
+        stable_seconds = snapshot.get("stable_seconds")
+        confidence = decision.get("confidence")
+        reasons = decision.get("reasons") or []
+        face_count = evidence.get("face_count")
+        people_count = evidence.get("people_count")
+        person_without_face = evidence.get("person_without_face")
+        presence_confidence = evidence.get("presence_confidence")
+
+        scan_state = svc_status.get("micro_scan_state") or "idle"
+        scan_result = svc_status.get("micro_scan_result") or "none"
+        scan_blocked_reason = svc_status.get("micro_scan_blocked_reason") or ""
+        scan_available = bool(svc_status.get("scan_available", False))
+        last_reminder_at = policy.get("last_reminder_at_by_kind") or {}
+        absence_last = last_reminder_at.get("absence")
+        reminder_allowed = current_state == "away_confirmed"
+
+        state_severity = "ok"
+        if current_state == "away_confirmed":
+            state_severity = "warning"
+        elif current_state in ("absent", "away_pending_scan"):
+            state_severity = "info"
+        elif current_state == "probably_present":
+            state_severity = "info"
+
+        items: list[dict[str, Any]] = [
+            _item("Focus presence state", current_state, "Current focus vision presence state.", state_severity),
+            _item("Focus state stable", _metric(stable_seconds, suffix="s") if stable_seconds is not None else "not available yet", "How long the current focus state has been stable."),
+            _item("Focus decision confidence", f"{confidence:.2f}" if isinstance(confidence, float) else "not available yet", "Decision engine confidence for current state."),
+            _item("Focus decision reasons", ", ".join(str(r) for r in reasons[:3]) or "none", "Primary reasons for current focus decision."),
+            _item("Face count (perception)", str(face_count) if face_count is not None else "not available yet", "Raw face count from perception pipeline."),
+            _item("People count (perception)", str(people_count) if people_count is not None else "not available yet", "Raw person/body count from perception pipeline."),
+            _item("Person without face", _yes_no(person_without_face) if person_without_face is not None else "not available yet", "Body detected but no face — user likely looking away."),
+            _item("Presence confidence", f"{presence_confidence:.2f}" if isinstance(presence_confidence, float) else "not available yet", "Behavior pipeline presence confidence."),
+            _item("Scan available", _yes_no(scan_available), "Whether pan-tilt scan is enabled and backend is attached."),
+            _item("Micro scan state", scan_state, "Current scan state (idle/scanning/found/not_found/blocked).", "info" if scan_state in ("idle", "found") else "warning" if scan_state == "scanning" else "error" if scan_state == "blocked" else "info"),
+            _item("Micro scan result", scan_result, "Result of the last completed micro-scan."),
+            _item("Micro scan blocked reason", scan_blocked_reason or "none", "Why the micro-scan could not run, if blocked.", "warning" if scan_blocked_reason else "ok"),
+            _item("Reminder allowed", _yes_no(reminder_allowed), "Whether absence reminder can fire (only after confirmed not_found scan).", "ok" if reminder_allowed else "info"),
+            _item("Absence reminder last sent", str(absence_last) if absence_last else "none", "Timestamp of last absence reminder this session."),
+        ]
+        return items
 
     def _power_section(self) -> dict[str, Any]:
         provider = self.metrics_provider or VisualShellSystemMetricsProvider()

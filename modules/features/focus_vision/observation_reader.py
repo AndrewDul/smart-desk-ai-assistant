@@ -17,12 +17,17 @@ class FocusVisionObservationReader:
         metadata = dict(getattr(observation, "metadata", {}) or {})
         behavior = dict(metadata.get("behavior") or {})
         sessions = dict(metadata.get("sessions") or {})
+        perception = dict(metadata.get("perception") or {})
 
         presence = _signal(behavior, "presence")
         desk_activity = _signal(behavior, "desk_activity")
         computer_work = _signal(behavior, "computer_work")
         phone_usage = _signal(behavior, "phone_usage")
         study_activity = _signal(behavior, "study_activity")
+
+        face_count = _count_from_perception(perception, "face_count", "faces")
+        people_count = _count_from_perception(perception, "people_count", "people")
+        person_without_face = people_count > 0 and face_count == 0
 
         return FocusVisionEvidence(
             detected=bool(getattr(observation, "detected", False)),
@@ -47,7 +52,11 @@ class FocusVisionObservationReader:
                 "observation_confidence": float(getattr(observation, "confidence", 0.0) or 0.0),
                 "behavior_available": bool(behavior),
                 "sessions_available": bool(sessions),
+                "perception_available": bool(perception),
             },
+            face_count=face_count,
+            people_count=people_count,
+            person_without_face=person_without_face,
         )
 
 
@@ -80,6 +89,19 @@ def _active_seconds(session: dict[str, Any]) -> float:
         return max(0.0, float(session.get("current_active_seconds", 0.0) or 0.0))
     except (TypeError, ValueError):
         return 0.0
+
+
+def _count_from_perception(perception: dict[str, Any], count_key: str, list_key: str) -> int:
+    value = perception.get(count_key)
+    if value is not None:
+        try:
+            return max(0, int(value))
+        except (TypeError, ValueError):
+            pass
+    items = perception.get(list_key)
+    if isinstance(items, (list, tuple)):
+        return len(items)
+    return 0
 
 
 __all__ = ["FocusVisionObservationReader"]

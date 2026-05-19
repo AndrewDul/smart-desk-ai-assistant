@@ -28,6 +28,15 @@ class FocusVisionDecisionEngine:
         if self._is_on_task(evidence):
             return FocusVisionDecision(FocusVisionState.ON_TASK, self._on_task_confidence(evidence), self._on_task_reasons(evidence), timestamp, evidence)
 
+        if self._is_probably_present(evidence):
+            return FocusVisionDecision(
+                FocusVisionState.PROBABLY_PRESENT,
+                0.5,
+                ("person_without_face",),
+                timestamp,
+                evidence,
+            )
+
         if self._has_clear_face_presence(evidence) and evidence.presence_active:
             return FocusVisionDecision(
                 FocusVisionState.UNCERTAIN,
@@ -59,10 +68,18 @@ class FocusVisionDecisionEngine:
         return evidence.study_activity_active or evidence.computer_work_active
 
     @staticmethod
+    def _is_probably_present(evidence: FocusVisionEvidence) -> bool:
+        if evidence.presence_active or evidence.phone_usage_active:
+            return False
+        return evidence.person_without_face
+
+    @staticmethod
     def _is_absent(evidence: FocusVisionEvidence) -> bool:
         if evidence.presence_active:
             return False
         if evidence.phone_usage_active:
+            return False
+        if evidence.people_count > 0:
             return False
         return not evidence.study_activity_active and not evidence.computer_work_active
 
@@ -83,6 +100,8 @@ class FocusVisionDecisionEngine:
             reasons.append("no_desk_activity")
         if "face_detected" not in labels and "face_in_engagement_zone" not in labels:
             reasons.append("no_face_visible")
+        if evidence.people_count == 0:
+            reasons.append("no_person_detected")
         if "person_in_desk_zone" in labels or "object:person" in labels:
             reasons.append("person_label_ignored_without_face")
         return tuple(reasons)
