@@ -169,6 +169,16 @@ class OpenWakeWordGate(OpenWakeWordGateListener):
             getattr(self, "device_selection_reason", "unknown"),
             getattr(self, "available_input_devices_summary", "unknown"),
         )
+        LOGGER.info(
+            "[audio-device] role=wake device=%r name=%r sample_rate=%s channels=%s "
+            "fallback_used=%s reason=%r",
+            self.device,
+            self.device_name,
+            self.input_sample_rate,
+            self.channels,
+            "arecord" in str(getattr(self, "device", "") or "").lower(),
+            getattr(self, "device_selection_reason", "unknown"),
+        )
 
     def release_capture_ownership(self) -> bool:
         was_open = self._stream is not None

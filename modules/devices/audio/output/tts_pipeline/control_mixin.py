@@ -47,6 +47,32 @@ class TTSPipelineControlMixin:
         for process in processes:
             self._terminate_process(process, reason="stop_request")
 
+    def stop_presence_playback(self) -> None:
+        presence_stop = getattr(self, "_presence_stop_requested", None)
+        if presence_stop is not None:
+            try:
+                presence_stop.set()
+            except Exception:
+                pass
+
+        stop_stream = getattr(self, "_stop_active_presence_output_stream", None)
+        if callable(stop_stream):
+            try:
+                stop_stream()
+            except Exception:
+                pass
+
+        process_lock = getattr(self, "_process_lock", None)
+        active_processes = getattr(self, "_active_presence_processes", [])
+        if process_lock is None:
+            processes = list(active_processes or [])
+        else:
+            with process_lock:
+                processes = list(getattr(self, "_active_presence_processes", []) or [])
+
+        for process in processes:
+            self._terminate_process(process, reason="presence_stop_request")
+
     def _resolve_output_hold_seconds(
         self,
         *,

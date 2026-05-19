@@ -372,9 +372,22 @@ class TurnBenchmarkService:
                     report_first_audio,
                 ),
                 "response_first_audio_ms": response_first_audio_ms or None,
+                "tts_first_audio_ms": self._safe_attr_float(response_report, "tts_first_audio_ms") or None,
                 "response_total_ms": response_total_ms or None,
+                "total_response_ms": self._safe_attr_float(response_report, "total_response_ms") or response_total_ms or None,
                 "llm_first_chunk_ms": self._safe_float(
                     safe_llm.get("first_chunk_latency_ms", 0.0)
+                ) or None,
+                "llm_request_started": bool(
+                    getattr(response_report, "llm_request_started", False)
+                ),
+                "llm_first_token_ms": self._safe_attr_float(
+                    response_report,
+                    "llm_first_token_ms",
+                ) or None,
+                "llm_first_content_chunk_ms": self._safe_attr_float(
+                    response_report,
+                    "llm_first_content_chunk_ms",
                 ) or None,
                 "llm_total_ms": self._safe_float(
                     safe_llm.get("latency_ms", 0.0)
@@ -385,6 +398,48 @@ class TurnBenchmarkService:
                 "response_chunks_spoken": int(
                     self._safe_attr_float(response_report, "chunks_spoken")
                 ),
+                "chunk_count": int(
+                    self._safe_attr_float(response_report, "chunk_count")
+                ),
+                "max_spoken_gap_ms": self._safe_attr_float(
+                    response_report,
+                    "max_spoken_gap_ms",
+                ) or None,
+                "average_spoken_gap_ms": self._safe_attr_float(
+                    response_report,
+                    "average_spoken_gap_ms",
+                ) or None,
+                "heartbeat_count": int(
+                    self._safe_attr_float(response_report, "heartbeat_count")
+                ),
+                "heartbeat_first_ms": self._safe_attr_float(
+                    response_report,
+                    "heartbeat_first_ms",
+                ) or None,
+                "heartbeat_cancelled": bool(
+                    getattr(response_report, "heartbeat_cancelled", False)
+                ),
+                "heartbeat_cancelled_reason": str(
+                    getattr(response_report, "heartbeat_cancelled_reason", "") or ""
+                ).strip(),
+                "presence_skipped_reason_count": int(
+                    self._safe_attr_float(response_report, "presence_skipped_reason_count")
+                ),
+                "first_real_audio_after_tts_started_ms": self._safe_attr_float(
+                    response_report,
+                    "first_real_audio_after_tts_started_ms",
+                ) or None,
+                "first_chunk_chars": int(
+                    self._safe_attr_float(response_report, "first_chunk_chars")
+                ),
+                "first_chunk_synthesis_ms": self._safe_attr_float(
+                    response_report,
+                    "first_chunk_synthesis_ms",
+                ) or None,
+                "prepare_next_ms": self._safe_attr_float(
+                    response_report,
+                    "prepare_next_ms",
+                ) or None,
                 "response_chars": len(str(getattr(response_report, "full_text", "") or "")),
                 "response_live_streaming": bool(
                     getattr(response_report, "live_streaming", False)

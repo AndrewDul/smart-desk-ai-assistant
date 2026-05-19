@@ -59,6 +59,7 @@ class ResponseStreamerPlayback(ResponseStreamerHelpers):
         *,
         next_hint: tuple[str, str] | None = None,
         latency_profile: str | None = None,
+        on_first_audio: Any | None = None,
     ) -> bool:
         speak_method = getattr(self.voice_output, "speak", None)
         if not callable(speak_method):
@@ -71,6 +72,8 @@ class ResponseStreamerPlayback(ResponseStreamerHelpers):
             speak_kwargs["prepare_next"] = next_hint
         if latency_profile and self._voice_output_supports_latency_profile():
             speak_kwargs["latency_profile"] = latency_profile
+        if callable(on_first_audio) and self._voice_output_supports_on_first_audio():
+            speak_kwargs["on_first_audio"] = on_first_audio
 
         try:
             try:
@@ -82,6 +85,9 @@ class ResponseStreamerPlayback(ResponseStreamerHelpers):
                     result = bool(speak_method(text, **fallback_kwargs))
                 elif "latency_profile" in fallback_kwargs:
                     fallback_kwargs.pop("latency_profile", None)
+                    result = bool(speak_method(text, **fallback_kwargs))
+                elif "on_first_audio" in fallback_kwargs:
+                    fallback_kwargs.pop("on_first_audio", None)
                     result = bool(speak_method(text, **fallback_kwargs))
                 else:
                     raise
@@ -161,6 +167,24 @@ class ResponseStreamerPlayback(ResponseStreamerHelpers):
             supports = False
 
         self._supports_latency_profile_cache = supports
+        return supports
+
+    def _voice_output_supports_on_first_audio(self) -> bool:
+        speak_method = getattr(self.voice_output, "speak", None)
+        if not callable(speak_method):
+            return False
+
+        cached = getattr(self, "_supports_on_first_audio_cache", None)
+        if isinstance(cached, bool):
+            return cached
+
+        try:
+            signature = inspect.signature(speak_method)
+            supports = "on_first_audio" in signature.parameters
+        except Exception:
+            supports = False
+
+        self._supports_on_first_audio_cache = supports
         return supports
 
     def _resolve_latency_profile(

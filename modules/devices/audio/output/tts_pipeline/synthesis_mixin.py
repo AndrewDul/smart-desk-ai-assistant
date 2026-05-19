@@ -359,6 +359,7 @@ class TTSPipelineSynthesisMixin:
         *,
         prepare_next: tuple[str, str] | None = None,
         latency_profile: str | None = None,
+        on_first_audio=None,
     ) -> bool:
         if not self.enabled:
             return False
@@ -395,7 +396,10 @@ class TTSPipelineSynthesisMixin:
         if normalized_next is not None and len(text) > self._early_next_prefetch_max_chars:
             self._start_prefetch(normalized_next[0], normalized_next[1])
 
-        played, first_audio_started_at = self._play_wav(ready_wav_path)
+        played, first_audio_started_at = self._play_wav(
+            ready_wav_path,
+            on_first_audio=on_first_audio,
+        )
         if first_audio_started_at <= 0.0:
             first_audio_started_at = time.monotonic() if played else 0.0
         first_audio_ms = (first_audio_started_at - started_at) * 1000.0 if played else 0.0
@@ -407,6 +411,7 @@ class TTSPipelineSynthesisMixin:
             wav_ready_ms=wav_ready_ms,
             wav_ready_source=ready_source,
             cache_hit=cache_hit,
+            prepare_next_ms=0.0,
         )
 
         if played:
@@ -447,7 +452,10 @@ class TTSPipelineSynthesisMixin:
             )
             return False
 
-        played, retry_first_audio_started_at = self._play_wav(cache_path)
+        played, retry_first_audio_started_at = self._play_wav(
+            cache_path,
+            on_first_audio=on_first_audio,
+        )
         if retry_first_audio_started_at <= 0.0:
             retry_first_audio_started_at = time.monotonic() if played else 0.0
         retry_first_audio_ms = (retry_first_audio_started_at - started_at) * 1000.0 if played else 0.0
@@ -459,6 +467,7 @@ class TTSPipelineSynthesisMixin:
             wav_ready_ms=retry_ready_ms,
             wav_ready_source="retry_ready",
             cache_hit=False,
+            prepare_next_ms=0.0,
         )
         if played:
             if bool(getattr(self, "_tts_hot_path_success_log_enabled", False)):

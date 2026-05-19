@@ -50,6 +50,7 @@ class ResponseStreamer(
         self.prefetch_max_chars = 150
         self.fast_lead_min_chars = 8
         self.fast_lead_max_chars = 34
+        self.live_first_chunk_max_chars = 80
 
     def execute(self, plan: ResponsePlan) -> StreamExecutionReport:
         if self._has_live_chunk_source(plan):
@@ -185,11 +186,14 @@ class ResponseStreamer(
             full_text=full_text,
             display_title=display_title,
             display_lines=display_lines,
+            chunk_count=spoken_count,
             first_audio_latency_ms=(first_audio_latency_s or 0.0) * 1000.0,
             first_audio_ms=(first_audio_latency_s or 0.0) * 1000.0,
+            tts_first_audio_ms=(first_audio_latency_s or 0.0) * 1000.0,
             first_chunk_latency_ms=0.0,
             first_sentence_latency_ms=(first_sentence_latency_s or 0.0) * 1000.0,
             total_elapsed_ms=total_elapsed * 1000.0,
+            total_response_ms=total_elapsed * 1000.0,
             started_at_monotonic=response_started_at,
             first_audio_started_at_monotonic=(
                 response_started_at + first_audio_latency_s

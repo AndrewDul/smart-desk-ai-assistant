@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import subprocess
 import threading
 import time
 import wave
@@ -28,7 +29,11 @@ class TTSPipelineWavPlaybackMixin:
             self._active_output_stream = None
 
     def _stop_requested_is_set(self) -> bool:
-        stop_requested = getattr(self, "_stop_requested", None)
+        return self._stop_event_is_set(getattr(self, "_stop_requested", None))
+
+    @staticmethod
+    def _stop_event_is_set(stop_event=None) -> bool:
+        stop_requested = stop_event
         if stop_requested is None:
             return False
         try:
@@ -77,6 +82,33 @@ class TTSPipelineWavPlaybackMixin:
         except Exception:
             pass
 
+    def _ensure_presence_output_stream_state(self) -> None:
+        if not hasattr(self, "_presence_output_stream_lock") or self._presence_output_stream_lock is None:
+            self._presence_output_stream_lock = threading.Lock()
+        if not hasattr(self, "_active_presence_output_stream"):
+            self._active_presence_output_stream = None
+
+    def _stop_active_presence_output_stream(self) -> None:
+        self._ensure_presence_output_stream_state()
+
+        stream = None
+        with self._presence_output_stream_lock:
+            stream = self._active_presence_output_stream
+            self._active_presence_output_stream = None
+
+        if stream is None:
+            return
+
+        try:
+            stream.abort(ignore_errors=True)
+        except Exception:
+            pass
+
+        try:
+            stream.close(ignore_errors=True)
+        except Exception:
+            pass
+
     @staticmethod
     def _wav_numpy_dtype(sample_width: int):
         if sample_width == 1:
@@ -87,13 +119,37 @@ class TTSPipelineWavPlaybackMixin:
             return np.int32
         raise ValueError(f"Unsupported WAV sample width: {sample_width}")
 
-    def _play_wav_with_sounddevice(self, wav_path: Path) -> tuple[bool, float]:
+    @staticmethod
+    def _notify_first_audio(callback, started_at: float) -> None:
+        if not callable(callback):
+            return
+        try:
+            callback()
+        except TypeError:
+            try:
+                callback(started_at)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _play_wav_with_sounddevice(
+        self,
+        wav_path: Path,
+        *,
+        on_first_audio=None,
+        stop_event=None,
+        presence_playback: bool = False,
+    ) -> tuple[bool, float]:
         import sounddevice as sd
 
         if not wav_path.exists():
             return False, 0.0
 
-        self._ensure_output_stream_state()
+        if presence_playback:
+            self._ensure_presence_output_stream_state()
+        else:
+            self._ensure_output_stream_state()
 
         stream = None
         started_output_at = 0.0
@@ -131,7 +187,7 @@ class TTSPipelineWavPlaybackMixin:
                 if status:
                     append_log(f"Sounddevice playback status: {status}")
 
-                if self._stop_requested_is_set():
+                if self._stop_event_is_set(stop_event):
                     outdata.fill(0)
                     finished = True
                     raise sd.CallbackStop()
@@ -165,24 +221,29 @@ class TTSPipelineWavPlaybackMixin:
                 finished_callback=None,
             )
 
-            with self._output_stream_lock:
-                self._active_output_stream = stream
+            if presence_playback:
+                with self._presence_output_stream_lock:
+                    self._active_presence_output_stream = stream
+            else:
+                with self._output_stream_lock:
+                    self._active_output_stream = stream
 
             stream.start()
             if started_output_at <= 0.0:
                 started_output_at = time.monotonic()
+            self._notify_first_audio(on_first_audio, started_output_at)
 
-            while stream.active and not self._stop_requested_is_set():
+            while stream.active and not self._stop_event_is_set(stop_event):
                 time.sleep(0.005)
 
-            if self._stop_requested_is_set() and stream.active:
+            if self._stop_event_is_set(stop_event) and stream.active:
                 try:
                     stream.abort(ignore_errors=True)
                 except Exception:
                     pass
 
             success = bool(
-                started_output_at > 0.0 and (finished or not self._stop_requested_is_set())
+                started_output_at > 0.0 and (finished or not self._stop_event_is_set(stop_event))
             )
             return success, started_output_at
 
@@ -191,24 +252,92 @@ class TTSPipelineWavPlaybackMixin:
             self._sounddevice_playback_ready = False
             return False, 0.0
         finally:
-            self._ensure_output_stream_state()
-
-            with self._output_stream_lock:
-                if self._active_output_stream is stream:
-                    self._active_output_stream = None
+            if presence_playback:
+                self._ensure_presence_output_stream_state()
+                with self._presence_output_stream_lock:
+                    if self._active_presence_output_stream is stream:
+                        self._active_presence_output_stream = None
+            else:
+                self._ensure_output_stream_state()
+                with self._output_stream_lock:
+                    if self._active_output_stream is stream:
+                        self._active_output_stream = None
 
             if stream is not None:
                 with contextlib.suppress(Exception):
                     stream.close(ignore_errors=True)
 
-    def _play_wav(self, wav_path) -> tuple[bool, float]:
+    def _run_playback_process_with_stop_event(
+        self,
+        command: list[str],
+        *,
+        timeout_seconds: float,
+        source: str,
+        poll_sleep_seconds: float,
+        stop_event,
+        on_process_started=None,
+    ) -> bool:
+        started_at = time.monotonic()
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        if callable(on_process_started):
+            try:
+                on_process_started()
+            except Exception:
+                pass
+        with self._process_lock:
+            if not hasattr(self, "_active_presence_processes"):
+                self._active_presence_processes = []
+            self._active_presence_processes.append(process)
+        try:
+            while True:
+                if self._stop_event_is_set(stop_event):
+                    self._terminate_process(process, reason=source)
+                    return False
+
+                return_code = process.poll()
+                if return_code is not None:
+                    return return_code == 0
+
+                if (time.monotonic() - started_at) >= timeout_seconds:
+                    append_log(f"{source} process timed out after {timeout_seconds:.2f}s.")
+                    self._terminate_process(process, reason=f"{source}_timeout")
+                    return False
+
+                time.sleep(max(0.001, float(poll_sleep_seconds)))
+        finally:
+            with self._process_lock:
+                self._active_presence_processes = [
+                    item
+                    for item in getattr(self, "_active_presence_processes", [])
+                    if item is not process
+                ]
+
+    def _play_wav(
+        self,
+        wav_path,
+        *,
+        on_first_audio=None,
+        stop_event=None,
+        presence_playback: bool = False,
+    ) -> tuple[bool, float]:
         if not wav_path.exists():
             return False, 0.0
 
         playback_started_at = time.monotonic()
 
         if self._should_try_sounddevice_playback() and self._sounddevice_playback_available():
-            ok, first_audio_started_at = self._play_wav_with_sounddevice(Path(wav_path))
+            ok, first_audio_started_at = self._play_wav_with_sounddevice(
+                Path(wav_path),
+                on_first_audio=on_first_audio,
+                stop_event=stop_event,
+                presence_playback=presence_playback,
+            )
             if ok:
                 if bool(getattr(self, "_tts_hot_path_success_log_enabled", False)):
                     append_log(
@@ -236,14 +365,32 @@ class TTSPipelineWavPlaybackMixin:
 
         for backend_name, base_command in backends:
             command = list(base_command) + [str(wav_path)]
-            launched_at = time.monotonic()
-            ok = self._run_process_interruptibly(
-                command,
-                timeout_seconds=self._playback_timeout_seconds,
-                source=f"{backend_name}_playback",
-                poll_sleep_seconds=getattr(self, "_playback_poll_seconds", 0.005),
-                capture_output=False,
-            )
+            first_audio_started_at = 0.0
+
+            def _mark_first_audio() -> None:
+                nonlocal first_audio_started_at
+                if first_audio_started_at <= 0.0:
+                    first_audio_started_at = time.monotonic()
+                self._notify_first_audio(on_first_audio, first_audio_started_at)
+
+            if stop_event is None:
+                ok = self._run_process_interruptibly(
+                    command,
+                    timeout_seconds=self._playback_timeout_seconds,
+                    source=f"{backend_name}_playback",
+                    poll_sleep_seconds=getattr(self, "_playback_poll_seconds", 0.005),
+                    capture_output=False,
+                    on_process_started=_mark_first_audio if callable(on_first_audio) else None,
+                )
+            else:
+                ok = self._run_playback_process_with_stop_event(
+                    command,
+                    timeout_seconds=self._playback_timeout_seconds,
+                    source=f"{backend_name}_playback",
+                    poll_sleep_seconds=getattr(self, "_playback_poll_seconds", 0.005),
+                    stop_event=stop_event,
+                    on_process_started=_mark_first_audio if callable(on_first_audio) else None,
+                )
             if ok:
                 self._last_good_playback_backend = backend_name
                 if bool(getattr(self, "_tts_hot_path_success_log_enabled", False)):
@@ -251,7 +398,9 @@ class TTSPipelineWavPlaybackMixin:
                         f"TTS playback finished with {backend_name} in "
                         f"{time.monotonic() - playback_started_at:.3f}s"
                     )
-                return True, launched_at
+                if first_audio_started_at <= 0.0:
+                    first_audio_started_at = time.monotonic()
+                return True, first_audio_started_at
 
         append_log("All playback backends failed for current WAV.")
         return False, 0.0

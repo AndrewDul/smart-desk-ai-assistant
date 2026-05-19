@@ -166,6 +166,8 @@ def test_feedback_center_snapshot_builds_required_sections(tmp_path: Path) -> No
     assert performance_values["Last command"] == "Tell me about black holes"
     assert performance_values["Route / source"] == "conversation"
     assert performance_values["TTS first audio"] == "540.0 ms"
+    assert performance_values["first_token_latency_ms"] == "120.0 ms"
+    assert performance_values["first_speakable_chunk_latency_ms"] == "260.0 ms"
 
 
 def test_feedback_center_snapshot_handles_missing_sources(tmp_path: Path) -> None:
@@ -268,6 +270,76 @@ def test_feedback_center_snapshot_includes_cached_benchmark_timings(tmp_path: Pa
     assert "duration=520.0 ms" in performance_values["Event: STT / Listen to speech"]
     assert "1816.0 ms" in performance_values["Slow op: Total turn"]
     assert performance_values["Subsystem: STT"] == "not measured yet"
+
+
+def test_performance_section_shows_vosk_and_faster_whisper_fields(tmp_path: Path) -> None:
+    """Vosk candidate accepted and FasterWhisper prevented must appear from benchmark sample."""
+    assistant = FakeAssistant()
+    assistant.turn_benchmark_service = FakeTurnBenchmarkService(
+        {
+            "latest_sample": {
+                "user_text_preview": "show system status",
+                "language": "en",
+                "stt_backend_label": "vosk_pre_whisper",
+                "route_kind": "action",
+                "canonical_intent": "feedback.on",
+                "llm_prevented": True,
+                "voice_engine_v2_candidate_accepted": True,
+                "faster_whisper_prevented": True,
+                "result": "ok",
+                "total_turn_ms": 1820.0,
+                "response_first_audio_ms": 140.0,
+                "route_to_first_audio_ms": 210.0,
+            },
+            "summary": {},
+            "overlay_lines": [],
+        }
+    )
+
+    snapshot = build_feedback_center_snapshot(
+        assistant=assistant,
+        repo_root=tmp_path,
+        metrics_provider=FakeMetricsProvider(),
+    )
+
+    performance_values = {
+        item["label"]: item["value"] for item in _section(snapshot, "performance")["items"]
+    }
+    assert performance_values["Vosk candidate accepted"] == "yes"
+    assert performance_values["FasterWhisper prevented"] == "yes"
+    assert performance_values["LLM prevented"] == "yes"
+    assert performance_values["STT backend"] == "vosk_pre_whisper"
+
+
+def test_performance_section_shows_unavailable_for_missing_vosk_fields(tmp_path: Path) -> None:
+    """When benchmark sample lacks Vosk fields, show 'not available yet'."""
+    assistant = FakeAssistant()
+    assistant.turn_benchmark_service = FakeTurnBenchmarkService(
+        {
+            "latest_sample": {
+                "user_text_preview": "what time is it",
+                "language": "en",
+                "route_kind": "action",
+                "llm_prevented": True,
+                "total_turn_ms": 950.0,
+            },
+            "summary": {},
+            "overlay_lines": [],
+        }
+    )
+
+    snapshot = build_feedback_center_snapshot(
+        assistant=assistant,
+        repo_root=tmp_path,
+        metrics_provider=FakeMetricsProvider(),
+    )
+
+    performance_values = {
+        item["label"]: item["value"] for item in _section(snapshot, "performance")["items"]
+    }
+    # Fields not in the sample → _bool_or_unavailable(None) returns "unavailable"
+    assert performance_values["Vosk candidate accepted"] == "unavailable"
+    assert performance_values["FasterWhisper prevented"] == "unavailable"
 
 
 def test_feedback_center_snapshot_does_not_start_heavy_services(tmp_path: Path) -> None:

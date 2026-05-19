@@ -6038,3 +6038,46 @@ I added latency telemetry using `print()` so it is always visible regardless of 
 - Check that the four diagnostics phrases are still in `_common_cache_phrases` in `tts_pipeline/core.py`.
 - Look for `[diagnostics-latency]` lines in the terminal to confirm the route and timing.
 - If `total_action_ms` is back above 5000, check whether the `_status_loop` thread is calling `_publish_status_snapshot()` synchronously inside `turn_on()` — it must not.
+
+## 2026-05-19 - Presence heartbeat not visible in tee'd runtime log
+
+### Problem
+
+The runtime proof log (`var/logs/runtime_proof_*.log`) showed no `[presence-heartbeat]` or `[llm-stream]` lines even though the live streaming path was enabled and the LLM was healthy.
+
+### Cause
+
+`append_log()` writes to the rotating file handler (`var/logs/system.log`) only. `logging.console_enabled` is `false` in `config/settings.json`. The `tee`-based runtime proof script captures stdout, but `append_log()` never writes to stdout. Only `print()` calls (e.g. `log_turn_timeline()`) appear in the tee'd log.
+
+### Fix / verification
+
+Read `var/logs/system.log` directly instead of the tee'd proof log. The heartbeat events are there:
+
+```
+[2026-05-19 03:48:30] [INFO] [llm-stream] event=http_request_started
+[2026-05-19 03:48:31] [INFO] [presence-heartbeat] started first_delay_ms=1000.0 repeat_ms=2700.0 lang=en
+[2026-05-19 03:48:33] [INFO] [presence-heartbeat] spoken index=1 text="I'm still working on that." lang=en
+[2026-05-19 03:48:39] [INFO] [presence-heartbeat] cancelled reason=real_audio_started
+[2026-05-19 03:48:39] [INFO] [presence-heartbeat] metrics count=2 first_ms=1021.7 cancelled=True
+```
+
+### If heartbeat appears absent
+
+1. Check `var/logs/system.log`, not the tee'd stdout log.
+2. Confirm `live=True` in the TURN telemetry line for the turn in question. If `live=False`, the streaming plan was not used — check `_try_local_llm_stream_payload()` guards: LLM readiness (`state=ready`), `live_llm_sentence_streaming_enabled=true` in settings, and `stream_companion_reply` callable on the local LLM service.
+3. Confirm `[llm-stream] event=http_request_started` appears near the same timestamp. If absent, the HTTP streaming request was never sent; the runner may have fallen through to `generate_companion_reply()` (non-streaming path).
+4. Confirm `presence_heartbeat_enabled=True` is in the plan metadata. It is set only when `_try_local_llm_stream_payload()` returns a non-None payload.
+
+## 2026-05-19 - Heartbeat cancels but real answer is killed too
+
+### Problem
+
+Calling `cancel()` on `PresenceHeartbeatManager` stops the heartbeat but the real TTS answer is also silenced.
+
+### Cause
+
+`stop_presence_playback()` was accidentally setting `_stop_requested` instead of (or in addition to) `_presence_stop_requested`. The real TTS `speak()` polls `_stop_requested`; if it is set, playback terminates.
+
+### Fix
+
+`stop_presence_playback()` in `control_mixin.py` must only touch `_presence_stop_requested` and drain `_active_presence_output_stream` / `_active_presence_processes`. It must never call `stop_playback()` or set `_stop_requested`.

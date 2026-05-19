@@ -170,6 +170,16 @@ class FeedbackCenterSnapshotBuilder:
                 "Whether the latest command explicitly avoided LLM routing.",
             ),
             _item(
+                "Vosk candidate accepted",
+                _bool_or_unavailable(latest_sample.get("voice_engine_v2_candidate_accepted")),
+                "Whether the Vosk pre-Whisper fast path accepted and handled this command.",
+            ),
+            _item(
+                "FasterWhisper prevented",
+                _bool_or_unavailable(latest_sample.get("faster_whisper_prevented")),
+                "Whether full FasterWhisper STT was bypassed by the Vosk fast path.",
+            ),
+            _item(
                 "Result / status",
                 _first_present(latest_sample.get("result"), response_snapshot.get("status"), response_snapshot.get("source"), "unavailable"),
                 "Latest completed result or response status.",
@@ -185,6 +195,8 @@ class FeedbackCenterSnapshotBuilder:
             ("route_to_first_audio", _first_present(latest_sample.get("route_to_first_audio_ms"), response_snapshot.get("route_to_first_audio_ms"))),
             ("skill_to_first_audio", latest_sample.get("skill_to_first_audio_ms")),
             ("total response time", latest_sample.get("response_total_ms")),
+            ("first_token_latency_ms", _first_present(response_snapshot.get("first_token_latency_ms"), latest_sample.get("first_token_latency_ms"))),
+            ("first_speakable_chunk_latency_ms", _first_present(response_snapshot.get("first_speakable_chunk_latency_ms"), latest_sample.get("first_speakable_chunk_latency_ms"))),
         ]
         has_timing = False
         for label, value in timing_pairs:

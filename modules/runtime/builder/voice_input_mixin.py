@@ -60,6 +60,44 @@ class RuntimeBuilderVoiceInputMixin:
 
         engine = str(config.get("engine", "faster_whisper")).strip().lower()
 
+        _asr_model_env = os.environ.get("NEXA_OPEN_QUESTION_ASR_MODEL", "").strip()
+        _asr_beam_env = os.environ.get("NEXA_OPEN_QUESTION_ASR_BEAM_SIZE", "").strip()
+        _asr_compute_env = os.environ.get("NEXA_OPEN_QUESTION_ASR_COMPUTE_TYPE", "").strip()
+
+        _asr_model_override: str | None = _asr_model_env or None
+        _asr_beam_override: int | None = None
+        _asr_compute_override: str | None = _asr_compute_env or None
+
+        _SLOW_MODELS = {"small", "medium", "large", "large-v1", "large-v2", "large-v3"}
+        _allow_slow = os.environ.get("NEXA_ALLOW_SLOW_OPEN_QUESTION_ASR", "").strip().lower() in {
+            "1", "true", "yes", "on"
+        }
+        if _asr_model_override and _asr_model_override.lower() in _SLOW_MODELS and not _allow_slow:
+            LOGGER.warning(
+                "[asr-override] rejected model=%r reason=slow_model_requires_explicit_opt_in"
+                " (set NEXA_ALLOW_SLOW_OPEN_QUESTION_ASR=1 to allow)",
+                _asr_model_override,
+            )
+            _asr_model_override = None
+
+        if _asr_beam_env:
+            try:
+                _asr_beam_override = max(1, int(_asr_beam_env))
+            except ValueError:
+                LOGGER.warning(
+                    "[asr-override] NEXA_OPEN_QUESTION_ASR_BEAM_SIZE=%r is not an integer; ignoring.",
+                    _asr_beam_env,
+                )
+
+        if _asr_model_override or _asr_beam_override is not None or _asr_compute_override:
+            LOGGER.info(
+                "[asr-override] model=%r beam_size=%r compute_type=%r"
+                " (env vars active; config/settings.json unchanged)",
+                _asr_model_override or "(config)",
+                _asr_beam_override if _asr_beam_override is not None else "(config)",
+                _asr_compute_override or "(config)",
+            )
+
         try:
             if engine in {"faster_whisper", "faster-whisper"}:
                 backend_class = self._import_symbol(
@@ -67,7 +105,7 @@ class RuntimeBuilderVoiceInputMixin:
                     "FasterWhisperInputBackend",
                 )
                 backend = backend_class(
-                    model_size_or_path=config.get(
+                    model_size_or_path=_asr_model_override or config.get(
                         "model_size_or_path",
                         config.get("model_path", "small"),
                     ),
@@ -84,9 +122,13 @@ class RuntimeBuilderVoiceInputMixin:
                         "transcription_timeout_seconds",
                         15.0,
                     ),
-                    compute_type=config.get("compute_type", "int8"),
+                    compute_type=_asr_compute_override or config.get("compute_type", "int8"),
                     cpu_threads=int(config.get("threads", 4)),
-                    beam_size=int(config.get("beam_size", 1)),
+                    beam_size=int(
+                        _asr_beam_override
+                        if _asr_beam_override is not None
+                        else config.get("beam_size", 1)
+                    ),
                     best_of=int(config.get("best_of", 1)),
                     vad_enabled=bool(config.get("vad_enabled", True)),
                     vad_threshold=float(config.get("vad_threshold", 0.30)),

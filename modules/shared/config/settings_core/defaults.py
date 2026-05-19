@@ -52,7 +52,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "vad_min_silence_ms": 250,
         "vad_speech_pad_ms": 180,
         "compute_type": "int8",
-        "beam_size": 1,
+        "beam_size": 3,
         "best_of": 1,
         "model_size_or_path": "tiny",
         "whisper_cli_path": "whisper.cpp/build/bin/whisper-cli",

@@ -221,6 +221,9 @@ class LocalLLMStreamingMixin:
             int(getattr(profile, "max_sentences", 2) or 2),
         )
 
+        from modules.shared.logging.logger import append_log as _append_log
+        _append_log(f"[llm-stream] event=http_request_started url={url}")
+
         try:
             with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
                 for raw_line in response:
@@ -246,6 +249,9 @@ class LocalLLMStreamingMixin:
                         if first_token_latency_ms <= 0.0:
                             first_token_latency_ms = (time.perf_counter() - request_started_at) * 1000.0
                             self.mark_first_chunk_received(first_token_latency_ms)
+                            _append_log(
+                                f"[llm-stream] event=first_token first_token_ms={first_token_latency_ms:.1f}"
+                            )
 
                         raw_full_text_parts.append(text_delta)
                         pending_buffer = f"{pending_buffer}{text_delta}"

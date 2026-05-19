@@ -258,10 +258,11 @@ def _remember_input_capture(
     confidence: float,
     metadata: dict[str, object] | None = None,
 ) -> None:
+    _capture_lang = str(language or getattr(assistant, "last_language", "en")).strip().lower()
     assistant._last_input_capture = {
         "text": str(text or "").strip(),
         "phase": str(phase or "").strip(),
-        "language": str(language or getattr(assistant, "last_language", "en")).strip().lower(),
+        "language": _capture_lang,
         "input_source": str(input_source or "voice").strip().lower() or "voice",
         "backend_label": str(backend_label or "").strip(),
         "mode": str(mode or phase).strip(),
@@ -270,6 +271,8 @@ def _remember_input_capture(
         "confidence": max(0.0, float(confidence or 0.0)),
         "metadata": dict(metadata or {}),
     }
+    if _capture_lang in {"pl", "en"}:
+        assistant._last_confirmed_language = _capture_lang
 
     append_log(
         "Input capture remembered: "
@@ -613,6 +616,18 @@ def _capture_transcript_with_speech_service(
                 metadata["preferred_language"] = preferred_language
                 metadata["force_language"] = preferred_language
                 metadata["follow_up_language_preferred"] = True
+    elif normalized_mode in {"command", "wake_command"}:
+        # New open-question turn — user may switch EN↔PL at any wake; always auto
+        metadata["asr_language_source"] = "unknown_initial_turn"
+    elif normalized_mode in {"inline_command_after_wake", "conversation"}:
+        # Continuation of an in-progress exchange — language is known, safe to force
+        last_confirmed = str(getattr(assistant, "_last_confirmed_language", "") or "").strip().lower()
+        if last_confirmed in {"pl", "en"}:
+            metadata["preferred_language"] = last_confirmed
+            metadata["force_language"] = last_confirmed
+            metadata["asr_language_source"] = "session_last_language"
+        else:
+            metadata["asr_language_source"] = "unknown_initial_turn"
 
     try:
         request = TranscriptRequest(

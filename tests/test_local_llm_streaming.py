@@ -392,6 +392,60 @@ class LocalLLMStreamingTests(unittest.TestCase):
         self.assertEqual(service._last_generation_source, "hailo-ollama_non_stream_fallback")
         self.assertTrue(service._last_generation_ok)
 
+    def test_find_stream_boundary_does_not_split_lowercase_continuation(self) -> None:
+        # "e.g. something" — "something" starts lowercase → not a sentence boundary
+        service = self._build_service()
+        idx = service._find_stream_boundary("You can use e.g. something here. This is the full sentence.")
+        # Should find the boundary after "here." not after "e.g."
+        text = "You can use e.g. something here. This is the full sentence."
+        boundary = service._find_stream_boundary(text)
+        self.assertGreater(boundary, 0)
+        head = text[:boundary].strip()
+        self.assertTrue(head.endswith("here."), f"Expected boundary after 'here.', got: {head!r}")
+
+    def test_find_stream_boundary_does_not_split_polish_abbreviation(self) -> None:
+        # "np." is in _STREAM_ABBREVIATIONS — should not be treated as boundary
+        service = self._build_service()
+        text = "Możesz użyć np. Pythona do tego. To działa świetnie."
+        boundary = service._find_stream_boundary(text)
+        if boundary > 0:
+            head = text[:boundary].strip()
+            # Should be the full first real sentence, not the "np." fragment
+            self.assertNotEqual(head, "Możesz użyć np.")
+
+    def test_find_stream_boundary_does_not_split_digit_dot_digit(self) -> None:
+        service = self._build_service()
+        text = "Pi is 3.14 approximately. That is the value."
+        boundary = service._find_stream_boundary(text)
+        self.assertGreater(boundary, 0)
+        head = text[:boundary].strip()
+        # Must end at "approximately." not at "3.14"
+        self.assertTrue(head.endswith("approximately."), f"Got: {head!r}")
+
+    def test_split_fast_first_stream_chunk_releases_at_comma(self) -> None:
+        # When buffer exceeds stream_first_chunk_soft_max_chars without a sentence
+        # boundary, the fast-first mechanism releases at a clause boundary (comma).
+        service = self._build_service()
+        service.stream_first_chunk_min_chars = 18
+        service.stream_first_chunk_soft_max_chars = 36
+
+        result = service._split_fast_first_stream_chunk(
+            "A black hole is a region in space, where gravity is so strong that light cannot escape."
+        )
+        self.assertIsNotNone(result)
+        head, tail = result
+        # Head should be the clause before the comma
+        self.assertTrue(head.endswith(",") or len(head) <= 36)
+        self.assertGreater(len(head), 18)
+        self.assertGreater(len(tail), 0)
+
+    def test_split_fast_first_stream_chunk_returns_none_for_short_text(self) -> None:
+        service = self._build_service()
+        service.stream_first_chunk_soft_max_chars = 36
+        # Text shorter than soft_max — no early split needed
+        result = service._split_fast_first_stream_chunk("A black hole is short.")
+        self.assertIsNone(result)
+
 
 if __name__ == "__main__":
     unittest.main()

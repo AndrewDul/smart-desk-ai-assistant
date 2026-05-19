@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import random
 from collections.abc import Iterator
 from typing import Any
 
@@ -12,6 +13,105 @@ from .models import DialogueReply
 
 class CompanionDialogueLocalLLMMixin:
     """Optional local LLM integration for richer dialogue replies."""
+
+    _ACK_GENERAL_EN = (
+        "Give me a second, I'm thinking.",
+        "Let me think about that for a moment.",
+        "Give me a moment, I'm checking the best answer.",
+        "One moment, thinking.",
+        "Sure, I'm working on that.",
+        "I'm preparing a useful answer for you.",
+        "Let me look into that.",
+        "I'll have an answer for you in just a moment.",
+        "Hang on, let me think.",
+        "Good question, give me a moment.",
+    )
+    _ACK_EXPLAIN_EN = (
+        "Let me explain that clearly.",
+        "I'll break that down simply.",
+        "Let me walk you through that.",
+        "Great question, let me explain.",
+        "I'll give you a clear explanation.",
+    )
+    _ACK_PLAN_EN = (
+        "Sure, I'll help you with that.",
+        "Okay, let me think of the best steps.",
+        "Let me put together some ideas.",
+        "I'll outline the key steps for you.",
+        "Sure, let me think through that with you.",
+    )
+
+    _ACK_GENERAL_PL = (
+        "Daj mi chwilę, pomyślę nad tym.",
+        "Daj mi sekundę, już nad tym myślę.",
+        "Chwileczkę, sprawdzam to.",
+        "Zaraz, daj mi chwilę.",
+        "Jasne, pracuję nad odpowiedzią.",
+        "Zaraz podam Ci konkretną odpowiedź.",
+        "Daj mi moment, już szukam.",
+        "Za chwilę będę mieć odpowiedź.",
+        "Dobra, chwilę.",
+        "Dobre pytanie, daj mi chwilę.",
+    )
+    _ACK_EXPLAIN_PL = (
+        "Daj mi chwilę, wyjaśnię to prosto.",
+        "Zaraz wyjaśnię to spokojnie.",
+        "Pozwól, że to wyjaśnię krok po kroku.",
+        "Świetne pytanie, zaraz wyjaśnię.",
+        "Dam Ci jasne wyjaśnienie.",
+    )
+    _ACK_PLAN_PL = (
+        "Jasne, pomogę Ci z tym.",
+        "Daj mi chwilę, ułożę to krok po kroku.",
+        "Pozwól, że ułożę kilka pomysłów.",
+        "Zaraz wskażę Ci konkretne kroki.",
+        "Jasne, przemyślmy to razem.",
+    )
+
+    _EXPLAIN_KEYWORDS_EN = (
+        "explain", "what is", "what are", "tell me about",
+        "why", "how does", "how fast", "how big", "how many",
+    )
+    _EXPLAIN_KEYWORDS_PL = (
+        "wyjaśnij", "co to jest", "czym jest", "co są", "czym są",
+        "powiedz mi o", "dlaczego", "jak działa", "jak szybkie",
+        "jak duże", "jaka jest prędkość", "jaki jest rozmiar",
+    )
+    _PLAN_KEYWORDS_EN = ("steps", "plan", "how to", "organize", "build", "help me")
+    _PLAN_KEYWORDS_PL = (
+        "pomóż mi", "kroki", "plan", "jak zrobić", "jak zbudować",
+        "jak zaplanować", "uporządkować", "zaplanuj", "przygotuj",
+    )
+
+    def _llm_thinking_ack_category(self, user_text: str, *, is_polish: bool) -> str:
+        lower = str(user_text or "").lower().strip()
+        explain_keys = self._EXPLAIN_KEYWORDS_PL if is_polish else self._EXPLAIN_KEYWORDS_EN
+        plan_keys = self._PLAN_KEYWORDS_PL if is_polish else self._PLAN_KEYWORDS_EN
+        for kw in explain_keys:
+            if kw in lower:
+                return "explain"
+        for kw in plan_keys:
+            if kw in lower:
+                return "plan"
+        return "general"
+
+    def _llm_thinking_ack(self, language: str, *, user_text: str = "") -> str:
+        """Return a natural acknowledgement for the LLM conversation path."""
+        is_polish = str(language or "").lower().startswith("pl")
+        category = self._llm_thinking_ack_category(user_text, is_polish=is_polish)
+        if is_polish:
+            pools: dict[str, tuple[str, ...]] = {
+                "explain": self._ACK_EXPLAIN_PL,
+                "plan": self._ACK_PLAN_PL,
+                "general": self._ACK_GENERAL_PL,
+            }
+        else:
+            pools = {
+                "explain": self._ACK_EXPLAIN_EN,
+                "plan": self._ACK_PLAN_EN,
+                "general": self._ACK_GENERAL_EN,
+            }
+        return random.choice(pools[category])
 
     def _try_build_local_llm(self) -> Any | None:
         if importlib.util.find_spec("modules.understanding.dialogue.llm.local_llm") is None:
@@ -157,6 +257,7 @@ class CompanionDialogueLocalLLMMixin:
                             "source": source_name,
                             "live": True,
                             "llm_streamed": True,
+                            "llm_request_started": True,
                         }
                     )
                     first_chunk_latency_ms = float(getattr(raw_chunk, "first_chunk_latency_ms", 0.0) or 0.0)
@@ -168,8 +269,10 @@ class CompanionDialogueLocalLLMMixin:
                         metadata["first_chunk_latency_ms"] = first_chunk_latency_ms
                     if first_token_latency_ms > 0.0:
                         metadata["first_token_latency_ms"] = first_token_latency_ms
+                        metadata["llm_first_token_ms"] = first_token_latency_ms
                     if first_speakable_chunk_latency_ms > 0.0:
                         metadata["first_speakable_chunk_latency_ms"] = first_speakable_chunk_latency_ms
+                        metadata["llm_first_content_chunk_ms"] = first_speakable_chunk_latency_ms
 
                     yield AssistantChunk(
                         text=text,

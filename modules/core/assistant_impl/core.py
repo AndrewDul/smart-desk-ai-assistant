@@ -113,6 +113,7 @@ class CoreAssistant(
         self._last_response_stream_report = None
         self._last_response_delivery_snapshot = None
         self._last_input_capture: dict[str, Any] = {}
+        self._last_confirmed_language: str = ""
         self._last_capture_handoff: dict[str, Any] = {}
         self._last_resume_policy_snapshot: dict[str, Any] = {}
         self._last_command_window_policy_snapshot: dict[str, Any] = {}

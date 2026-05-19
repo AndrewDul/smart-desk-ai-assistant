@@ -100,6 +100,7 @@ class TTSPipelineProcessMixin:
         source: str,
         poll_sleep_seconds: float | None = None,
         capture_output: bool = True,
+        on_process_started=None,
     ) -> bool:
         started_at = time.monotonic()
         process: subprocess.Popen | None = None
@@ -127,6 +128,11 @@ class TTSPipelineProcessMixin:
                 text=True,
             )
             self._register_process(process)
+            if callable(on_process_started):
+                try:
+                    on_process_started()
+                except Exception:
+                    pass
 
             if input_text is not None and process.stdin is not None:
                 try:

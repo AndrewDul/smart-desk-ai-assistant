@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from modules.runtime.contracts import AssistantChunk, ResponsePlan, clean_response_text
+from modules.runtime.contracts import AssistantChunk, ChunkKind, ResponsePlan, clean_response_text
 
 from .helpers import LOGGER, ResponseStreamerHelpers
 
@@ -36,7 +36,8 @@ class ResponseStreamerDisplay(ResponseStreamerHelpers):
             if cleaned_lines:
                 return title, cleaned_lines[: self.max_display_lines]
 
-        generated_lines = self._build_display_lines_from_chunks(prepared_chunks)
+        display_chunks = [c for c in prepared_chunks if c.kind != ChunkKind.ACK]
+        generated_lines = self._build_display_lines_from_chunks(display_chunks)
         return title, generated_lines
 
     def _fallback_display_title(self, plan: ResponsePlan) -> str:

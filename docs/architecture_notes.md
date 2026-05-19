@@ -17095,3 +17095,46 @@ I ran the product runtime with the real microphone path. `show system status` wa
 
 There is still a Vosk vocabulary warning for `djagnostykę`. It does not block the command path, but it can be cleaned later by keeping unsupported mishear words in text recovery instead of Vosk grammar if the warning becomes noisy.
 
+## 2026-05-19 - Non-blocking presence heartbeat for live LLM responses
+
+### Summary
+
+I added a `PresenceHeartbeatManager` daemon thread that speaks short cached status phrases while a live LLM streaming turn is in progress. The goal is to prevent silent gaps longer than 2–3 seconds during slow LLM turns without blocking the real LLM/TTS work.
+
+### Design
+
+**`PresenceHeartbeatManager`** (`modules/core/presence/heartbeat.py`) runs on its own daemon thread. It waits `first_delay_s` (default 1.0 s), speaks a phrase, waits `repeat_interval_s` (default 2.7 s), repeats up to `max_heartbeats` (default 8). Cancellation is via a `threading.Event` (`_answer_ready`). When cancelled, the manager calls `stop_presence_playback()` on the voice output so a mid-playback phrase stops cleanly.
+
+**Presence playback is isolated from real TTS.** I added a separate `_presence_playback_lock`, `_presence_stop_requested` event, `_active_presence_output_stream`, and `_active_presence_processes` list to the TTS pipeline. `speak_presence()` acquires `_presence_playback_lock(blocking=False)` so it is skipped if another presence phrase is already playing. `stop_presence_playback()` only sets `_presence_stop_requested` and drains the presence stream/processes, never touching `_stop_requested` or the real output state.
+
+**`on_first_audio` callback.** The live stream executor passes a closure to every `_speak_chunk()` call. The closure fires on the first actual audio start (subprocess process launch or sounddevice `stream.start()`) and cancels the heartbeat with `reason=real_audio_started`. This means the heartbeat is cancelled at the moment real audio hardware begins, not at TTS synthesis start.
+
+**`speak_presence()` is cache-only.** If the phrase WAV is not already in the Piper cache it triggers a background prefetch and returns `(False, "cache_miss")`. There is no blocking synthesis on the presence path.
+
+**Live plan metadata.** When `_try_local_llm_stream_payload()` succeeds, `build_response_plan()` sets `presence_heartbeat_enabled=True`, `presence_heartbeat_first_delay_s=1.0`, and `presence_heartbeat_repeat_interval_s=2.7` in the plan metadata. `_start_presence_heartbeat()` in the streamer reads this metadata and starts the manager.
+
+### Telemetry added to `StreamExecutionReport`
+
+`heartbeat_count`, `heartbeat_first_ms`, `heartbeat_cancelled`, `heartbeat_cancelled_reason`, `presence_skipped_reason_count`, `llm_first_token_ms`, `llm_first_content_chunk_ms`, `max_spoken_gap_ms`, `average_spoken_gap_ms`, `first_real_audio_after_tts_started_ms`, `total_response_ms`.
+
+### Runtime proof (2026-05-19, system.log)
+
+All `append_log()` calls (including `[presence-heartbeat]` and `[llm-stream]`) go to `var/logs/system.log`, not stdout, so the tee'd runtime proof log appeared empty for heartbeat events. The system log confirms the heartbeat fired on every live LLM turn:
+
+- First heartbeat at `first_ms=1021.7` ms (1 s delay as configured).
+- Phrases "I'm still working on that." and "I'm checking it locally now." played before the real answer.
+- Heartbeat cancelled with `reason=real_audio_started` when real audio began at ~8960 ms.
+- Maximum observed silent gap between phrases: ~2.7 s (the `repeat_interval_s`).
+- All LLM conversation turns showed `live=True` in turn telemetry.
+- Fast commands (ask_time, exit) were unaffected: `first_audio_ms` ≤ 2000 ms.
+
+### What this does NOT fix
+
+Open-question ASR quality remains a separate blocker. The tiny/int8 Whisper model transcribes Polish and low-confidence English incorrectly ("What is the leper?" for "What is leprosy?", "Jak to lekoje słynce o ziemi?" for Polish astronomy questions). The presence heartbeat reduces perceived silence but cannot improve the underlying ASR transcript.
+
+### Key invariants
+
+- `stop_presence_playback()` must never set `_stop_requested`. If it does, the real answer will be killed when the heartbeat is cancelled.
+- `speak_presence()` must use `blocking=False` on `_presence_playback_lock`. If it blocks, a slow presence phrase will delay the start of the next heartbeat cycle.
+- The `on_first_audio` callback must be idempotent (guarded by a `nonlocal` flag). It fires from a sounddevice callback thread or a process-poll thread, both of which can race.
+

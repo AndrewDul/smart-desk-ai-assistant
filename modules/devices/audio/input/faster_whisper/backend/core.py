@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from modules.runtime.contracts import InputSource, TranscriptRequest, TranscriptResult
 from modules.runtime.turn_timeline import render_turn_timeline_line
+from modules.shared.logging.logger import append_log
 
 import numpy as np
 import sounddevice as sd
@@ -281,6 +282,20 @@ class FasterWhisperInputBackend(
             self.device_selection_reason,
             self.available_input_devices_summary,
         )
+        self.LOGGER.info(
+            "[audio-device] role=command device=%r name=%r sample_rate=%s channels=%s "
+            "model_size=%r compute_type=%r beam_size=%s language=%r fallback_used=%s reason=%r",
+            self.device,
+            self.device_name,
+            self.sample_rate,
+            self.channels,
+            getattr(self, "model_size_or_path", "?"),
+            getattr(self, "compute_type", "?"),
+            getattr(self, "beam_size", "?"),
+            self.language,
+            "arecord" in str(getattr(self, "device", "") or "").lower(),
+            self.device_selection_reason,
+        )
 
         try:
             self._ensure_runtime_ready()
@@ -471,13 +486,16 @@ class FasterWhisperInputBackend(
         metadata: dict[str, Any],
     ) -> str | None:
         normalized_mode = str(mode or "").strip().lower()
-        if normalized_mode not in {"memory_message", "follow_up", "conversation_repair"}:
+        if normalized_mode not in {
+            "memory_message", "follow_up", "conversation_repair",
+            "command", "wake_command", "conversation", "inline_command_after_wake",
+        }:
             return None
 
-        forced_language = self._normalize_language(
-            metadata.get("force_language") or metadata.get("preferred_language"),
-            allow_auto=False,
-        )
+        raw_language = metadata.get("force_language") or metadata.get("preferred_language")
+        if not str(raw_language or "").strip():
+            return None
+        forced_language = self._normalize_language(raw_language, allow_auto=False)
         if forced_language in {"pl", "en"}:
             return forced_language
         return None
@@ -888,6 +906,19 @@ class FasterWhisperInputBackend(
             metadata=dict(request.metadata or {}),
         )
 
+        _asr_language_source = str(
+            request_metadata.get("asr_language_source")
+            or ("session_last_language" if preferred_language else "config")
+        )
+        print(
+            f"[asr-config] mode=open_question"
+            f" model_size={getattr(self, 'model_size_or_path', '?')!r}"
+            f" compute_type={getattr(self, 'compute_type', '?')!r}"
+            f" beam_size={getattr(self, 'beam_size', '?')}"
+            f" language={preferred_language or self.language!r}"
+            f" source={_asr_language_source}"
+        )
+
         _print_turn_timeline(
             turn_id=turn_id,
             timeline_started_at=timeline_started_at,
@@ -901,14 +932,21 @@ class FasterWhisperInputBackend(
             preferred_language=preferred_language,
         )
         transcription_finished_at = time.monotonic()
+        _stt_elapsed_ms = max(0.0, (transcription_finished_at - capture_finished_at) * 1000.0)
         _print_turn_timeline(
             turn_id=turn_id,
             timeline_started_at=timeline_started_at,
             event="stt_finished",
             backend="faster_whisper",
-            stt_ms=max(0.0, (transcription_finished_at - capture_finished_at) * 1000.0),
+            stt_ms=_stt_elapsed_ms,
             mode=mode,
         )
+        if _stt_elapsed_ms > 8000.0:
+            print(
+                f"[asr-latency] acceptable=false stt_ms={_stt_elapsed_ms:.0f}"
+                f" model={getattr(self, 'model_size_or_path', '?')!r}"
+                f" mode={mode}"
+            )
 
         if capture_window_shadow_tap:
             capture_window_shadow_tap["transcription_finished_at_monotonic"] = (

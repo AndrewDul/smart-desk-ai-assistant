@@ -106,13 +106,18 @@ class TTSPipeline(
         self._tts_cache_dir.mkdir(parents=True, exist_ok=True)
 
         self._speak_lock = threading.Lock()
+        self._presence_playback_lock = threading.Lock()
         self._process_lock = threading.Lock()
         self._prefetch_lock = threading.Lock()
         self._output_stream_lock = threading.Lock()
+        self._presence_output_stream_lock = threading.Lock()
         self._stop_requested = threading.Event()
+        self._presence_stop_requested = threading.Event()
 
         self._active_processes: list[subprocess.Popen] = []
+        self._active_presence_processes: list[subprocess.Popen] = []
         self._active_output_stream = None
+        self._active_presence_output_stream = None
         self._last_process_results: dict[str, dict[str, object]] = {}
 
         self.audio_coordinator: AssistantAudioCoordinator | None = None
@@ -209,6 +214,18 @@ class TTSPipeline(
                 "Diagnostyka jest otwarta.",
                 "Zamknęłam diagnostykę.",
                 "Jestem NeXa, Twoja lokalna asystentka.",
+                "Daj mi chwilę, pomyślę nad tym.",
+                "Daj mi sekundę, już nad tym myślę.",
+                "Daj mi chwilę, wyjaśnię to prosto.",
+                "Zaraz wyjaśnię to spokojnie.",
+                "Jasne, pomogę Ci z tym.",
+                "Daj mi chwilę, ułożę to krok po kroku.",
+                "Zaraz podam Ci konkretną odpowiedź.",
+                "Daj mi chwilę, pracuję nad tym.",
+                "Dalej to sprawdzam.",
+                "Składam odpowiedź lokalnie.",
+                "To chwilę trwa, ale jestem przy tym.",
+                "Już przygotowuję odpowiedź.",
             ],
             "en": [
                 "Okay.",
@@ -228,6 +245,19 @@ class TTSPipeline(
                 "Diagnostics are open.",
                 "Diagnostics closed.",
                 "I’m NeXa, your local assistant.",
+                "Give me a second, I’m thinking.",
+                "Let me think about that for a moment.",
+                "Give me a moment, I’m checking the best answer.",
+                "Let me explain that clearly.",
+                "I’ll break that down simply.",
+                "Sure, I’ll help you with that.",
+                "Okay, let me think of the best steps.",
+                "I’m preparing a useful answer for you.",
+                "I'm still working on that.",
+                "I'm checking it locally now.",
+                "This is taking a moment, but I'm still here.",
+                "I'm putting the answer together.",
+                "Good question, still thinking locally.",
             ],
         }
 

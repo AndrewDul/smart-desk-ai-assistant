@@ -595,6 +595,11 @@ class CoreAssistantResponseMixin:
                 0.0,
                 (finished_at_monotonic - started_at_monotonic) * 1000.0,
             )
+        total_response_ms = self._report_float(
+            base_report,
+            "total_response_ms",
+            fallback=total_elapsed_ms,
+        )
 
         reported_full_text = str(getattr(base_report, "full_text", "") or "").strip()
         safe_full_text = reported_full_text or str(full_text or "").strip()
@@ -617,13 +622,49 @@ class CoreAssistantResponseMixin:
             full_text=safe_full_text,
             display_title=safe_display_title,
             display_lines=safe_display_lines,
+            chunk_count=int(self._report_float(base_report, "chunk_count", fallback=chunks_spoken)),
             first_audio_latency_ms=first_audio_latency_ms,
             first_audio_ms=first_audio_ms,
+            tts_first_audio_ms=self._report_float(
+                base_report,
+                "tts_first_audio_ms",
+                fallback=first_audio_ms,
+            ),
             first_chunk_latency_ms=first_chunk_latency_ms,
+            llm_request_started=bool(getattr(base_report, "llm_request_started", False)),
+            llm_first_token_ms=self._report_float(
+                base_report,
+                "llm_first_token_ms",
+                fallback=first_token_latency_ms,
+            ),
+            llm_first_content_chunk_ms=self._report_float(
+                base_report,
+                "llm_first_content_chunk_ms",
+                fallback=first_chunk_latency_ms,
+            ),
             first_token_latency_ms=first_token_latency_ms,
             first_speakable_chunk_latency_ms=first_speakable_chunk_latency_ms,
             first_sentence_latency_ms=first_sentence_latency_ms,
+            max_spoken_gap_ms=self._report_float(base_report, "max_spoken_gap_ms"),
+            average_spoken_gap_ms=self._report_float(base_report, "average_spoken_gap_ms"),
+            heartbeat_count=int(self._report_float(base_report, "heartbeat_count")),
+            heartbeat_first_ms=self._report_float(base_report, "heartbeat_first_ms"),
+            heartbeat_cancelled=bool(getattr(base_report, "heartbeat_cancelled", False)),
+            heartbeat_cancelled_reason=str(
+                getattr(base_report, "heartbeat_cancelled_reason", "") or ""
+            ),
+            presence_skipped_reason_count=int(
+                self._report_float(base_report, "presence_skipped_reason_count")
+            ),
+            first_real_audio_after_tts_started_ms=self._report_float(
+                base_report,
+                "first_real_audio_after_tts_started_ms",
+            ),
+            first_chunk_chars=int(self._report_float(base_report, "first_chunk_chars")),
+            first_chunk_synthesis_ms=self._report_float(base_report, "first_chunk_synthesis_ms"),
+            prepare_next_ms=self._report_float(base_report, "prepare_next_ms"),
             total_elapsed_ms=total_elapsed_ms,
+            total_response_ms=total_response_ms,
             started_at_monotonic=started_at_monotonic,
             first_audio_started_at_monotonic=first_audio_started_at_monotonic,
             first_chunk_started_at_monotonic=first_chunk_started_at_monotonic,

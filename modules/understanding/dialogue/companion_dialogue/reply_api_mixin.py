@@ -9,6 +9,7 @@ from modules.runtime.contracts import (
     StreamMode,
     create_turn_id,
 )
+from modules.understanding.dialogue.transcript_quality import check_and_correct
 
 from .models import DialogueReply
 
@@ -52,8 +53,27 @@ class CompanionDialogueReplyApiMixin:
             return deterministic
 
         if kind in {"conversation", "mixed", "unclear"}:
+            quality = check_and_correct(normalized_text, lang)
+            if not quality.is_acceptable:
+                print(
+                    f"[asr-quality] accepted=false reason={quality.rejection_reason}"
+                    f" language={lang} text={normalized_text[:60]!r}"
+                )
+                repeat_text = (
+                    quality.repeat_text_pl
+                    if lang.startswith("pl")
+                    else quality.repeat_text_en
+                )
+                return self._reply(
+                    lang,
+                    repeat_text,
+                    display_title=self._text(lang, "POWTÓRZ", "REPEAT"),
+                    source="transcript_quality_gate",
+                )
+            effective_text = quality.corrected_text
+
             llm_reply = self._try_local_llm(
-                normalized_text=normalized_text,
+                normalized_text=effective_text,
                 language=lang,
                 topics=topics,
                 user_profile=user_profile,
@@ -170,10 +190,33 @@ class CompanionDialogueReplyApiMixin:
         normalized_text = str(getattr(route, "normalized_text", "") or "").strip()
 
         if route_kind_value in {"conversation", "mixed", "unclear"}:
+            quality = check_and_correct(normalized_text, normalized_language)
+            if not quality.is_acceptable:
+                print(
+                    f"[asr-quality] accepted=false reason={quality.rejection_reason}"
+                    f" language={normalized_language} text={normalized_text[:60]!r}"
+                )
+                repeat_text = (
+                    quality.repeat_text_pl
+                    if normalized_language.startswith("pl")
+                    else quality.repeat_text_en
+                )
+                return self.reply_to_plan(
+                    self._reply(
+                        normalized_language,
+                        repeat_text,
+                        display_title=self._text(normalized_language, "POWTÓRZ", "REPEAT"),
+                        source="transcript_quality_gate",
+                    ),
+                    route_kind=route_kind_value,
+                    stream_mode=selected_stream_mode,
+                )
+            effective_text = quality.corrected_text
+
             live_payload = None
             if bool(getattr(self, "live_llm_sentence_streaming_enabled", True)):
                 live_payload = self._try_local_llm_stream_payload(
-                    normalized_text=normalized_text,
+                    normalized_text=effective_text,
                     language=normalized_language,
                     topics=conversation_topics,
                     user_profile=user_profile,
@@ -181,7 +224,7 @@ class CompanionDialogueReplyApiMixin:
                     stream_mode=selected_stream_mode,
                 )
             if live_payload is not None:
-                return ResponsePlan(
+                live_plan = ResponsePlan(
                     turn_id=create_turn_id("reply"),
                     language=normalized_language,
                     route_kind=self._resolve_route_kind(route_kind_value),
@@ -195,8 +238,12 @@ class CompanionDialogueReplyApiMixin:
                         "route_confidence": float(getattr(route, "confidence", 0.0) or 0.0),
                         "live_chunk_factory": live_payload["factory"],
                         "live_streaming": True,
+                        "presence_heartbeat_enabled": True,
+                        "presence_heartbeat_first_delay_s": 1.0,
+                        "presence_heartbeat_repeat_interval_s": 2.7,
                     },
                 )
+                return live_plan
 
             local_llm = getattr(self, "local_llm", None)
             if local_llm is not None and not self._local_llm_ready_for_dialogue(

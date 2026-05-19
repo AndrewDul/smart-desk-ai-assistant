@@ -20,9 +20,15 @@ class _TelemetryVoiceOutput(FakeVoiceOutput):
         prepare_next: tuple[str, str] | None = None,
         output_hold_seconds: float | None = None,
         latency_profile: str | None = None,
+        on_first_audio=None,
     ) -> bool:
         started_at = time.monotonic()
         time.sleep(self.audio_delay_seconds)
+        events = getattr(self, "events", None)
+        if isinstance(events, list):
+            events.append("real_audio")
+        if callable(on_first_audio):
+            on_first_audio()
         result = super().speak(
             text,
             language=language,
@@ -37,6 +43,51 @@ class _TelemetryVoiceOutput(FakeVoiceOutput):
             self.audio_delay_seconds * 1000.0
         )
         return result
+
+
+class _PresenceAwareVoiceOutput(_TelemetryVoiceOutput):
+    def __init__(self, *, audio_delay_seconds: float = 0.0) -> None:
+        super().__init__(audio_delay_seconds=audio_delay_seconds)
+        self.presence_calls: list[str] = []
+        self.events: list[str] = []
+
+    def speak_presence(self, text: str, language: str | None = None) -> bool:
+        self.events.append("presence")
+        self.presence_calls.append(str(text))
+        self.speak_calls.append(
+            {
+                "text": str(text),
+                "language": language,
+                "prepare_next": None,
+                "output_hold_seconds": 0.0,
+                "latency_profile": "presence",
+            }
+        )
+        return True
+
+    def speak(
+        self,
+        text: str,
+        language: str | None = None,
+        prepare_next: tuple[str, str] | None = None,
+        output_hold_seconds: float | None = None,
+        latency_profile: str | None = None,
+        on_first_audio=None,
+    ) -> bool:
+        self.events.append("real")
+        return super().speak(
+            text,
+            language=language,
+            prepare_next=prepare_next,
+            output_hold_seconds=output_hold_seconds,
+            latency_profile=latency_profile,
+            on_first_audio=on_first_audio,
+        )
+
+
+class _SlowFirstAudioVoiceOutput(_PresenceAwareVoiceOutput):
+    def __init__(self, *, audio_delay_seconds: float = 0.08) -> None:
+        super().__init__(audio_delay_seconds=audio_delay_seconds)
 
 
 class _OrderedVoiceOutput(FakeVoiceOutput):
@@ -611,6 +662,268 @@ class ResponseStreamerTests(unittest.TestCase):
         self.assertEqual(len(voice_output.speak_calls), 1)
         self.assertEqual(voice_output.speak_calls[0]["latency_profile"], "action_fast")
         self.assertEqual(len(display.blocks), 1)
+
+
+    def test_execute_live_plan_ack_not_shown_on_display_but_spoken(self) -> None:
+        voice_output = FakeVoiceOutput(supports_prepare_next=True)
+        display = FakeDisplay()
+        streamer = ResponseStreamer(
+            voice_output=voice_output,
+            display=display,
+            default_display_seconds=4.0,
+            inter_chunk_pause_seconds=0.0,
+            max_display_chars_per_line=80,
+        )
+
+        def live_factory():
+            yield AssistantChunk(text="Live content sentence here.", kind=ChunkKind.CONTENT)
+
+        plan = ResponsePlan(
+            turn_id="turn-ack-display-fix",
+            language="en",
+            route_kind=RouteKind.CONVERSATION,
+            stream_mode=StreamMode.SENTENCE,
+            chunks=[AssistantChunk(text="Let me explain that clearly.", kind=ChunkKind.ACK)],
+            metadata={
+                "display_title": "REPLY",
+                "display_lines": [],
+                "live_chunk_factory": live_factory,
+            },
+        )
+
+        report = streamer.execute(plan)
+
+        self.assertEqual(report.chunks_spoken, 2, "prepared ACK + live content both spoken")
+        self.assertIn("Let me explain that clearly.", report.full_text, "ACK was spoken and remembered")
+        self.assertIn("Live content", report.full_text, "live content was spoken and remembered")
+        all_display_text = " ".join(
+            " ".join(b.get("lines", [])) for b in display.blocks
+        )
+        self.assertNotIn("Let me explain that clearly.", all_display_text,
+                         "ACK must NOT appear in display")
+        self.assertIn("Live content", all_display_text,
+                      "Live content must appear in display")
+
+    def test_execute_live_plan_prefetch_starts_before_prepared_chunk_finishes(self) -> None:
+        """Background prefetch thread must start draining live chunks during ACK speaking."""
+        import threading
+
+        factory_entered = threading.Event()
+
+        voice_output = _TelemetryVoiceOutput(audio_delay_seconds=0.05)
+        display = FakeDisplay()
+        streamer = ResponseStreamer(
+            voice_output=voice_output,
+            display=display,
+            default_display_seconds=4.0,
+            inter_chunk_pause_seconds=0.0,
+        )
+
+        def live_factory():
+            factory_entered.set()
+            yield AssistantChunk(text="Live content starts here.", kind=ChunkKind.CONTENT)
+
+        plan = ResponsePlan(
+            turn_id="turn-prefetch-eager",
+            language="en",
+            route_kind=RouteKind.CONVERSATION,
+            stream_mode=StreamMode.SENTENCE,
+            chunks=[AssistantChunk(text="Give me a second.", kind=ChunkKind.ACK)],
+            metadata={
+                "display_title": "REPLY",
+                "display_lines": [],
+                "live_chunk_factory": live_factory,
+            },
+        )
+
+        report = streamer.execute(plan)
+
+        self.assertTrue(factory_entered.is_set(), "live factory must be entered during execution")
+        self.assertEqual(report.chunks_spoken, 2)
+        self.assertTrue(report.live_streaming)
+
+    def test_execute_live_plan_heartbeat_cancels_when_real_answer_starts(self) -> None:
+        voice_output = _PresenceAwareVoiceOutput()
+        display = FakeDisplay()
+        streamer = ResponseStreamer(
+            voice_output=voice_output,
+            display=display,
+            default_display_seconds=4.0,
+            inter_chunk_pause_seconds=0.0,
+        )
+
+        def live_factory():
+            time.sleep(0.04)
+            yield AssistantChunk(text="The real answer starts now.", kind=ChunkKind.CONTENT)
+
+        plan = ResponsePlan(
+            turn_id="turn-live-heartbeat",
+            language="en",
+            route_kind=RouteKind.CONVERSATION,
+            stream_mode=StreamMode.SENTENCE,
+            chunks=[],
+            metadata={
+                "display_title": "REPLY",
+                "display_lines": [],
+                "live_chunk_factory": live_factory,
+                "presence_heartbeat_enabled": True,
+                "presence_heartbeat_first_delay_s": 0.01,
+                "presence_heartbeat_repeat_interval_s": 0.5,
+            },
+        )
+
+        report = streamer.execute(plan)
+
+        self.assertEqual(report.chunks_spoken, 1)
+        self.assertEqual(report.heartbeat_count, 1)
+        self.assertTrue(report.heartbeat_cancelled)
+        self.assertGreater(report.heartbeat_first_ms, 0.0)
+        self.assertIn("real_audio", voice_output.events)
+        self.assertEqual(voice_output.speak_calls[-1]["text"], "The real answer starts now.")
+        self.assertEqual(report.heartbeat_cancelled_reason, "real_audio_started")
+
+    def test_execute_live_plan_keeps_heartbeat_during_slow_first_audio(self) -> None:
+        voice_output = _SlowFirstAudioVoiceOutput(audio_delay_seconds=0.08)
+        display = FakeDisplay()
+        streamer = ResponseStreamer(
+            voice_output=voice_output,
+            display=display,
+            default_display_seconds=4.0,
+            inter_chunk_pause_seconds=0.0,
+        )
+
+        def live_factory():
+            yield AssistantChunk(text="The real answer starts after synthesis.", kind=ChunkKind.CONTENT)
+
+        plan = ResponsePlan(
+            turn_id="turn-live-heartbeat-during-tts-delay",
+            language="en",
+            route_kind=RouteKind.CONVERSATION,
+            stream_mode=StreamMode.SENTENCE,
+            chunks=[],
+            metadata={
+                "display_title": "REPLY",
+                "display_lines": [],
+                "live_chunk_factory": live_factory,
+                "presence_heartbeat_enabled": True,
+                "presence_heartbeat_first_delay_s": 0.01,
+                "presence_heartbeat_repeat_interval_s": 0.03,
+            },
+        )
+
+        report = streamer.execute(plan)
+
+        self.assertEqual(report.chunks_spoken, 1)
+        self.assertGreaterEqual(report.heartbeat_count, 1)
+        self.assertEqual(report.heartbeat_cancelled_reason, "real_audio_started")
+        self.assertLess(voice_output.events.index("presence"), voice_output.events.index("real_audio"))
+
+    def test_execute_live_plan_applies_first_chunk_character_budget(self) -> None:
+        voice_output = FakeVoiceOutput(supports_prepare_next=True)
+        display = FakeDisplay()
+        streamer = ResponseStreamer(
+            voice_output=voice_output,
+            display=display,
+            default_display_seconds=4.0,
+            inter_chunk_pause_seconds=0.0,
+        )
+
+        long_first = (
+            "Teleportation is the idea of moving something from one place to another, "
+            "usually without crossing the normal distance between them."
+        )
+
+        def live_factory():
+            yield AssistantChunk(text=long_first, kind=ChunkKind.CONTENT)
+
+        plan = ResponsePlan(
+            turn_id="turn-live-first-budget",
+            language="en",
+            route_kind=RouteKind.CONVERSATION,
+            stream_mode=StreamMode.SENTENCE,
+            chunks=[],
+            metadata={
+                "display_title": "REPLY",
+                "display_lines": [],
+                "live_chunk_factory": live_factory,
+                "live_first_chunk_max_chars": 70,
+            },
+        )
+
+        report = streamer.execute(plan)
+
+        self.assertEqual(report.chunks_spoken, 2)
+        self.assertLessEqual(len(voice_output.speak_calls[0]["text"]), 72)
+        self.assertEqual(report.first_chunk_chars, len(voice_output.speak_calls[0]["text"]))
+
+    def test_execute_live_plan_records_tts_chunk_gap_metrics(self) -> None:
+        voice_output = _TelemetryVoiceOutput(audio_delay_seconds=0.01)
+        display = FakeDisplay()
+        streamer = ResponseStreamer(
+            voice_output=voice_output,
+            display=display,
+            default_display_seconds=4.0,
+            inter_chunk_pause_seconds=0.0,
+        )
+
+        def live_factory():
+            yield AssistantChunk(text="First real sentence.", kind=ChunkKind.CONTENT)
+            yield AssistantChunk(text="Second real sentence.", kind=ChunkKind.CONTENT)
+            time.sleep(0.03)
+            yield AssistantChunk(text="Third real sentence.", kind=ChunkKind.CONTENT)
+
+        plan = ResponsePlan(
+            turn_id="turn-live-gap-metrics",
+            language="en",
+            route_kind=RouteKind.CONVERSATION,
+            stream_mode=StreamMode.SENTENCE,
+            chunks=[],
+            metadata={
+                "display_title": "REPLY",
+                "display_lines": [],
+                "live_chunk_factory": live_factory,
+            },
+        )
+
+        report = streamer.execute(plan)
+
+        self.assertEqual(report.chunks_spoken, 3)
+        self.assertGreater(report.max_spoken_gap_ms, 0.0)
+        self.assertGreater(report.average_spoken_gap_ms, 0.0)
+
+    def test_execute_live_plan_gap_metrics_catch_large_inter_chunk_gap(self) -> None:
+        voice_output = _TelemetryVoiceOutput(audio_delay_seconds=0.0)
+        display = FakeDisplay()
+        streamer = ResponseStreamer(
+            voice_output=voice_output,
+            display=display,
+            default_display_seconds=4.0,
+            inter_chunk_pause_seconds=0.0,
+        )
+
+        def live_factory():
+            yield AssistantChunk(text="First real sentence.", kind=ChunkKind.CONTENT)
+            yield AssistantChunk(text="Second real sentence.", kind=ChunkKind.CONTENT)
+            time.sleep(0.12)
+            yield AssistantChunk(text="Third real sentence.", kind=ChunkKind.CONTENT)
+
+        plan = ResponsePlan(
+            turn_id="turn-live-large-gap-metrics",
+            language="en",
+            route_kind=RouteKind.CONVERSATION,
+            stream_mode=StreamMode.SENTENCE,
+            chunks=[],
+            metadata={
+                "display_title": "REPLY",
+                "display_lines": [],
+                "live_chunk_factory": live_factory,
+            },
+        )
+
+        report = streamer.execute(plan)
+
+        self.assertEqual(report.chunks_spoken, 3)
+        self.assertGreaterEqual(report.max_spoken_gap_ms, 80.0)
 
 
 if __name__ == "__main__":

@@ -43,7 +43,7 @@ class STTContractAlignmentTests(unittest.TestCase):
 
         backend.LOGGER = _Logger()
         backend._record_until_silence = lambda timeout=8.0, debug=False: np.ones(16000, dtype=np.float32)
-        backend._transcribe_audio_candidate = lambda audio, debug=False: {
+        backend._transcribe_audio_candidate = lambda audio, debug=False, **kwargs: {
             "text": "hello from faster whisper",
             "language": "en",
             "language_probability": 0.83,
