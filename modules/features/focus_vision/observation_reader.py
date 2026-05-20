@@ -7,6 +7,18 @@ from modules.runtime.contracts import VisionObservation
 from .models import FocusVisionEvidence
 
 
+_PHONE_LABEL_NAMES: frozenset[str] = frozenset({
+    "object:cell phone",
+    "object:phone",
+    "object:mobile phone",
+    "object:smartphone",
+    "phone",
+    "cell phone",
+    "mobile phone",
+    "smartphone",
+})
+
+
 class FocusVisionObservationReader:
     """Extract focus-relevant evidence from the stable VisionObservation contract."""
 
@@ -25,9 +37,47 @@ class FocusVisionObservationReader:
         phone_usage = _signal(behavior, "phone_usage")
         study_activity = _signal(behavior, "study_activity")
 
-        face_count = _count_from_perception(perception, "face_count", "faces")
-        people_count = _count_from_perception(perception, "people_count", "people")
-        person_without_face = people_count > 0 and face_count == 0
+        raw_face_count = _count_from_perception(perception, "face_count", "faces")
+        raw_people_count = _count_from_perception(perception, "people_count", "people")
+
+        obs_labels = tuple(str(label) for label in getattr(observation, "labels", []) or [])
+        labels_set = frozenset(obs_labels)
+
+        # YOLO person fallback: when Haar finds nothing and raw people detector returns 0,
+        # bridge the YOLO "person" label into effective people_count so Focus Mode is not blind.
+        yolo_person_count = 1 if "object:person" in labels_set else 0
+        if raw_face_count == 0 and raw_people_count == 0 and yolo_person_count > 0:
+            effective_people_count = 1
+            person_without_face = True
+            people_count_source = "yolo_person_fallback"
+        elif raw_people_count > 0:
+            effective_people_count = raw_people_count
+            person_without_face = raw_people_count > 0 and raw_face_count == 0
+            people_count_source = "raw_people"
+        else:
+            effective_people_count = 0
+            person_without_face = False
+            people_count_source = "none"
+
+        # Phone candidate: any phone-like label regardless of person presence (for telemetry).
+        phone_candidate_detected = bool(labels_set & _PHONE_LABEL_NAMES)
+        phone_candidate_confidence = max(1.0, _confidence(phone_usage)) if phone_candidate_detected else 0.0
+
+        # Phone bridge: YOLO labels are only meaningful when a person is also present,
+        # so that a phone lying on an empty desk does not trigger phone distraction.
+        person_evidence_present = effective_people_count > 0 or raw_face_count > 0
+        phone_label_detected = bool(labels_set & _PHONE_LABEL_NAMES) and person_evidence_present
+        phone_behavior_detected = _active_with_contract_fallback(phone_usage, getattr(observation, "on_phone_likely", False))
+        phone_object_detected = phone_label_detected
+
+        if phone_label_detected and phone_behavior_detected:
+            phone_detection_source = "both"
+        elif phone_label_detected:
+            phone_detection_source = "yolo_object_label"
+        elif phone_behavior_detected and person_evidence_present:
+            phone_detection_source = "behavior_session"
+        else:
+            phone_detection_source = ""
 
         return FocusVisionEvidence(
             detected=bool(getattr(observation, "detected", False)),
@@ -47,16 +97,22 @@ class FocusVisionObservationReader:
             phone_usage_active_seconds=_active_seconds(_session(sessions, "phone_usage")),
             study_activity_active_seconds=_active_seconds(_session(sessions, "study_activity")),
             captured_at=float(getattr(observation, "captured_at", 0.0) or 0.0),
-            labels=tuple(str(label) for label in getattr(observation, "labels", []) or []),
+            labels=obs_labels,
             metadata={
                 "observation_confidence": float(getattr(observation, "confidence", 0.0) or 0.0),
                 "behavior_available": bool(behavior),
                 "sessions_available": bool(sessions),
                 "perception_available": bool(perception),
             },
-            face_count=face_count,
-            people_count=people_count,
+            face_count=raw_face_count,
+            people_count=effective_people_count,
             person_without_face=person_without_face,
+            yolo_person_count=yolo_person_count,
+            phone_object_detected=phone_object_detected,
+            people_count_source=people_count_source,
+            phone_candidate_detected=phone_candidate_detected,
+            phone_candidate_confidence=phone_candidate_confidence,
+            phone_detection_source=phone_detection_source,
         )
 
 

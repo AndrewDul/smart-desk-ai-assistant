@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from .active_monitoring import (
+    FocusMonitoringEvidenceAccumulator,
+    FocusMonitoringScanScheduler,
+    FocusScanResult,
+)
 from .config import FocusVisionConfig
 from .decision_engine import FocusVisionDecisionEngine
 from .models import (
@@ -17,6 +22,9 @@ from .state_machine import FocusVisionStateMachine
 from .telemetry import FocusVisionTelemetryWriter
 
 __all__ = [
+    "FocusMonitoringEvidenceAccumulator",
+    "FocusMonitoringScanScheduler",
+    "FocusScanResult",
     "FocusVisionConfig",
     "FocusVisionDecision",
     "FocusVisionDecisionEngine",

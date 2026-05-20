@@ -23,6 +23,7 @@ class FocusVisionReminderKind(str, Enum):
 
     ABSENCE = "absence"
     PHONE_DISTRACTION = "phone_distraction"
+    AWAY_SOFT = "away_soft"
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +52,12 @@ class FocusVisionEvidence:
     face_count: int = 0
     people_count: int = 0
     person_without_face: bool = False
+    yolo_person_count: int = 0
+    phone_object_detected: bool = False
+    people_count_source: str = ""
+    phone_candidate_detected: bool = False
+    phone_candidate_confidence: float = 0.0
+    phone_detection_source: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -76,6 +83,12 @@ class FocusVisionEvidence:
             "face_count": self.face_count,
             "people_count": self.people_count,
             "person_without_face": self.person_without_face,
+            "yolo_person_count": self.yolo_person_count,
+            "phone_object_detected": self.phone_object_detected,
+            "people_count_source": self.people_count_source,
+            "phone_candidate_detected": self.phone_candidate_detected,
+            "phone_candidate_confidence": self.phone_candidate_confidence,
+            "phone_detection_source": self.phone_detection_source,
         }
 
 

@@ -6121,3 +6121,38 @@ Most likely cause: scan ran, hardware moved, but camera still did not detect the
 
 `PROBABLY_PRESENT` does not trigger any reminder. Warnings during `PROBABLY_PRESENT` would come from the `PHONE_DISTRACTION` path if phone usage is also active. Check `reminder.kind.value` in the reminder object.
 
+---
+
+## 2026-05-20 - Focus Mode scan loop and face tracking cleanup
+
+### Problem
+
+Focus Mode pan-tilt tracking was mixing face tracking with repeated scanning. Person/body evidence could make NeXa behave like someone was still present after the face was gone. Downward tilt commands could also still appear in the final tracking output.
+
+### Cause
+
+The tracking worker still allowed person/body evidence to act like a Focus Mode tracking target in some paths. That same evidence could also cancel a face reacquisition scan. Stale observations could hold the previous state too long, which made the camera look frozen instead of doing a clear reacquisition step.
+
+### Fix
+
+I changed the Focus Mode tracking rule to be face-only:
+- fresh face is the only lock target
+- person/body evidence is diagnostic only for Focus Mode tracking
+- person/body evidence no longer cancels scan
+- stale observations hold briefly, then transition to bounded face reacquisition
+- the face reacquisition scan is bounded
+- the final tilt command is clamped so Focus Mode does not command downward tilt below center
+
+### Result
+
+The live proof for this checkpoint was accepted. Focus Mode used face/none tracking targets, `negative_final_tilt_count` was `0`, phone and away reminders still worked, Visual Shell started with the product runtime launcher, and the mobile base remained disabled.
+
+The product runtime command remains:
+
+```bash
+.venv/bin/python scripts/start_nexa_product_runtime.py --no-llm
+```
+
+### Remaining limitation
+
+Tracking smoothness can still be improved later. This checkpoint fixed the scan-loop and face-only tracking rules first, without changing the working phone reminder or away reminder behavior.

@@ -17203,3 +17203,28 @@ The vision section in the Godot dashboard now shows 14 focus-presence items: sta
 - Targeted suite: **281 passed** (0 failures in sprint files)
 - Pre-existing failures in broader suite (38 total): pan-tilt hardware tests (`tests/devices/pan_tilt/`), OpenCV Haar face detector (`tests/vision/unit/perception/face/`), and `test_unfinished_visual_shell_intents_are_not_public` — all confirmed pre-existing via `git stash` check, none caused by this sprint.
 
+---
+
+## 2026-05-20 - Final Polish Focus Mode face-only tracking and bounded scan checkpoint
+
+I changed Focus Mode to use a face-first tracking model for the pan-tilt worker. Fresh face evidence is now the only lock target for Focus Mode tracking.
+
+Person or body evidence is still useful telemetry, but I no longer let it own Focus Mode tracking. It must not cancel a face reacquisition scan, and it must not make the tracking worker behave as if a face is still locked.
+
+When a fresh face returns during an active scan, the scan can be cancelled or made obsolete and the worker returns to face tracking. Scan cancellation depends on fresh face reacquisition, not on person/body labels.
+
+Stale observations now hold the current position briefly instead of immediately starting scan loops. If a fresh face does not return after the stale hold window, the worker moves into bounded face reacquisition.
+
+The reacquisition scan is bounded and is used only after face loss. If the scan finds a fresh face, tracking resumes. If it does not find a face, the existing away reminder path handles the user-facing reminder.
+
+I also clamped the final Focus Mode tilt command so the worker does not command downward tilt below center. The telemetry keeps both raw and final tilt values so this can be checked during live proof.
+
+I preserved the phone reminder, the away reminder path, Visual Shell startup, and the disabled mobile base behavior. Live proof used the product launcher:
+
+```bash
+.venv/bin/python scripts/start_nexa_product_runtime.py --no-llm
+```
+
+The accepted live diagnostic for this checkpoint showed `tracking_target_type` using face/none only, `negative_final_tilt_count = 0`, `phone_delivered = True`, `away_delivered = True`, and `mobile_base_movement_attempted = False`.
+
+Future work: I can still improve continuous face tracking smoothness later, especially the natural feel of small pan/tilt corrections.

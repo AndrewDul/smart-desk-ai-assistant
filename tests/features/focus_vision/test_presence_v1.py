@@ -10,6 +10,7 @@ import pytest
 from modules.features.focus_vision import (
     FocusVisionConfig,
     FocusVisionDecisionEngine,
+    FocusVisionReminderKind,
     FocusVisionReminderPolicy,
     FocusVisionSentinelService,
     FocusVisionState,
@@ -94,8 +95,8 @@ def _fast_config(**kwargs: Any) -> FocusVisionConfig:
         dry_run=False,
         voice_warnings_enabled=True,
         startup_grace_seconds=0.0,
-        absence_warning_after_seconds=0.5,
-        warning_cooldown_seconds=1.0,
+        absence_warning_after_seconds=kwargs.pop("absence_warning_after_seconds", 0.5),
+        warning_cooldown_seconds=kwargs.pop("warning_cooldown_seconds", 1.0),
         absence_pending_scan_after_seconds=kwargs.pop("absence_pending_scan_after_seconds", 5.0),
         pan_tilt_scan_enabled=kwargs.pop("pan_tilt_scan_enabled", False),
         **kwargs,
@@ -358,8 +359,8 @@ def test_reminder_does_not_fire_for_away_pending_scan() -> None:
     now = 100.0
     snapshot = FocusVisionStateSnapshot(
         current_state=FocusVisionState.AWAY_PENDING_SCAN,
-        stable_seconds=30.0,
-        state_started_at=now - 30.0,
+        stable_seconds=5.0,
+        state_started_at=now - 5.0,
         updated_at=now,
         decision=FocusVisionDecision(FocusVisionState.AWAY_PENDING_SCAN, 0.8, ("test",), now, FocusVisionEvidence()),
     )
@@ -404,3 +405,259 @@ def test_study_activity_without_person_does_not_mark_present() -> None:
     decision = FocusVisionDecisionEngine().decide(obs)
     assert decision.state != FocusVisionState.ON_TASK
     assert decision.state != FocusVisionState.PROBABLY_PRESENT
+
+
+# ---------------------------------------------------------------------------
+# Tests: YOLO person fallback and phone bridge (10 new tests)
+# ---------------------------------------------------------------------------
+
+def test_yolo_person_fallback_evidence_fields() -> None:
+    obs = _observation(face_count=0, people_count=0, labels=("object:person",))
+    evidence = FocusVisionObservationReader().read(obs)
+    assert evidence.people_count == 1
+    assert evidence.face_count == 0
+    assert evidence.person_without_face is True
+    assert evidence.yolo_person_count == 1
+    assert evidence.people_count_source == "yolo_person_fallback"
+
+
+def test_yolo_person_fallback_produces_probably_present() -> None:
+    obs = _observation(face_count=0, people_count=0, labels=("object:person",))
+    decision = FocusVisionDecisionEngine().decide(obs)
+    assert decision.state == FocusVisionState.PROBABLY_PRESENT, (
+        f"Expected PROBABLY_PRESENT, got {decision.state} — YOLO person must bridge into people_count"
+    )
+    assert "person_without_face" in decision.reasons
+
+
+def test_bottle_only_not_probably_present() -> None:
+    obs = _observation(face_count=0, people_count=0, labels=("object:bottle",))
+    evidence = FocusVisionObservationReader().read(obs)
+    assert evidence.people_count == 0
+    assert evidence.yolo_person_count == 0
+    assert evidence.person_without_face is False
+    decision = FocusVisionDecisionEngine().decide(obs)
+    assert decision.state != FocusVisionState.PROBABLY_PRESENT
+
+
+def test_desk_objects_without_yolo_person_is_absent() -> None:
+    obs = _observation(
+        presence=False, desk=False, computer=False, study=False,
+        face_count=0, people_count=0,
+        labels=("object:laptop", "object:keyboard", "object:cup"),
+    )
+    decision = FocusVisionDecisionEngine().decide(obs)
+    assert decision.state == FocusVisionState.ABSENT, (
+        f"Expected ABSENT when only desk objects detected (no person), got {decision.state}"
+    )
+
+
+def test_yolo_phone_and_person_is_phone_distraction() -> None:
+    obs = _observation(
+        presence=False, phone=False,
+        face_count=0, people_count=0,
+        labels=("object:person", "object:cell phone"),
+    )
+    decision = FocusVisionDecisionEngine().decide(obs)
+    assert decision.state == FocusVisionState.PHONE_DISTRACTION, (
+        f"Expected PHONE_DISTRACTION, got {decision.state} — YOLO phone+person must bridge"
+    )
+    assert "hard_phone_evidence" in decision.reasons
+
+
+def test_yolo_phone_without_person_is_not_phone_distraction() -> None:
+    obs = _observation(
+        presence=False, phone=False,
+        face_count=0, people_count=0,
+        labels=("object:cell phone",),
+    )
+    evidence = FocusVisionObservationReader().read(obs)
+    assert evidence.phone_object_detected is False, (
+        "phone_object_detected must be False when no person evidence is present"
+    )
+    decision = FocusVisionDecisionEngine().decide(obs)
+    assert decision.state != FocusVisionState.PHONE_DISTRACTION
+
+
+def test_yolo_person_evidence_people_count_source() -> None:
+    obs = _observation(face_count=0, people_count=0, labels=("object:person", "object:bottle"))
+    evidence = FocusVisionObservationReader().read(obs)
+    assert evidence.people_count_source == "yolo_person_fallback"
+    assert evidence.yolo_person_count == 1
+
+
+def test_raw_face_path_people_count_source_is_raw() -> None:
+    obs = _observation(face_count=2, people_count=2, labels=())
+    evidence = FocusVisionObservationReader().read(obs)
+    assert evidence.people_count_source == "raw_people"
+    assert evidence.people_count == 2
+    assert evidence.yolo_person_count == 0
+
+
+def test_yolo_fallback_skipped_when_raw_face_present() -> None:
+    obs = _observation(face_count=1, people_count=1, labels=("object:person",))
+    evidence = FocusVisionObservationReader().read(obs)
+    assert evidence.people_count_source == "raw_people", (
+        "YOLO fallback must not activate when raw face/people are already present"
+    )
+    assert evidence.people_count == 1
+    assert evidence.yolo_person_count == 1
+
+
+def test_phone_object_detected_false_when_no_person() -> None:
+    obs = _observation(face_count=0, people_count=0, labels=("object:cell phone", "object:laptop"))
+    evidence = FocusVisionObservationReader().read(obs)
+    assert evidence.phone_object_detected is False
+
+
+# ---------------------------------------------------------------------------
+# Tests: Phone and away-soft reminder timing (11 new tests)
+# ---------------------------------------------------------------------------
+
+def _reminder_policy(config: FocusVisionConfig | None = None, started_at: float = 0.0) -> FocusVisionReminderPolicy:
+    policy = FocusVisionReminderPolicy(config=config or _fast_config())
+    policy.start_session(started_at=started_at)
+    return policy
+
+
+def _snapshot_in_state(state: FocusVisionState, stable_seconds: float, now: float = 100.0) -> FocusVisionStateSnapshot:
+    return FocusVisionStateSnapshot(
+        current_state=state,
+        stable_seconds=stable_seconds,
+        state_started_at=now - stable_seconds,
+        updated_at=now,
+        decision=FocusVisionDecision(state, 0.8, ("test",), now, FocusVisionEvidence()),
+    )
+
+
+def test_phone_distraction_state_fires_without_timer_delay() -> None:
+    config = _fast_config(phone_warning_after_seconds=30.0)
+    policy = _reminder_policy(config)
+    snap = _snapshot_in_state(FocusVisionState.PHONE_DISTRACTION, stable_seconds=0.0)
+    reminder = policy.evaluate(snap, language="en", now=100.0)
+    assert reminder is not None
+    assert reminder.kind == FocusVisionReminderKind.PHONE_DISTRACTION
+
+
+def test_phone_distraction_at_threshold_fires_reminder() -> None:
+    config = _fast_config(phone_warning_after_seconds=30.0)
+    policy = _reminder_policy(config)
+    snap = _snapshot_in_state(FocusVisionState.PHONE_DISTRACTION, stable_seconds=30.0)
+    reminder = policy.evaluate(snap, language="en", now=100.0)
+    assert reminder is not None
+    assert reminder.kind == FocusVisionReminderKind.PHONE_DISTRACTION
+
+
+def test_phone_reminder_cooldown_prevents_second_reminder() -> None:
+    config = _fast_config(phone_warning_after_seconds=5.0, warning_cooldown_seconds=120.0)
+    policy = _reminder_policy(config)
+    snap = _snapshot_in_state(FocusVisionState.PHONE_DISTRACTION, stable_seconds=10.0, now=100.0)
+    first = policy.evaluate(snap, language="en", now=100.0)
+    assert first is not None
+    # Second attempt 60 seconds later — still within 120s cooldown
+    snap2 = _snapshot_in_state(FocusVisionState.PHONE_DISTRACTION, stable_seconds=70.0, now=160.0)
+    second = policy.evaluate(snap2, language="en", now=160.0)
+    assert second is None, "cooldown must prevent second phone reminder within 120 seconds"
+
+
+def test_away_pending_scan_under_threshold_no_reminder() -> None:
+    config = _fast_config(away_soft_reminder_after_seconds=60.0)
+    policy = _reminder_policy(config)
+    snap = _snapshot_in_state(FocusVisionState.AWAY_PENDING_SCAN, stable_seconds=50.0)
+    assert policy.evaluate(snap, language="en", now=100.0) is None
+
+
+def test_away_pending_scan_over_threshold_fires_soft_reminder() -> None:
+    config = _fast_config(away_soft_reminder_after_seconds=60.0)
+    policy = _reminder_policy(config)
+    snap = _snapshot_in_state(FocusVisionState.AWAY_PENDING_SCAN, stable_seconds=65.0)
+    reminder = policy.evaluate(snap, language="en", now=100.0)
+    assert reminder is not None
+    assert reminder.kind == FocusVisionReminderKind.AWAY_SOFT
+    assert "come back" in reminder.text.lower() or "wróć" in reminder.text.lower()
+
+
+def test_away_soft_reminder_text_is_uncertainty_aware() -> None:
+    config = _fast_config(away_soft_reminder_after_seconds=60.0)
+    policy = _reminder_policy(config)
+    snap = _snapshot_in_state(FocusVisionState.AWAY_PENDING_SCAN, stable_seconds=65.0)
+    reminder_en = policy.evaluate(snap, language="en", now=100.0)
+    assert reminder_en is not None
+    assert "please" in reminder_en.text.lower() or "when you can" in reminder_en.text.lower(), (
+        "away_soft text must be gentle/uncertain, not commanding"
+    )
+    policy2 = _reminder_policy(config)
+    reminder_pl = policy2.evaluate(snap, language="pl", now=100.0)
+    assert reminder_pl is not None
+    assert "proszę" in reminder_pl.text.lower() or "kiedy możesz" in reminder_pl.text.lower()
+
+
+def test_away_soft_reminder_does_not_set_away_confirmed() -> None:
+    service = FocusVisionSentinelService(
+        vision_backend=_mock_vision_backend(),
+        config=_fast_config(absence_pending_scan_after_seconds=5.0, pan_tilt_scan_enabled=False),
+    )
+    result = _tick_with_snapshot(service, FocusVisionState.ABSENT, stable_seconds=30.0, now=100.0)
+    assert result.current_state != FocusVisionState.AWAY_CONFIRMED, (
+        "away_soft path must never produce AWAY_CONFIRMED without a completed scan"
+    )
+    assert result.current_state == FocusVisionState.AWAY_PENDING_SCAN
+
+
+def test_yolo_person_present_means_no_away_pending_state() -> None:
+    obs = _observation(face_count=0, people_count=0, labels=("object:person",))
+    decision = FocusVisionDecisionEngine().decide(obs)
+    assert decision.state == FocusVisionState.PROBABLY_PRESENT, (
+        "YOLO person → PROBABLY_PRESENT, never ABSENT/AWAY_PENDING_SCAN → no away reminder"
+    )
+    assert decision.state != FocusVisionState.ABSENT
+    assert decision.state != FocusVisionState.AWAY_PENDING_SCAN
+
+
+def test_face_hidden_yolo_person_visible_no_away_state() -> None:
+    obs = _observation(
+        presence=False, desk=False,
+        face_count=0, people_count=0,
+        labels=("object:person",),
+    )
+    decision = FocusVisionDecisionEngine().decide(obs)
+    assert decision.state not in (FocusVisionState.ABSENT, FocusVisionState.AWAY_PENDING_SCAN), (
+        "face hidden but YOLO person visible → PROBABLY_PRESENT, not an away state"
+    )
+
+
+def test_phone_object_alone_no_phone_distraction_state() -> None:
+    obs = _observation(
+        presence=False, phone=False,
+        face_count=0, people_count=0,
+        labels=("object:cell phone",),
+    )
+    decision = FocusVisionDecisionEngine().decide(obs)
+    assert decision.state != FocusVisionState.PHONE_DISTRACTION, (
+        "phone object on empty desk (no person evidence) must not trigger PHONE_DISTRACTION"
+    )
+
+
+def test_away_confirmed_path_unchanged() -> None:
+    config = _fast_config(absence_warning_after_seconds=5.0)
+    policy = _reminder_policy(config)
+    snap = _snapshot_in_state(FocusVisionState.AWAY_CONFIRMED, stable_seconds=10.0)
+    reminder = policy.evaluate(snap, language="en", now=100.0)
+    assert reminder is not None
+    assert reminder.kind == FocusVisionReminderKind.ABSENCE
+
+
+def test_no_pan_tilt_movement_in_away_soft_path() -> None:
+    pan_tilt = MagicMock()
+    service = FocusVisionSentinelService(
+        vision_backend=_mock_vision_backend(),
+        config=_fast_config(
+            absence_pending_scan_after_seconds=5.0,
+            pan_tilt_scan_enabled=False,
+            away_soft_reminder_after_seconds=60.0,
+        ),
+        pan_tilt_backend=pan_tilt,
+    )
+    _tick_with_snapshot(service, FocusVisionState.ABSENT, stable_seconds=80.0, now=100.0)
+    pan_tilt.move_delta.assert_not_called()
+    pan_tilt.center.assert_not_called()

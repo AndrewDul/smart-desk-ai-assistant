@@ -103,6 +103,23 @@ class TrackingTargetSelector:
                 if target is not None:
                     candidates.append(target)
 
+        objects = perception.get("objects", [])
+        if isinstance(objects, list):
+            for index, detection in enumerate(objects):
+                if not isinstance(detection, dict):
+                    continue
+                if str(detection.get("label", "")).strip().lower() != "person":
+                    continue
+                target = _target_from_detection(
+                    detection=detection,
+                    target_type="person",
+                    source_index=index,
+                    frame_width=frame_width,
+                    frame_height=frame_height,
+                )
+                if target is not None:
+                    candidates.append(target)
+
         if not candidates:
             return None
 

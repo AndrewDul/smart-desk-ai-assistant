@@ -31,6 +31,7 @@ def _observation(
     study: bool,
     captured_at: float = 10.0,
     labels: tuple[str, ...] = (),
+    face_count: int = 0,
 ) -> VisionObservation:
     return VisionObservation(
         detected=True,
@@ -57,6 +58,10 @@ def _observation(
                 "phone_usage": _session(phone, 12.0),
                 "study_activity": _session(study, 12.0),
             },
+            "perception": {
+                "face_count": face_count,
+                "people_count": 0,
+            },
         },
     )
 
@@ -79,12 +84,35 @@ def test_decision_reports_on_task_when_user_is_at_desk_and_working() -> None:
 
 
 def test_decision_reports_phone_distraction_before_on_task() -> None:
-    observation = _observation(presence=True, desk=True, computer=False, phone=True, study=True)
+    observation = _observation(
+        presence=True,
+        desk=True,
+        computer=False,
+        phone=True,
+        study=True,
+        face_count=1,
+        labels=("object:cell phone",),
+    )
 
     decision = FocusVisionDecisionEngine().decide(observation)
 
     assert decision.state == FocusVisionState.PHONE_DISTRACTION
-    assert "phone_usage_active" in decision.reasons
+    assert "hard_phone_evidence" in decision.reasons
+
+
+def test_decision_ignores_behavior_phone_without_hard_visual_phone() -> None:
+    observation = _observation(
+        presence=True,
+        desk=True,
+        computer=False,
+        phone=True,
+        study=True,
+        face_count=1,
+    )
+
+    decision = FocusVisionDecisionEngine().decide(observation)
+
+    assert decision.state != FocusVisionState.PHONE_DISTRACTION
 
 
 def test_decision_reports_absent_when_presence_and_desk_are_inactive() -> None:
@@ -96,13 +124,14 @@ def test_decision_reports_absent_when_presence_and_desk_are_inactive() -> None:
 
 
 def test_decision_does_not_let_face_label_block_absent_without_active_presence() -> None:
+    # Face feature labels alone (no YOLO person, no perception counts) must not prevent ABSENT.
     observation = _observation(
         presence=False,
         desk=False,
         computer=False,
         phone=False,
         study=False,
-        labels=("object:person", "person_in_desk_zone", "face_in_engagement_zone", "face_detected"),
+        labels=("person_in_desk_zone", "face_in_engagement_zone", "face_detected"),
     )
 
     decision = FocusVisionDecisionEngine().decide(observation)
@@ -111,7 +140,9 @@ def test_decision_does_not_let_face_label_block_absent_without_active_presence()
     assert "no_active_presence" in decision.reasons
 
 
-def test_decision_reports_absent_when_only_person_label_remains_without_face() -> None:
+def test_decision_yolo_person_label_produces_probably_present() -> None:
+    # YOLO "object:person" bridges into people_count=1 when face/people counts are zero,
+    # producing PROBABLY_PRESENT rather than ABSENT. This is the intended YOLO fallback behavior.
     observation = _observation(
         presence=False,
         desk=False,
@@ -123,8 +154,8 @@ def test_decision_reports_absent_when_only_person_label_remains_without_face() -
 
     decision = FocusVisionDecisionEngine().decide(observation)
 
-    assert decision.state == FocusVisionState.ABSENT
-    assert "person_label_ignored_without_face" in decision.reasons
+    assert decision.state == FocusVisionState.PROBABLY_PRESENT
+    assert "person_without_face" in decision.reasons
 
 
 def test_decision_reports_absent_when_desk_activity_exists_but_no_face_or_presence() -> None:

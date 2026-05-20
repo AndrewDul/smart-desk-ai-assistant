@@ -820,6 +820,7 @@ class WaveshareSerialPanTiltBackend:
             raw_line = readline()
             if raw_line:
                 self._update_telemetry_from_line(raw_line)
+                break
 
 
 

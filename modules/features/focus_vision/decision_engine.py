@@ -25,6 +25,9 @@ class FocusVisionDecisionEngine:
         if self._is_phone_distraction(evidence):
             return FocusVisionDecision(FocusVisionState.PHONE_DISTRACTION, max(0.55, evidence.phone_usage_confidence), self._phone_reasons(evidence), timestamp, evidence)
 
+        if self._is_yolo_phone_distraction(evidence):
+            return FocusVisionDecision(FocusVisionState.PHONE_DISTRACTION, 0.65, self._yolo_phone_reasons(evidence), timestamp, evidence)
+
         if self._is_on_task(evidence):
             return FocusVisionDecision(FocusVisionState.ON_TASK, self._on_task_confidence(evidence), self._on_task_reasons(evidence), timestamp, evidence)
 
@@ -53,7 +56,19 @@ class FocusVisionDecisionEngine:
 
     @staticmethod
     def _is_phone_distraction(evidence: FocusVisionEvidence) -> bool:
-        if not evidence.presence_active or not evidence.phone_usage_active:
+        if not FocusVisionDecisionEngine._has_hard_visual_person(evidence):
+            return False
+        if not FocusVisionDecisionEngine._has_hard_phone_evidence(evidence):
+            return False
+        if evidence.computer_work_active and evidence.computer_work_confidence >= 0.85:
+            return False
+        return True
+
+    @staticmethod
+    def _is_yolo_phone_distraction(evidence: FocusVisionEvidence) -> bool:
+        if not FocusVisionDecisionEngine._has_hard_visual_person(evidence):
+            return False
+        if not FocusVisionDecisionEngine._has_hard_phone_evidence(evidence):
             return False
         if evidence.computer_work_active and evidence.computer_work_confidence >= 0.85:
             return False
@@ -108,11 +123,26 @@ class FocusVisionDecisionEngine:
 
     @staticmethod
     def _phone_reasons(evidence: FocusVisionEvidence) -> tuple[str, ...]:
-        reasons = ["phone_usage_active", "presence_active"]
+        reasons = ["hard_phone_evidence", "hard_person_visible"]
+        if evidence.phone_object_detected:
+            reasons.append("phone_object_detected")
+        if evidence.phone_candidate_detected:
+            reasons.append("phone_candidate_detected")
         if evidence.desk_activity_active:
             reasons.append("desk_activity_active")
         if evidence.phone_usage_active_seconds > 0.0:
             reasons.append("phone_usage_session_active")
+        return tuple(reasons)
+
+    @staticmethod
+    def _yolo_phone_reasons(evidence: FocusVisionEvidence) -> tuple[str, ...]:
+        reasons = ["yolo_phone_object_detected"]
+        if evidence.person_without_face:
+            reasons.append("yolo_person_without_face")
+        elif evidence.people_count > 0:
+            reasons.append("person_present")
+        if evidence.yolo_person_count > 0:
+            reasons.append("yolo_person_count_positive")
         return tuple(reasons)
 
     @staticmethod
@@ -132,6 +162,25 @@ class FocusVisionDecisionEngine:
         if evidence.computer_work_active:
             signals.append(evidence.computer_work_confidence)
         return max(0.55, min(1.0, sum(signals) / max(1, len(signals))))
+
+    @staticmethod
+    def _has_hard_visual_person(evidence: FocusVisionEvidence) -> bool:
+        labels = set(evidence.labels)
+        return bool(
+            evidence.face_count > 0
+            or evidence.yolo_person_count > 0
+            or "object:person" in labels
+            or evidence.person_without_face
+        )
+
+    @staticmethod
+    def _has_hard_phone_evidence(evidence: FocusVisionEvidence) -> bool:
+        labels = set(evidence.labels)
+        return bool(
+            evidence.phone_object_detected
+            or (evidence.phone_candidate_detected and evidence.phone_candidate_confidence >= 0.5)
+            or labels.intersection({"object:cell phone", "object:mobile phone", "object:phone"})
+        )
 
 
 __all__ = ["FocusVisionDecisionEngine"]

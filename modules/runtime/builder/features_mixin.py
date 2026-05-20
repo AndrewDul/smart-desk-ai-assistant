@@ -49,6 +49,7 @@ class RuntimeBuilderFeaturesMixin:
         *,
         vision_backend: Any,
         pan_tilt_backend: Any = None,
+        vision_tracking_service: Any = None,
     ) -> tuple[Any | None, RuntimeBackendStatus]:
         try:
             config_class = self._import_symbol(
@@ -64,6 +65,7 @@ class RuntimeBuilderFeaturesMixin:
                 vision_backend=vision_backend,
                 config=focus_config,
                 pan_tilt_backend=pan_tilt_backend,
+                vision_tracking_service=vision_tracking_service,
             )
             service_status = service.status() if hasattr(service, "status") else {}
             if not bool(getattr(focus_config, "enabled", False)):

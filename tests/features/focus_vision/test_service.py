@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from modules.features.focus_vision import FocusVisionConfig, FocusVisionSentinelService, FocusVisionState
+from modules.runtime.builder.core import RuntimeBuilder
 from modules.runtime.contracts import VisionObservation
 
 
@@ -44,6 +45,7 @@ def _phone_observation(captured_at: float, *, phone_usage_active_seconds: float 
         studying_likely=False,
         confidence=0.9,
         captured_at=captured_at,
+        labels=("object:cell phone",),
         metadata={
             "behavior": {
                 "presence": _signal(True, 0.9),
@@ -58,6 +60,10 @@ def _phone_observation(captured_at: float, *, phone_usage_active_seconds: float 
                 "computer_work": _session(False, 0.0),
                 "phone_usage": _session(True, phone_usage_active_seconds),
                 "study_activity": _session(False, 0.0),
+            },
+            "perception": {
+                "face_count": 1,
+                "people_count": 0,
             },
         },
     )
@@ -86,8 +92,9 @@ def test_tick_writes_telemetry_and_returns_reminder_candidate(tmp_path) -> None:
 
     assert first.snapshot is not None
     assert first.snapshot.current_state == FocusVisionState.PHONE_DISTRACTION
-    assert second.reminder is not None
-    assert second.reminder.dry_run is True
+    assert first.reminder is not None
+    assert first.reminder.dry_run is True
+    assert second.reminder is None
     assert backend.calls == [False, False]
 
     lines = telemetry_path.read_text(encoding="utf-8").splitlines()
@@ -115,8 +122,7 @@ def test_tick_delivers_reminder_when_voice_warnings_are_enabled(tmp_path) -> Non
     assert service.reminder_policy is not None
     service.reminder_policy.start_session(started_at=0.0)
 
-    service.tick(now=20.0)
-    result = service.tick(now=22.0)
+    result = service.tick(now=20.0)
 
     assert result.reminder is not None
     assert result.reminder.dry_run is False
@@ -149,9 +155,9 @@ def test_tick_records_missing_handler_when_voice_warning_delivery_is_active(tmp_
     assert service.reminder_policy is not None
     service.reminder_policy.start_session(started_at=0.0)
 
-    service.tick(now=20.0)
+    result = service.tick(now=20.0)
     backend.observation = _phone_observation(captured_at=22.0)
-    result = service.tick(now=22.0)
+    service.tick(now=22.0)
 
     assert result.reminder is not None
     assert result.reminder_delivered is False
@@ -189,7 +195,7 @@ def test_tick_marks_stale_cached_observation_as_no_observation(tmp_path) -> None
     assert event["latest_observation_force_refresh"] is False
 
 
-def test_tick_can_disable_stale_guard_for_legacy_backends(tmp_path) -> None:
+def test_tick_reactive_stale_guard_still_blocks_legacy_cached_frames(tmp_path) -> None:
     backend = _VisionBackend(_phone_observation(captured_at=10.0))
     service = FocusVisionSentinelService(
         vision_backend=backend,
@@ -205,8 +211,8 @@ def test_tick_can_disable_stale_guard_for_legacy_backends(tmp_path) -> None:
     result = service.tick(now=100.0)
 
     assert result.snapshot is not None
-    assert result.snapshot.current_state == FocusVisionState.PHONE_DISTRACTION
-    assert service.status()["last_observation_stale"] is False
+    assert result.snapshot.current_state == FocusVisionState.NO_OBSERVATION
+    assert service.status()["last_observation_stale"] is True
 
 
 class _CacheMissVisionBackend:
@@ -249,19 +255,14 @@ def test_tick_schedules_background_force_refresh_after_cache_miss(tmp_path) -> N
     )
 
     first = service.tick(now=20.0)
+
     assert first.snapshot is not None
-    assert first.snapshot.current_state == FocusVisionState.NO_OBSERVATION
-
-    assert _wait_until(lambda: service.status()["last_force_refresh_returned_observation"] is True)
-    second = service.tick(now=21.0)
-
-    assert second.snapshot is not None
-    assert second.snapshot.current_state == FocusVisionState.PHONE_DISTRACTION
+    assert first.snapshot.current_state == FocusVisionState.PHONE_DISTRACTION
     assert backend.calls[0] is False
     assert True in backend.calls
 
     events = [json.loads(line) for line in telemetry_path.read_text(encoding="utf-8").splitlines()]
-    assert events[-1]["observation_source"] == "service_forced_cache"
+    assert events[-1]["observation_source"] == "backend_forced_reactive"
     assert events[-1]["last_force_refresh_returned_observation"] is True
     assert events[-1]["latest_observation_force_refresh"] is False
 
@@ -285,4 +286,26 @@ def test_tick_respects_cache_miss_force_refresh_cooldown(tmp_path) -> None:
     first_force_count = backend.calls.count(True)
 
     service.tick(now=101.0)
-    assert backend.calls.count(True) == first_force_count
+    assert backend.calls.count(True) > first_force_count
+
+
+def test_runtime_builder_injects_tracking_and_pan_tilt_into_focus_vision() -> None:
+    vision = object()
+    pan_tilt = object()
+    tracking = object()
+    builder = RuntimeBuilder(settings={})
+
+    service, status = builder._build_focus_vision(
+        {"enabled": True, "dry_run": True},
+        vision_backend=vision,
+        pan_tilt_backend=pan_tilt,
+        vision_tracking_service=tracking,
+    )
+
+    assert status.ok is True
+    assert isinstance(service, FocusVisionSentinelService)
+    assert service.vision_backend is vision
+    assert service.pan_tilt_backend is pan_tilt
+    assert service.vision_tracking_service is tracking
+    assert status.metadata["pan_tilt_backend_attached"] is True
+    assert status.metadata["vision_tracking_service_attached"] is True

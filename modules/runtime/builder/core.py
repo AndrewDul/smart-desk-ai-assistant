@@ -106,11 +106,6 @@ class RuntimeBuilder(
         display, display_status = self._build_display(display_cfg)
         vision, vision_status = self._build_vision(vision_cfg)
         pan_tilt, pan_tilt_status = self._build_pan_tilt(pan_tilt_cfg)
-        focus_vision, focus_vision_status = self._build_focus_vision(
-            focus_vision_cfg,
-            vision_backend=vision,
-            pan_tilt_backend=pan_tilt,
-        )
         ai_broker, ai_broker_status = self._build_ai_broker(
             ai_broker_cfg,
             vision_backend=vision,
@@ -119,6 +114,12 @@ class RuntimeBuilder(
             vision_tracking_cfg,
             vision_backend=vision,
             pan_tilt_backend=pan_tilt,
+        )
+        focus_vision, focus_vision_status = self._build_focus_vision(
+            focus_vision_cfg,
+            vision_backend=vision,
+            pan_tilt_backend=pan_tilt,
+            vision_tracking_service=vision_tracking,
         )
         mobility, mobility_status = self._build_mobility(mobility_cfg)
         # NEXA_LOOK_AT_ME_CORE_BUILD
