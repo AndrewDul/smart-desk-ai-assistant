@@ -8,6 +8,8 @@ from typing import Any
 from modules.shared.logging.logger import get_logger
 from modules.runtime.turn_timeline import current_turn_id, log_turn_timeline
 
+from modules.devices.vision.oak_depthai.preview_service import get_preview_service as _get_oak_preview_service
+
 from .feedback_center_snapshot import build_feedback_center_snapshot
 from .feedback_log_bridge import attach_feedback_log_handler, detach_feedback_log_handler, refresh_feedback_log_targets
 from .feedback_vision_streamer import FeedbackVisionStreamer
@@ -81,6 +83,7 @@ class FeedbackLane:
             )
             self._status_thread.start()
 
+        self._start_oak_preview()
         LOGGER.info("Feedback mode: dashboard started.")
         return True
 
@@ -129,6 +132,7 @@ class FeedbackLane:
             except Exception as error:
                 LOGGER.warning("Feedback lane: final hide_feedback failed safely: %s", error)
 
+        self._stop_oak_preview()
         LOGGER.info("Feedback mode: dashboard stopped.")
         return True
 
@@ -448,6 +452,22 @@ class FeedbackLane:
         set_status("vision_detection", detector_ok, detector_detail)
         return statuses
 
+
+    def _start_oak_preview(self) -> None:
+        try:
+            svc = _get_oak_preview_service()
+            if not svc.is_running:
+                svc.start()
+        except Exception as error:
+            LOGGER.debug("OAK preview start failed safely: %s", error)
+
+    def _stop_oak_preview(self) -> None:
+        try:
+            svc = _get_oak_preview_service()
+            if svc.is_running:
+                svc.stop()
+        except Exception as error:
+            LOGGER.debug("OAK preview stop failed safely: %s", error)
 
     def schedule_post_response_camera_start(self, delay_seconds: float = 0.25) -> None:
         """Schedule camera.start() after the spoken/display response is delivered.

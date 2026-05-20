@@ -6674,3 +6674,62 @@ Routing is wrong. That phrase should go to `ask_time` / `spoken_only` and must n
 ### If "show me the time" does not show Visual Shell time
 
 Check `show_visual_time` / `visual_shell.show_time` routing. That action should speak the time and also display it in Visual Shell.
+
+---
+
+## 2026-05-20 - OAK-D Lite RGB/depth preview not working
+
+### Test the capture first
+
+Run the smoke probe:
+
+```bash
+.venv/bin/python -m tests.runtime.diagnostics.oak_depthai_rgb_depth_smoke_probe --frames 30 --timeout 20
+```
+
+A successful run looks like:
+
+```json
+{
+  "rgb_frames": 30,
+  "depth_frames": 30,
+  "avg_fps": 10.0,
+  "device_mxid": "19443010C1A0E47D00",
+  "errors": [],
+  "saved_rgb_preview": "var/reports/oak_rgb_preview_<ts>.jpg",
+  "saved_depth_preview": "var/reports/oak_depth_preview_<ts>.png"
+}
+```
+
+If `rgb_frames > 0`, `depth_frames > 0`, and `errors` is empty, the hardware and pipeline are working.
+
+### If the probe says the device is already in use
+
+Another process is holding the OAK-D Lite. Stop the NeXa stack first. Then check for leftover Python or DepthAI processes:
+
+```bash
+ps aux | grep -i depthai
+ps aux | grep -i oak
+```
+
+Kill any stale processes. If the device still reports in-use, replug the USB cable.
+
+### If no frames are captured and errors mention pipeline failure
+
+Check the USB cable — the OAK-D Lite needs a cable that carries data, not just power. Also check that the device has enough power (USB 3 port preferred). Run the detection probe first to confirm the device is visible at all:
+
+```bash
+.venv/bin/python -m tests.runtime.diagnostics.oak_depthai_detection_probe
+```
+
+If the detection probe also fails, reinstall or check the depthai package:
+
+```bash
+.venv/bin/pip show depthai
+```
+
+### If preview files are saved but Feedback Mode shows no live image
+
+This is expected. I did not add live OAK image rendering in Feedback Mode yet. The Visual Shell currently uses its single camera texture for Camera Module 3 / picamera2. OAK preview data is captured and available in memory, but it is not routed to the Visual Shell display. Feedback Mode only shows text status: frame counts, FPS, last frame age, and errors.
+
+Live OAK rendering in Feedback Mode is planned for a later sprint.

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from modules.devices.vision.oak_depthai.device_probe import build_vision_camera_status
+from modules.devices.vision.oak_depthai.preview_service import get_preview_service
 from modules.presentation.visual_shell.service import VisualShellSystemMetricsProvider
 
 
@@ -581,6 +582,8 @@ class FeedbackCenterSnapshotBuilder:
             )
 
         oak = self._oak_status_from(status)
+        preview = _safe_oak_preview_status()
+        preview_running = bool(preview.get("active_streaming", False))
         items = [
             _item("Label", "OAK-D Lite Fixed Focus / DepthAI", "Non-streaming diagnostic camera source."),
             _item("USB detected", _yes_no(oak.get("usb_detected")), "Whether lsusb-style diagnostics found a Movidius/OAK USB device.", "ok" if oak.get("usb_detected") else "warning"),
@@ -590,10 +593,17 @@ class FeedbackCenterSnapshotBuilder:
             _item("MXID", _nested_oak_value(oak, "mxid") or "not available yet", "DepthAI device MXID when available."),
             _item("State", _nested_oak_value(oak, "state") or "not available yet", "DepthAI device state when available."),
             _item("Protocol", _nested_oak_value(oak, "protocol") or "not available yet", "DepthAI transport protocol when available."),
-            _item("Active streaming", _yes_no(oak.get("active_streaming")), "OAK-D Lite diagnostics do not start RGB or depth streaming.", "warning" if oak.get("active_streaming") else "ok"),
+            _item("Active streaming", _yes_no(oak.get("active_streaming")), "Non-streaming device probe; actual live preview is tracked separately.", "warning" if oak.get("active_streaming") else "ok"),
             _item("Repo has OAK adapter", _yes_no(oak.get("repo_has_oak_adapter")), "Whether the repo already has a runtime OAK adapter.", "ok" if oak.get("repo_has_oak_adapter") else "info"),
             _item("Recommended next step", oak.get("recommended_next_step") or "not available yet", "Suggested follow-up for OAK-D Lite integration."),
+            _item("Preview active", _yes_no(preview_running), "Whether the OAK preview service is currently streaming.", "ok" if preview_running else "info"),
+            _item("Preview RGB frames", str(preview.get("rgb_frame_count", 0)), "RGB frames captured since preview service started."),
+            _item("Preview depth frames", str(preview.get("depth_frame_count", 0)), "Depth frames captured since preview service started."),
+            _item("Preview FPS", str(preview.get("fps", 0.0)), "Estimated preview FPS over the last 2 seconds."),
+            _item("Preview last frame age", _format_age_ms(preview.get("last_frame_age_ms")), "Time since last RGB frame was captured."),
         ]
+        if preview.get("last_error"):
+            items.append(_item("Preview error", preview.get("last_error"), "Last error from the OAK preview service.", "warning"))
         if oak.get("error"):
             items.append(_item("OAK-D Lite status error", oak.get("error"), "Non-streaming OAK-D Lite diagnostics error.", "warning"))
         return _section("vision_oak_d_lite", "Vision OAK-D Lite", items)
@@ -1106,6 +1116,32 @@ def _is_positive_number(value: object) -> bool:
         return float(value) > 0.0
     except (TypeError, ValueError):
         return False
+
+
+def _safe_oak_preview_status() -> dict[str, Any]:
+    """Return OAK preview service status without raising exceptions."""
+    try:
+        return get_preview_service().status()
+    except Exception:
+        return {
+            "active_streaming": False,
+            "rgb_frame_count": 0,
+            "depth_frame_count": 0,
+            "fps": 0.0,
+            "last_frame_age_ms": None,
+            "last_error": "",
+            "device_mxid": "",
+        }
+
+
+def _format_age_ms(value: object) -> str:
+    if value is None:
+        return "no frames yet"
+    try:
+        ms = float(value)
+        return f"{ms:.0f} ms"
+    except (TypeError, ValueError):
+        return "not available yet"
 
 
 def _severity_from_runtime(snapshot: dict[str, Any]) -> Severity:

@@ -17496,4 +17496,42 @@ I added a focused diagnostic:
 .venv/bin/python -m tests.runtime.diagnostics.time_tts_playback_probe
 ```
 
+---
+
+## 2026-05-20 - OAK-D Lite RGB/depth diagnostic preview service
+
+I added a managed preview service for the OAK-D Lite camera. The goal was safe diagnostic capture, not live rendering in Feedback Mode.
+
+### What I added
+
+I added `modules/devices/vision/oak_depthai/preview_service.py`. It runs a background thread that captures RGB and depth frames from the OAK-D Lite at low FPS (default 10). The service exposes frame counters, FPS estimate, last frame age, device MXID, and any pipeline errors.
+
+The service is a module-level singleton created on first access. It never starts automatically — the caller has to call `start()` explicitly. `FeedbackLane` starts and stops it when Feedback Mode is activated or deactivated.
+
+### Gen3 pipeline API
+
+The installed DepthAI version is 3.6.1, which is the Gen3 API. It works differently from Gen2. There are no `XLinkOut` nodes. Output queues are created directly from camera outputs using `requestOutput(...).createOutputQueue(...)`. The `pipeline.run()` call blocks, so I run it in a nested daemon thread. I stop the pipeline by calling `pipeline.__exit__(None, None, None)` from the outer thread.
+
+RGB: `pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_A)` → `requestOutput(size, type, fps)` → `createOutputQueue(maxSize=4, blocking=False)`.
+
+Depth: `pipeline.create(dai.node.StereoDepth).build(autoCreateCameras=True, presetMode=DEFAULT, size, fps)` → `stereo.depth.createOutputQueue(4, False)`.
+
+Frame reads are non-blocking: `q.has()` + `q.get()`.
+
+### Smoke probe
+
+I added `tests/runtime/diagnostics/oak_depthai_rgb_depth_smoke_probe.py`. It starts the preview service, waits for a target number of RGB frames, saves JPEG and PNG previews under `var/reports/`, and prints a JSON report with frame counts, FPS, device MXID, and errors.
+
+First confirmed run: 30 RGB frames, 30 depth frames, 10 FPS, MXID `19443010C1A0E47D00`, no errors.
+
+### Feedback Mode integration
+
+I updated the Vision OAK-D Lite section in Feedback Mode to show preview status: whether streaming is active, RGB frame count, depth frame count, FPS, last frame age, and any pipeline error. This is text-only status. I did not add live image rendering.
+
+### What is intentionally not done yet
+
+I did not add live OAK image rendering inside Feedback Mode. The Visual Shell has one texture slot for camera frames and it is currently used by Camera Module 3 / picamera2. Switching to OAK or multiplexing needs a benchmarked sprint. For now the OAK preview data stays in memory and is only exposed as telemetry.
+
+I did not add robot movement, follow-me, or come-closer logic. I did not replace the picamera2 backend. Camera Module 3 remains the main runtime camera. OAK-D Lite is diagnostic/preview-only.
+
 This change did not touch robot movement, OAK streaming, camera pipelines, look-at-me, pan-tilt, mobile base, or Feedback Mode layout.
