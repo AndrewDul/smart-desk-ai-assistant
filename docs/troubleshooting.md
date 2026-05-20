@@ -6309,7 +6309,7 @@ The smooth-follow adapter now keeps low-pass state across active target correcti
 Run the smoothness benchmark before live testing:
 
 ```bash
-.venv/bin/python -m pytest -q tests/benchmark/test_look_at_me_smoothness_benchmark.py
+.venv/bin/python -m pytest -q tests/benchmarks/vision/test_look_at_me_smoothness_benchmark.py
 ```
 
 ### Tilt must not go below center

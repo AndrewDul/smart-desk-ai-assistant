@@ -332,7 +332,7 @@ def build_report(*, output: Path | None = None) -> dict[str, Any]:
                 "Does not prove the live process loaded mobility.enabled=true.",
                 "Does not open real hardware unless config/env allow it.",
             ],
-            "tests/benchmark/test_look_at_me_smoothness_benchmark.py": [
+            "tests/benchmarks/vision/test_look_at_me_smoothness_benchmark.py": [
                 "Benchmarks command generation only.",
                 "Does not validate camera detections, serial latency, or live status files.",
             ],
