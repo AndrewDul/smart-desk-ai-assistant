@@ -7,6 +7,7 @@ from modules.shared.logging.logger import append_log
 
 from .loop import build_main_loop_state_flags, run_assistant_loop
 from .startup import (
+    _emit_voice_runtime_readiness,
     _log_runtime_mode,
     _perform_system_shutdown,
     _run_startup_sequence,
@@ -35,6 +36,7 @@ def main() -> None:
         assistant = CoreAssistant()
         _run_startup_sequence(assistant)
         _log_runtime_mode(assistant)
+        _emit_voice_runtime_readiness(assistant)
     except Exception as startup_error:
         append_log(f"Fatal startup error: {startup_error}")
         append_log(traceback.format_exc())

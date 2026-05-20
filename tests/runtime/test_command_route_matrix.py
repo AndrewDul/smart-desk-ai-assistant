@@ -65,12 +65,18 @@ FAST_LINE_COMMANDS: list[tuple[str, str, str, str]] = [
     ("close window",         "en", "feedback_off", "fast_lane"),
     ("close diagnostics",    "en", "feedback_off", "fast_lane"),
     ("exit",                 "en", "exit",         "fast_lane"),
+    ("nexa exit",            "en", "exit",         "fast_lane"),
+    ("shutdown nexa",        "en", "exit",         "fast_lane"),
+    ("close nexa",           "en", "exit",         "fast_lane"),
     # Polish fast-line
     ("pokaż diagnostykę",    "pl", "feedback_on",  "fast_lane"),
     ("zamknij okno",         "pl", "feedback_off", "fast_lane"),
     ("zamknij diagnostykę",  "pl", "feedback_off", "fast_lane"),
     ("która godzina",        "pl", "ask_time",     "fast_lane"),
     ("wyjdź",                "pl", "exit",         "fast_lane"),
+    ("wyłącz nexę",          "pl", "exit",         "fast_lane"),
+    ("zamknij nexę",         "pl", "exit",         "fast_lane"),
+    ("koniec pracy",         "pl", "exit",         "fast_lane"),
 ]
 
 # Commands that should match grammar but may not be in fast_lane directly
@@ -166,7 +172,19 @@ def test_vosk_vocabulary_includes_core_deterministic_phrases() -> None:
     vosk_vocab = grammar.to_vosk_vocabulary()
     # Vosk vocab contains full phrases, not individual tokens. These are
     # standalone single-word commands that appear as complete phrases.
-    required_phrases = ["exit", "status"]
+    required_phrases = [
+        "exit",
+        "status",
+        "nexa exit",
+        "shutdown nexa",
+        "close nexa",
+        "stop nexa",
+        "quit nexa",
+        "wyłącz nexę",
+        "zamknij nexę",
+        "zakończ pracę",
+        "koniec pracy",
+    ]
     missing = [p for p in required_phrases if p not in vosk_vocab]
     assert not missing, (
         f"Vosk vocabulary is missing core deterministic phrases: {missing}"

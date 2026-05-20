@@ -100,7 +100,7 @@ class IntentParserFuzzyHelpersMixin:
 
     @staticmethod
     def _mentions_assistant_target(tokens: set[str]) -> bool:
-        return bool({"assistant", "asystenta", "asystent", "nexa"} & tokens)
+        return bool({"assistant", "asystenta", "asystent", "nexa", "nexe"} & tokens)
 
     @staticmethod
     def _mentions_system_target(tokens: set[str]) -> bool:

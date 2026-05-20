@@ -92,6 +92,32 @@ Progress:
 
 The current architecture is modular.
 
+### One-command local stack launcher
+
+The local product stack can be started with:
+
+```bash
+./scripts/start_nexa_stack.sh
+```
+
+This Bash entrypoint delegates to `scripts/start_nexa_product_runtime.py`, which is the project-owned launcher for the main NeXa runtime, Visual Shell, and local LLM backend. The launcher reads the existing settings for the Visual Shell command and LLM server configuration instead of duplicating launch details.
+
+For a plain `llama-server` LLM command, the launcher resolves the executable in this order: `NEXA_LLM_SERVER_BIN`, `PATH`, then the repo-local fallback `llama.cpp/build/bin/llama-server`. Only the executable token is replaced; configured model, host, port, context size, thread count, and other generated arguments remain unchanged.
+
+Runtime state is written under `var/run/nexa_stack/` while the stack is active. The state includes the launcher PID, owned child PIDs/process groups, LLM ownership, Visual Shell reuse status, and the shared shutdown request path. If an LLM backend is already healthy before startup, the launcher records it as reused and does not stop it during stack shutdown.
+
+Startup readiness checks are explicit: the launcher waits for the LLM health endpoint, checks that the Visual Shell TCP receiver is reachable at the configured host/port, starts `main.py` with unbuffered Python output, requires real voice input and real wake gate backends, waits for `var/run/nexa_stack/voice_ready.json`, and only then prints `Full NeXa stack is ready`.
+
+The runtime writes voice readiness after `CoreAssistant` has built the configured voice input and wake gate backends. The readiness payload records whether `voice_input.enabled` is true, which speech backend was selected, which wake engine is active, whether command ASR grammar is available, and any blocking issues. This prevents the product stack from reporting full readiness when `main.py` is merely alive but wake-word listening is not usable.
+
+Shutdown uses the same request path for voice and manual control:
+
+```text
+var/run/nexa_stack/shutdown.request
+```
+
+Voice exit aliases such as `exit`, `nexa exit`, `shutdown nexa`, `close nexa`, `wyłącz nexę`, `zamknij nexę`, `koniec pracy`, and `zakończ pracę` are deterministic exit commands. The runtime speaks a short confirmation, writes the shutdown request, exits its main loop, and the launcher then stops stack-owned children in reverse order. Ctrl+C in the launcher terminal follows the same owned-process cleanup path. The launcher sends graceful signals first and escalates only to stack-owned process groups after the configured timeout.
+
 ### `main.py`
 Main entry point of the assistant.
 

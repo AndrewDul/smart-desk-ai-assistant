@@ -3,8 +3,10 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import json
 from typing import TYPE_CHECKING, Any
 
+from modules.runtime.stack_shutdown import stack_state_dir
 from modules.runtime.health import RuntimeHealthChecker
 from modules.runtime.startup_gate import StartupGateService
 from modules.shared.logging.logger import append_log
@@ -332,3 +334,102 @@ def _log_runtime_mode(assistant: CoreAssistant) -> None:
         f"Voice mode: half-duplex. "
         f"Wake barge-in: {wake_barge_in_status}."
     )
+
+
+def _emit_voice_runtime_readiness(assistant: CoreAssistant) -> None:
+    settings = getattr(assistant, "settings", {}) or {}
+    voice_input_cfg = dict(settings.get("voice_input", {}) or {})
+    voice_input_enabled = bool(voice_input_cfg.get("enabled", True))
+    wake_engine = str(voice_input_cfg.get("wake_engine", "openwakeword") or "").strip() or "openwakeword"
+
+    voice_status = _backend_status_for(assistant, "voice_input")
+    wake_status = _backend_status_for(assistant, "wake_gate")
+    voice_backend = str(getattr(voice_status, "selected_backend", "") or "unknown")
+    wake_backend = str(getattr(wake_status, "selected_backend", "") or "unknown")
+    voice_detail = str(getattr(voice_status, "detail", "") or "")
+    wake_detail = str(getattr(wake_status, "detail", "") or "")
+
+    voice_ok = bool(getattr(voice_status, "ok", False))
+    wake_ok = bool(getattr(wake_status, "ok", False))
+    voice_fallback = bool(getattr(voice_status, "fallback_used", False))
+    wake_fallback = bool(getattr(wake_status, "fallback_used", False))
+    real_voice_backend = voice_backend not in {"text_input", "disabled", "unknown"}
+    real_wake_backend = wake_backend not in {"text_input", "disabled", "unknown"}
+    ready = bool(
+        voice_input_enabled
+        and voice_ok
+        and wake_ok
+        and real_voice_backend
+        and real_wake_backend
+        and not voice_fallback
+    )
+
+    command_asr_ready = False
+    try:
+        from modules.devices.audio.command_asr.command_grammar import build_default_command_grammar
+
+        grammar = build_default_command_grammar()
+        command_asr_ready = bool(grammar.to_vosk_vocabulary())
+    except Exception as error:
+        append_log(f"Command ASR readiness check failed safely: {error}")
+
+    device_detail = (
+        f"device_index={voice_input_cfg.get('device_index')}, "
+        f"device_name_contains={voice_input_cfg.get('device_name_contains')}, "
+        f"sample_rate={voice_input_cfg.get('sample_rate')}"
+    )
+    issues: list[str] = []
+    if not voice_input_enabled:
+        issues.append("voice_input.enabled is false")
+    if not voice_ok:
+        issues.append(f"voice_input backend not ready: {voice_detail}")
+    if voice_fallback or not real_voice_backend:
+        issues.append(f"voice_input is not a real microphone backend: {voice_backend}")
+    if not wake_ok:
+        issues.append(f"wake backend not ready: {wake_detail}")
+    if wake_fallback or not real_wake_backend:
+        issues.append(f"wake backend is not dedicated real wake mode: {wake_backend}")
+    if not command_asr_ready:
+        issues.append("command ASR grammar is not ready")
+
+    print(f"Voice input enabled: {voice_input_enabled}", flush=True)
+    print(f"Wake engine: {wake_engine}", flush=True)
+    print(f"Microphone ready: {voice_backend} ({device_detail})", flush=True)
+    print(f"Wake backend ready: {wake_backend}", flush=True)
+    print(f"Command ASR ready: {command_asr_ready}", flush=True)
+    print("Wake loop listening", flush=True)
+    print(f"Voice runtime ready: {ready}", flush=True)
+
+    append_log(
+        "Voice runtime readiness: "
+        f"ready={ready}, voice_input_enabled={voice_input_enabled}, "
+        f"voice_backend={voice_backend}, wake_engine={wake_engine}, "
+        f"wake_backend={wake_backend}, command_asr_ready={command_asr_ready}, "
+        f"issues={' | '.join(issues) if issues else 'none'}"
+    )
+
+    payload = {
+        "ready": ready,
+        "voice_input_enabled": voice_input_enabled,
+        "voice_backend": voice_backend,
+        "voice_detail": voice_detail,
+        "wake_engine": wake_engine,
+        "wake_backend": wake_backend,
+        "wake_detail": wake_detail,
+        "command_asr_ready": command_asr_ready,
+        "device": {
+            "device_index": voice_input_cfg.get("device_index"),
+            "device_name_contains": voice_input_cfg.get("device_name_contains"),
+            "sample_rate": voice_input_cfg.get("sample_rate"),
+        },
+        "issues": issues,
+    }
+    state_dir = stack_state_dir()
+    try:
+        state_dir.mkdir(parents=True, exist_ok=True)
+        tmp_path = state_dir / "voice_ready.json.tmp"
+        target_path = state_dir / "voice_ready.json"
+        tmp_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        tmp_path.replace(target_path)
+    except OSError as error:
+        append_log(f"Failed to write voice readiness file: {error}")

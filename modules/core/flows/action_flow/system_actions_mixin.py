@@ -1258,14 +1258,14 @@ class ActionSystemActionsMixin:
             action="exit",
             spoken_text=self._localized(
                 language,
-                "Zamykam NeXa.",
-                "Closing NeXa.",
+                "Wyłączam Nexę.",
+                "Shutting down NeXa.",
             ),
             display_title="EXIT",
             display_lines=self._localized_lines(
                 language,
-                ["zamykam", "runtime"],
-                ["closing", "runtime"],
+                ["wylaczam", "stack"],
+                ["shutting down", "stack"],
             ),
             extra_metadata={
                 "resolved_source": resolved.source,
@@ -1273,6 +1273,13 @@ class ActionSystemActionsMixin:
                 "response_kind": "runtime_exit",
             },
         )
+        try:
+            from modules.runtime.stack_shutdown import request_stack_shutdown
+
+            request_path = request_stack_shutdown(reason="voice_exit_command")
+            self.LOGGER.info("Requested NeXa stack shutdown via %s", request_path)
+        except Exception as error:
+            self.LOGGER.warning("Failed to request NeXa stack shutdown safely: %s", error)
         return SkillResult(
             action="exit",
             handled=False,

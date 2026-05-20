@@ -1598,6 +1598,12 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             "system.exit",
+            "nexa exit",
+            CommandLanguage.ENGLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
             "exit assistant",
             CommandLanguage.ENGLISH,
             tags=("system", "exit"),
@@ -1612,7 +1618,25 @@ def build_default_command_grammar() -> CommandGrammar:
             "system.exit",
             "close nexa",
             CommandLanguage.ENGLISH,
-            tags=("system", "exit", 'vosk_exclude'),
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "shutdown nexa",
+            CommandLanguage.ENGLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "stop nexa",
+            CommandLanguage.ENGLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "quit nexa",
+            CommandLanguage.ENGLISH,
+            tags=("system", "exit"),
         ),
         CommandPhrase(
             "system.exit",
@@ -1662,6 +1686,12 @@ def build_default_command_grammar() -> CommandGrammar:
             CommandLanguage.POLISH,
             tags=("system", "exit"),
         ),
+        CommandPhrase(
+            "system.exit",
+            "wyłącz się",
+            CommandLanguage.POLISH,
+            tags=("system", "exit", "vosk_exclude"),
+        ),
 
         CommandPhrase(
             "system.exit",
@@ -1671,7 +1701,19 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             "system.exit",
+            "wyłącz nexę",
+            CommandLanguage.POLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
             "wylacz nexa",
+            CommandLanguage.POLISH,
+            tags=("system", "exit", "stt_recovery", "vosk_exclude"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "wylacz nexe",
             CommandLanguage.POLISH,
             tags=("system", "exit", "stt_recovery", "vosk_exclude"),
         ),
@@ -1683,9 +1725,21 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             "system.exit",
-            "close nexa",
-            CommandLanguage.ENGLISH,
-            tags=("system", "exit", "vosk_exclude"),
+            "zamknij nexę",
+            CommandLanguage.POLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "koniec pracy",
+            CommandLanguage.POLISH,
+            tags=("system", "exit"),
+        ),
+        CommandPhrase(
+            "system.exit",
+            "zakończ pracę",
+            CommandLanguage.POLISH,
+            tags=("system", "exit"),
         ),
         CommandPhrase(
             "system.exit",

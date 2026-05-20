@@ -1,5 +1,104 @@
 # Troubleshooting Log
 
+## Stack launcher does not stop cleanly
+
+**Area:** local runtime stack
+
+Start the full local stack with:
+
+```bash
+./scripts/start_nexa_stack.sh
+```
+
+Stop it manually with:
+
+```bash
+./scripts/stop_nexa_stack.sh
+```
+
+While the stack is running, inspect ownership and PID state in:
+
+```bash
+var/run/nexa_stack/
+```
+
+Useful files are `state.json`, `launcher.pid`, and per-process PID files such as `nexa.pid`, `visual-shell.pid`, or `llm.pid` when those processes were started by the launcher. If `llm.reused_existing` is true in `state.json`, the launcher detected an already-running LLM backend and will not stop it.
+
+The stop script writes `var/run/nexa_stack/shutdown.request` first, then waits for the launcher to clean up stack-owned processes. If the launcher is already gone, it falls back to the owned process groups recorded in `state.json`; it never kills unrelated processes by command name.
+
+## LLM executable not found: llama-server
+
+**Area:** local LLM startup
+
+**Symptom**
+
+The stack launcher prints:
+
+```text
+[launcher] LLM executable not found: llama-server
+```
+
+**Fix**
+
+If `llama.cpp` was built inside the repository, make sure this file exists and is executable:
+
+```bash
+llama.cpp/build/bin/llama-server
+```
+
+The launcher checks that repo-local path automatically. For a custom location, start with an absolute override:
+
+```bash
+NEXA_LLM_SERVER_BIN=/absolute/path/to/llama-server ./scripts/start_nexa_stack.sh
+```
+
+The override only replaces the executable. Model path, host, port, context size, and thread settings still come from the project LLM configuration and launcher arguments.
+
+## NeXa does not react to the wake word after stack startup
+
+**Area:** voice runtime startup
+
+The stack launcher should not print full readiness until it sees:
+
+```text
+[launcher] NeXa voice runtime is ready
+[launcher] Full NeXa stack is ready
+```
+
+The NeXa runtime should also print voice status lines such as:
+
+```text
+[nexa] Voice input enabled: True
+[nexa] Wake engine: openwakeword
+[nexa] Microphone ready: faster_whisper (...)
+[nexa] Wake backend ready: openwakeword
+[nexa] Command ASR ready: True
+[nexa] Wake loop listening
+[nexa] Voice runtime ready: True
+```
+
+If readiness fails or times out, inspect:
+
+```bash
+var/run/nexa_stack/voice_ready.json
+```
+
+Then check these settings in `config/settings.json`:
+
+- `voice_input.enabled` must be `true`
+- `voice_input.engine` should be the intended microphone backend, for example `faster_whisper`
+- `voice_input.wake_engine` should be `openwakeword`
+- `voice_input.device_index` and `voice_input.device_name_contains` must match the real microphone
+- `voice_input.wake_model_path` must point to an existing wake model
+
+Run the existing focused voice diagnostic:
+
+```bash
+.venv/bin/python scripts/check_nexa_real_voice_runtime.py
+```
+
+The stack launcher starts `main.py` with `PYTHONUNBUFFERED=1`, `NEXA_REQUIRE_REAL_VOICE_INPUT=1`, and `NEXA_REQUIRE_REAL_WAKE_GATE=1`, so microphone or wake backend failures should be visible instead of silently falling back to developer text input.
+
 
 
 ## Issue 001 - USB microphone captures too much noise
