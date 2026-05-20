@@ -180,3 +180,9 @@ var/backups/
 deploy/systemd-backups/
 
 var/run/
+
+# Runtime logs and local patch backups
+*.log
+*.patch
+var/log/
+var/patches/
