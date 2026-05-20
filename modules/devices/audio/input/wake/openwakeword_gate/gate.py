@@ -44,6 +44,7 @@ class OpenWakeWordGate(OpenWakeWordGateListener):
         model_path: str = "models/wake/nexa.onnx",
         device_index: int | None = None,
         device_name_contains: str | None = None,
+        alsa_device: str | None = None,
         threshold: float = 0.50,
         trigger_level: int = 2,
         block_ms: int = 80,
@@ -87,7 +88,7 @@ class OpenWakeWordGate(OpenWakeWordGateListener):
         self.relaxed_hit_floor = self._resolve_relaxed_hit_floor(self.threshold)
 
         self.audio_coordinator = None
-        self.device = self._resolve_input_device(device_index, device_name_contains)
+        self.device = self._resolve_input_device(device_index, device_name_contains, alsa_device)
 
         if is_arecord_device(self.device):
             input_info = {
@@ -134,6 +135,8 @@ class OpenWakeWordGate(OpenWakeWordGateListener):
         self._last_blocked_observed_monotonic = 0.0
         self._last_debug_print_monotonic = 0.0
         self._score_history: list[float] = []
+        self._overflow_count: int = 0
+        self._mic_silence_warned: bool = False
 
         from openwakeword.model import Model
 

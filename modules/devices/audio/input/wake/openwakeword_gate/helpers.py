@@ -237,7 +237,30 @@ class OpenWakeWordGateHelpers:
         self,
         device_index: int | None,
         device_name_contains: str | None,
+        alsa_device: str | None = None,
     ) -> int | str | None:
+        # When an explicit ALSA device string is supplied, bypass sounddevice/PortAudio
+        # entirely and use the arecord path.  This is the recommended path on PipeWire
+        # systems where direct hw: access via PortAudio yields near-silence because
+        # PipeWire has claimed the USB mic at the kernel level.
+        if alsa_device:
+            alsa_str = str(alsa_device).strip()
+            if alsa_str:
+                device_path = f"alsa:{alsa_str}"
+                self.device_name = alsa_str
+                self.available_input_devices_summary = f"forced_alsa={alsa_str}"
+                self.device_selection_reason = (
+                    f"forced alsa_device={alsa_str!r} (PipeWire-safe arecord path)"
+                )
+                self._device_default_sample_rate = 16000
+                message = (
+                    f"OpenWakeWordGate: using forced ALSA device={alsa_str!r} "
+                    "(bypassing PortAudio/sounddevice for PipeWire compatibility)"
+                )
+                print(message, flush=True)
+                LOGGER.warning(message)
+                return device_path
+
         selection = resolve_input_device_selection(
             device_index=device_index,
             device_name_contains=device_name_contains,

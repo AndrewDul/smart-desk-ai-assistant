@@ -24,7 +24,7 @@
     "wake_barge_in_min_output_age_seconds": 0.75,
     "wake_barge_in_resume_timeout_seconds": 1.5,
     "wake_barge_in_refractory_seconds": 1.5,
-    "device_index": 2,
+    "device_index": null,
     "device_name_contains": "reSpeaker",
     "timeout_seconds": 7,
     "active_listen_window_seconds": 3.8,
@@ -128,7 +128,8 @@
         "min_speech_seconds": 0.1,
         "pre_roll_seconds": 0.16
       }
-    }
+    },
+    "wake_alsa_device": "plughw:CARD=Array,DEV=0"
   },
   "voice_engine": {
     "enabled": false,
@@ -229,7 +230,7 @@
     },
     "process_poll_seconds": 0.02,
     "playback_poll_seconds": 0.005,
-    "preferred_playback_backend": "aplay",
+    "preferred_playback_backend": "paplay",
     "direct_sounddevice_playback_enabled": false,
     "allow_espeak_fallback": false
   },
@@ -459,6 +460,8 @@
       "max_step_degrees": 2.0,
       "limit_margin_degrees": 1.0,
       "base_yaw_assist_edge_threshold": 0.42,
+      "yaw_assist_pan_usage_start": 0.5,
+      "yaw_assist_pan_usage_stop": 0.35,
       "min_target_confidence": 0.58,
       "min_face_area_norm": 0.0015,
       "target_activation_hits": 2,
@@ -565,11 +568,22 @@
     "command_mode": "gimbal_move"
   },
   "mobility": {
-    "enabled": false,
+    "enabled": true,
+    "dry_run": false,
+    "port": "auto",
+    "baudrate": 115200,
+    "timeout_seconds": 0.2,
+    "command_profile": "ros",
+    "movement_enabled": true,
+    "require_movement_confirm_env": true,
     "base_type": "differential",
     "safety_stop_enabled": true,
     "max_linear_speed": 0.3,
-    "max_turn_speed": 0.5
+    "max_turn_speed": 0.5,
+    "default_turn_speed": 0.18,
+    "stop_repeat": 1,
+    "stop_interval_seconds": 0.0,
+    "wheel_turn_speed_mps": 0.12
   },
   "benchmarks": {
     "enabled": true,
@@ -618,8 +632,8 @@
     "center_on_stop": false,
     "movement_interval_seconds": 0.025,
     "command_interval_seconds": 0.025,
-    "command_speed": 180,
-    "command_acceleration": 130,
+    "command_speed": 230,
+    "command_acceleration": 220,
     "width": 320,
     "height": 240,
     "duration_seconds": 30.0,
@@ -629,6 +643,18 @@
     "search_interval_seconds": 0.1,
     "smoothing_alpha": 0.32,
     "min_move_degrees": 0.03,
+    "smooth_tracking_enabled": true,
+    "tracking_smoothing_alpha": 0.72,
+    "smooth_follow_lead_gain": 2.2,
+    "smooth_follow_min_live_step_degrees": 0.28,
+    "smooth_follow_command_interval_seconds": 0.016,
+    "no_tilt_below_center": true,
+    "yaw_assist_pan_usage_start": 0.5,
+    "yaw_assist_pan_usage_stop": 0.35,
+    "mobile_base_yaw_assist_enabled": true,
+    "mobile_base_contact_required_for_yaw": true,
+    "mobile_base_yaw_speed": 0.16,
+    "mobile_base_yaw_assist_interval_seconds": 0.25,
     "pan_soft_limit_zone_degrees": 0.0,
     "tilt_soft_limit_zone_degrees": 0.0,
     "template_tracking_enabled": true,
@@ -646,7 +672,7 @@
     "runtime_hardware_execution_enabled": true,
     "physical_movement_confirmed": true,
     "runtime_status_path": "var/data/look_at_me_tracking_status.json",
-    "max_runtime_step_degrees": 2.2,
+    "max_runtime_step_degrees": 2.5,
     "command_mode": "gimbal_move",
     "search_tilt_levels_degrees": [
       0.0,

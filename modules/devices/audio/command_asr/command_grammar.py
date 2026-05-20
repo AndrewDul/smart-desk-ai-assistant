@@ -1050,6 +1050,12 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             "system.current_time",
+            "tell me the time",
+            CommandLanguage.ENGLISH,
+            tags=("system", "time"),
+        ),
+        CommandPhrase(
+            "system.current_time",
             "what time it is",
             CommandLanguage.ENGLISH,
             tags=('system', 'time'),

@@ -26,6 +26,7 @@
     "wake_barge_in_refractory_seconds": 1.5,
     "device_index": null,
     "device_name_contains": "reSpeaker",
+    "wake_alsa_device": null,
     "timeout_seconds": 7,
     "active_listen_window_seconds": 6.0,
     "thinking_ack_seconds": 1.2,
@@ -182,7 +183,7 @@
     },
     "process_poll_seconds": 0.02,
     "playback_poll_seconds": 0.005,
-    "preferred_playback_backend": "aplay",
+    "preferred_playback_backend": "paplay",
     "allow_espeak_fallback": false
   },
   "display": {
@@ -373,6 +374,26 @@
       "physical_movement_confirmed": false
     }
   },
+  "look_at_me": {
+    "enabled": true,
+    "search_when_no_face": true,
+    "runtime_pan_tilt_execution_enabled": false,
+    "runtime_hardware_execution_enabled": false,
+    "physical_movement_confirmed": false,
+    "smooth_tracking_enabled": true,
+    "tracking_smoothing_alpha": 0.72,
+    "smooth_follow_lead_gain": 2.2,
+    "smooth_follow_min_live_step_degrees": 0.28,
+    "smooth_follow_command_interval_seconds": 0.016,
+    "no_tilt_below_center": true,
+    "target_lost_grace_seconds": 0.8,
+    "yaw_assist_pan_usage_start": 0.50,
+    "yaw_assist_pan_usage_stop": 0.35,
+    "mobile_base_yaw_assist_enabled": false,
+    "mobile_base_contact_required_for_yaw": true,
+    "mobile_base_yaw_speed": 0.12,
+    "mobile_base_yaw_assist_interval_seconds": 0.2
+  },
   "focus_vision": {
     "enabled": true,
     "dry_run": false,
@@ -450,10 +471,21 @@
   },
   "mobility": {
     "enabled": false,
+    "dry_run": false,
+    "port": "auto",
+    "baudrate": 115200,
+    "timeout_seconds": 0.2,
+    "command_profile": "ros",
+    "movement_enabled": false,
+    "require_movement_confirm_env": true,
     "base_type": "differential",
     "safety_stop_enabled": true,
     "max_linear_speed": 0.3,
-    "max_turn_speed": 0.5
+    "max_turn_speed": 0.5,
+    "default_turn_speed": 0.18,
+    "stop_repeat": 1,
+    "stop_interval_seconds": 0.0,
+    "wheel_turn_speed_mps": 0.12
   },
   "benchmarks": {
     "enabled": true,

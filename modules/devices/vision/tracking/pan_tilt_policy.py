@@ -104,10 +104,25 @@ class PanTiltTrackingPolicy:
         pan_delta = _clamp_step(raw_pan_delta, self._config.max_step_degrees)
         tilt_delta = _clamp_step(raw_tilt_delta, self._config.max_step_degrees)
 
+        # Block any downward tilt correction when no_tilt_below_center is enabled.
+        # This applies regardless of current position — even returning from above center
+        # is blocked during active look-at-me tracking (camera should only look up).
+        tilt_blocked_by_no_down = False
+        if self._config.no_tilt_below_center and tilt_delta < 0.0:
+            tilt_blocked_by_no_down = True
+            tilt_delta = 0.0
+
         desired_pan = float(current_pan_degrees) + pan_delta
         desired_tilt = float(current_tilt_degrees) + tilt_delta
         clamped_pan = safe_limits.clamp_pan(desired_pan)
-        clamped_tilt = safe_limits.clamp_tilt(desired_tilt)
+        if self._config.no_tilt_below_center:
+            clamped_tilt = safe_limits.clamp_tilt_not_below_center(desired_tilt)
+        else:
+            clamped_tilt = safe_limits.clamp_tilt(desired_tilt)
+        tilt_clamped_to_center = bool(
+            self._config.no_tilt_below_center
+            and (tilt_blocked_by_no_down or desired_tilt < safe_limits.tilt_center_degrees)
+        )
 
         pan_at_limit = abs(clamped_pan - desired_pan) > 1e-6 or _near_pan_limit(
             clamped_pan,
@@ -120,14 +135,34 @@ class PanTiltTrackingPolicy:
             self._config.limit_margin_degrees,
         )
 
-        base_yaw_assist_required = bool(
-            pan_at_limit and abs(offset_x) >= self._config.base_yaw_assist_edge_threshold
+        # Pan usage as fraction of usable range from center (0.0 = center, 1.0 = hard limit).
+        pan_half_range = max(
+            abs(safe_limits.pan_max_degrees - safe_limits.pan_center_degrees),
+            abs(safe_limits.pan_center_degrees - safe_limits.pan_min_degrees),
+            1e-6,
         )
-        base_yaw_direction = (
-            _base_yaw_direction_from_offset(offset_x)
-            if base_yaw_assist_required
-            else None
+        pan_usage = min(
+            1.0,
+            abs(float(current_pan_degrees) - safe_limits.pan_center_degrees) / pan_half_range,
         )
+
+        # Yaw assist is eligible when pan usage reaches the start threshold.
+        # Direction uses face offset when the face is off-center; when the face sits
+        # in the dead zone (camera already pointing at the user but head is angled far
+        # left or right), direction falls back to the sign of current pan so the base
+        # continues to unwind toward center.
+        base_yaw_assist_required = bool(pan_usage >= self._config.yaw_assist_pan_usage_start)
+        yaw_direction_source = "none"
+        if base_yaw_assist_required:
+            if abs(offset_x) > self._config.dead_zone_x:
+                base_yaw_direction = _base_yaw_direction_from_offset(offset_x)
+                yaw_direction_source = "face_offset"
+            else:
+                pan_error = float(current_pan_degrees) - safe_limits.pan_center_degrees
+                base_yaw_direction = "left" if pan_error < 0.0 else "right"
+                yaw_direction_source = "pan_sign_at_high_usage"
+        else:
+            base_yaw_direction = None
 
         reason = "target_centered"
         if abs(pan_delta) > 0.0 or abs(tilt_delta) > 0.0:
@@ -157,6 +192,14 @@ class PanTiltTrackingPolicy:
                 "offset_y": round(offset_y, 4),
                 "raw_pan_delta_degrees": round(raw_pan_delta, 4),
                 "raw_tilt_delta_degrees": round(raw_tilt_delta, 4),
+                "tilt_center_degrees": round(safe_limits.tilt_center_degrees, 4),
+                "no_tilt_below_center": self._config.no_tilt_below_center,
+                "tilt_clamped_to_center": tilt_clamped_to_center,
+                "tilt_blocked_by_no_down_rule": tilt_blocked_by_no_down,
+                "pan_usage": round(pan_usage, 4),
+                "yaw_assist_pan_usage_start_threshold": self._config.yaw_assist_pan_usage_start,
+                "yaw_assist_pan_usage_stop_threshold": self._config.yaw_assist_pan_usage_stop,
+                "yaw_direction_source": yaw_direction_source,
                 "dead_zone_x": self._config.dead_zone_x,
                 "dead_zone_y": self._config.dead_zone_y,
                 "base_yaw_assist_edge_threshold": self._config.base_yaw_assist_edge_threshold,

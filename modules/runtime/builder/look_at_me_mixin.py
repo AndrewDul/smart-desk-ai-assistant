@@ -56,11 +56,13 @@ class LookAtMeSession:
         vision_backend: Any,
         pan_tilt_backend: Any,
         vision_tracking_service: Any | None = None,
+        mobility_backend: Any | None = None,
     ) -> None:
         self._settings = settings
         self._vision_backend = vision_backend
         self._pan_tilt_backend = pan_tilt_backend
         self._vision_tracking_service = vision_tracking_service
+        self._mobility_backend = mobility_backend
         self._config = dict(settings.get("look_at_me", {}) or {})
         self.enabled = bool(self._config.get("enabled", True))
 
@@ -84,6 +86,15 @@ class LookAtMeSession:
         self._search_direction = -1.0
         self._search_tilt_index = 0
         self._search_tilt_phase = "up"
+        self._tracking_state = "idle"
+        self._yaw_assist_active = False
+        self._yaw_assist_direction: str | None = None
+        self._last_yaw_assist_command_at = 0.0
+        self._last_yaw_assist_error: str | None = None
+        self._mobile_base_backend_started = False
+        self._mobile_base_contact_ok = False
+        self._last_mobile_base_command: dict[str, Any] | None = None
+        self._last_mobile_base_error: str | None = None
 
     def start(self, *, language: str = "en") -> dict[str, Any]:
         with self._lock:
@@ -126,8 +137,18 @@ class LookAtMeSession:
             self._search_virtual_pan_degrees = None
             self._search_virtual_tilt_degrees = None
             self._suspect_false_lock_started_at = None
+            self._tracking_state = "scanning_for_face"
+            self._yaw_assist_active = False
+            self._yaw_assist_direction = None
+            self._last_yaw_assist_command_at = 0.0
+            self._last_yaw_assist_error = None
+            self._mobile_base_backend_started = False
+            self._mobile_base_contact_ok = False
+            self._last_mobile_base_command = None
+            self._last_mobile_base_error = None
 
             self._activate_runtime_tracking_service()
+            self._ensure_mobile_base_backend_started()
 
             self._worker = threading.Thread(
                 target=self._run_loop,
@@ -153,6 +174,8 @@ class LookAtMeSession:
         if worker is not None and worker.is_alive():
             worker.join(timeout=self._stop_timeout_seconds())
 
+        self._stop_yaw_assist(reason="stop")
+
         center_result: dict[str, Any] | None = None
         if bool(self._config.get("center_on_stop", False)):
             backend = self._active_pan_tilt_backend or self._pan_tilt_backend
@@ -165,6 +188,7 @@ class LookAtMeSession:
 
         self._resume_object_detection_if_needed()
         self._close_active_runtime_backends()
+        self._close_mobile_base_backend_if_started()
 
         return {
             "stopped": was_running,
@@ -207,6 +231,16 @@ class LookAtMeSession:
                 "active_runtime_pan_tilt_backend": self._active_pan_tilt_backend is not None,
                 "active_tracking_status": active_status,
                 "search_status": search_status,
+                "tracking_state": self._tracking_state,
+                "mobile_base_yaw_assist_enabled": self._mobile_base_yaw_assist_enabled(),
+                "mobile_base_yaw_assist_active": self._yaw_assist_active,
+                "mobile_base_yaw_assist_direction": self._yaw_assist_direction,
+                "mobile_base_backend_started": self._mobile_base_backend_started,
+                "mobile_base_contact_ok": self._mobile_base_contact_ok,
+                "mobile_base_yaw_assist_available": self._mobile_base_yaw_assist_available(),
+                "last_mobile_base_command": dict(self._last_mobile_base_command or {}),
+                "last_mobile_base_error": self._last_mobile_base_error,
+                "last_yaw_assist_error": self._last_yaw_assist_error,
             }
 
     def _run_loop(self) -> None:
@@ -243,8 +277,10 @@ class LookAtMeSession:
             with self._lock:
                 self._last_error = f"{type(error).__name__}: {error}"
         finally:
+            self._stop_yaw_assist(reason="look_at_me_loop_exit")
             self._resume_object_detection_if_needed()
             self._close_active_runtime_backends()
+            self._close_mobile_base_backend_if_started()
 
     def _run_once(self, *, min_delta: float) -> dict[str, Any]:
         service = self._tracking_service()
@@ -278,6 +314,25 @@ class LookAtMeSession:
         tilt_delta = _safe_float(plan_payload.get("tilt_delta_degrees", 0.0))
 
         if not has_target:
+            last_seen = self._last_target_seen_at
+            if last_seen is not None:
+                age = time.monotonic() - last_seen
+                grace = _safe_float(self._config.get("target_lost_grace_seconds", 0.8), 0.8)
+                if age < grace:
+                    self._mark_tracking_state("target_grace_period")
+                    return {
+                        "ok": True,
+                        "reason": "target_grace_period",
+                        "has_target": False,
+                        "movement_executed": False,
+                        "short_dropout_grace_active": True,
+                        "last_face_seen_age_ms": round(age * 1000, 1),
+                        "search_active": False,
+                        "plan": plan_payload,
+                    }
+
+            self._mark_tracking_state("lost_face_reacquire")
+            self._stop_yaw_assist(reason="face_lost")
             search_result = self._maybe_run_search_step(
                 reason=str(plan_payload.get("reason") or "no_target"),
                 plan_payload=plan_payload,
@@ -291,14 +346,21 @@ class LookAtMeSession:
                 "reason": str(plan_payload.get("reason") or "no_target"),
                 "has_target": False,
                 "movement_executed": False,
+                "short_dropout_grace_active": False,
                 "plan": plan_payload,
                 "execution_result": execution_result or {},
                 "pan_tilt_adapter_result": adapter_result or {},
             }
 
         self._remember_target_seen()
+        self._mark_tracking_state("tracking_face")
 
         if abs(pan_delta) < min_delta and abs(tilt_delta) < min_delta:
+            # Pan/tilt is already close enough — no servo step needed.
+            # Still apply yaw assist from the plan: at high pan angles the policy
+            # will request yaw even when the face is centered (pan_delta ~ 0),
+            # so stopping yaw here would immediately cancel a required base rotation.
+            yaw_assist = self._apply_yaw_assist_from_plan(plan_payload)
             return {
                 "ok": True,
                 "reason": "below_min_move_degrees",
@@ -309,12 +371,16 @@ class LookAtMeSession:
                 "plan": plan_payload,
                 "execution_result": execution_result or {},
                 "pan_tilt_adapter_result": adapter_result or {},
+                "yaw_assist": yaw_assist,
             }
 
         backend_executed = bool((adapter_result or {}).get("backend_command_executed", False))
         if backend_executed:
             with self._lock:
                 self._move_count += 1
+
+        yaw_assist = self._apply_yaw_assist_from_plan(plan_payload)
+        diagnostics = plan_payload.get("diagnostics") if isinstance(plan_payload.get("diagnostics"), dict) else {}
 
         return {
             "ok": bool((adapter_result or {}).get("accepted", False)),
@@ -330,6 +396,14 @@ class LookAtMeSession:
             "plan": plan_payload,
             "execution_result": execution_result or {},
             "pan_tilt_adapter_result": adapter_result or {},
+            "yaw_assist": yaw_assist,
+            "smoothed_error_x": diagnostics.get("offset_x"),
+            "smoothed_error_y": diagnostics.get("offset_y"),
+            "pan_command_degrees": round(pan_delta, 4),
+            "tilt_command_degrees": round(tilt_delta, 4),
+            "tilt_clamped_to_center": bool(diagnostics.get("tilt_clamped_to_center", False)),
+            "tilt_blocked_by_no_down_rule": bool(diagnostics.get("tilt_blocked_by_no_down_rule", False)),
+            "stop_start_pattern_detected": False,
         }
 
     def _tracking_service(self) -> Any | None:
@@ -467,6 +541,20 @@ class LookAtMeSession:
                     self._config.get("base_yaw_assist_edge_threshold"),
                     policy.get("base_yaw_assist_edge_threshold", 0.42),
                 ),
+                "yaw_assist_pan_usage_start": _safe_float(
+                    self._config.get("yaw_assist_pan_usage_start"),
+                    policy.get("yaw_assist_pan_usage_start", 0.50),
+                ),
+                "yaw_assist_pan_usage_stop": _safe_float(
+                    self._config.get("yaw_assist_pan_usage_stop"),
+                    policy.get("yaw_assist_pan_usage_stop", 0.35),
+                ),
+                "no_tilt_below_center": bool(
+                    self._config.get(
+                        "no_tilt_below_center",
+                        policy.get("no_tilt_below_center", True),
+                    )
+                ),
                 "min_target_confidence": _safe_float(
                     self._config.get("min_target_confidence"),
                     policy.get("min_target_confidence", 0.66),
@@ -515,6 +603,23 @@ class LookAtMeSession:
             "require_no_motion_startup_policy": True,
             "max_allowed_pan_delta_degrees": self._runtime_max_step_degrees(),
             "max_allowed_tilt_delta_degrees": self._runtime_max_step_degrees(),
+            "smooth_follow_enabled": bool(self._config.get("smooth_tracking_enabled", True)),
+            "smooth_follow_alpha": _safe_float(
+                self._config.get("tracking_smoothing_alpha"),
+                _safe_float(self._config.get("smoothing_alpha"), 0.62),
+            ),
+            "smooth_follow_lead_gain": _safe_float(
+                self._config.get("smooth_follow_lead_gain"),
+                2.0,
+            ),
+            "smooth_follow_min_live_step_degrees": _safe_float(
+                self._config.get("smooth_follow_min_live_step_degrees"),
+                0.28,
+            ),
+            "smooth_follow_command_interval_seconds": _safe_float(
+                self._config.get("smooth_follow_command_interval_seconds"),
+                0.016,
+            ),
         }
         return base
 
@@ -575,6 +680,10 @@ class LookAtMeSession:
             self._search_direction = -1.0
             self._search_tilt_index = 0
 
+    def _mark_tracking_state(self, state: str) -> None:
+        with self._lock:
+            self._tracking_state = state
+
     def _maybe_run_search_step(
         self,
         *,
@@ -585,6 +694,9 @@ class LookAtMeSession:
     ) -> dict[str, Any] | None:
         if not bool(self._config.get("search_when_no_face", True)):
             return None
+
+        self._stop_yaw_assist(reason="searching_for_face")
+        self._mark_tracking_state("scanning_for_face")
 
         now = time.monotonic()
         with self._lock:
@@ -1011,9 +1123,9 @@ class LookAtMeSession:
     def _movement_interval_seconds(self) -> float:
         value = self._config.get(
             "command_interval_seconds",
-            self._config.get("movement_interval_seconds", 0.055),
+            self._config.get("movement_interval_seconds", 0.040),
         )
-        return max(0.045, min(0.5, _safe_float(value, 0.055)))
+        return max(0.020, min(0.5, _safe_float(value, 0.040)))
 
     def _force_refresh_during_tracking(self) -> bool:
         return bool(self._config.get("force_refresh_during_tracking", False))
@@ -1030,6 +1142,251 @@ class LookAtMeSession:
             return None
         return time.monotonic() + max(1.0, max_seconds)
 
+    def _mobile_base_yaw_assist_enabled(self) -> bool:
+        return bool(self._config.get("mobile_base_yaw_assist_enabled", False))
+
+    def _mobile_base_yaw_assist_available(self) -> bool:
+        backend = self._mobility_backend
+        return bool(
+            self._mobile_base_yaw_assist_enabled()
+            and self._mobile_base_contact_ok
+            and callable(getattr(backend, "send_velocity", None))
+        )
+
+    def _mobile_base_contact_required_for_yaw(self) -> bool:
+        return bool(self._config.get("mobile_base_contact_required_for_yaw", True))
+
+    def _mobile_base_yaw_speed(self) -> float:
+        configured = _safe_float(self._config.get("mobile_base_yaw_speed"), 0.12)
+        return max(0.02, min(0.35, configured))
+
+    def _mobile_base_yaw_assist_interval_seconds(self) -> float:
+        configured = _safe_float(self._config.get("mobile_base_yaw_assist_interval_seconds"), 0.2)
+        return max(0.05, min(1.0, configured))
+
+    def _apply_yaw_assist_from_plan(self, plan_payload: dict[str, Any]) -> dict[str, Any]:
+        yaw_required = bool(plan_payload.get("base_yaw_assist_required", False))
+        diagnostics = dict(plan_payload.get("diagnostics") or {})
+        pan_usage = _safe_float(diagnostics.get("pan_usage", 0.0), 0.0)
+        stop_threshold = _safe_float(
+            self._config.get("yaw_assist_pan_usage_stop", 0.35), 0.35
+        )
+
+        with self._lock:
+            yaw_was_active = self._yaw_assist_active
+            last_direction = self._yaw_assist_direction
+
+        if not yaw_required:
+            if not yaw_was_active:
+                return {"requested": False, "executed": False, "reason": "not_required"}
+            # Yaw was active: hold if still above stop threshold (hysteresis zone)
+            if pan_usage < stop_threshold:
+                self._stop_yaw_assist(reason="pan_usage_below_stop_threshold")
+                return {
+                    "requested": False,
+                    "executed": False,
+                    "reason": "pan_usage_below_stop_threshold",
+                    "pan_usage": round(pan_usage, 4),
+                }
+            # Still in hysteresis zone — maintain previous direction
+            if last_direction not in {"left", "right"}:
+                self._stop_yaw_assist(reason="direction_unavailable_in_hysteresis")
+                return {"requested": True, "executed": False, "reason": "hysteresis_no_direction"}
+            return self._send_yaw_assist(direction=last_direction)
+
+        direction = str(plan_payload.get("base_yaw_direction") or "").strip().lower()
+        if direction not in {"left", "right"}:
+            self._stop_yaw_assist(reason="invalid_yaw_direction")
+            return {"requested": True, "executed": False, "reason": "invalid_direction"}
+
+        return self._send_yaw_assist(direction=direction)
+
+    def _send_yaw_assist(self, *, direction: str) -> dict[str, Any]:
+        if not self._mobile_base_yaw_assist_enabled():
+            return {"requested": True, "executed": False, "reason": "disabled_by_config"}
+
+        self._ensure_mobile_base_backend_started()
+
+        if self._mobile_base_contact_required_for_yaw() and not self._mobile_base_contact_ok:
+            return {"requested": True, "executed": False, "reason": "mobile_base_contact_unavailable"}
+
+        backend = self._mobility_backend
+        if backend is None:
+            return {"requested": True, "executed": False, "reason": "mobility_backend_unavailable"}
+
+        send_velocity = getattr(backend, "send_velocity", None)
+        if not callable(send_velocity):
+            self._last_yaw_assist_error = "mobility_backend_send_velocity_unavailable"
+            return {"requested": True, "executed": False, "reason": "send_velocity_unavailable"}
+
+        now = time.monotonic()
+        with self._lock:
+            recently_sent_same_direction = (
+                self._yaw_assist_active
+                and self._yaw_assist_direction == direction
+                and (now - self._last_yaw_assist_command_at)
+                < self._mobile_base_yaw_assist_interval_seconds()
+            )
+        if recently_sent_same_direction:
+            return {"requested": True, "executed": False, "reason": "rate_limited"}
+
+        angular = self._mobile_base_yaw_speed()
+        if direction == "right":
+            angular = -angular
+
+        try:
+            raw_response = send_velocity(linear_x_mps=0.0, angular_z_rad_s=angular)
+            # MobileBaseController.send_velocity returns str (the serialised JSON line);
+            # test stubs and other backends may return dict — handle both.
+            if isinstance(raw_response, dict):
+                response: dict[str, Any] = raw_response
+            elif raw_response is not None:
+                response = {"sent_line": str(raw_response), "ok": True}
+            else:
+                response = {}
+        except Exception as error:
+            message = f"{type(error).__name__}: {error}"
+            with self._lock:
+                self._last_yaw_assist_error = message
+                self._last_mobile_base_error = message
+                self._yaw_assist_active = False
+                self._yaw_assist_direction = None
+            LOGGER.warning("Look-at-me mobile-base yaw assist was blocked: %s", message)
+            return {
+                "requested": True,
+                "executed": False,
+                "reason": "send_velocity_failed",
+                "error": message,
+            }
+
+        ok = bool(response.get("ok", True))
+        with self._lock:
+            self._yaw_assist_active = ok
+            self._yaw_assist_direction = direction if ok else None
+            self._last_yaw_assist_command_at = now
+            self._last_yaw_assist_error = None if ok else str(response.get("error") or "not_ok")
+            self._last_mobile_base_command = {
+                "linear_x_mps": 0.0,
+                "angular_z_rad_s": round(float(angular), 4),
+                "direction": direction,
+            }
+            self._last_mobile_base_error = None if ok else str(response.get("error") or "not_ok")
+
+        return {
+            "requested": True,
+            "executed": ok,
+            "reason": "yaw_assist_active" if ok else "yaw_assist_rejected",
+            "direction": direction,
+            "linear_x_mps": 0.0,
+            "angular_z_rad_s": round(float(angular), 4),
+            "backend_response": response,
+        }
+
+    def _stop_yaw_assist(self, *, reason: str) -> dict[str, Any]:
+        with self._lock:
+            was_active = self._yaw_assist_active
+            self._yaw_assist_active = False
+            self._yaw_assist_direction = None
+
+        if not was_active:
+            return {"stopped": False, "reason": reason}
+
+        backend = self._mobility_backend
+        if backend is None:
+            return {"stopped": False, "reason": "mobility_backend_unavailable"}
+
+        stop = getattr(backend, "stop", None)
+        if callable(stop):
+            try:
+                response = stop(reason=f"look_at_me_{reason}")
+            except TypeError:
+                response = stop()
+            except Exception as error:
+                message = f"{type(error).__name__}: {error}"
+                with self._lock:
+                    self._last_yaw_assist_error = message
+                    self._last_mobile_base_error = message
+                LOGGER.warning("Failed to stop look-at-me mobile-base yaw assist: %s", message)
+                return {"stopped": False, "reason": "stop_failed", "error": message}
+            return {"stopped": True, "reason": reason, "backend_response": _as_mapping(response)}
+
+        send_velocity = getattr(backend, "send_velocity", None)
+        if callable(send_velocity):
+            try:
+                response = send_velocity(linear_x_mps=0.0, angular_z_rad_s=0.0)
+            except Exception as error:
+                message = f"{type(error).__name__}: {error}"
+                with self._lock:
+                    self._last_yaw_assist_error = message
+                    self._last_mobile_base_error = message
+                LOGGER.warning("Failed to zero look-at-me mobile-base yaw assist: %s", message)
+                return {"stopped": False, "reason": "zero_velocity_failed", "error": message}
+            return {"stopped": True, "reason": reason, "backend_response": _as_mapping(response)}
+
+        return {"stopped": False, "reason": "stop_unavailable"}
+
+    def _ensure_mobile_base_backend_started(self) -> dict[str, Any]:
+        if not self._mobile_base_yaw_assist_enabled():
+            return {"started": False, "reason": "yaw_assist_disabled"}
+
+        backend = self._mobility_backend
+        if backend is None:
+            with self._lock:
+                self._mobile_base_contact_ok = False
+                self._last_mobile_base_error = "mobility_backend_unavailable"
+            return {"started": False, "reason": "mobility_backend_unavailable"}
+
+        open_method = getattr(backend, "open", None)
+        try:
+            with self._lock:
+                already_started = self._mobile_base_backend_started
+            if already_started:
+                return {"started": False, "contact_ok": self._mobile_base_contact_ok}
+
+            if callable(open_method):
+                open_method()
+                with self._lock:
+                    self._mobile_base_backend_started = True
+            else:
+                with self._lock:
+                    self._mobile_base_backend_started = False
+
+            contact_ok = callable(getattr(backend, "send_velocity", None))
+            read_available = getattr(backend, "read_available_lines", None)
+            if callable(read_available):
+                read_available(duration_sec=0.0)
+
+            with self._lock:
+                self._mobile_base_contact_ok = bool(contact_ok)
+                self._last_mobile_base_error = None if contact_ok else "send_velocity_unavailable"
+            return {"started": bool(callable(open_method)), "contact_ok": bool(contact_ok)}
+        except Exception as error:
+            message = f"{type(error).__name__}: {error}"
+            with self._lock:
+                self._mobile_base_contact_ok = False
+                self._last_mobile_base_error = message
+            LOGGER.warning("Look-at-me mobile-base backend contact failed: %s", message)
+            return {"started": False, "contact_ok": False, "error": message}
+
+    def _close_mobile_base_backend_if_started(self) -> None:
+        with self._lock:
+            should_close = self._mobile_base_backend_started
+            self._mobile_base_backend_started = False
+            self._mobile_base_contact_ok = False
+
+        if not should_close:
+            return
+
+        close = getattr(self._mobility_backend, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception as error:
+                message = f"{type(error).__name__}: {error}"
+                with self._lock:
+                    self._last_mobile_base_error = message
+                LOGGER.warning("Failed to close look-at-me mobile-base backend: %s", message)
+
 
 class RuntimeBuilderLookAtMeMixin:
     def _build_look_at_me_session(
@@ -1038,6 +1395,7 @@ class RuntimeBuilderLookAtMeMixin:
         vision_backend: Any,
         pan_tilt_backend: Any,
         vision_tracking_service: Any | None = None,
+        mobility_backend: Any | None = None,
     ) -> tuple[LookAtMeSession | None, RuntimeBackendStatus]:
         config = dict(self.settings.get("look_at_me", {}) or {})
 
@@ -1065,6 +1423,7 @@ class RuntimeBuilderLookAtMeMixin:
             vision_backend=vision_backend,
             pan_tilt_backend=pan_tilt_backend,
             vision_tracking_service=vision_tracking_service,
+            mobility_backend=mobility_backend,
         )
 
         return session, RuntimeBackendStatus(
@@ -1078,6 +1437,7 @@ class RuntimeBuilderLookAtMeMixin:
                 "smooth_face_tracking",
                 "single_camera_owner",
                 "temporary_runtime_pan_tilt_execution",
+                "yaw_only_mobile_base_assist",
             ),
             metadata=session.status(),
         )

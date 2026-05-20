@@ -49,6 +49,17 @@ class OpenWakeWordGateAudioRuntime(OpenWakeWordGateHelpers):
     def _audio_callback(self, indata, frames, time_info, status) -> None:
         if status:
             LOGGER.warning("OpenWakeWord audio callback status: %s", status)
+            if "overflow" in str(status).lower():
+                overflow_n: int = getattr(self, "_overflow_count", 0) + 1
+                self._overflow_count = overflow_n
+                if overflow_n <= 3 or overflow_n % 25 == 0:
+                    LOGGER.warning(
+                        "OpenWakeWord input overflow #%s. "
+                        "On PipeWire systems the PortAudio hw: device path gives silence. "
+                        "Fix: set voice_input.wake_alsa_device='plughw:CARD=Array,DEV=0' "
+                        "in config/settings.json to use the stable arecord path.",
+                        overflow_n,
+                    )
 
         try:
             mono = self._select_mono_input(indata)

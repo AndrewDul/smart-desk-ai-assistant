@@ -17254,3 +17254,168 @@ I preserved the phone reminder, the away reminder path, Visual Shell startup, an
 The accepted live diagnostic for this checkpoint showed `tracking_target_type` using face/none only, `negative_final_tilt_count = 0`, `phone_delivered = True`, `away_delivered = True`, and `mobile_base_movement_attempted = False`.
 
 Future work: I can still improve continuous face tracking smoothness later, especially the natural feel of small pan/tilt corrections.
+
+---
+
+## 2026-05-20 - Look-at-me yaw-only assist safety path
+
+The product `look at me` / `spójrz na mnie` runtime now has an explicit tracking state path:
+
+- `scanning_for_face`: pan-tilt search only; mobile-base yaw assist is stopped and no base velocity is sent.
+- `tracking_face`: pan-tilt handles normal smooth corrections using the existing dead zone, target smoothing, max step, and calibrated pan/tilt limits.
+- `lost_face_reacquire`: yaw assist is stopped immediately, then the session returns to pan-tilt-only face reacquisition.
+- stop/close: yaw assist is stopped before the session returns to idle.
+
+Yaw assist is driven only by the existing vision tracking plan fields `base_yaw_assist_required` and `base_yaw_direction`. That plan is produced only for an active target near a pan limit. Search/scanning does not request mobile-base movement.
+
+Physical yaw assist is additionally gated by `look_at_me.mobile_base_yaw_assist_enabled`. It is `false` by default in settings and still depends on the existing mobility backend safety policy. When enabled and allowed, the command path uses `send_velocity(linear_x_mps=0.0, angular_z_rad_s=...)`; forward and backward velocity are never sent by look-at-me yaw assist.
+
+The runtime builder now passes the existing mobility backend into `LookAtMeSession`, but the vision tracking service itself remains a dry-run planner for base motion. The session is the only place that can turn an accepted yaw-assist plan into a safety-gated yaw-only command.
+
+---
+
+## 2026-05-20 - Look-at-me smooth tracking and mobile-base contact fix
+
+The live test showed two product issues:
+
+- pan-tilt corrections were perceived as move-stop-move-stop because the live path was still sending discrete `move_delta()` corrections and could reset smooth-follow state when the target briefly entered the dead zone;
+- mobile-base yaw assist could not execute in runtime because the mobility builder pointed at a non-existent `modules.devices.mobility.base_controller.BaseController`, which meant the assistant could fall back to `NullMobilityBackend` instead of the existing `MobileBaseController`.
+
+The tracking path now keeps a smooth-follow command stream in `PanTiltExecutionAdapter` with configurable alpha, lead gain, minimum live step, and command interval. The look-at-me runtime passes these values from `look_at_me.*` config into the temporary tracking service used by active face tracking. Tests and the benchmark check that a gradual target sequence does not produce a nonzero-zero-nonzero command pattern.
+
+Tilt is now safety-clamped against the calibrated center. `TrackingSafeLimits` carries `tilt_center_degrees`; when `no_tilt_below_center` is enabled, target plans clamp tilt to `[tilt_center_degrees, tilt_max_degrees]`. This preserves upward tilt and blocks downward tilt below center during tracking. The scan path already uses center-and-up tilt rows only.
+
+The mobility builder now constructs the existing `MobileBaseController` using the existing mobile-base serial transport and `MobileBaseSafetyPolicy`. No extra backend process is required for look-at-me yaw assist. The controller is opened when look-at-me starts and closed when look-at-me stops. If contact fails, look-at-me logs the error and continues pan-tilt-only.
+
+Runtime status for look-at-me now includes tracking state, smoothed target error fields, pan/tilt command degrees, tilt center clamp status, mobile-base contact and yaw-assist availability, active yaw state, last base command, and last base error.
+
+Safety invariants:
+
+- search/reacquisition never commands the mobile base;
+- active tracking may request yaw only when the tracking plan says `base_yaw_assist_required`;
+- yaw commands use `linear_x_mps=0.0`;
+- stop/face-lost/centered-target/session-exit stop yaw assist;
+- physical base movement still requires `mobility.enabled=true`, `mobility.movement_enabled=true`, a valid serial port, and the existing `CONFIRM_NEXA_MOBILE_BASE_MOVE=RUN` safety gate.
+
+---
+
+## 2026-05-20 - Serial port ambiguity fix, yaw threshold tuning, and smooth-follow decay
+
+### Root cause 1: NullMobilityBackend due to multiple serial ports
+
+I found that the real root cause for `mobile_base_contact_ok=false` was `choose_serial_port("auto")` raising `RuntimeError: Multiple serial ports detected`. When the pan-tilt UART (`/dev/ttyAMA0`) and the mobile base USB (`/dev/ttyACM0`) are both enumerated by pyserial, `auto` cannot choose between them and raises. `_build_mobility` catches this exception and falls back to `NullMobilityBackend`. `NullMobilityBackend` has no `send_velocity`, which is why every yaw assist attempt ended with `send_velocity_unavailable`.
+
+### Fix 1: NEXA_MOBILE_BASE_SERIAL_PORT env var in RuntimeBuilderMobilityMixin
+
+I added `NEXA_MOBILE_BASE_SERIAL_PORT` support to `_build_mobility`. When set, the env var is read before `choose_serial_port()` and passed directly to `PySerialLineTransport`, bypassing auto detection entirely. The mobility status metadata now includes `env_port_override` to make the active path visible in startup logs. When the env var is absent and auto fails, the fallback error detail now includes a hint to set the variable.
+
+Usage:
+
+```bash
+export NEXA_MOBILE_BASE_SERIAL_PORT=/dev/ttyACM0
+./scripts/start_nexa_stack.sh
+```
+
+### Root cause 2: Yaw assist triggered too late
+
+The default `yaw_assist_pan_usage_start` was `0.60`, meaning yaw assist only started at 60% of the pan range. On ±90° limits that is ~54°. At that angle the tracked face was already far outside comfortable center before the base began rotating.
+
+### Fix 2: Lower yaw threshold defaults
+
+I changed the defaults in `TrackingPolicyConfig`, `LookAtMeRuntimeBuilderMixin._build_runtime_tracking_config()`, `config/settings.json`, and `config/settings.example.json`:
+
+| Field | Old | New |
+|---|---|---|
+| `yaw_assist_pan_usage_start` | 0.60 | 0.50 |
+| `yaw_assist_pan_usage_stop` | 0.45 | 0.35 |
+
+At 0.50 on ±90°, yaw assist triggers at ~45°. The 0.35 stop threshold provides enough hysteresis to avoid repeated triggering as the face returns toward center.
+
+### Root cause 3: EWM state zeroed on every centered frame
+
+The `PanTiltExecutionAdapter` was calling `_reset_smooth_follow_state()` in the `not would_move_pan_tilt` branch, which zeros the exponential weighted moving average state every time the policy returns `target_centered`. On the next frame the tracker had to rebuild momentum from zero, producing the visible move→stop→move→stop pattern.
+
+### Fix 3: Decay instead of hard reset for centered frames
+
+I replaced the `_reset_smooth_follow_state()` call in the `no_motion_required` path with `_decay_smooth_follow_state()`. Decay applies `smooth_val *= (1 - alpha)` so EWM state fades gradually. The hard reset is kept only when `has_target=False` (face actually lost), where starting fresh is the right behavior.
+
+I also lowered the command loop floor in `_movement_interval_seconds()` from `max(0.045, ...)` to `max(0.020, ...)` to allow higher command frequency when `command_interval_seconds` is configured below 45 ms.
+
+Settings tuned for smoother output at the same time:
+
+| Key | Old | New |
+|---|---|---|
+| `command_speed` | 180 | 230 |
+| `command_acceleration` | 130 | 220 |
+| `tracking_smoothing_alpha` | 0.62 | 0.72 |
+| `smooth_follow_lead_gain` | 2.0 | 2.2 |
+| `max_runtime_step_degrees` | 1.2 | 2.5 |
+
+---
+
+## 2026-05-20 - Yaw assist dead-zone bug, frameless-iteration reset, early-return shortcut, and speed increase
+
+### Root cause 1: Yaw assist blocked when face is centered at high pan
+
+`PanTiltTrackingPolicy.plan_for_target()` computed `base_yaw_assist_required` as `pan_usage >= start AND abs(offset_x) > dead_zone_x`. At high pan (e.g. -81°) the camera is already pointing at the user, so the detected face appears centred — `offset_x ≈ 0`. The `dead_zone_x` check therefore blocked yaw assist even though the base urgently needed to rotate. Live telemetry confirmed: `current_pan_degrees: -81.67`, `base_yaw_assist_required: false`.
+
+### Fix 1: Pan-sign fallback direction when face is in dead zone
+
+I removed the `abs(offset_x) > dead_zone_x` gate from the eligibility condition. Yaw assist is now eligible whenever `pan_usage >= yaw_assist_pan_usage_start`.
+
+Direction is still derived from face offset when the face is genuinely off-centre. When the face sits inside the dead zone (camera already facing the user but pan-head is far left or right), direction falls back to the sign of `current_pan_degrees - pan_center_degrees`, which correctly tells the base to unwind toward center.
+
+A `yaw_direction_source` diagnostic field is added to `TrackingMotionPlan.diagnostics` with values `"face_offset"`, `"pan_sign_at_high_usage"`, or `"none"`.
+
+### Root cause 2: Smooth-follow state hard-reset on every frameless loop iteration
+
+`PanTiltExecutionAdapter.prepare()` called `_reset_smooth_follow_state()` whenever `has_target=False`. At 15 fps camera with a 25 ms loop interval, roughly 2 out of every 3 loop iterations receive no new camera frame — `observation=None` → policy returns `has_target=False`. This meant the EWM was zeroed 2/3 of the time: the servo rebuilt from zero momentum on every live frame, producing the visible move→stop→move stutter.
+
+### Fix 2: Decay instead of reset in the no-target branch
+
+I changed the `not has_target` branch from `_reset_smooth_follow_state()` to `_decay_smooth_follow_state()`. With `alpha=0.62`, the EWM halves in roughly 2 iterations and reaches <1% of its starting value after ~5 no-target frames (~125 ms). Truly-lost faces still clean up naturally; the servo decelerates smoothly between frames instead of lurching from zero.
+
+The hard reset is still performed inside `_reset_smooth_follow_state()` itself, which is called on direction reversal (crossed center) as before.
+
+### Root cause 3: Early return in `_run_once` stopped yaw before applying plan
+
+When `abs(pan_delta) < min_delta` (face small enough that no servo step is needed), `_run_once` called `_stop_yaw_assist(reason="target_centered")` before returning. This immediately cancelled any active base rotation — precisely the case where yaw assist is most needed: face centred in camera at high pan means pan_delta ≈ 0 and yaw is the only remaining correction.
+
+### Fix 3: Apply yaw assist in the early-return path
+
+I replaced `_stop_yaw_assist(reason="target_centered")` with `yaw_assist = self._apply_yaw_assist_from_plan(plan_payload)` in that return branch, and included `"yaw_assist": yaw_assist` in the returned dict to maintain telemetry parity with the normal path.
+
+### Fix 4: Wrong default for `yaw_assist_pan_usage_stop` in session layer
+
+`_apply_yaw_assist_from_plan()` read `yaw_assist_pan_usage_stop` from session config with a hardcoded fallback of `0.45`, not `0.35`. If the key was absent from config, hysteresis kept yaw active until pan dropped below 45% instead of the intended 35%. Fixed both the fallback value and the `_safe_float` second argument.
+
+### Fix 5: Yaw speed increased
+
+`look_at_me.mobile_base_yaw_speed` raised from `0.08` to `0.14` rad/s. At 0.08 the base rotation was barely perceptible. 0.14 is safely inside the `mobility.max_turn_speed: 0.5` envelope and capped by `_mobile_base_yaw_speed()` at 0.35.
+
+### Tests updated and added
+
+- `test_smooth_state_resets_fully_when_face_lost` renamed to `test_smooth_state_decays_on_no_target_not_resets_to_zero` with assertions updated to check decay behaviour and convergence after many frameless frames.
+- `test_policy_yaw_assist_not_triggered_when_face_is_centered_despite_high_pan` renamed to `test_policy_yaw_assist_required_at_high_pan_even_when_face_is_centered` with assertions flipped to True and direction verified as `"right"` (pan-sign).
+- New: `test_policy_yaw_assist_uses_face_offset_direction_when_face_is_off_center_at_high_pan` — verifies face offset wins when face is off-centre at high pan.
+- New: `test_policy_yaw_assist_not_triggered_below_pan_usage_threshold` — verifies the threshold gate still works correctly.
+- New: `test_yaw_assist_applies_when_pan_delta_below_min_move_threshold` — regression test for the early-return fix.
+- New: `test_yaw_speed_is_at_least_minimum_useful_speed` — ensures angular_z ≥ 0.10 rad/s.
+
+---
+
+## 2026-05-20 - Wake audio recovery and look-at-me tracking polish
+
+I worked on two important runtime areas: wake audio reliability and look-at-me tracking behavior.
+
+For audio, I investigated the ReSpeaker and USB speaker failure after USB devices were moved. I checked that the USB speaker could work through PipeWire/Pulse, while NeXa's wake path could still fail if it used the wrong capture path or if the microphone recording was noisy after the USB change.
+
+I added focused diagnostics around the OpenWakeWord input path so I can prove the selected input device, whether the forced ALSA path is active, the RMS and peak level, how many frames pass the energy threshold, and what score the wake model produces.
+
+I also moved voice playback toward the PipeWire-friendly `paplay` path so NeXa can speak through the same working USB speaker route as desktop audio. This avoids depending on a stale ALSA card index after USB devices are reconnected.
+
+For look-at-me tracking, I improved the intended runtime behavior around smoother face following and mobile-base support. The tracking path now has stronger expectations around no downward tilt below center, smoother target lock, short target-loss grace behavior, and mobile-base yaw assist.
+
+The mobile base should rotate in place only when yaw assist is needed. It must not drive forward or backward during look-at-me tracking.
+
+The important architecture lesson from this sprint is that tests must prove the real runtime path, not only a hand-made unit path. For wake audio, the useful proof is the live OpenWakeWord input probe. For tracking, the useful proof is whether pan-tilt and mobile-base telemetry match the real physical behavior.

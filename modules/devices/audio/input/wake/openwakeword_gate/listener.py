@@ -216,6 +216,26 @@ class OpenWakeWordGateListener(
                 f"eval={evaluated_frames} skip={skipped_low_energy_frames} voiced={voiced_frames}"
             )
 
+        # Warn once when every frame was below the energy threshold — strong signal that
+        # the microphone is delivering silence instead of real audio.  This happens on
+        # PipeWire systems when PortAudio opens the raw hw: device directly; the fix is
+        # to set voice_input.wake_alsa_device to the plughw: path.
+        if (
+            evaluated_frames == 0
+            and skipped_low_energy_frames >= 8
+            and not getattr(self, "_mic_silence_warned", False)
+        ):
+            LOGGER.warning(
+                "OpenWakeWord: %s audio frames received but all below energy threshold "
+                "(rms_threshold=%.4f, overflow_count=%s). Microphone appears silent. "
+                "On PipeWire systems set voice_input.wake_alsa_device="
+                "'plughw:CARD=Array,DEV=0' in config/settings.json.",
+                skipped_low_energy_frames,
+                self.energy_rms_threshold,
+                getattr(self, "_overflow_count", 0),
+            )
+            self._mic_silence_warned = True
+
         self._clear_audio_queue()
         self._reset_runtime_state()
         return None

@@ -31,8 +31,10 @@ class TrackingTarget:
 @dataclass(frozen=True, slots=True)
 class TrackingSafeLimits:
     pan_min_degrees: float = -15.0
+    pan_center_degrees: float = 0.0
     pan_max_degrees: float = 15.0
     tilt_min_degrees: float = -8.0
+    tilt_center_degrees: float = 0.0
     tilt_max_degrees: float = 8.0
 
     @classmethod
@@ -40,8 +42,10 @@ class TrackingSafeLimits:
         data = dict(payload or {})
         return cls(
             pan_min_degrees=float(data.get("pan_min_degrees", -15.0)),
+            pan_center_degrees=float(data.get("pan_center_degrees", 0.0)),
             pan_max_degrees=float(data.get("pan_max_degrees", 15.0)),
             tilt_min_degrees=float(data.get("tilt_min_degrees", -8.0)),
+            tilt_center_degrees=float(data.get("tilt_center_degrees", 0.0)),
             tilt_max_degrees=float(data.get("tilt_max_degrees", 8.0)),
         )
 
@@ -50,12 +54,19 @@ class TrackingSafeLimits:
             raise ValueError("Pan max limit must be greater than or equal to pan min limit.")
         if self.tilt_max_degrees < self.tilt_min_degrees:
             raise ValueError("Tilt max limit must be greater than or equal to tilt min limit.")
+        if not self.pan_min_degrees <= self.pan_center_degrees <= self.pan_max_degrees:
+            raise ValueError("Pan center must be inside pan limits.")
+        if not self.tilt_min_degrees <= self.tilt_center_degrees <= self.tilt_max_degrees:
+            raise ValueError("Tilt center must be inside tilt limits.")
 
     def clamp_pan(self, value: float) -> float:
         return _clamp(value, self.pan_min_degrees, self.pan_max_degrees)
 
     def clamp_tilt(self, value: float) -> float:
         return _clamp(value, self.tilt_min_degrees, self.tilt_max_degrees)
+
+    def clamp_tilt_not_below_center(self, value: float) -> float:
+        return _clamp(value, self.tilt_center_degrees, self.tilt_max_degrees)
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +86,9 @@ class TrackingPolicyConfig:
     target_activation_hits: int = 1
     target_smoothing_alpha: float = 1.0
     max_target_jump_norm: float = 1.0
+    no_tilt_below_center: bool = False
+    yaw_assist_pan_usage_start: float = 0.50
+    yaw_assist_pan_usage_stop: float = 0.35
 
     def __post_init__(self) -> None:
         if self.mobile_assist_edge_threshold is not None:
@@ -112,6 +126,9 @@ class TrackingPolicyConfig:
             target_activation_hits=max(1, int(data.get("target_activation_hits", 1))),
             target_smoothing_alpha=max(0.0, min(1.0, float(data.get("target_smoothing_alpha", 1.0)))),
             max_target_jump_norm=max(0.0, min(1.0, float(data.get("max_target_jump_norm", 1.0)))),
+            no_tilt_below_center=bool(data.get("no_tilt_below_center", False)),
+            yaw_assist_pan_usage_start=max(0.0, min(1.0, float(data.get("yaw_assist_pan_usage_start", 0.50)))),
+            yaw_assist_pan_usage_stop=max(0.0, min(1.0, float(data.get("yaw_assist_pan_usage_stop", 0.35)))),
         )
 
 

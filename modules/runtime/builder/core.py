@@ -127,6 +127,7 @@ class RuntimeBuilder(
             vision_backend=vision,
             pan_tilt_backend=pan_tilt,
             vision_tracking_service=vision_tracking,
+            mobility_backend=mobility,
         )
         voice_engine_v2_bundle = self._build_voice_engine_v2()
         vosk_pre_whisper_candidate_adapter = (

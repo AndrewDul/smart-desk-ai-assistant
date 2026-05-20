@@ -25,6 +25,11 @@ class PanTiltExecutionAdapterConfig:
     require_no_motion_startup_policy: bool = True
     max_allowed_pan_delta_degrees: float = 2.0
     max_allowed_tilt_delta_degrees: float = 2.0
+    smooth_follow_enabled: bool = True
+    smooth_follow_alpha: float = 0.62
+    smooth_follow_lead_gain: float = 2.15
+    smooth_follow_min_live_step_degrees: float = 0.42
+    smooth_follow_command_interval_seconds: float = 0.018
 
     @classmethod
     def from_mapping(cls, payload: dict[str, Any] | None) -> "PanTiltExecutionAdapterConfig":
@@ -51,6 +56,23 @@ class PanTiltExecutionAdapterConfig:
             max_allowed_tilt_delta_degrees=max(
                 0.0,
                 float(data.get("max_allowed_tilt_delta_degrees", 2.0)),
+            ),
+            smooth_follow_enabled=bool(data.get("smooth_follow_enabled", True)),
+            smooth_follow_alpha=max(
+                0.05,
+                min(1.0, float(data.get("smooth_follow_alpha", 0.62))),
+            ),
+            smooth_follow_lead_gain=max(
+                1.0,
+                min(3.0, float(data.get("smooth_follow_lead_gain", 2.15))),
+            ),
+            smooth_follow_min_live_step_degrees=max(
+                0.0,
+                min(1.0, float(data.get("smooth_follow_min_live_step_degrees", 0.42))),
+            ),
+            smooth_follow_command_interval_seconds=max(
+                0.0,
+                min(0.2, float(data.get("smooth_follow_command_interval_seconds", 0.018))),
             ),
         )
 
@@ -144,7 +166,13 @@ class PanTiltExecutionAdapter:
         )
 
         if not has_target:
-            self._reset_smooth_follow_state()
+            # Decay rather than zero the smooth state. At 15 fps with a 25 ms loop,
+            # most loop iterations have no new frame (observation=None → has_target=False).
+            # A hard reset every frameless iteration is the primary cause of the
+            # move→stop→move pattern: momentum restarts from zero on every new frame.
+            # Decay (α=0.62 → ~5 cycles to reach <1%) lets the head decelerate
+            # naturally between frames without a visible lurch on re-acquisition.
+            self._decay_smooth_follow_state()
             return self._result(
                 status="no_target",
                 accepted=True,
@@ -159,7 +187,13 @@ class PanTiltExecutionAdapter:
             )
 
         if not would_move_pan_tilt:
-            self._reset_smooth_follow_state()
+            # Face is visible but the policy says it is already centered.
+            # Decay rather than zero the smooth-follow state so deceleration
+            # is gradual.  A hard reset here is the primary cause of the
+            # move→stop→move stop-start pattern: the next off-center frame
+            # would restart from zero momentum and produce a single choppy
+            # step before centering again.
+            self._decay_smooth_follow_state()
             return self._result(
                 status="no_pan_tilt_motion_required",
                 accepted=True,
@@ -211,6 +245,13 @@ class PanTiltExecutionAdapter:
             "require_no_motion_startup_policy": self._config.require_no_motion_startup_policy,
             "max_allowed_pan_delta_degrees": self._config.max_allowed_pan_delta_degrees,
             "max_allowed_tilt_delta_degrees": self._config.max_allowed_tilt_delta_degrees,
+            "smooth_follow_enabled": self._config.smooth_follow_enabled,
+            "smooth_follow_alpha": self._config.smooth_follow_alpha,
+            "smooth_follow_lead_gain": self._config.smooth_follow_lead_gain,
+            "smooth_follow_min_live_step_degrees": self._config.smooth_follow_min_live_step_degrees,
+            "smooth_follow_command_interval_seconds": self._config.smooth_follow_command_interval_seconds,
+            "smooth_pan_delta_degrees": round(self._smooth_pan_delta_degrees, 4),
+            "smooth_tilt_delta_degrees": round(self._smooth_tilt_delta_degrees, 4),
             "pan_tilt_backend_attached": self._pan_tilt_backend is not None,
             "backend_name": _backend_name(self._pan_tilt_backend),
         }
@@ -231,6 +272,11 @@ class PanTiltExecutionAdapter:
         self._smooth_tilt_delta_degrees = 0.0
         self._last_pan_direction = 0
         self._last_tilt_direction = 0
+
+    def _decay_smooth_follow_state(self) -> None:
+        alpha = self._config.smooth_follow_alpha
+        self._smooth_pan_delta_degrees *= (1.0 - alpha)
+        self._smooth_tilt_delta_degrees *= (1.0 - alpha)
 
     @staticmethod
     def _direction(value: float) -> int:
@@ -261,13 +307,18 @@ class PanTiltExecutionAdapter:
         max_pan = max(0.0, float(self._config.max_allowed_pan_delta_degrees))
         max_tilt = max(0.0, float(self._config.max_allowed_tilt_delta_degrees))
 
-        # If max_allowed is too small, physical movement becomes visibly
-        # steppy. We still respect the configured safety maximum, but the
-        # settings patch below raises it for look_at_me runtime.
-        alpha = 0.62
-        lead_gain = 2.15
-        min_live_step = 0.42
-        command_interval_seconds = 0.018
+        if not self._config.smooth_follow_enabled:
+            return {
+                "send": True,
+                "reason": "smooth_follow_disabled",
+                "send_pan_delta_degrees": round(float(clamped_pan), 4),
+                "send_tilt_delta_degrees": round(float(clamped_tilt), 4),
+            }
+
+        alpha = self._config.smooth_follow_alpha
+        lead_gain = self._config.smooth_follow_lead_gain
+        min_live_step = self._config.smooth_follow_min_live_step_degrees
+        command_interval_seconds = self._config.smooth_follow_command_interval_seconds
 
         pan_direction = self._direction(clamped_pan)
         tilt_direction = self._direction(clamped_tilt)

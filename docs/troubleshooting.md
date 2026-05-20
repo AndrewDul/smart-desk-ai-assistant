@@ -6255,3 +6255,291 @@ The product runtime command remains:
 ### Remaining limitation
 
 Tracking smoothness can still be improved later. This checkpoint fixed the scan-loop and face-only tracking rules first, without changing the working phone reminder or away reminder behavior.
+
+---
+
+## 2026-05-20 - Look-at-me yaw assist does not rotate the mobile base
+
+### Expected behavior
+
+`look at me` searches with pan-tilt only. The mobile base must stay stopped while no face is tracked.
+
+During active face tracking, mobile-base yaw assist is allowed only near a horizontal pan limit, and only as rotate-in-place assist. The runtime sends `linear_x_mps=0.0` and a bounded `angular_z_rad_s`; it never sends forward or backward movement from the look-at-me path.
+
+Yaw assist stops immediately when:
+
+- the face is lost,
+- the target returns inside pan-tilt range,
+- `stop looking at me` / `przestań patrzeć na mnie` stops the session,
+- the mobility safety gate blocks the command,
+- the session exits.
+
+### If the base does not rotate near the pan limit
+
+Check these gates in order:
+
+1. `look_at_me.mobile_base_yaw_assist_enabled` must be `true`.
+2. `mobility.enabled` must be `true`.
+3. The mobility movement confirmation gate must be satisfied, for example `CONFIRM_NEXA_MOBILE_BASE_MOVE=RUN` when required by the configured backend.
+4. `var/data/look_at_me_tracking_status.json` should show `tracking_state: "tracking_face"` and `mobile_base_yaw_assist_enabled: true`.
+5. `var/data/vision_tracking_status.json` should show `last_plan.base_yaw_assist_required: true` only when the tracked face is near a pan limit.
+
+### If tracking is jerky
+
+Reduce abrupt motion by tuning the look-at-me tracking values, not by adding long sleeps:
+
+- lower `look_at_me.max_runtime_step_degrees`,
+- lower `look_at_me.pan_gain_degrees` or `look_at_me.tilt_gain_degrees`,
+- increase `look_at_me.smoothing_alpha` conservatively,
+- increase `look_at_me.dead_zone_x` or `look_at_me.dead_zone_y` slightly,
+- confirm camera FPS and `look_at_me.command_interval_seconds` are stable.
+
+Search/reacquisition should remain pan-tilt-only. If a base command appears while `tracking_state` is `scanning_for_face` or `lost_face_reacquire`, treat it as a safety bug.
+
+---
+
+## 2026-05-20 - Look-at-me still feels robotic or base yaw does not move
+
+### Why the old behavior felt robotic
+
+The live look-at-me path used discrete `move_delta()` tracking corrections. Even without an explicit stop command, a sequence of small deltas plus brief no-motion frames near the dead zone can look like move-stop-move-stop on hardware.
+
+The smooth-follow adapter now keeps low-pass state across active target corrections and enforces a minimum live step for clearly off-center targets. It should not emit repeated nonzero-zero-nonzero patterns while the face remains active and off-center.
+
+Run the smoothness benchmark before live testing:
+
+```bash
+.venv/bin/python -m pytest -q tests/benchmark/test_look_at_me_smoothness_benchmark.py
+```
+
+### Tilt must not go below center
+
+Look-at-me tracking uses `tilt_center_degrees` from pan-tilt safe limits. With `look_at_me.no_tilt_below_center=true`, tracking may tilt upward but clamps downward tilt to the calibrated center. If the camera appears to look below center, check:
+
+- `pan_tilt.safe_limits.tilt_center_degrees`
+- `var/data/pan_tilt_limit_calibration.json`
+- `var/data/look_at_me_tracking_status.json` for `tilt_clamped_to_center`
+
+### Why base yaw may not move
+
+Yaw assist requires all of these gates:
+
+- `look_at_me.mobile_base_yaw_assist_enabled=true`
+- `mobility.enabled=true`
+- `mobility.movement_enabled=true`
+- `mobility.port` points at the mobile-base serial device or `auto` finds exactly one device
+- `CONFIRM_NEXA_MOBILE_BASE_MOVE=RUN`
+
+The base command is yaw-only. In ROS profile the expected command shape is:
+
+```json
+{"T":13,"X":0.0,"Z":0.12}
+```
+
+Run the safe validation first:
+
+```bash
+.venv/bin/python -m pytest -q tests/runtime/validation/test_mobile_base_yaw_assist_validation.py
+```
+
+For a hardware live test, set movement gates only for that shell and keep a hand near the base power switch:
+
+```bash
+CONFIRM_NEXA_MOBILE_BASE_MOVE=RUN ./scripts/start_nexa_stack.sh
+```
+
+If yaw assist still does not move, inspect:
+
+- `var/data/look_at_me_tracking_status.json`
+- `mobile_base_contact_ok`
+- `mobile_base_yaw_assist_available`
+- `last_mobile_base_command`
+- `last_mobile_base_error`
+
+---
+
+## 2026-05-20 - Mobile base falls back to null because auto serial port detection fails
+
+### Symptom
+
+`mobile_base_contact_ok=false`, `mobile_base_yaw_assist_available=false`, `last_mobile_base_error="send_velocity_unavailable"`. The startup log shows `selected_backend: null_mobility` for the mobility component, and may contain `RuntimeError: Multiple serial ports detected` in the error detail.
+
+### Cause
+
+I found that `choose_serial_port("auto")` raises `RuntimeError` when pyserial enumerates more than one port. On my setup both the pan-tilt UART (`/dev/ttyAMA0`) and the mobile base USB (`/dev/ttyACM0`) appear as serial ports. The exception is caught inside `_build_mobility`, which silently falls back to `NullMobilityBackend`. `NullMobilityBackend` has no `send_velocity`, so every yaw assist attempt is reported as `send_velocity_unavailable`.
+
+### Fix
+
+I added `NEXA_MOBILE_BASE_SERIAL_PORT` support to the mobility builder. Set this before starting the stack to bypass auto detection:
+
+```bash
+export NEXA_MOBILE_BASE_SERIAL_PORT=/dev/ttyACM0
+./scripts/start_nexa_stack.sh
+```
+
+The builder reads this variable and passes it directly to `PySerialLineTransport`, skipping `choose_serial_port("auto")` entirely. After setting it, the startup status should show `selected_backend: mobile_base_controller` and `env_port_override: /dev/ttyACM0`.
+
+To confirm the env var is being picked up:
+
+```bash
+grep "env_port_override" var/log/*.log
+```
+
+Or check the mobility section in the NeXa startup status output.
+
+### Alternative: set `mobility.port` explicitly
+
+If the mobile base is always on the same device, set the port directly in `config/settings.json`:
+
+```json
+"mobility": {
+  "port": "/dev/ttyACM0"
+}
+```
+
+An explicit port bypasses auto detection entirely without needing an environment variable.
+
+---
+
+## 2026-05-20 - Yaw assist starts too late
+
+### Symptom
+
+Base yaw assist only starts rotating when the camera is already panned far to one side. On a ±90° range the old default of `yaw_assist_pan_usage_start=0.60` meant yaw assist fired at ~54°. At that angle the tracked face is well outside comfortable viewing range before the base starts helping.
+
+### Fix
+
+I changed the default thresholds in `TrackingPolicyConfig`, `look_at_me_mixin.py`, `config/settings.json`, and `config/settings.example.json`:
+
+- `yaw_assist_pan_usage_start`: `0.60` → `0.50` (triggers at ~45° on a ±90° range)
+- `yaw_assist_pan_usage_stop`: `0.45` → `0.35` (yaw assist stops when pan returns below ~31.5°)
+
+### Tuning
+
+To change these per-deployment, add to `config/settings.json`:
+
+```json
+"look_at_me": {
+  "yaw_assist_pan_usage_start": 0.50,
+  "yaw_assist_pan_usage_stop": 0.35
+}
+```
+
+Lower `yaw_assist_pan_usage_start` to trigger earlier (for example `0.40` fires at ~36° on ±90°). Raise it to delay the trigger. The stop threshold should always be lower than the start threshold to keep hysteresis working.
+
+---
+
+## 2026-05-20 - Yaw assist still does not fire at high pan / base moves but yaw stops chattering
+
+### Symptom A: `base_yaw_assist_required=false` at high pan (e.g. -81°)
+
+The plan diagnostic shows `pan_usage: 0.91` but `base_yaw_assist_required: false`. Live status confirms `current_pan_degrees: -81.67`. The base is not rotating even though it is far from center.
+
+### Root cause A
+
+`PanTiltTrackingPolicy` was gating yaw eligibility with `abs(offset_x) > dead_zone_x` in addition to the pan-usage threshold. When the camera is already pointing straight at the user (which is the normal situation at high pan), the face appears centred — `offset_x ≈ 0`. The dead-zone check blocked yaw assist despite `pan_usage >> start_threshold`.
+
+### Fix A
+
+I removed the `dead_zone_x` gate from the eligibility check. Yaw assist is now eligible whenever `pan_usage >= yaw_assist_pan_usage_start`.
+
+Direction now has two sources:
+- **`face_offset`**: face is outside the dead zone → direction comes from face position (same as before).
+- **`pan_sign_at_high_usage`**: face is inside the dead zone → direction comes from the sign of `current_pan - pan_center`, which tells the base to unwind toward center.
+
+The active source is visible in `plan.diagnostics["yaw_direction_source"]`.
+
+### Symptom B: Yaw assist fires then immediately stops (chattering Z=-0.08/+0.08/0.0)
+
+The base oscillates rapidly between clockwise, counter-clockwise, and stop. This was caused by two interacting bugs:
+
+1. `_run_once` called `_stop_yaw_assist()` in the `below_min_move_degrees` early-return path. When the face is centred in camera at high pan, `pan_delta ≈ 0` triggers that early return, immediately cancelling any yaw that was just started.
+
+2. `_apply_yaw_assist_from_plan()` used a hardcoded stop-threshold fallback of `0.45` instead of `0.35`. When the `yaw_assist_pan_usage_stop` key was absent from config, hysteresis held yaw active to 45% pan rather than 35%, and then the first `below_min_move_degrees` stop would cancel it, causing oscillation on the next frame.
+
+### Fix B
+
+I replaced `_stop_yaw_assist(reason="target_centered")` in the early-return branch with `self._apply_yaw_assist_from_plan(plan_payload)`, so yaw decisions always go through the hysteresis-aware path. The `yaw_assist` dict is included in the return value for telemetry parity.
+
+The stop-threshold fallback in `_apply_yaw_assist_from_plan()` is corrected from `0.45` to `0.35`.
+
+### Symptom C: Pan-tilt movement still visibly robotic (step → pause → step → pause)
+
+The head moves, freezes for a frame, then moves again in a repeating pattern even though the face is continuously visible.
+
+### Root cause C
+
+`PanTiltExecutionAdapter` called `_reset_smooth_follow_state()` (hard zero) whenever `has_target=False`. At 15 fps camera with a 25 ms loop, roughly 2 of every 3 loop iterations have no new frame — `observation=None` → `has_target=False`. The EWM was zeroed on 2/3 of all iterations; every live frame had to rebuild from zero momentum, producing the stop-start pattern.
+
+### Fix C
+
+I changed the `not has_target` branch from `_reset_smooth_follow_state()` to `_decay_smooth_follow_state()`. With `alpha=0.62`, the state halves in ~2 frameless iterations and is negligible after ~5 (~125 ms). This matches the 15 fps camera period well. The servo decelerates naturally between frames rather than lurching from zero.
+
+### Symptom D: Yaw speed too slow (base barely moves)
+
+`look_at_me` status shows `angular_z_rad_s: ±0.08` but the base rotation is imperceptible in practice.
+
+### Fix D
+
+I raised `look_at_me.mobile_base_yaw_speed` from `0.08` to `0.14` in `config/settings.json`. The method `_mobile_base_yaw_speed()` clamps the value to `[0.02, 0.35]`. 0.14 is well inside the `mobility.max_turn_speed: 0.5` safety envelope.
+
+### Diagnostics
+
+After these fixes the telemetry should show:
+
+```json
+{
+  "base_yaw_assist_required": true,
+  "base_yaw_direction": "left",
+  "diagnostics": {
+    "pan_usage": 0.91,
+    "yaw_direction_source": "pan_sign_at_high_usage"
+  }
+}
+```
+
+And the `_run_once` result should include `"yaw_assist": {"executed": true, "angular_z_rad_s": -0.14}` even when `"reason": "below_min_move_degrees"`.
+
+If yaw assist is still not firing, check `mobile_base_contact_ok` and `mobile_base_yaw_assist_available` in the look-at-me status. If those are false, see the serial-port section above.
+
+---
+
+## 2026-05-20 - ReSpeaker wake input, USB speaker output, and look-at-me yaw assist troubleshooting
+
+### Problem
+
+After moving USB devices, NeXa could start normally but stopped reacting reliably to the wake word. The USB speaker also became silent until the ALSA and PipeWire output path was fixed.
+
+Later, I confirmed that the microphone could record audio, but the recording sounded noisy and unclear. This means the problem was not only software routing. The wake model can fail if the microphone signal is distorted, clipped, or full of USB or power noise.
+
+During look-at-me testing, the face tracking path also needed better safety and behavior around smooth pan-tilt movement and mobile-base yaw assist.
+
+### What I checked
+
+I checked ALSA playback and capture devices, PipeWire sinks and sources, ReSpeaker recordings, USB speaker mute state, and the OpenWakeWord runtime path. I confirmed that the USB speaker can play through `paplay` and that the ReSpeaker ALSA path can be reached through `plughw:CARD=Array,DEV=0`.
+
+I also checked whether the mobile base appears as a serial device under `/dev/serial/by-id/` and whether yaw assist has a real backend instead of falling back to a null mobility backend.
+
+### What helped
+
+- I unmuted the USB speaker at the ALSA mixer level.
+- I used PipeWire/Pulse output through `paplay` for NeXa voice playback.
+- I confirmed the ReSpeaker capture path with direct `arecord` tests.
+- I added and used diagnostics to inspect the OpenWakeWord selected input path, RMS, peak level, energy threshold frames, and wake score.
+- I confirmed that noisy microphone audio can explain wake failure even when the device technically records.
+- I improved the expected look-at-me behavior: no downward tracking below center, smoother target lock, target-loss grace, and yaw-only mobile-base assist.
+
+### Notes for next time
+
+If NeXa starts but does not wake, I should not immediately change the model or thresholds. First, I should record the microphone directly and listen to the WAV file.
+
+Useful commands:
+
+```bash
+arecord -D plughw:CARD=Array,DEV=0 -f S16_LE -r 16000 -c 1 -d 8 /tmp/nexa_mic_test.wav
+paplay /tmp/nexa_mic_test.wav
+```
+
+If the WAV is noisy, clipped, or unclear, I should fix the USB, power, hub, cable, or ReSpeaker signal path before tuning wake thresholds.
+
+For look-at-me, yaw assist must stay rotate-in-place only. The expected base command has zero linear velocity and bounded angular velocity. If the look-at-me path sends forward or backward movement, I should treat that as a safety bug.
