@@ -6543,3 +6543,96 @@ paplay /tmp/nexa_mic_test.wav
 If the WAV is noisy, clipped, or unclear, I should fix the USB, power, hub, cable, or ReSpeaker signal path before tuning wake thresholds.
 
 For look-at-me, yaw assist must stay rotate-in-place only. The expected base command has zero linear velocity and bounded angular velocity. If the look-at-me path sends forward or backward movement, I should treat that as a safety bug.
+
+---
+
+## 2026-05-20 - OAK-D Lite diagnostics and Feedback Mode camera pages
+
+### Problem
+
+I added OAK-D Lite diagnostics after DepthAI support was installed and verified, but I wanted to keep the current Camera Module 3 runtime path unchanged. OAK-D Lite should be visible in diagnostics without starting RGB or depth streaming.
+
+I also found that Feedback Mode needed clearer camera pages. After I added the OAK status, the page buttons could become crowded and the detail table could overlap part of the new OAK-D Lite button.
+
+### What I checked
+
+I checked USB detection, DepthAI import, and non-streaming DepthAI device enumeration.
+
+The verified OAK-D Lite result was:
+
+```text
+USB: Bus 003 Device 004: ID 03e7:2485 Intel Movidius MyriadX
+depthai_available=true
+depthai_device_count=1
+mxid=19443010C1A0E47D00
+state=X_LINK_UNBOOTED
+protocol=X_LINK_USB_VSC
+```
+
+I also checked Feedback Mode and confirmed that the camera diagnostics need two clear pages:
+- Vision Camera Module 3
+- Vision OAK-D Lite
+
+### What helped
+
+- I added a non-streaming OAK-D Lite status probe.
+- I kept Camera Module 3 Wide / `picamera2` as the active runtime camera pipeline.
+- I added OAK-D Lite as a diagnostic-only source with `active_streaming=false`.
+- I added OAK-D Lite status to Feedback Mode.
+- I added separate Feedback Center pages for Camera Module 3 and OAK-D Lite.
+- I updated the Visual Shell / Godot page mapping so the new pages appear in the page list.
+- I fixed the Feedback Mode layout so the details table starts below the page buttons.
+- I replaced the old fixed detail top offset with a dynamic offset based on page-button rows, nav height, gaps, and `CENTER_DETAIL_TOP_MARGIN`.
+
+### If OAK-D Lite is not visible
+
+First check USB:
+
+```bash
+lsusb
+```
+
+Look for `03e7` or `Intel Movidius MyriadX`.
+
+Then check whether Python can import DepthAI:
+
+```bash
+.venv/bin/python - <<'PY'
+import importlib.util
+print("depthai_available=", importlib.util.find_spec("depthai") is not None)
+PY
+```
+
+Then run the project diagnostic:
+
+```bash
+.venv/bin/python -m tests.runtime.diagnostics.oak_depthai_detection_probe
+```
+
+If the device is still missing, I should check the USB cable, power, udev rule, and then replug the camera.
+
+### If Feedback Mode does not show the OAK page
+
+I should fully stop and restart the NeXa stack. I should also make sure an old Visual Shell / Godot process is not still running.
+
+After restart, Feedback Center should include:
+- Vision Camera Module 3
+- Vision OAK-D Lite
+
+### If the table overlaps the page buttons
+
+I should check `modules/presentation/visual_shell/godot_app/scripts/feedback_dashboard_view.gd`.
+
+The expected helper is:
+
+```text
+_center_page_content_top_offset()
+```
+
+The expected margin constant is:
+
+```text
+CENTER_DETAIL_TOP_MARGIN
+```
+
+The details table should start below the page-button rows, not at an old fixed top offset.

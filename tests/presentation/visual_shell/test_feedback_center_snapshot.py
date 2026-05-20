@@ -4,6 +4,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import pytest
+
+import modules.presentation.visual_shell.feedback.feedback_center_snapshot as feedback_snapshot
 from modules.presentation.visual_shell.feedback.feedback_center_snapshot import (
     build_feedback_center_snapshot,
 )
@@ -116,6 +119,60 @@ class FakeAssistant:
         )
 
 
+def _fake_oak_status() -> dict[str, Any]:
+    camera = {
+        "id": "camera_module_3_wide",
+        "label": "Camera Module 3 Wide / picamera2",
+        "type": "runtime_camera",
+        "backend": "picamera2",
+        "fallback_backend": "opencv",
+        "object_detector_backend": "hailo_yolov11",
+        "camera_index": 0,
+        "configured_enabled": True,
+        "active_runtime_backend": True,
+        "active_streaming": True,
+    }
+    oak = {
+        "id": "oak_d_lite_fixed_focus",
+        "label": "Luxonis OAK-D Lite Fixed Focus / DepthAI",
+        "type": "diagnostic_camera",
+        "backend": "depthai",
+        "usb_detected": True,
+        "depthai_available": True,
+        "depthai_device_count": 1,
+        "device_info": {
+            "mxid": "19443010C1A0E47D00",
+            "state": "X_LINK_UNBOOTED",
+            "protocol": "X_LINK_USB_VSC",
+        },
+        "usb_matches": ["Bus 003 Device 004: ID 03e7:2485 Intel Movidius MyriadX"],
+        "mxid": "19443010C1A0E47D00",
+        "state": "X_LINK_UNBOOTED",
+        "protocol": "X_LINK_USB_VSC",
+        "repo_has_oak_adapter": False,
+        "active_streaming": False,
+        "recommended_next_step": "Add a non-default OAK runtime adapter after a separate RGB/depth smoke test.",
+        "error": "",
+    }
+    return {
+        "camera_sources": [camera, oak],
+        "camera_module_3_wide": camera,
+        "oak_d_lite": oak,
+        "configured_vision_backend": {"backend": "picamera2", "fallback_backend": "opencv"},
+    }
+
+
+@pytest.fixture(autouse=True)
+def _stub_oak_probe(monkeypatch) -> None:
+    feedback_snapshot._OAK_STATUS_CACHE["timestamp"] = 0.0
+    feedback_snapshot._OAK_STATUS_CACHE["status"] = None
+    monkeypatch.setattr(
+        feedback_snapshot,
+        "build_vision_camera_status",
+        lambda **kwargs: _fake_oak_status(),
+    )
+
+
 def _section(snapshot: dict[str, Any], section_id: str) -> dict[str, Any]:
     for section in snapshot["sections"]:
         if section["id"] == section_id:
@@ -141,6 +198,8 @@ def test_feedback_center_snapshot_builds_required_sections(tmp_path: Path) -> No
         "logs",
         "memory",
         "vision",
+        "vision_camera_module_3",
+        "vision_oak_d_lite",
         "power",
     ]
     assert snapshot["current_activity"]["activity_state"] == "Running LLM dialogue"
@@ -168,6 +227,143 @@ def test_feedback_center_snapshot_builds_required_sections(tmp_path: Path) -> No
     assert performance_values["TTS first audio"] == "540.0 ms"
     assert performance_values["first_token_latency_ms"] == "120.0 ms"
     assert performance_values["first_speakable_chunk_latency_ms"] == "260.0 ms"
+
+
+def test_feedback_center_snapshot_includes_separate_camera_sources(tmp_path: Path) -> None:
+    snapshot = build_feedback_center_snapshot(
+        assistant=FakeAssistant(),
+        repo_root=tmp_path,
+        metrics_provider=FakeMetricsProvider(),
+    )
+
+    vision_values = {item["label"]: item["value"] for item in _section(snapshot, "vision")["items"]}
+
+    assert "Camera source: Camera Module 3 Wide / picamera2" in vision_values
+    assert "Camera source: OAK-D Lite Fixed Focus / DepthAI" in vision_values
+    assert "backend=picamera2" in vision_values["Camera source: Camera Module 3 Wide / picamera2"]
+    assert "depthai_available=yes" in vision_values["Camera source: OAK-D Lite Fixed Focus / DepthAI"]
+
+
+def test_feedback_center_snapshot_includes_camera_diagnostic_pages(tmp_path: Path) -> None:
+    snapshot = build_feedback_center_snapshot(
+        assistant=FakeAssistant(),
+        repo_root=tmp_path,
+        metrics_provider=FakeMetricsProvider(),
+    )
+
+    assert _section(snapshot, "vision_camera_module_3")["title"] == "Vision Camera Module 3"
+    assert _section(snapshot, "vision_oak_d_lite")["title"] == "Vision OAK-D Lite"
+
+
+def test_feedback_center_snapshot_camera_module_3_page_has_runtime_fields(tmp_path: Path) -> None:
+    snapshot = build_feedback_center_snapshot(
+        assistant=FakeAssistant(),
+        repo_root=tmp_path,
+        metrics_provider=FakeMetricsProvider(),
+    )
+
+    camera_values = {
+        item["label"]: item["value"]
+        for item in _section(snapshot, "vision_camera_module_3")["items"]
+    }
+
+    assert camera_values["Label"] == "Camera Module 3 Wide / picamera2"
+    assert camera_values["Backend"] == "picamera2"
+    assert camera_values["Fallback backend"] == "opencv"
+    assert camera_values["Camera index"] == "0"
+    assert camera_values["Object detector backend"] == "hailo_yolov11"
+    assert camera_values["Configured enabled"] == "yes"
+    assert camera_values["Active runtime backend"] == "yes"
+    assert camera_values["Active streaming"] == "yes"
+    assert "Current camera status" in camera_values
+    assert "Current capture worker status" in camera_values
+    assert "Current detector status" in camera_values
+
+
+def test_feedback_center_snapshot_oak_d_lite_page_has_non_streaming_fields(tmp_path: Path) -> None:
+    snapshot = build_feedback_center_snapshot(
+        assistant=FakeAssistant(),
+        repo_root=tmp_path,
+        metrics_provider=FakeMetricsProvider(),
+    )
+
+    oak_values = {
+        item["label"]: item["value"]
+        for item in _section(snapshot, "vision_oak_d_lite")["items"]
+    }
+
+    assert oak_values["Label"] == "OAK-D Lite Fixed Focus / DepthAI"
+    assert oak_values["USB detected"] == "yes"
+    assert "Intel Movidius MyriadX" in oak_values["USB matches"]
+    assert oak_values["DepthAI available"] == "yes"
+    assert oak_values["DepthAI device count"] == "1"
+    assert oak_values["MXID"] == "19443010C1A0E47D00"
+    assert oak_values["State"] == "X_LINK_UNBOOTED"
+    assert oak_values["Protocol"] == "X_LINK_USB_VSC"
+    assert oak_values["Active streaming"] == "no"
+    assert oak_values["Repo has OAK adapter"] == "no"
+    assert "RGB/depth smoke test" in oak_values["Recommended next step"]
+
+
+def test_feedback_center_snapshot_includes_oak_d_lite_fields(tmp_path: Path) -> None:
+    snapshot = build_feedback_center_snapshot(
+        assistant=FakeAssistant(),
+        repo_root=tmp_path,
+        metrics_provider=FakeMetricsProvider(),
+    )
+
+    vision_values = {item["label"]: item["value"] for item in _section(snapshot, "vision")["items"]}
+
+    assert vision_values["OAK USB detected"] == "yes"
+    assert vision_values["OAK DepthAI available"] == "yes"
+    assert vision_values["OAK device count"] == "1"
+    assert vision_values["OAK MXID"] == "19443010C1A0E47D00"
+    assert vision_values["OAK state"] == "X_LINK_UNBOOTED"
+    assert vision_values["OAK protocol"] == "X_LINK_USB_VSC"
+    assert vision_values["OAK active streaming"] == "no"
+    assert vision_values["OAK repo adapter"] == "no"
+    assert "RGB/depth smoke test" in vision_values["OAK recommended next step"]
+
+
+def test_feedback_center_snapshot_handles_oak_probe_failure(tmp_path: Path, monkeypatch) -> None:
+    feedback_snapshot._OAK_STATUS_CACHE["timestamp"] = 0.0
+    feedback_snapshot._OAK_STATUS_CACHE["status"] = None
+
+    def _raise_probe(**kwargs):
+        del kwargs
+        raise RuntimeError("depthai probe failed")
+
+    monkeypatch.setattr(feedback_snapshot, "build_vision_camera_status", _raise_probe)
+
+    snapshot = build_feedback_center_snapshot(
+        assistant=FakeAssistant(),
+        repo_root=tmp_path,
+        metrics_provider=FakeMetricsProvider(),
+    )
+
+    vision_values = {item["label"]: item["value"] for item in _section(snapshot, "vision")["items"]}
+    oak_values = {item["label"]: item["value"] for item in _section(snapshot, "vision_oak_d_lite")["items"]}
+
+    assert vision_values["Camera sources"] == "status unavailable"
+    assert vision_values["OAK-D Lite status error"] == "depthai probe failed"
+    assert oak_values["Label"] == "OAK-D Lite Fixed Focus / DepthAI"
+    assert oak_values["OAK-D Lite status error"] == "depthai probe failed"
+
+
+def test_feedback_center_snapshot_keeps_backward_compatible_vision_items(tmp_path: Path) -> None:
+    snapshot = build_feedback_center_snapshot(
+        assistant=FakeAssistant(),
+        repo_root=tmp_path,
+        metrics_provider=FakeMetricsProvider(),
+    )
+
+    vision_values = {item["label"]: item["value"] for item in _section(snapshot, "vision")["items"]}
+
+    assert "Camera status" in vision_values
+    assert "Camera backend" in vision_values
+    assert "Capture worker" in vision_values
+    assert "Detector status" in vision_values
+    assert "Camera source: Camera Module 3 Wide / picamera2" in vision_values
 
 
 def test_feedback_center_snapshot_handles_missing_sources(tmp_path: Path) -> None:

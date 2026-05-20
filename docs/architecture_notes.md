@@ -17419,3 +17419,29 @@ For look-at-me tracking, I improved the intended runtime behavior around smoothe
 The mobile base should rotate in place only when yaw assist is needed. It must not drive forward or backward during look-at-me tracking.
 
 The important architecture lesson from this sprint is that tests must prove the real runtime path, not only a hand-made unit path. For wake audio, the useful proof is the live OpenWakeWord input probe. For tracking, the useful proof is whether pan-tilt and mobile-base telemetry match the real physical behavior.
+
+---
+
+## 2026-05-20 - OAK-D Lite diagnostics and Feedback Mode camera pages
+
+I added OAK-D Lite as a diagnostic camera source without changing the active camera runtime.
+
+I checked the Luxonis OAK-D Lite Fixed Focus camera through USB and DepthAI. The system sees it as `Bus 003 Device 004: ID 03e7:2485 Intel Movidius MyriadX`. DepthAI is available, and the non-streaming device enumeration reports one device with `mxid=19443010C1A0E47D00`, `state=X_LINK_UNBOOTED`, and `protocol=X_LINK_USB_VSC`.
+
+I kept Camera Module 3 Wide / `picamera2` as the active runtime camera pipeline. I did not replace it, and I did not start OAK RGB or depth streaming. OAK-D Lite is represented as diagnostic-only for now, with `active_streaming=false`.
+
+I added separate camera source status so the system can show:
+- Camera Module 3 Wide / picamera2
+- OAK-D Lite Fixed Focus / DepthAI
+
+I also added separate Feedback Center pages:
+- Vision Camera Module 3
+- Vision OAK-D Lite
+
+The Visual Shell / Godot page mapping now includes those pages, so they are not hidden inside the general Vision page. I also fixed the Feedback Mode layout after the new pages made the page button row taller. The detail content now starts below the page buttons by calculating the content offset from the number of button rows, navigation height, gaps, and a margin.
+
+The next intended steps are:
+1. OAK-D Lite RGB/depth smoke test.
+2. Person distance estimate.
+3. "come closer" 20 cm dry-run.
+4. Follow-me mode later, only with strict safety gates.

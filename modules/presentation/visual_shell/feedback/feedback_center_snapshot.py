@@ -7,10 +7,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from modules.devices.vision.oak_depthai.device_probe import build_vision_camera_status
 from modules.presentation.visual_shell.service import VisualShellSystemMetricsProvider
 
 
 Severity = str
+_OAK_STATUS_CACHE_TTL_SECONDS = 10.0
+_OAK_STATUS_CACHE: dict[str, Any] = {"timestamp": 0.0, "status": None}
 
 
 @dataclass(slots=True)
@@ -22,6 +25,7 @@ class FeedbackCenterSnapshotBuilder:
     def build(self) -> dict[str, Any]:
         current_activity = self._current_activity_payload()
         recent_activity_events = self._diagnostics_events()
+        camera_source_status = self._cached_oak_depthai_status()
         sections = [
             self._overview_section(activity_payload=current_activity),
             self._activity_section(events=recent_activity_events),
@@ -32,7 +36,9 @@ class FeedbackCenterSnapshotBuilder:
             self._tests_section(),
             self._logs_section(),
             self._memory_section(),
-            self._vision_section(),
+            self._vision_section(camera_source_status=camera_source_status),
+            self._vision_camera_module_3_section(camera_source_status=camera_source_status),
+            self._vision_oak_d_lite_section(camera_source_status=camera_source_status),
             self._power_section(),
         ]
         return {
@@ -490,7 +496,7 @@ class FeedbackCenterSnapshotBuilder:
             ],
         )
 
-    def _vision_section(self) -> dict[str, Any]:
+    def _vision_section(self, *, camera_source_status: dict[str, Any] | None = None) -> dict[str, Any]:
         camera = self._camera_service()
         cam_status = _safe_dict_call(getattr(camera, "status", None)) if camera is not None else {}
         worker = getattr(camera, "_worker", None) if camera is not None else None
@@ -504,6 +510,7 @@ class FeedbackCenterSnapshotBuilder:
         tracking = metadata.get("vision_tracking_status") or "not available yet"
 
         focus_items = self._focus_presence_items(metadata)
+        camera_source_items = self._camera_source_items(camera_source_status)
 
         return _section(
             "vision",
@@ -516,9 +523,172 @@ class FeedbackCenterSnapshotBuilder:
                 _item("Latest observation age", _metric(cam_status.get("latest_observation_age_seconds"), suffix="s"), "Age of latest observation when available."),
                 _item("Pan-tilt status", pan_tilt, "Pan-tilt backend or status metadata."),
                 _item("Tracking status", tracking, "Vision tracking readiness/status metadata."),
+                *camera_source_items,
                 *focus_items,
             ],
         )
+
+    def _vision_camera_module_3_section(self, *, camera_source_status: dict[str, Any] | None = None) -> dict[str, Any]:
+        status = camera_source_status or {}
+        camera_module = self._camera_module_status_from(status)
+        camera = self._camera_service()
+        cam_status = _safe_dict_call(getattr(camera, "status", None)) if camera is not None else {}
+        worker = getattr(camera, "_worker", None) if camera is not None else None
+        worker_stats = _safe_dict_call(getattr(worker, "stats", None)) if worker is not None else {}
+        detector = _safe_dict_call(getattr(camera, "object_detector_status", None)) if camera is not None else {}
+
+        configured_backend = dict(status.get("configured_vision_backend") or {})
+        backend = _first_present(camera_module.get("backend"), configured_backend.get("backend"), cam_status.get("backend"), "not available yet")
+        fallback_backend = _first_present(camera_module.get("fallback_backend"), configured_backend.get("fallback_backend"), "not available yet")
+        object_detector_backend = _first_present(camera_module.get("object_detector_backend"), detector.get("backend"), "not available yet")
+
+        current_camera_status = cam_status.get("last_error") or ("ready" if cam_status else "not available yet")
+        current_worker_status = (
+            "running"
+            if worker_stats.get("is_running")
+            else worker_stats.get("state") or worker_stats.get("status") or "not available yet"
+        )
+        current_detector_status = detector.get("detail") or detector.get("backend") or "not available yet"
+
+        return _section(
+            "vision_camera_module_3",
+            "Vision Camera Module 3",
+            [
+                _item("Label", "Camera Module 3 Wide / picamera2", "Current runtime camera source."),
+                _item("Backend", backend, "Configured runtime camera backend."),
+                _item("Fallback backend", fallback_backend, "Configured fallback camera backend."),
+                _item("Camera index", _first_present(camera_module.get("camera_index"), configured_backend.get("camera_index"), "not available yet"), "Configured OpenCV fallback camera index."),
+                _item("Object detector backend", object_detector_backend, "Configured object detector backend."),
+                _item("Configured enabled", _yes_no(camera_module.get("configured_enabled")), "Whether the Camera Module 3 source is enabled in configuration."),
+                _item("Active runtime backend", _yes_no(camera_module.get("active_runtime_backend")), "Whether this is the active runtime camera backend."),
+                _item("Active streaming", _yes_no(camera_module.get("active_streaming")), "Whether the runtime camera source is actively streaming."),
+                _item("Current camera status", current_camera_status, "Current live camera service status.", "warning" if cam_status.get("last_error") else "ok" if cam_status else "unknown"),
+                _item("Current capture worker status", current_worker_status, "Current capture worker status when exposed."),
+                _item("Current detector status", current_detector_status, "Current detector status when exposed."),
+            ],
+        )
+
+    def _vision_oak_d_lite_section(self, *, camera_source_status: dict[str, Any] | None = None) -> dict[str, Any]:
+        status = camera_source_status or {}
+        if status.get("error"):
+            return _section(
+                "vision_oak_d_lite",
+                "Vision OAK-D Lite",
+                [
+                    _item("Label", "OAK-D Lite Fixed Focus / DepthAI", "Non-streaming diagnostic camera source."),
+                    _item("OAK-D Lite status error", status.get("error"), "Non-streaming OAK-D Lite diagnostics error.", "warning"),
+                ],
+            )
+
+        oak = self._oak_status_from(status)
+        items = [
+            _item("Label", "OAK-D Lite Fixed Focus / DepthAI", "Non-streaming diagnostic camera source."),
+            _item("USB detected", _yes_no(oak.get("usb_detected")), "Whether lsusb-style diagnostics found a Movidius/OAK USB device.", "ok" if oak.get("usb_detected") else "warning"),
+            _item("USB matches", _format_usb_matches(oak.get("usb_matches")), "USB lines matching Luxonis, Movidius, Myriad, OAK, or DepthAI."),
+            _item("DepthAI available", _yes_no(oak.get("depthai_available")), "Whether Python can import depthai.", "ok" if oak.get("depthai_available") else "warning"),
+            _item("DepthAI device count", _first_present(oak.get("depthai_device_count"), "0"), "Device count from non-streaming DepthAI enumeration."),
+            _item("MXID", _nested_oak_value(oak, "mxid") or "not available yet", "DepthAI device MXID when available."),
+            _item("State", _nested_oak_value(oak, "state") or "not available yet", "DepthAI device state when available."),
+            _item("Protocol", _nested_oak_value(oak, "protocol") or "not available yet", "DepthAI transport protocol when available."),
+            _item("Active streaming", _yes_no(oak.get("active_streaming")), "OAK-D Lite diagnostics do not start RGB or depth streaming.", "warning" if oak.get("active_streaming") else "ok"),
+            _item("Repo has OAK adapter", _yes_no(oak.get("repo_has_oak_adapter")), "Whether the repo already has a runtime OAK adapter.", "ok" if oak.get("repo_has_oak_adapter") else "info"),
+            _item("Recommended next step", oak.get("recommended_next_step") or "not available yet", "Suggested follow-up for OAK-D Lite integration."),
+        ]
+        if oak.get("error"):
+            items.append(_item("OAK-D Lite status error", oak.get("error"), "Non-streaming OAK-D Lite diagnostics error.", "warning"))
+        return _section("vision_oak_d_lite", "Vision OAK-D Lite", items)
+
+    def _camera_source_items(self, status: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        status = status or {}
+        if not status:
+            return [
+                _item(
+                    "Camera sources",
+                    "not available yet",
+                    "Camera source diagnostics are unavailable.",
+                    "unknown",
+                )
+            ]
+
+        if status.get("error"):
+            return [
+                _item(
+                    "Camera sources",
+                    "status unavailable",
+                    "Camera source diagnostics failed without blocking Feedback Mode.",
+                    "warning",
+                ),
+                _item(
+                    "OAK-D Lite status error",
+                    status.get("error"),
+                    "Non-streaming OAK-D Lite diagnostics error.",
+                    "warning",
+                ),
+            ]
+
+        camera_module = self._camera_module_status_from(status)
+        oak = self._oak_status_from(status)
+        items: list[dict[str, Any]] = [
+            _item(
+                "Camera source: Camera Module 3 Wide / picamera2",
+                _camera_source_summary(camera_module),
+                "Current runtime camera source. This remains separate from OAK-D Lite.",
+                "ok" if camera_module.get("active_runtime_backend") else "unknown",
+            ),
+            _item(
+                "Camera source: OAK-D Lite Fixed Focus / DepthAI",
+                _oak_source_summary(oak),
+                "Non-streaming OAK-D Lite diagnostic source.",
+                "ok" if oak.get("usb_detected") and oak.get("depthai_available") else "warning",
+            ),
+        ]
+        for label, key in (
+            ("OAK USB detected", "usb_detected"),
+            ("OAK DepthAI available", "depthai_available"),
+            ("OAK device count", "depthai_device_count"),
+            ("OAK MXID", "mxid"),
+            ("OAK state", "state"),
+            ("OAK protocol", "protocol"),
+            ("OAK active streaming", "active_streaming"),
+            ("OAK repo adapter", "repo_has_oak_adapter"),
+            ("OAK recommended next step", "recommended_next_step"),
+        ):
+            value = _nested_oak_value(oak, key)
+            severity = "ok"
+            if key == "active_streaming":
+                severity = "warning" if bool(value) else "ok"
+            elif key == "repo_has_oak_adapter":
+                severity = "ok" if bool(value) else "info"
+            elif key in {"usb_detected", "depthai_available"}:
+                severity = "ok" if bool(value) else "warning"
+            items.append(
+                _item(
+                    label,
+                    _yes_no(value) if isinstance(value, bool) else value,
+                    "OAK-D Lite non-streaming diagnostic status.",
+                    severity,
+                )
+            )
+        return items
+
+    def _cached_oak_depthai_status(self) -> dict[str, Any]:
+        now = time.monotonic()
+        cached_at = float(_OAK_STATUS_CACHE.get("timestamp") or 0.0)
+        cached_status = _OAK_STATUS_CACHE.get("status")
+        if isinstance(cached_status, dict) and now - cached_at < _OAK_STATUS_CACHE_TTL_SECONDS:
+            return dict(cached_status)
+
+        try:
+            status = build_vision_camera_status(
+                settings_path=self.repo_root / "config" / "settings.json",
+                vision_root=self.repo_root / "modules" / "devices" / "vision",
+            )
+        except Exception as exc:
+            status = {"error": str(exc)}
+
+        _OAK_STATUS_CACHE["timestamp"] = now
+        _OAK_STATUS_CACHE["status"] = dict(status)
+        return dict(status)
 
     def _focus_presence_items(self, runtime_metadata: dict[str, Any]) -> list[dict[str, Any]]:
         sentinel = runtime_metadata.get("focus_vision_sentinel")
@@ -579,6 +749,24 @@ class FeedbackCenterSnapshotBuilder:
             _item("Absence reminder last sent", str(absence_last) if absence_last else "none", "Timestamp of last absence reminder this session."),
         ]
         return items
+
+    def _camera_module_status_from(self, status: dict[str, Any]) -> dict[str, Any]:
+        camera_module = dict(status.get("camera_module_3_wide") or {})
+        if camera_module:
+            return camera_module
+        for source in status.get("camera_sources") or []:
+            if isinstance(source, dict) and source.get("id") == "camera_module_3_wide":
+                return dict(source)
+        return {}
+
+    def _oak_status_from(self, status: dict[str, Any]) -> dict[str, Any]:
+        oak = dict(status.get("oak_d_lite") or {})
+        if oak:
+            return oak
+        for source in status.get("camera_sources") or []:
+            if isinstance(source, dict) and source.get("id") == "oak_d_lite_fixed_focus":
+                return dict(source)
+        return {}
 
     def _power_section(self) -> dict[str, Any]:
         provider = self.metrics_provider or VisualShellSystemMetricsProvider()
@@ -870,6 +1058,47 @@ def _short_summary(payload: dict[str, Any]) -> str:
     if metadata:
         parts.append(f"metadata={metadata[:80]}")
     return "; ".join(parts) or "not measured yet"
+
+
+def _camera_source_summary(status: dict[str, Any]) -> str:
+    label = str(status.get("label") or "Camera Module 3 Wide / picamera2")
+    backend = str(status.get("backend") or "not available yet")
+    fallback = str(status.get("fallback_backend") or "not available yet")
+    active = _yes_no(status.get("active_runtime_backend", False))
+    streaming = _yes_no(status.get("active_streaming", False))
+    return (
+        f"{label}; backend={backend}; fallback={fallback}; "
+        f"active_runtime_backend={active}; active_streaming={streaming}"
+    )
+
+
+def _oak_source_summary(status: dict[str, Any]) -> str:
+    label = str(status.get("label") or "OAK-D Lite Fixed Focus / DepthAI")
+    usb = _yes_no(status.get("usb_detected", False))
+    depthai = _yes_no(status.get("depthai_available", False))
+    count = status.get("depthai_device_count", 0)
+    streaming = _yes_no(status.get("active_streaming", False))
+    return (
+        f"{label}; usb_detected={usb}; depthai_available={depthai}; "
+        f"device_count={count}; active_streaming={streaming}"
+    )
+
+
+def _format_usb_matches(value: object) -> str:
+    if isinstance(value, list):
+        lines = [str(item).strip() for item in value if str(item).strip()]
+        return "; ".join(lines[:3]) if lines else "none"
+    text = str(value or "").strip()
+    return text if text else "none"
+
+
+def _nested_oak_value(status: dict[str, Any], key: str) -> object:
+    if key in status:
+        return status.get(key)
+    device_info = status.get("device_info")
+    if isinstance(device_info, dict) and key in device_info:
+        return device_info.get(key)
+    return "not available yet"
 
 
 def _is_positive_number(value: object) -> bool:

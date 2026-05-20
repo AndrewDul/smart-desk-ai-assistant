@@ -306,9 +306,21 @@ def test_feedback_dashboard_accepts_structured_feedback_center_sections() -> Non
         "Logs",
         "Memory",
         "Vision",
+        "Camera Module 3",
+        "OAK-D Lite",
         "Power",
     ]:
         assert f'"{page_label}"' in dashboard
+    assert '"vision_camera_module_3"' in dashboard
+    assert '"vision_oak_d_lite"' in dashboard
+    assert "Vision Camera Module 3" in dashboard
+    assert "Vision OAK-D Lite" in dashboard
+    assert "const CENTER_PAGE_NAV_HEIGHT = 30.0" in dashboard
+    assert "const CENTER_PAGE_NAV_GAP = 6.0" in dashboard
+    assert "const CENTER_DETAIL_TOP_MARGIN = 16.0" in dashboard
+    assert "func _center_page_content_top_offset() -> float:" in dashboard
+    assert "return nav_height + nav_gaps + CENTER_DETAIL_TOP_MARGIN" in dashboard
+    assert "var top_offset = _center_page_content_top_offset()" in dashboard
     assert "FeedbackCenterCard_" in dashboard
     assert "FeedbackCenterDetailView" in dashboard
     assert "_center_card_views" in dashboard

@@ -23,6 +23,10 @@ const STATUS_NAME_COLOR = Color(0.86, 0.90, 0.96, 1.0)
 const STATUS_OK_COLOR = Color(0.45, 0.92, 0.65, 1.0)
 const STATUS_NOT_OK_COLOR = Color(1.0, 0.42, 0.46, 1.0)
 const CENTER_CARD_ITEM_LIMIT = 6
+const CENTER_PAGE_NAV_HEIGHT = 30.0
+const CENTER_PAGE_NAV_GAP = 6.0
+const CENTER_PAGE_NAV_COLUMNS = 5
+const CENTER_DETAIL_TOP_MARGIN = 16.0
 const LEGACY_FEEDBACK_CENTER_LABEL = "FEEDBACK CENTER"
 
 const TAB_CENTER = 0
@@ -47,7 +51,7 @@ const CENTER_CARD_IDS = [
 
 const CENTER_PAGE_IDS = [
     "overview", "activity", "runtime", "llm", "audio", "performance", "benchmarks",
-    "logs", "memory", "vision", "power"
+    "logs", "memory", "vision", "vision_camera_module_3", "vision_oak_d_lite", "power"
 ]
 
 const CENTER_PAGE_LABELS = {
@@ -61,6 +65,8 @@ const CENTER_PAGE_LABELS = {
     "logs": "Logs",
     "memory": "Memory",
     "vision": "Vision",
+    "vision_camera_module_3": "Camera Module 3",
+    "vision_oak_d_lite": "OAK-D Lite",
     "power": "Power",
 }
 
@@ -75,6 +81,8 @@ const CENTER_PAGE_SECTION = {
     "logs": "logs",
     "memory": "memory",
     "vision": "vision",
+    "vision_camera_module_3": "vision_camera_module_3",
+    "vision_oak_d_lite": "vision_oak_d_lite",
     "power": "power",
 }
 
@@ -597,7 +605,7 @@ func _layout_center_cards() -> void:
     if _center_card_views.empty():
         return
 
-    var top_offset = 78.0
+    var top_offset = _center_page_content_top_offset()
     var available_rect = Rect2(
         _center_panel_rect.position + Vector2(0.0, top_offset),
         Vector2(_center_panel_rect.size.x, _center_panel_rect.size.y - top_offset)
@@ -620,10 +628,9 @@ func _layout_center_cards() -> void:
 
 
 func _layout_center_page_nav() -> void:
-    var nav_h = 30.0
-    var gap = 6.0
-    var cols = 5
-    var rows = int(ceil(float(CENTER_PAGE_IDS.size()) / float(cols)))
+    var nav_h = CENTER_PAGE_NAV_HEIGHT
+    var gap = CENTER_PAGE_NAV_GAP
+    var cols = CENTER_PAGE_NAV_COLUMNS
     var page_w = (_center_panel_rect.size.x - gap * float(cols - 1)) / float(cols)
     _center_page_nav_rects.clear()
 
@@ -644,9 +651,16 @@ func _layout_center_page_nav() -> void:
 func _layout_center_detail_view() -> void:
     if _center_detail_view == null:
         return
-    var top_offset = 78.0
+    var top_offset = _center_page_content_top_offset()
     _center_detail_view.rect_position = _center_panel_rect.position + Vector2(0.0, top_offset)
     _center_detail_view.rect_size = Vector2(_center_panel_rect.size.x, _center_panel_rect.size.y - top_offset)
+
+
+func _center_page_content_top_offset() -> float:
+    var rows = int(ceil(float(CENTER_PAGE_IDS.size()) / float(CENTER_PAGE_NAV_COLUMNS)))
+    var nav_height = float(rows) * CENTER_PAGE_NAV_HEIGHT
+    var nav_gaps = float(max(0, rows - 1)) * CENTER_PAGE_NAV_GAP
+    return nav_height + nav_gaps + CENTER_DETAIL_TOP_MARGIN
 
 
 func _redraw_status_grid() -> void:
@@ -840,6 +854,10 @@ func _fallback_center_card_title(card_id: String) -> String:
         return "Memory"
     if card_id == "vision":
         return "Camera / Vision / Pan-Tilt"
+    if card_id == "vision_camera_module_3":
+        return "Vision Camera Module 3"
+    if card_id == "vision_oak_d_lite":
+        return "Vision OAK-D Lite"
     if card_id == "power":
         return "Power / Battery"
     return "Runtime Health"
