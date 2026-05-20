@@ -6636,3 +6636,41 @@ CENTER_DETAIL_TOP_MARGIN
 ```
 
 The details table should start below the page-button rows, not at an old fixed top offset.
+
+---
+
+## 2026-05-20 - NeXa prints the time but the user cannot hear it
+
+### Problem
+
+NeXa said the time in logs and marked `delivered=true`, but the user heard nothing. The response delivery was reporting success based on whether fallback text existed, not based on whether TTS audio actually played.
+
+### Fix
+
+I fixed response delivery semantics so `delivered=true` only happens after a real successful `speak()` and playback. I also split spoken-only time commands from visual time commands.
+
+### If the time is printed but not spoken
+
+Check the new playback telemetry. The fields to look at are:
+- `playback_backend`
+- `playback_command`
+- `playback_exit_code`
+- `playback_stderr`
+- `audio_file_exists`
+- `audio_file_size_bytes`
+- `tts_delivered`
+- `last_tts_error`
+
+Run the focused diagnostic:
+
+```bash
+.venv/bin/python -m tests.runtime.diagnostics.time_tts_playback_probe
+```
+
+### If "what time is it" shows Visual Shell time
+
+Routing is wrong. That phrase should go to `ask_time` / `spoken_only` and must not send a Visual Shell time payload.
+
+### If "show me the time" does not show Visual Shell time
+
+Check `show_visual_time` / `visual_shell.show_time` routing. That action should speak the time and also display it in Visual Shell.

@@ -403,6 +403,8 @@ class TTSPipelineSynthesisMixin:
         if first_audio_started_at <= 0.0:
             first_audio_started_at = time.monotonic() if played else 0.0
         first_audio_ms = (first_audio_started_at - started_at) * 1000.0 if played else 0.0
+        playback_attempt = self._latest_wav_playback_attempt()
+        playback_attempt.pop("first_audio_started_at_monotonic", None)
         self._store_playback_report(
             engine="piper",
             success=played,
@@ -412,6 +414,7 @@ class TTSPipelineSynthesisMixin:
             wav_ready_source=ready_source,
             cache_hit=cache_hit,
             prepare_next_ms=0.0,
+            **playback_attempt,
         )
 
         if played:
@@ -459,6 +462,8 @@ class TTSPipelineSynthesisMixin:
         if retry_first_audio_started_at <= 0.0:
             retry_first_audio_started_at = time.monotonic() if played else 0.0
         retry_first_audio_ms = (retry_first_audio_started_at - started_at) * 1000.0 if played else 0.0
+        playback_attempt = self._latest_wav_playback_attempt()
+        playback_attempt.pop("first_audio_started_at_monotonic", None)
         self._store_playback_report(
             engine="piper",
             success=played,
@@ -468,6 +473,7 @@ class TTSPipelineSynthesisMixin:
             wav_ready_source="retry_ready",
             cache_hit=False,
             prepare_next_ms=0.0,
+            **playback_attempt,
         )
         if played:
             if bool(getattr(self, "_tts_hot_path_success_log_enabled", False)):

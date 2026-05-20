@@ -186,13 +186,40 @@ class ActionVisualShellActionsMixin:
         resolved: ResolvedAction,
         request: SkillRequest | None = None,
     ) -> SkillResult:
-        return self._handle_visual_shell_action(
-            route=route,
+        del request
+
+        now = self._now_london()
+        spoken = now.strftime("%H %M")
+        visual_sent, visual_error = self._send_visual_time_payload()
+        delivered = self._deliver_simple_action_response(
             language=language,
-            payload=payload,
-            resolved=resolved,
-            request=request,
             action="show_visual_time",
+            spoken_text=spoken,
+            display_title="TIME",
+            display_lines=[now.strftime("%H:%M")],
+            extra_metadata={
+                "resolved_source": resolved.source,
+                "time_action_mode": "visual_time",
+                "visual_shell_action": "show_visual_time",
+                "visual_shell_payload_sent": bool(visual_sent),
+                "visual_shell_payload_error": visual_error,
+            },
+        )
+        return SkillResult(
+            action="show_visual_time",
+            handled=True,
+            response_delivered=bool(delivered),
+            status="accepted" if visual_sent else "visual_shell_unavailable",
+            metadata={
+                "source": "action_flow.visual_shell",
+                "response_kind": "direct_response" if bool(delivered) else "accepted_only",
+                "visual_shell_action": "show_visual_time",
+                "visual_shell_payload_sent": bool(visual_sent),
+                "visual_shell_payload_error": visual_error,
+                "time_action_mode": "visual_time",
+                "resolved_source": resolved.source,
+                "payload_keys": sorted(payload.keys()),
+            },
         )
 
     def _handle_show_temperature(
@@ -212,6 +239,22 @@ class ActionVisualShellActionsMixin:
             request=request,
             action="show_temperature",
         )
+
+    def _send_visual_time_payload(self) -> tuple[bool, str]:
+        lane = self._visual_shell_lane()
+        if lane is None:
+            return False, "visual_shell_lane_unavailable"
+
+        try:
+            controller_method = getattr(lane, "_controller", None)
+            controller = controller_method() if callable(controller_method) else getattr(lane, "controller", None)
+            show_current_time = getattr(controller, "show_current_time", None)
+            if not callable(show_current_time):
+                return False, "visual_shell_controller_time_unavailable"
+            return bool(show_current_time(source="action_flow.visual_shell")), ""
+        except Exception as error:
+            self.LOGGER.warning("Visual Shell time payload failed safely: %s", error)
+            return False, f"{type(error).__name__}: {error}"
 
     def _handle_show_battery(
         self,

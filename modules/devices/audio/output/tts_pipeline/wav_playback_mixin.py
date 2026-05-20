@@ -44,6 +44,52 @@ class TTSPipelineWavPlaybackMixin:
     def _should_try_sounddevice_playback(self) -> bool:
         return bool(getattr(self, "_direct_sounddevice_playback_enabled", False))
 
+    def _playback_file_status(self, wav_path: Path) -> dict[str, object]:
+        path = Path(wav_path)
+        exists = path.exists()
+        size = 0
+        if exists:
+            try:
+                size = int(path.stat().st_size)
+            except OSError:
+                size = 0
+        return {
+            "audio_file": str(path),
+            "audio_file_exists": exists,
+            "audio_file_size_bytes": size,
+        }
+
+    def _store_wav_playback_attempt(self, **values: object) -> None:
+        self._last_wav_playback_attempt = dict(values)
+
+    def _latest_wav_playback_attempt(self) -> dict[str, object]:
+        return dict(getattr(self, "_last_wav_playback_attempt", {}) or {})
+
+    def _playback_attempt_from_process_result(
+        self,
+        *,
+        backend_name: str,
+        wav_path: Path,
+        result: dict[str, object],
+        first_audio_started_at: float,
+    ) -> dict[str, object]:
+        return {
+            "playback_backend": backend_name,
+            "playback_command": str(result.get("command_display", "") or ""),
+            "playback_exit_code": result.get("return_code"),
+            "playback_stderr": self._truncate_process_output(
+                str(result.get("stderr_text", "") or "")
+                or str(result.get("error_text", "") or "")
+            ),
+            "playback_stdout": self._truncate_process_output(
+                str(result.get("stdout_text", "") or "")
+            ),
+            "playback_process_started": bool(result.get("return_code") is not None or result.get("error_text")),
+            "playback_timed_out": bool(result.get("timed_out", False)),
+            "playback_interrupted": bool(result.get("interrupted", False)),
+            "first_audio_started_at_monotonic": float(first_audio_started_at or 0.0),
+            **self._playback_file_status(wav_path),
+        }
 
     def _sounddevice_playback_available(self) -> bool:
         cached = getattr(self, "_sounddevice_playback_ready", None)
@@ -144,6 +190,14 @@ class TTSPipelineWavPlaybackMixin:
         import sounddevice as sd
 
         if not wav_path.exists():
+            self._store_wav_playback_attempt(
+                playback_backend="sounddevice",
+                playback_command="sounddevice.OutputStream",
+                playback_exit_code=None,
+                playback_stderr="wav file missing",
+                playback_process_started=False,
+                **self._playback_file_status(wav_path),
+            )
             return False, 0.0
 
         if presence_playback:
@@ -245,11 +299,29 @@ class TTSPipelineWavPlaybackMixin:
             success = bool(
                 started_output_at > 0.0 and (finished or not self._stop_event_is_set(stop_event))
             )
+            self._store_wav_playback_attempt(
+                playback_backend="sounddevice",
+                playback_command="sounddevice.OutputStream",
+                playback_exit_code=0 if success else 1,
+                playback_stderr="",
+                playback_process_started=started_output_at > 0.0,
+                first_audio_started_at_monotonic=started_output_at if success else 0.0,
+                **self._playback_file_status(wav_path),
+            )
             return success, started_output_at
 
         except Exception as error:
             append_log(f"Sounddevice playback failed: {error}")
             self._sounddevice_playback_ready = False
+            self._store_wav_playback_attempt(
+                playback_backend="sounddevice",
+                playback_command="sounddevice.OutputStream",
+                playback_exit_code=None,
+                playback_stderr=str(error),
+                playback_process_started=started_output_at > 0.0,
+                first_audio_started_at_monotonic=0.0,
+                **self._playback_file_status(wav_path),
+            )
             return False, 0.0
         finally:
             if presence_playback:
@@ -327,7 +399,24 @@ class TTSPipelineWavPlaybackMixin:
         presence_playback: bool = False,
     ) -> tuple[bool, float]:
         if not wav_path.exists():
+            self._store_wav_playback_attempt(
+                playback_backend="none",
+                playback_command="",
+                playback_exit_code=None,
+                playback_stderr="wav file missing",
+                playback_process_started=False,
+                **self._playback_file_status(Path(wav_path)),
+            )
             return False, 0.0
+
+        self._store_wav_playback_attempt(
+            playback_backend="none",
+            playback_command="",
+            playback_exit_code=None,
+            playback_stderr="not attempted yet",
+            playback_process_started=False,
+            **self._playback_file_status(Path(wav_path)),
+        )
 
         playback_started_at = time.monotonic()
 
@@ -379,7 +468,7 @@ class TTSPipelineWavPlaybackMixin:
                     timeout_seconds=self._playback_timeout_seconds,
                     source=f"{backend_name}_playback",
                     poll_sleep_seconds=getattr(self, "_playback_poll_seconds", 0.005),
-                    capture_output=False,
+                    capture_output=True,
                     on_process_started=_mark_first_audio if callable(on_first_audio) else None,
                 )
             else:
@@ -391,6 +480,16 @@ class TTSPipelineWavPlaybackMixin:
                     stop_event=stop_event,
                     on_process_started=_mark_first_audio if callable(on_first_audio) else None,
                 )
+            process_result = self._get_last_process_result(f"{backend_name}_playback")
+            if process_result:
+                self._store_wav_playback_attempt(
+                    **self._playback_attempt_from_process_result(
+                        backend_name=backend_name,
+                        wav_path=Path(wav_path),
+                        result=process_result,
+                        first_audio_started_at=first_audio_started_at,
+                    )
+                )
             if ok:
                 self._last_good_playback_backend = backend_name
                 if bool(getattr(self, "_tts_hot_path_success_log_enabled", False)):
@@ -400,6 +499,10 @@ class TTSPipelineWavPlaybackMixin:
                     )
                 if first_audio_started_at <= 0.0:
                     first_audio_started_at = time.monotonic()
+                    attempt = self._latest_wav_playback_attempt()
+                    attempt["first_audio_started_at_monotonic"] = first_audio_started_at
+                    attempt["playback_process_started"] = True
+                    self._store_wav_playback_attempt(**attempt)
                 return True, first_audio_started_at
 
         append_log("All playback backends failed for current WAV.")

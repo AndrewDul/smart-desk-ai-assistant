@@ -109,6 +109,7 @@ class ActionFlowOrchestrator(
         "introduce_self",
         "ask_time",
         "show_time",
+        "show_visual_time",
         "ask_date",
         "show_date",
         "ask_day",

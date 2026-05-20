@@ -486,9 +486,12 @@ def test_default_grammar_routes_show_time_to_visual_shell_without_hijacking_time
     grammar = build_default_command_grammar()
 
     visual_cases = [
+        ("show me the time", "visual_shell.show_time", "en"),
         ("show time", "visual_shell.show_time", "en"),
         ("show the time", "visual_shell.show_time", "en"),
+        ("display the time", "visual_shell.show_time", "en"),
         ("pokaż czas", "visual_shell.show_time", "pl"),
+        ("pokaż mi czas", "visual_shell.show_time", "pl"),
         ("pokaż godzinę", "visual_shell.show_time", "pl"),
     ]
 
@@ -506,6 +509,10 @@ def test_default_grammar_routes_show_time_to_visual_shell_without_hijacking_time
     polish_question = grammar.match("która godzina")
     assert polish_question.status == CommandRecognitionStatus.MATCHED
     assert polish_question.intent_key == "system.current_time"
+
+    polish_tell = grammar.match("powiedz mi godzinę")
+    assert polish_tell.status == CommandRecognitionStatus.MATCHED
+    assert polish_tell.intent_key == "system.current_time"
 
 
 def test_default_grammar_routes_show_date_to_visual_shell() -> None:

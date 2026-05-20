@@ -161,8 +161,7 @@ class CoreAssistantResponseMixin:
                 stream_method = getattr(self.response_streamer, "stream", None)
                 if callable(stream_method):
                     try:
-                        stream_method(plan)
-                        delivered = True
+                        delivered = bool(stream_method(plan))
                     except Exception as error:
                         log_exception("Response streamer stream failed", error)
 
@@ -194,7 +193,7 @@ class CoreAssistantResponseMixin:
                     except Exception as error:
                         log_exception("Fallback display output failed", error)
 
-                    delivered = bool(spoken_ok or fallback_text)
+                    delivered = bool(spoken_ok)
                     remembered_text = fallback_text
 
                     append_log(
@@ -231,7 +230,7 @@ class CoreAssistantResponseMixin:
                     except Exception as error:
                         log_exception("Recovery display output failed", error)
 
-                    delivered = bool(spoken_ok or recovery_text)
+                    delivered = bool(spoken_ok)
                     remembered_text = recovery_text
 
                     append_log(
@@ -288,15 +287,19 @@ class CoreAssistantResponseMixin:
                         or 0.0
                     ),
                 )
+            plan_metadata = dict(getattr(plan, "metadata", {}) or {})
+            safe_extra_metadata = dict(extra_metadata or {})
+            tts_playback_snapshot = self._latest_tts_playback_telemetry()
             log_turn_timeline(
                 self,
                 event="tts_finished",
                 response_ms=max(0.0, (finished_at - started_at) * 1000.0),
                 delivered=bool(delivered),
+                time_action_mode=str(safe_extra_metadata.get("time_action_mode", "") or ""),
+                tts_delivered=bool(delivered),
+                **tts_playback_snapshot,
             )
 
-            plan_metadata = dict(getattr(plan, "metadata", {}) or {})
-            safe_extra_metadata = dict(extra_metadata or {})
             self._last_response_delivery_snapshot = {
                 "source": source,
                 "route_kind": route_kind_value,
@@ -306,6 +309,9 @@ class CoreAssistantResponseMixin:
                 "display_lines": list(display_lines or plan_metadata.get("display_lines", []) or []),
                 "remembered": bool(remember and remembered_text),
                 "delivered": bool(delivered),
+                "tts_delivered": bool(delivered),
+                "time_action_mode": str(safe_extra_metadata.get("time_action_mode", "") or ""),
+                **tts_playback_snapshot,
                 "fallback_used": bool(not self._stream_report_delivered(stream_report)),
                 "extra_metadata": safe_extra_metadata,
                 "plan_metadata": plan_metadata,
@@ -328,6 +334,7 @@ class CoreAssistantResponseMixin:
                         "response_source": source,
                         "delivered": bool(delivered),
                         "first_audio_ms": self._last_response_stream_report.first_audio_ms,
+                        **tts_playback_snapshot,
                     },
                 )
 
@@ -336,6 +343,13 @@ class CoreAssistantResponseMixin:
                 f"route_kind={route_kind_value}, "
                 f"source={source}, "
                 f"delivered={delivered}, "
+                f"time_action_mode={safe_extra_metadata.get('time_action_mode', '-')}, "
+                f"playback_backend={tts_playback_snapshot.get('playback_backend', '-')}, "
+                f"playback_exit_code={tts_playback_snapshot.get('playback_exit_code', '-')}, "
+                f"playback_process_started={tts_playback_snapshot.get('playback_process_started', '-')}, "
+                f"audio_file_exists={tts_playback_snapshot.get('audio_file_exists', '-')}, "
+                f"audio_file_size_bytes={tts_playback_snapshot.get('audio_file_size_bytes', '-')}, "
+                f"last_tts_error={tts_playback_snapshot.get('last_tts_error', '-')}, "
                 f"remembered={bool(remember and remembered_text)}, "
                 f"chars={len(remembered_text)}, "
                 f"display_title={display_title or '-'}, "
@@ -418,6 +432,36 @@ class CoreAssistantResponseMixin:
             return int(getattr(stream_report, "chunks_spoken", 0) or 0) > 0
         except Exception:
             return False
+
+    def _latest_tts_playback_telemetry(self) -> dict[str, Any]:
+        report_method = getattr(getattr(self, "voice_out", None), "latest_speak_report", None)
+        if not callable(report_method):
+            return {}
+
+        try:
+            report = dict(report_method() or {})
+        except Exception:
+            return {}
+
+        playback_stderr = str(report.get("playback_stderr", "") or "").strip()
+        playback_error = playback_stderr or str(report.get("playback_error", "") or "").strip()
+        if not playback_error and report.get("success") is False:
+            playback_error = "tts playback did not report success"
+
+        return {
+            "playback_backend": str(
+                report.get("playback_backend")
+                or report.get("engine")
+                or ""
+            ),
+            "playback_command": str(report.get("playback_command", "") or ""),
+            "playback_exit_code": report.get("playback_exit_code"),
+            "playback_stderr": playback_stderr,
+            "audio_file_exists": bool(report.get("audio_file_exists", False)),
+            "audio_file_size_bytes": int(report.get("audio_file_size_bytes", 0) or 0),
+            "playback_process_started": bool(report.get("playback_process_started", False)),
+            "last_tts_error": playback_error,
+        }
     
     def _extract_streamed_response_text(
         self,

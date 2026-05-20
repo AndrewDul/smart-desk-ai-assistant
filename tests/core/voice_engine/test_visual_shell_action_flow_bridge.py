@@ -14,6 +14,14 @@ from modules.runtime.contracts import (
 class _FakeVisualShellLane:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
+        self.time_payloads: list[dict[str, Any]] = []
+
+    def _controller(self):
+        return self
+
+    def show_current_time(self, *, source: str = "unit-test") -> bool:
+        self.time_payloads.append({"source": source})
+        return True
 
     def try_handle(self, *, prepared: dict[str, Any], assistant: Any) -> bool:
         self.calls.append(dict(prepared))
@@ -152,7 +160,6 @@ def test_action_flow_delegates_extended_visual_shell_actions_to_visual_shell_lan
         ("wróć do chmury", "pl", "return_to_idle", "visual_shell.return_to_idle", "visual_shell.return_to_idle"),
         ("show temperature", "en", "show_temperature", "visual_shell.show_temperature", "visual_shell.show_temperature"),
         ("pokaż baterię", "pl", "show_battery", "visual_shell.show_battery", "visual_shell.show_battery"),
-        ("show the time", "en", "show_visual_time", "visual_shell.show_time", "visual_shell.show_time"),
         ("show the date", "en", "show_visual_date", "visual_shell.show_date", "visual_shell.show_date"),
     ]
 
@@ -178,3 +185,58 @@ def test_action_flow_delegates_extended_visual_shell_actions_to_visual_shell_lan
         assert flow._last_skill_result is not None
         assert flow._last_skill_result.action == primary_intent
         assert flow._last_skill_result.status == "accepted"
+
+
+def test_action_flow_show_visual_time_sends_payload_and_speaks_time() -> None:
+    visual_shell_lane = _FakeVisualShellLane()
+    assistant = _FakeAssistant(visual_shell_lane)
+    flow = ActionFlowOrchestrator(assistant)
+
+    handled = flow.execute(
+        route=_route(
+            raw_text="show me the time",
+            language="en",
+            primary_intent="show_visual_time",
+            tool_name="visual_shell.show_time",
+            intent_key="visual_shell.show_time",
+        ),
+        language="en",
+    )
+
+    assert handled is True
+    assert visual_shell_lane.time_payloads == [{"source": "action_flow.visual_shell"}]
+    assert assistant.delivered_plans
+    plan = assistant.delivered_plans[0][0][0]
+    metadata = assistant.delivered_plans[0][1]["extra_metadata"]
+    assert plan.chunks[0].text
+    assert metadata["time_action_mode"] == "visual_time"
+    assert metadata["visual_shell_payload_sent"] is True
+    assert flow._last_skill_result is not None
+    assert flow._last_skill_result.action == "show_visual_time"
+    assert flow._last_skill_result.metadata["visual_shell_payload_sent"] is True
+
+
+def test_action_flow_ask_time_speaks_without_visual_shell_time_payload() -> None:
+    visual_shell_lane = _FakeVisualShellLane()
+    assistant = _FakeAssistant(visual_shell_lane)
+    flow = ActionFlowOrchestrator(assistant)
+
+    handled = flow.execute(
+        route=_route(
+            raw_text="what time is it",
+            language="en",
+            primary_intent="ask_time",
+            tool_name="clock.time",
+            intent_key="system.current_time",
+        ),
+        language="en",
+    )
+
+    assert handled is True
+    assert visual_shell_lane.time_payloads == []
+    assert assistant.delivered_plans
+    metadata = assistant.delivered_plans[0][1]["extra_metadata"]
+    assert metadata["time_action_mode"] == "spoken_only"
+    assert metadata["visual_shell_payload_sent"] is False
+    assert flow._last_skill_result is not None
+    assert flow._last_skill_result.action == "ask_time"

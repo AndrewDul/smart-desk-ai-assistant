@@ -1125,10 +1125,17 @@ class ActionSystemActionsMixin:
             spoken_text=spoken,
             display_title="TIME",
             display_lines=[now.strftime("%H:%M")],
-            extra_metadata={"resolved_source": resolved.source},
+            extra_metadata={
+                "resolved_source": resolved.source,
+                "time_action_mode": "spoken_only",
+                "visual_shell_payload_sent": False,
+            },
         )
 
     def _handle_show_time(self, **kwargs: Any) -> bool:
+        visual_handler = getattr(self, "_handle_show_visual_time", None)
+        if callable(visual_handler):
+            return visual_handler(**kwargs)
         return self._handle_ask_time(**kwargs)
 
     def _handle_ask_date(

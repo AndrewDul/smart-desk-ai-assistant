@@ -34,6 +34,24 @@ class EmptyReportStreamer:
         )
 
 
+class FailingVoiceOutput(FakeVoiceOutput):
+    def speak(self, text: str, **kwargs) -> bool:
+        self.speak_calls.append({"text": str(text), **kwargs})
+        self._last_speak_report = {
+            "text": str(text),
+            "success": False,
+            "engine": "fake",
+            "playback_backend": "fake",
+            "playback_command": "fake-play",
+            "playback_exit_code": 1,
+            "playback_stderr": "simulated playback failure",
+            "playback_process_started": True,
+            "audio_file_exists": True,
+            "audio_file_size_bytes": 128,
+        }
+        return False
+
+
 class DummyAssistant(CoreAssistantResponseMixin):
     ASSISTANT_NAME = "NeXa"
 
@@ -170,6 +188,51 @@ class ResponseDeliveryTests(unittest.TestCase):
         self.assertEqual(assistant.remembered_turns[0]["text"], "This is the fallback answer.")
         self.assertIsNotNone(assistant._last_response_stream_report)
         self.assertEqual(assistant._last_response_stream_report.full_text, "This is the fallback answer.")
+
+    def test_playback_failure_does_not_report_delivered_true(self) -> None:
+        assistant = DummyAssistant(EmptyReportStreamer())
+        assistant.voice_out = FailingVoiceOutput()
+
+        delivered = assistant.deliver_text_response(
+            "The time is ten thirty.",
+            language="en",
+            route_kind=RouteKind.ACTION,
+            source="action_flow:ask_time",
+        )
+
+        self.assertFalse(delivered)
+        self.assertIsNotNone(assistant._last_response_delivery_snapshot)
+        self.assertFalse(assistant._last_response_delivery_snapshot["delivered"])
+        self.assertFalse(assistant._last_response_delivery_snapshot["tts_delivered"])
+        self.assertEqual(assistant._last_response_delivery_snapshot["playback_backend"], "fake")
+        self.assertEqual(assistant._last_response_delivery_snapshot["playback_exit_code"], 1)
+        self.assertEqual(
+            assistant._last_response_delivery_snapshot["last_tts_error"],
+            "simulated playback failure",
+        )
+
+    def test_time_response_does_not_block_next_tts_response(self) -> None:
+        assistant = DummyAssistant(EmptyReportStreamer())
+
+        first_delivered = assistant.deliver_text_response(
+            "19 55",
+            language="en",
+            route_kind=RouteKind.ACTION,
+            source="action_flow:ask_time",
+            metadata={"time_action_mode": "spoken_only"},
+        )
+        second_delivered = assistant.deliver_text_response(
+            "Okay.",
+            language="en",
+            route_kind=RouteKind.ACTION,
+            source="action_flow:exit",
+        )
+
+        self.assertTrue(first_delivered)
+        self.assertTrue(second_delivered)
+        self.assertEqual(len(assistant.voice_out.speak_calls), 2)
+        self.assertEqual(assistant.voice_out.speak_calls[0]["text"], "19 55")
+        self.assertEqual(assistant.voice_out.speak_calls[1]["text"], "Okay.")
 
     def test_deliver_response_plan_recovers_when_live_stream_returns_nothing(self) -> None:
         assistant = DummyAssistant(EmptyReportStreamer())

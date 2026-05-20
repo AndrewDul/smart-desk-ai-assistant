@@ -62,16 +62,21 @@ class IntentParser(
             r"\bpodaj godzine\b",
             r"\bjaki jest czas\b",
             r"\bpowiedz godzine\b",
+            r"\bpowiedz mi godzine\b",
+            r"\bpowiedz ktora godzina\b",
         ]
         self.time_show_patterns = [
             r"\bshow(?: me)? the time\b",
             r"\bdisplay(?: me)? the time\b",
             r"\bshow time\b",
             r"\bdisplay time\b",
+            r"\bshow clock\b",
+            r"\bshow(?: me)? the clock\b",
             r"\bpokaz(?: mi)? godzine\b",
             r"\bwyswietl(?: mi)? godzine\b",
             r"\bpokaz(?: mi)? czas\b",
             r"\bwyswietl(?: mi)? czas\b",
+            r"\bpokaz(?: mi)? zegar\b",
         ]
 
         self.date_query_patterns = [

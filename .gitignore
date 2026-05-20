@@ -186,3 +186,7 @@ var/run/
 *.patch
 var/log/
 var/patches/
+
+# Local runtime / hardware logs
+hailort.log
+**/hailort.log

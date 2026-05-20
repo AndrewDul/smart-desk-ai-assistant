@@ -17445,3 +17445,55 @@ The next intended steps are:
 2. Person distance estimate.
 3. "come closer" 20 cm dry-run.
 4. Follow-me mode later, only with strict safety gates.
+
+---
+
+## 2026-05-20 - Time command TTS delivery and spoken/visual time routing
+
+I found a bug where NeXa printed the time to logs and marked `delivered=true` in response telemetry, but the user heard nothing. The problem was that `delivered=true` was being set based on whether a fallback text value existed, not based on whether TTS audio was actually produced and played back.
+
+I confirmed that `ask_time` uses the normal `action_flow` TTS path. I then fixed response delivery semantics so `delivered=true` only happens after a real successful `speak()` and playback completes.
+
+I split time commands into two distinct routing categories.
+
+Spoken-only time commands route to `ask_time` / `spoken_only`. These do not send any Visual Shell time payload. The phrases are:
+- what time is it
+- tell me the time
+- what's the time
+- what is the time
+- która jest godzina
+- która godzina
+- powiedz mi godzinę
+- powiedz która godzina
+
+Visual time commands route to `show_visual_time` / `visual_shell.show_time`. These speak the time and also display it in Visual Shell. The phrases are:
+- show me the time
+- show the time
+- display the time
+- show clock
+- show me the clock
+- pokaż mi czas
+- pokaż czas
+- pokaż godzinę
+- wyświetl godzinę
+- pokaż zegar
+
+I added playback telemetry fields to make audio delivery failures diagnosable:
+- `time_action_mode`
+- `playback_backend`
+- `playback_command`
+- `playback_exit_code`
+- `playback_stderr`
+- `audio_file_exists`
+- `audio_file_size_bytes`
+- `playback_process_started`
+- `tts_delivered`
+- `last_tts_error`
+
+I added a focused diagnostic:
+
+```bash
+.venv/bin/python -m tests.runtime.diagnostics.time_tts_playback_probe
+```
+
+This change did not touch robot movement, OAK streaming, camera pipelines, look-at-me, pan-tilt, mobile base, or Feedback Mode layout.

@@ -452,6 +452,22 @@ def test_voice_router_does_not_show_desktop_from_bare_pulpit_substring() -> None
             assert match is None, text
 
 
+def test_voice_router_routes_visual_time_phrases_to_show_time() -> None:
+    router = VisualShellVoiceCommandRouter()
+
+    for text in (
+        "show me the time",
+        "display the time",
+        "pokaż mi czas",
+        "pokaż godzinę",
+        "pokaż zegar",
+    ):
+        match = router.match(text)
+        assert match is not None, text
+        assert match.action == VisualVoiceAction.SHOW_TIME
+        assert match.matched_rule == "show_time"
+
+
 def test_voice_router_recovers_english_like_hide_desktop_stt_errors() -> None:
     router = VisualShellVoiceCommandRouter()
 

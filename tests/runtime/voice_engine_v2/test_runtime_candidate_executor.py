@@ -504,11 +504,11 @@ def test_runtime_candidate_executor_builds_extended_visual_shell_action_routes()
 
 def test_runtime_candidate_executor_builds_visual_shell_show_time_route() -> None:
     builder = RuntimeCandidateExecutionPlanBuilder()
-    turn = _turn_result("show the time", language=CommandLanguage.ENGLISH)
+    turn = _turn_result("show me the time", language=CommandLanguage.ENGLISH)
 
     plan = builder.build_plan(
         turn_result=turn,
-        transcript="show the time",
+        transcript="show me the time",
         metadata={"source": "unit_test"},
     )
 

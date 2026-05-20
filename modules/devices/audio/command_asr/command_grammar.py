@@ -1044,6 +1044,30 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             "system.current_time",
+            "powiedz mi godzinę",
+            CommandLanguage.POLISH,
+            tags=("system", "time"),
+        ),
+        CommandPhrase(
+            "system.current_time",
+            "powiedz mi godzine",
+            CommandLanguage.POLISH,
+            tags=("system", "time"),
+        ),
+        CommandPhrase(
+            "system.current_time",
+            "powiedz która godzina",
+            CommandLanguage.POLISH,
+            tags=("system", "time"),
+        ),
+        CommandPhrase(
+            "system.current_time",
+            "powiedz ktora godzina",
+            CommandLanguage.POLISH,
+            tags=("system", "time"),
+        ),
+        CommandPhrase(
+            "system.current_time",
             "what time is it",
             CommandLanguage.ENGLISH,
             tags=("system", "time"),
@@ -1051,6 +1075,18 @@ def build_default_command_grammar() -> CommandGrammar:
         CommandPhrase(
             "system.current_time",
             "tell me the time",
+            CommandLanguage.ENGLISH,
+            tags=("system", "time"),
+        ),
+        CommandPhrase(
+            "system.current_time",
+            "what's the time",
+            CommandLanguage.ENGLISH,
+            tags=("system", "time"),
+        ),
+        CommandPhrase(
+            "system.current_time",
+            "what is the time",
             CommandLanguage.ENGLISH,
             tags=("system", "time"),
         ),
@@ -1131,6 +1167,18 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             "visual_shell.show_time",
+            "pokaż mi czas",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_time",
+            "pokaz mi czas",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_time",
             "pokaż godzinę",
             CommandLanguage.POLISH,
             tags=("visual_shell", "metric"),
@@ -1143,7 +1191,37 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             "visual_shell.show_time",
+            "wyświetl godzinę",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_time",
+            "wyswietl godzine",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_time",
+            "pokaż zegar",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_time",
+            "pokaz zegar",
+            CommandLanguage.POLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_time",
             "show time",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_time",
+            "show me the time",
             CommandLanguage.ENGLISH,
             tags=("visual_shell", "metric"),
         ),
@@ -1155,7 +1233,25 @@ def build_default_command_grammar() -> CommandGrammar:
         ),
         CommandPhrase(
             "visual_shell.show_time",
+            "display the time",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_time",
             "display time",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_time",
+            "show clock",
+            CommandLanguage.ENGLISH,
+            tags=("visual_shell", "metric"),
+        ),
+        CommandPhrase(
+            "visual_shell.show_time",
+            "show me the clock",
             CommandLanguage.ENGLISH,
             tags=("visual_shell", "metric"),
         ),
